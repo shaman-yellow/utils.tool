@@ -39,9 +39,11 @@ msource <-
            block = "symbol",
            symbol = "^## ========== Run block ==========",
            extra = NA,
+           script = NA,
            source = T
            ){
-    script <- find_latest_script(path, pattern)$file[1]
+    if(is.na(script))
+      script <- find_latest_script(path, pattern)$file[1]
     ## ------------------------------------- 
     df <- data.table::fread(file = script, header = F, sep = NULL) %>% 
       dplyr::rename(code = 1) %>% 
@@ -56,6 +58,8 @@ msource <-
       unlist() %>% 
       strsplit(split = ",") %>% 
       lapply(as.numeric)
+    if(!source)
+      return(cluster)
     ## ------------------------------------- 
     run.block <- grep(symbol, df$code)
     if(length(class) == 0){
@@ -75,11 +79,7 @@ msource <-
       paste(collapse = "\n") %>% 
       parse(text = .)
     ## ------------------------------------- 
-    if(source){
-      source(exprs = script)
-    }else{
-      return(cluster)
-    }
+    source(exprs = script)
     ## ------------------------------------- 
     # source(exprs = parse(text = script))
   }
