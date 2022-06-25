@@ -10,4 +10,5 @@ build_docu_from_script <-
     ## ---------------------------------------------------------------------- 
     cluster <- msource(path = path, pattern = pattern,
                        script = script, source = F)
+    return(cluster)
   }
