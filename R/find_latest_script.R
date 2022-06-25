@@ -36,18 +36,25 @@ msource <-
   function(
            path = "~/outline",
            pattern = ".*R$",
-           block = "symbol",
+           block = "^## -{1,}",
            symbol = "^## ========== Run block ==========",
            extra = NA,
            script = NA,
+           CODE = NA,
            source = T
            ){
     if(is.na(script))
       script <- find_latest_script(path, pattern)$file[1]
     ## ------------------------------------- 
-    df <- data.table::fread(file = script, header = F, sep = NULL) %>% 
+    if(length(CODE) == 1 & is.na(CODE[1])){
+      CODE <- data.table::fread(file = script, header = F, sep = NULL)
+    }
+    if(!is.data.frame(CODE)){
+      CODE <- data.table::data.table(CODE)
+    }
+    df <- CODE %>% 
       dplyr::rename(code = 1) %>% 
-      dplyr::mutate(valid = ifelse(!grepl(paste0("^## -{1,}"), code), T, F),
+      dplyr::mutate(valid = ifelse(!grepl(block, code), T, F),
                     valid = ifelse(grepl(symbol, code), T, valid),
                     row = rownames(.),
                     line = ifelse(valid, row, ","))

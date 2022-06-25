@@ -3,12 +3,14 @@ title: "MCnebula workflow for LC-MS/MS dataset analysis"
 bibliography: '`r system.file("extdata", "library.bib", package = "utils.tool")`'
 csl: '`r system.file("extdata", "styles.csl", package = "utils.tool")`'
 output:
-  pdf_document:
+  bookdown::pdf_document2:
     toc: true
     toc_depth: 3
     latex_engine: xelatex
     df_print: kable
 ---
+
+# MCnebula workflow
 
 ## Introduction
 
@@ -78,6 +80,18 @@ system(
 
 @start
 
+## Guidance
+
+### Details of workflow
+
+An end-to-end analysis of MCnebula workflow from sample to multi-chemical-nebulae is show in figure \@ref(fig:workflow)
+
+```{r workflow, echo = F, fig.cap = "workflow"}
+file <- system.file("extdata", "workflow.png", package = "utils.tool")
+png <- png::readPNG(file)
+grid::grid.raster(png)
+```
+
 ## Information
 
 All output files:
@@ -93,3 +107,4 @@ sessionInfo()
 ```
 
 ## Reference
+
