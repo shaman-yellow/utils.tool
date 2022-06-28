@@ -94,7 +94,7 @@ stack_ms1 <-
                               function(chr){
                                 int <- MSnbase::intensity(chr)
                                 rt <- MSnbase::rtime(chr)
-                                data.table(real.time = rt, int = int)
+                                data.table::data.table(real.time = rt, int = int)
                               })
           names(data.list) <- metadata$sample
           ## format
