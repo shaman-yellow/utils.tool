@@ -5,11 +5,11 @@ show_png <-
            ){
     if(grepl("\\.svg$", file)){
       tofile <- sub("\\.svg$", ".png", file)
-      system(
-        paste(
-          "cairosvg -i", file, "-d 300", "-o", tofile
+      if(!file.exists(tofile)){
+        system(
+               paste("cairosvg -i", file, "-d 300", "-o", tofile)
         )
-      )
+      }
       file <- tofile
     }
     png <- magick::image_read(file)
