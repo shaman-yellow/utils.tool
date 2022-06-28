@@ -1,13 +1,14 @@
 show_png <- 
   function(
            file,
+           path = "mcnebula_results",
            size = "500x"
            ){
     if(grepl("\\.svg$", file)){
       tofile <- sub("\\.svg$", ".png", file)
       if(!file.exists(tofile)){
         system(
-               paste("cairosvg -i", file, "-d 300", "-o", tofile)
+               paste0("cairosvg -i ", path, "/", file, " -d 300", " -o ", path, "/", tofile)
         )
       }
       file <- tofile
