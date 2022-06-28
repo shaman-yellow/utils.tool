@@ -2,6 +2,9 @@
 title: "MCnebula workflow for LC-MS/MS dataset analysis"
 bibliography: '`r system.file("extdata", "library.bib", package = "utils.tool")`'
 csl: '`r system.file("extdata", "styles.csl", package = "utils.tool")`'
+pandoc_args: [
+  "-M", "link-citations=true"
+]
 output:
   bookdown::pdf_document2:
     keep_tex: true

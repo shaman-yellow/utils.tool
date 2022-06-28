@@ -2,7 +2,7 @@
 pandoc.docx <- 
   function(
            file.md,
-           path = "~/Documents/article/"
+           path = "/mnt/data/wizard/Documents/article/"
            ){
     local.path <- getwd()
     setwd(path)
@@ -24,7 +24,7 @@ pandoc.docx <-
                         ## as table
                         df <- data.table::data.table(cite = cite, seq = 1:length(cite))
                         ## replace
-                        md <- extra::mapply_rename_col(df$cite, df$seq, md)
+                        md <- mapply_rename_col(df$cite, df$seq, md)
                         ## push to parent envir
                         assign("md", md, envir = parent.frame(2))
                         return(df)
