@@ -150,7 +150,7 @@ stack_ms1 <-
           aes(x = anno.x, y = anno.y, label = anno),
           hjust = 0, fontface = "bold", family = "Times") +
         scale_y_continuous(labels = scales::scientific) +
-        facet_wrap( ~ paste("ID:", .id), scales="free") +
+        facet_wrap( ~ paste("ID:", .id), scales = "free") +
         theme_minimal() +
         scale_color_manual(values = palette) +
         theme(text = element_text(family = "Times"),
