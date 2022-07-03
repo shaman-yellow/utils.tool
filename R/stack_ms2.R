@@ -9,7 +9,8 @@ stack_ms2 <-
            struc.x = 0.7,
            struc.y = 0.3,
            filename = ifelse(file.exists("mcnebula_results"),
-                             paste0("mcnebula_results", "/", "mirror.ms2.svg"), "mirror.ms2.svg")
+                             paste0("mcnebula_results", "/", "mirror.ms2.svg"), "mirror.ms2.svg"),
+           merge_via_int = T
            ){
     if(!require("MCnebula", quietly = T)){
       cat("MCnebula not loaded\n")
@@ -44,7 +45,8 @@ stack_ms2 <-
          ms2 <- dplyr::mutate(ms2, rel.int = int / max(int) * 100)
          ## merge raw with assigned ms2
          ms2.merge <- numeric_round_merge(ms2, sig.spec, main_col = "mass", sub_col = "mz")
-         ms2.merge <- dplyr::filter(ms2.merge, abs(rel.int - rel.intensity) < 1)
+         if(merge_via_int)
+           ms2.merge <- dplyr::filter(ms2.merge, abs(rel.int - rel.intensity) < 1)
          ms2.merge <- dplyr::bind_rows(ms2.merge, ms2)
          ms2.merge <- dplyr::distinct(ms2.merge, mass, int, .keep_all = T)
          return(list(mz = mz, rt = rt, ms2 = ms2.merge))
