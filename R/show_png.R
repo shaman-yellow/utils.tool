@@ -2,11 +2,12 @@ show_png <-
   function(
            file,
            size = "500x",
-           path = "mcnebula_results"
+           path = "."
            ){
     if(grepl("\\.svg$", file)){
       tofile <- sub("\\.svg$", ".png", file)
       if(!file.exists(tofile)){
+        path <- normalizePath(path)
         system(
                paste0("cairosvg -i ", path, "/", file, " -d 300", " -o ", path, "/", tofile)
         )

@@ -15,6 +15,7 @@ set.sig.wd <-
     print(list.files(all.files = T))
     cat("## Done\n")
   }
+## ---------------------------------------------------------------------- 
 set.initial.wd <- 
   function(
            wd = "~/operation/geo_db/ahr_sig"
@@ -36,6 +37,7 @@ anno.gene.biomart <-
   function(
            db = "hsapiens_gene_ensembl",
            host = NULL,
+           attr = NA,
            ex.attr = NA
            ){
     if(is.null(host)){
@@ -43,33 +45,37 @@ anno.gene.biomart <-
     }else{
       ensembl <- biomaRt::useEnsembl(biomart = "ensembl", dataset = db, host = host)
     }
-    attr <- c("ensembl_gene_id",
-              "hgnc_symbol",
-              "chromosome_name",
-              "start_position",
-              "end_position"
-    )
+    if(!is.character(attr)){
+      attr <- c("ensembl_gene_id",
+                "hgnc_symbol",
+                "chromosome_name",
+                "start_position",
+                "end_position"
+      )
+    }
     if(is.character(ex.attr))
       attr <- c(attr, ex.attr)
     anno <- biomaRt::getBM(attr, mart = ensembl)
-    anno <- dplyr::mutate(anno, eff.len = abs(end_position - start_position)) %>% 
-      dplyr::as_tibble()
+    anno <- dplyr::as_tibble(anno)
     return(anno)
   }
 ## ---------------------------------------------------------------------- 
 anno.gene.edb <- 
   function(
-           dge = dge.list,
+           keys,
            package = "EnsDb.Hsapiens.v86",
            columns = c("GENEID", "SYMBOL", "EXONID",
                        "EXONSEQSTART", "EXONSEQEND"),
-           keytype = "GENEID"
+           keytype = "GENEID",
+           ex.attr = NA
            ){
+    if(is.character(ex.attr))
+      columns <- c(columns, ex.attr)
     obj <- paste0(package, "::", package)
     obj <- eval(parse(text = obj))
     genes <- AnnotationDbi::select(obj,
                                    keytype = keytype,
-                                   keys = rownames(dge),
+                                   keys = keys,
                                    columns = columns)
     genes <- dplyr::distinct(genes, across(all_of(keytype)), .keep_all = T)
   }
@@ -130,7 +136,8 @@ fpkm_log2tpm <-
     cset <- apply(dge$counts, 2,
                   function(vec){
                     log2(
-                         exp(log(vec) - log(sum(vec)) + log(1e6)) + 1
+                         # vec / sum(vec) * 1e6 + 1
+                         exp(log(vec) - log(sum(vec, na.rm = T)) + log(1e6)) + 1
                          )
                   })
     dge$counts <- cset
@@ -162,8 +169,13 @@ limma_downstream <-
            min.count = 10,
            voom = T,
            cut.q = 0.05,
-           cut.fc = 0.3
+           cut.fc = 0.3,
+           get_ebayes = F,
+           get_normed.exprs = F
            ){
+    # if(NA %in% dge.list$samples[["lib.size"]]){
+      # dge.list$samples[["lib.size"]] <- apply(dge.list$counts, 2, sum, na.rm = T)
+    # }
     keep.exprs <- edgeR::filterByExpr(dge.list, group = group., min.count = min.count)
     ## filter gene
     dge.list <- edgeR::`[.DGEList`(dge.list, keep.exprs, , keep.lib.sizes = F)
@@ -182,6 +194,8 @@ limma_downstream <-
       dge.list <- scale(dge.list$counts, scale = F, center = T)
     }
     ## ------------------------------------- 
+    if(get_normed.exprs)
+      return(dge.list)
     ## linear fit
     fit <- limma::lmFit(dge.list, design)
     ## add annotation
@@ -195,6 +209,9 @@ limma_downstream <-
     fit.cont <- limma::contrasts.fit(fit, contrasts = contr.matrix)
     ## p_value and q-value
     ebayes <- limma::eBayes(fit.cont, trend = ifelse(voom, F, T))
+    ## ------------------------------------- 
+    if(get_ebayes)
+      return(ebayes)
     ## top table
     res <- lapply(1:ncol(contr.matrix), function(coef){
                     results <- limma::topTable(ebayes, coef = coef, number = Inf) %>% 
@@ -206,6 +223,32 @@ limma_downstream <-
     names(res) <- colnames(contr.matrix)
     return(res)
   }
+## ---------------------------------------------------------------------- 
+limma_downstream.eset <- 
+  function(
+           eset,
+           design,
+           contr.matrix,
+           cut.q = 0.05,
+           cut.fc = 0.3
+           ){
+    fit <- limma::lmFit(eset, design)
+    ## contrast fit
+    fit.cont <- limma::contrasts.fit(fit, contrasts = contr.matrix)
+    ## p_value and q-value
+    ebayes <- limma::eBayes(fit.cont)
+    ## top table
+    res <- lapply(1:ncol(contr.matrix), function(coef){
+                    results <- limma::topTable(ebayes, coef = coef, number = Inf) %>% 
+                      dplyr::filter(adj.P.Val < cut.q, abs(logFC) > cut.fc) %>% 
+                      dplyr::as_tibble() 
+                    return(results)
+           })
+    ## ------------------------------------- 
+    names(res) <- colnames(contr.matrix)
+    return(res)
+  }
+## ---------------------------------------------------------------------- 
 list.attr.biomart <- 
   function(
            biomart = "ensembl",
@@ -215,6 +258,7 @@ list.attr.biomart <-
                                 dataset = dataset) %>% 
     biomaRt::listAttributes(mart = .) %>% 
     dplyr::as_tibble()
+  return(attr)
   }
 show_boxplot <- 
   function(
