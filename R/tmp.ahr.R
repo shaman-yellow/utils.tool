@@ -171,7 +171,8 @@ limma_downstream <-
            cut.q = 0.05,
            cut.fc = 0.3,
            get_ebayes = F,
-           get_normed.exprs = F
+           get_normed.exprs = F,
+           block = NULL
            ){
     # if(NA %in% dge.list$samples[["lib.size"]]){
       # dge.list$samples[["lib.size"]] <- apply(dge.list$counts, 2, sum, na.rm = T)
@@ -197,7 +198,16 @@ limma_downstream <-
     if(get_normed.exprs)
       return(dge.list)
     ## linear fit
-    fit <- limma::lmFit(dge.list, design)
+    ## ------------------------------------- 
+    if(!is.null(block)){
+      dupcor <- limma::duplicateCorrelation(dge.list, design, block = block)
+      cor <- dupcor$consensus.correlation
+      cat("## Within-donor correlation:", cor, "\n")
+    }else{
+      cor <- NULL
+    }
+    ## ------------------------------------- 
+    fit <- limma::lmFit(dge.list, design, block = block, correlation = cor)
     ## add annotation
     if(!voom){
       ## gene annotation
@@ -208,7 +218,7 @@ limma_downstream <-
     ## contrast fit
     fit.cont <- limma::contrasts.fit(fit, contrasts = contr.matrix)
     ## p_value and q-value
-    ebayes <- limma::eBayes(fit.cont, trend = ifelse(voom, F, T))
+    ebayes <- limma::eBayes(fit.cont)
     ## ------------------------------------- 
     if(get_ebayes)
       return(ebayes)
