@@ -15,10 +15,15 @@ output:
 
 ## Introduction
 
-A classified visualization method, called MCnebula, was used for the analysis of untargeted LC-MS/MS datasets.
+We know that the analysis of untargeted LC-MS/MS dataset generally begin with feature detection.
+It detects 'peaks' as features in MS^1^ data.
+Each feature may represents a compound, and assigned with MS^2^ spectra.
+The MS^2^ spectra was used to find out the compound identity.
+The difficulty lies in annotating these features to discover their compound identity, mining out meaningful information, so as to serve further biological research.
+Herein, a classified visualization method, called MCnebula, was used for addressing this difficulty.
 MCnebula utilizes the state-of-the-art computer prediction technology, SIRIUS workflow (SIRIUS, ZODIAC, CSI:fingerID, CANOPUS)[@2019; @2009; @2015; @2020a; @2015a; @2021a], for compound formula prediction, structure retrieve and classification prediction.
-MCnebula integrates an abundance-based class selection algorithm into compound annotation.
-The benefits of molecular networking, i.e. intuitive visualization and a large amount of integratable information, were incorporated into MCnebula visualization.
+MCnebula integrates an abundance-based class selection algorithm into features annotation: depending on the user, MCnebula parses chemical classes with more or less features in the dataset (the abundance of classes), visualizes them, and displays the feautres they involved;
+these classes can be dominant structural classes or sub-structural classes.
 With MCnebula, we can switch from untargeted to targeted analysis, focusing precisely on the compound or chemical class of interest to the researcher.  
 
 &ensp;&ensp; 
