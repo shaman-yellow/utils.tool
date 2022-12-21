@@ -2,7 +2,6 @@
 # class
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #' @import grid
-#' @import reticulate
 graph <- 
   setClass("graph", 
            contains = character(),
@@ -776,7 +775,10 @@ sym_fill <- function(long, short){
 # get external grob
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-.expathsvg <- system.file("extdata", "svg", package = "utils.tool")
+.expathsvg <-
+  system.file("extdata", "svg",
+              package = gsub("^.*:", "",
+                             environmentName(topenv(environment()))))
 prefix <- c()
 
 .check_external_svg <- function(){

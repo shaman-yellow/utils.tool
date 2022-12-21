@@ -178,3 +178,52 @@ agroup <- function(group, value, FUN.VALUE = character(1)) {
   dic <- .as_dic(value, ug, fill = F, na.rm = F)
   vapply(group, function(g) dic[[g]], FUN.VALUE)
 }
+
+write_tsv <-
+  function(x, filename, col.names = T, row.names = F){
+    write.table(x, file = filename, sep = "\t",
+                col.names = col.names, row.names = row.names, quote = F)
+  }
+
+read_tsv <- function(path){
+  file <- data.table::fread(input = path, sep = "\t",
+                            header = T, quote = "", check.names = F)
+  return(file)
+}
+
+mapply_rename_col <- 
+  function(
+           mutate_set,
+           replace_set,
+           names,
+           fixed = F
+           ){
+    envir <- environment()
+    mapply(mutate_set, replace_set,
+           MoreArgs = list(envir = envir, fixed = fixed),
+           FUN = function(mutate, replace, envir,
+                          fixed = F, names = get("names", envir = envir)){
+             names <- gsub(mutate, replace, names, perl = ifelse(fixed, F, T), fixed = fixed)
+             assign("names", names, envir = envir)
+           })
+    return(names)
+  }
+
+turn_vector <- function(vec) {
+  names <- names(vec)
+  names(vec) <- unname(vec)
+  vec[] <- names
+  vec
+}
+
+group_switch <- function(data, lst, by) {
+  if (!is.character(data[[ by ]]))
+    stop( "is.character(data[[ by ]]) == F" )
+  meta <- unlist(lst)
+  names(meta) <- rep(names(lst), lengths(lst))
+  meta <- as.list(turn_vector(meta))
+  data <- data[data[[by]] %in% names(meta), ]
+  group <- do.call(vapply, c(list(data[[ by ]]), switch, character(1), meta))
+  split(data, group)
+}
+
