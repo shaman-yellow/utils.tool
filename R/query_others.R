@@ -1,10 +1,10 @@
 # ==========================================================================
 # query other property for compounds using pubchem API
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-query_iupuc <-
+query_iupac <-
   function(inchikey2d,
            dir,
-           rdata.name = "iupuc.rdata",
+           rdata.name = "iupac.rdata",
            curl_cl = NULL,
            gather_as_rdata = T,
            ...

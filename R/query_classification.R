@@ -14,17 +14,22 @@ query_classification <-
            ){
     rdata <- paste0(dir, "/", rdata.name)
     classes <- extract_rdata_list(rdata)
-    inchikey2d <- inchikey2d[!inchikey2d %in% names(classes)]
+    if (!is.null(classes))
+      inchikey2d <- inchikey2d[!inchikey2d %in% names(classes)]
     if(length(inchikey2d) == 0)
       return(paste0(dir, "/", rdata.name))
     inchikey_set <- extract_rdata_list(inchikey.rdata, inchikey2d)
+    if (is.null(inchikey_set))
+      stop("is.null(inchikey_set) == T. File `inchikey.rdata` may not exists.")
     sets <- lapply(inchikey_set, function(df){
                      if("InChIKey" %in% colnames(df))
                        return(df)
            })
     sets <- data.table::rbindlist(sets)
     sets <- dplyr::mutate(sets, inchikey2d = stringr::str_extract(InChIKey, "^[A-Z]{1,}"))
-    classyfire_get_classification(sets, dir, classyfire_cl = classyfire_cl, ...)
+    l <- classyfire_get_classification(sets, dir, classyfire_cl = classyfire_cl, ...)
+    if (is.logical(l))
+      return(paste0(dir, "/", rdata.name))
     if (gather_as_rdata) {
       cat("## gather data\n")
       packing_as_rdata_list(dir, pattern = "^[A-Z]{14}$",
@@ -45,7 +50,7 @@ classyfire_get_classification <-
       log_df <- data.table::fread(log_file)
       sets <- dplyr::filter(sets, !InChIKey %in% log_df$log)
       if(nrow(sets) == 0)
-        return()
+        return(F)
     }
     sets <- split(data.frame(sets), ~ inchikey2d)
     log <- pbapply::pblapply(names(sets), cl = classyfire_cl,

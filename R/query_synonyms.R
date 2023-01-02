@@ -13,20 +13,24 @@ query_synonyms <-
            ){
     rdata <- paste0(dir, "/", rdata.name)
     cid_set <- extract_rdata_list(rdata)
-    cid_set <- data.table::rbindlist(cid_set)
-    if (nrow(cid_set) > 0)
-      extra <- list(cid_set)
-    else
+    if (!is.null(cid_set)) {
+      cid_set <- data.table::rbindlist(cid_set)
+      if (nrow(cid_set) > 0)
+        extra <- list(cid_set)
+      else
+        extra <- NULL
+      if("cid" %in% colnames(cid_set)){
+        cid_set <- dplyr::distinct(cid_set, cid, syno)
+      }
+      cid <- cid[!cid %in% cid_set$cid]
+      if(length(cid) == 0) 
+        return(paste0(dir, "/", rdata.name))
+    } else {
       extra <- NULL
-    if("cid" %in% colnames(cid_set)){
-      cid_set <- dplyr::distinct(cid_set, cid, syno)
     }
-    cid <- cid[!cid %in% cid_set$cid]
-    if(length(cid) == 0) 
-      return(paste0(dir, "/", rdata.name))
     group <- grouping_vec2list(cid, group_number = group_number)
     pbapply::pblapply(group, pubchem_get_synonyms,
-                      dir = dir, cl = curl_cl, ...)
+                      dir = dir, ..., cl = curl_cl)
     if (gather_as_rdata) {
       cat("## gather data\n")
       packing_as_rdata_list(dir, pattern = "^G[0-9]{1,}$",
@@ -93,11 +97,11 @@ grouping_vec2list <-
                     byrow = byrow)
     group <- apply(group, 1, c, simplify = F)
     group <- c(group, list(tail(vector, n = rest)))
-    group <- mapply(group, paste0("G", 1:length(.)),
-                    SIMPLIFY = F,
-                    FUN = function(vec, name){
-                      attr(vec, "name") <- name
-                      return(vec)
+    group <- lapply(1:length(group),
+                    function(n) {
+                      vec <- group[[n]]
+                      attr(vec, "name") <- paste0("G", n)
+                      vec
                     })
     if(rest == 0)
       group <- group[1:(length(group) - 1)]

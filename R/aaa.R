@@ -216,14 +216,42 @@ turn_vector <- function(vec) {
   vec
 }
 
-group_switch <- function(data, lst, by) {
+group_switch <- function(data, meta.lst, by) {
   if (!is.character(data[[ by ]]))
     stop( "is.character(data[[ by ]]) == F" )
-  meta <- unlist(lst)
-  names(meta) <- rep(names(lst), lengths(lst))
+  meta <- unlist(meta.lst)
+  names(meta) <- rep(names(meta.lst), lengths(meta.lst))
   meta <- as.list(turn_vector(meta))
   data <- data[data[[by]] %in% names(meta), ]
-  group <- do.call(vapply, c(list(data[[ by ]]), switch, character(1), meta))
+  group <- data.frame(order = 1:length(data[[ by ]]), col = data[[ by ]])
+  group <- split(group, ~ col)
+  group <- lapply(names(group),
+                  function(name){
+                    data <- group[[ name ]]
+                    data$col <- meta[[ name ]]
+                    return(data)
+                  })
+  group <- data.table::rbindlist(group)
+  group <- group[order(group$order), ]$col
   split(data, group)
 }
 
+.find_and_sort_strings <- 
+  function(strings, patterns){
+    lapply(patterns,
+           function(pattern){
+             strings[grepl(pattern, strings, perl = T)]
+           })
+  }
+
+maps <- function(data, value, from, to) {
+  if (!is.list(value))
+    value <- list(value)
+  lapply(value,
+         function(value) {
+           data <- data[data[[from]] %in% value, ]
+           vec <- data[[ to ]]
+           names(vec) <- data[[ from ]]
+           vec
+         })
+}

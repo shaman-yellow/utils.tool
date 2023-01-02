@@ -12,7 +12,8 @@ query_inchikey <-
            ){
     rdata <- paste0(dir, "/", rdata.name)
     inchikey_set <- extract_rdata_list(rdata)
-    inchikey2d <- inchikey2d[!inchikey2d %in% names(inchikey_set)]
+    if (!is.null(inchikey_set))
+      inchikey2d <- inchikey2d[!inchikey2d %in% names(inchikey_set)]
     if(length(inchikey2d) == 0)
       return(paste0(dir, "/", rdata.name))
     pbapply::pblapply(inchikey2d, pubchem_get_inchikey,
