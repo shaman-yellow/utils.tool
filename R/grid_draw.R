@@ -723,6 +723,19 @@ grectN <- function(lab.1, lab.2, gp = gpar(fontface = "plain"),
   into(grectn(bfill, , list(lty = "solid")), frame)
 }
 
+grecta <- function(label, cex = 4) {
+  grob <- gtext(
+    label, list(cex = cex), form = F,
+    x = 0, y = u(1, npc),
+    just = c("left", "top")
+  )
+  cvp <- viewport(
+    grobWidth(grob), 0, u(1, npc) - grobWidth(grob), .95,
+    just = c("left", "bottom")
+  )
+  graph(grob = grob, cvp = cvp)
+}
+
 gshiny <- function(xn = 4, yn = 3,
                    xps = seq(0, 1, , xn), yps = seq(0, 1, , yn),
                    size = c(.15, .02),

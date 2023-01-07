@@ -255,3 +255,13 @@ maps <- function(data, value, from, to) {
            vec
          })
 }
+
+## use 'molconvert' ...
+## https://chemaxon.com/marvin
+molconvert_structure <-
+  function(smile, path){
+    system(paste0("molconvert mol \"", smile, "\" -o ", path))
+    src <- paste(readLines(path), collapse = "\n")
+    ChemmineOB::convertToImage("MOL", "SVG", source = src, toFile = path)
+    rsvg::rsvg_svg(path, path)
+  }

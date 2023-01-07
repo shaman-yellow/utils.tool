@@ -2,22 +2,22 @@
 # extra tool for report system
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-gather_sections <- function(prefix = "s", envir = parent.frame(),
-  sort = T, get = T)
-{
-  objs <- ls(envir = envir)
-  sections <- objs[ grepl(paste0("^", prefix, "[0-9]"), objs) ]
-  if (sort) {
-    num <- stringr::str_extract(
-      sections, paste0("(?<=", prefix, ")[0-9.]{0,}[0-9]")
-    )
-    sections <- sections[order(as.numeric(num))]
-  }
-  if (get) {
-    sections <- sapply(sections, get, envir = envir, simplify = F)
-  }
-  sections
-}
+# gather_sections <- function(prefix = "s", envir = parent.frame(),
+#   sort = T, get = T)
+# {
+#   objs <- ls(envir = envir)
+#   sections <- objs[ grepl(paste0("^", prefix, "[0-9]"), objs) ]
+#   if (sort) {
+#     num <- stringr::str_extract(
+#       sections, paste0("(?<=", prefix, ")[0-9.]{0,}[0-9]")
+#     )
+#     sections <- sections[order(as.numeric(num))]
+#   }
+#   if (get) {
+#     sections <- sapply(sections, get, envir = envir, simplify = F)
+#   }
+#   sections
+# }
 
 .workflow_name <-
   substitute(
