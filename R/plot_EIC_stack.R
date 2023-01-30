@@ -3,7 +3,7 @@ plot_EIC_stack <-
            idset,
            metadata,
            quant.path,
-           mzml.path = ".",
+           mzml.path,
            palette = ggsci::pal_npg()(10),
            mz.tol = 0.01,
            rt.tol = 0.1,
