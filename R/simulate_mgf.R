@@ -341,8 +341,8 @@ element_extract <-
     formula
     ){
     element <- unlist(stringr::str_extract_all(formula, "[A-Z]{1}[a-z]{0,1}"))
-    number <- unlist(lapply(paste0("(?<=", element, ")[0-9]{0,}[0-9]{0,}[0-9]{0,}"), mutate_extract,
-        db = formula))
+    number <- unlist(lapply(paste0("(?<=", element, ")[0-9]{0,}[0-9]{0,}[0-9]{0,}"),
+        mutate_extract, db = formula))
     df <- data.table::data.table(element = element, number = number)
     ## if is NA, set as 1
     df <- dplyr::mutate(df, number = ifelse(number == "", 1, as.numeric(number)))
@@ -427,42 +427,30 @@ collate_as_noise_pool <-
     cat("## Order the lists...\n")
     origin_list <- order_list(origin_list)
     valid_list <- order_list(valid_list)
-    ## list merge (use mapply)
+    origin_list <- lapply(origin_list,
+      function(df) {
+        df[[ "mass" ]] <- as.double(df[[ "mass" ]])
+        df[[ "inte" ]] <- as.double(df[[ "inte" ]])
+        df
+      })
     cat("## Merge to get noise list\n")
-    noise_list <- pbapply::pbmapply(numeric_round_merge, origin_list, valid_list,
-      main_col = "mass", sub_col = "mz",
-      mz.tol = 0.002, noise = T, SIMPLIFY = F)
+    noise_list <- pbapply::pblapply(names(origin_list),
+      function(name) {
+        df <- tol_mergeEx(
+          origin_list[[ name ]], valid_list[[ name ]],
+          main_col = "mass", sub_col = "mz"
+        )
+        df$rel.int. <- df$inte / max(origin_list[[ name ]]$inte)
+        df
+      })
     noise_df <- data.table::rbindlist(noise_list, fill = T)
-    noise_df <- mutate(noise_df, mass = as.numeric(mass), inte = as.numeric(inte))
-    return(noise_df)
-  }
-load_all_valid_spectra <- 
-  function(
-    formula_adduct = .MCn.formula_set,
-    path = .MCn.sirius
-    ){
-    cat("Collate as metadata\n")
-    metadata <- list.files(path = path, pattern = "^[0-9]{1,}_(.*)_(.*)[0-9]{1,}$")
-    metadata <- data.table::data.table(metadata, dir = .) 
-    metadata <- dplyr::mutate(metadata, .id = stringr::str_extract(dir, "(?<=_)[^_]{1,}$")) 
-    metadata <- merge(metadata, formula_adduct, by = ".id", all.x = T) 
-    metadata <- dplyr::select(metadata, .id, dir, precursorFormula, adduct) 
-    metadata <- dplyr::mutate(
-      metadata, adduct = gsub(" ", "", adduct),
-      file = paste0(path, "/", dir, "/spectra/", precursorFormula, "_", adduct, ".tsv"),
-      exists = unlist(pbapply::pblapply(file, file.exists), use.names = F)) 
-    metadata <- dplyr::filter(metadata, exists == T)
-    cat("Read file and collate\n")
-    list <- pbapply::pblapply(metadata$file, read_tsv)
-    list <- lapply(list, dplyr::select, mz, rel.intensity)
-    names(list) <- metadata$.id
-    return(list)
+    dplyr::mutate(noise_df, mass = as.numeric(mass), inte = as.numeric(inte))
   }
 
 filter_mgf <- 
   function(
            filter_id = prapare_inst_data(.MCn.structure_set)$.id,
-           file,
+           file
            ){
     mgf <- read_msp(file)
     start <- which(mgf$V1 == "BEGIN IONS")
@@ -472,8 +460,7 @@ filter_mgf <-
     list <- pbapply::pbmapply(
       function(start, end, mgf) {
         dplyr::slice(mgf, start:end)
-      }
-      start, end, MoreArgs = list(mgf = mgf), SIMPLIFY = F
+      }, start, end, MoreArgs = list(mgf = mgf), SIMPLIFY = F
     )
     names(list) <- id
     if(is.null(filter_id) == F){
@@ -482,3 +469,203 @@ filter_mgf <-
     return(list)
   }
 
+## mutate function of tol_merge, get the non-merged data
+tol_mergeEx <- 
+  function(main,
+           sub,
+           main_col = "mz",
+           sub_col = "mz",
+           tol = 0.002,
+           bin_size = 1
+           ){
+    if (main_col == sub_col) {
+      new_name <- paste0(sub_col, ".sub")
+      colnames(sub)[colnames(sub) == sub_col] <- new_name
+      sub_col <- new_name
+    }
+    main$...seq <- 1:nrow(main)
+    backup <- main
+    ## to reduce computation, round numeric for limitation
+    ## main
+    main$...id <- round(main[[ main_col ]], bin_size)
+    ## sub
+    sub.x <- sub.y <- sub
+    sub.x$...id <- round(sub.x[[ sub_col ]], bin_size)
+    sub.y$...id <- sub.x$...id + ( 1 * 10^-bin_size )
+    sub <- rbind(sub.x, sub.y)
+    ## expand merge
+    df <- merge(main, sub, by = "...id", all.x = T, allow.cartesian = T)
+    df$...diff <- abs(df[[ main_col ]] - df[[ sub_col ]])
+    df <- dplyr::filter(df, ...diff <= !!tol)
+    ## get the non-merged
+    df <- backup[!backup$...seq %in% df$...seq, ]
+    df$...seq <- NULL
+    df
+  }
+
+mass_shift <- 
+  function(
+           df,
+           merge = T,
+           sep = " ",
+           int.sigma = 1,
+           re.ppm = 1e-6,
+           global.sigma = 10/3 * re.ppm,
+           indivi.sigma = 10/3 * re.ppm,
+           sub.factor = 0.03,
+           .noise_pool = noise_pool,
+           alpha = 0.2,
+           ...
+           ){
+    df <- dplyr::mutate(df, mass = as.numeric(mass), inte = as.numeric(inte))
+    ## intensity variation
+    var <- rnorm(nrow(df), 1, int.sigma)
+    df <- dplyr::mutate(df, inte = inte * var)
+    ## subtract according to max intensity
+    df <- dplyr::mutate(df, inte = round(inte - max(inte) * sub.factor, 0))
+    ## if intensity less than 0, discard
+    df <- dplyr::filter(df, inte > 0)
+    ## almost one peak, discard the data
+    if(nrow(df) <= 1)
+      return()
+    ## global shift
+    var <- rnorm(1, 0, global.sigma)
+    df <- dplyr::mutate(df, mass = mass + mass * var)
+    ## individual shift
+    var <- rnorm(nrow(df), 0, indivi.sigma)
+    df <- dplyr::mutate(df, mass = round(mass + mass * var, 4))
+    ## add noise peak
+    ## random drawn noise peak from noise pool
+    noise <- .noise_pool[sample(1:nrow(.noise_pool), round(alpha * nrow(df))), ]
+    ## re-size intensity
+    noise <- dplyr::mutate(noise, inte = max(df$inte) * rel.int.)
+    ## bind into df
+    df <- bind_rows(df, dplyr::select(noise, mass, inte))
+    if(merge){
+      df <- dplyr::mutate(df, V1 = paste0(mass, sep, inte))
+      df <- dplyr::select(df, V1)
+    }
+    return(df)
+  }
+
+# ==========================================================================
+# spectra add noise
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+## for .mgf data
+spectrum_add_noise <- 
+  function(list, cl = NULL, filter_empty = T, ...)
+  {
+    list <- pbapply::pblapply(list,
+      function(df, discard_level1 = F, mass_process_level_1 = F,
+        mass_process_level_2 = T, ...)
+      {
+        mass_level <- df$V1[grepl("MSLEVEL", df$V1)]
+        ## process level 1
+        if(mass_level == "MSLEVEL=1"){
+          if(discard_level1)
+            return()
+          if(mass_process_level_1)
+            df <- mass_process_level_1(df, ...)
+          return(df)
+          ## process level 2
+        }else{
+          if(mass_process_level_2)
+            df <- mass_process_level_2(df, ...)
+          return(df)
+        }
+      }, cl = cl, ...)
+    ## filter the empty spectrum
+    if(filter_empty){
+      list <- list[!vapply(list, is.null, logical(1), USE.NAMES = F)]
+    }
+    return(list)
+  }
+
+discard_level1 <- 
+  function(list) {
+    spectrum_add_noise(
+      list = list, mass_process_level_2 = F, discard_level1 = T
+    )
+  }
+
+mass_process_level_1 <- 
+  function(df, ...){}
+
+mass_process_level_2 <- 
+  function(df, mass_shift = T, ...){
+    list <- separate_peak_info(df, ...)
+    if(!mass_shift)
+      return(list)
+    list[[2]] <- mass_shift(list[[2]], merge = T, ...)
+    if(length(list) == 2)
+      return()
+    df <- rbindlist(list)
+    return(df)
+  }
+
+separate_peak_info <- 
+  function(df, sep = " ", only_peak_info = F, ...)
+  {
+    peak_row <- grep("^[0-9]", df$V1)
+    peak_info <- dplyr::slice(df, peak_row)
+    peak_info <- tidyr::separate(peak_info, col = "V1", into = c("mass", "inte"), sep = sep)
+    if(only_peak_info == T)
+      return(peak_info)
+    list <- list(dplyr::slice(df, 1:(min(peak_row) - 1)),
+      peak_info,
+      dplyr::slice(df, (max(peak_row) + 1):nrow(df))
+    )
+    return(list)
+  }
+
+# ==========================================================================
+# other
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+mgf_add_anno.gnps <- 
+  function(df){
+    slice_line <- list("1:3", "4:6", "7:nrow(df)")
+    list <- lapply(slice_line, function(lines){
+      list <- dplyr::slice(df, eval(parse(text = lines)))
+      return(list)
+    })
+    ## scans
+    scans <- stringr::str_extract(list[[1]][2, 1], "[0-9]{1,}$")
+    scans <- c(V1 = paste0("SCANS=", scans))
+    ## merge
+    merge <- c(
+      V1 = paste0("MERGED_STATS=1 / 1 ",
+        "(0 removed due to low quality, 0 removed due to low cosine)"
+      )
+    )
+    dplyr::bind_rows(list[[1]], scans, list[[2]], merge, list[[3]])
+  }
+
+simulate_gnps_quant <- 
+  function(
+           meta,
+           save_path,
+           file = paste0(save_path, "/", "quant.csv"),
+           rt = 1000,
+           area = 10000,
+           id = ".id",
+           mz = "PRECURSORMZ",
+           simu_id = "row ID",
+           simu_mz = "row m/z",
+           simu_rt = "row retention time",
+           simu_quant = "sample.mzML Peak area",
+           return_df = F
+           ){
+    meta <- dplyr::select(meta, all_of(c(id, mz)))
+    meta <- dplyr::mutate(meta, rt = rt, sample = area)
+    colnames(meta) <- 
+      mapply_rename_col(
+        .find_and_sort_strings(colnames(meta), c(id, mz, "rt", "sample")),
+        c(simu_id, simu_mz, simu_rt, simu_quant),
+        colnames(meta)
+      )
+    if(return_df)
+      return(meta)
+    write.table(meta, file = file, sep = ",", row.names = F, col.names = T, quote = F)
+  }
