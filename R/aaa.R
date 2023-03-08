@@ -1,3 +1,17 @@
+# ==========================================================================
+# utilites
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#' @aliases utilites
+#'
+#' @title utilites for programming
+#'
+#' @description This is a combination of tools that are not always used.
+#'
+#' @name utilites
+NULL
+#> NULL
+
 reCallMethod <- 
   function(funName, args, ...){
     arg.order <- unname(getGeneric(funName)@signature)
@@ -94,19 +108,44 @@ setMissing <-
     message(sig, " ", main, ": ", sub, " ", arg)
   }
 
+.suggest_bio_package <- 
+  function(pkg){
+    if (!requireNamespace(pkg, quietly = T))
+      stop("package '", pkg, "' not installed. use folloing to install:\n",
+           '\nif (!require("BiocManager", quietly = TRUE))',
+           '\n\tinstall.packages("BiocManager")',
+           '\nBiocManager::install("', pkg, '")\n\n')
+  }
+
+#' @export tmp_pdf
+#' @aliases tmp_pdf
+#' @description \code{tmp_pdf}: ...
+#' @rdname utilites
 tmp_pdf <- function() {
   paste0(tempdir(), "/tmp_pdf.pdf")
 }
 
+#' @export op
+#' @aliases op
+#' @description \code{op}: ...
+#' @rdname utilites
 op <- function(file) {
   system(paste0("xdg-open ", file))
 }
 
+#' @export .cairosvg_to_grob
+#' @aliases .cairosvg_to_grob
+#' @description \code{.cairosvg_to_grob}: Convert cairo svg to 'grob'.
+#' @rdname utilites
 .cairosvg_to_grob <- 
   function(path){
     grImport2::grobify(grImport2::readPicture(path))
   }
 
+#' @export .as_dic
+#' @aliases .as_dic
+#' @description \code{.as_dic}: ...
+#' @rdname utilites
 .as_dic <- 
   function(vec, names, default,
            fill = T, as.list = T, na.rm = F){
@@ -130,15 +169,27 @@ op <- function(file) {
     vec
   }
 
+#' @export fill_list
+#' @aliases fill_list
+#' @description \code{fill_list}: ...
+#' @rdname utilites
 fill_list <- function(names, vec, default = vec[1]) {
   .as_dic(vec, names, default, fill = T, as.list = F, na.rm = F)
 }
 
+#' @export n
+#' @aliases n
+#' @description \code{n}: ...
+#' @rdname utilites
 n <- function(name, n){
   name <- as.character(substitute(name))
   paste0(name, 1:n)
 }
 
+#' @export namel
+#' @aliases namel
+#' @description \code{namel}: ...
+#' @rdname utilites
 namel <- function(...){
   call <- substitute(list(...))
   lst <- list(...)
@@ -157,6 +208,10 @@ namel <- function(...){
   lst
 }
 
+#' @export repSuffix
+#' @aliases repSuffix
+#' @description \code{repSuffix}: ...
+#' @rdname utilites
 repSuffix <- 
   function(chs, anno = ".rep."){
     gsub(paste0(anno, 1, "$"), "",
@@ -166,11 +221,29 @@ repSuffix <-
                 }))
   }
 
+#' @export %>%
+#' @aliases %>%
+#' @description \code{%>%}: ...
+#' @rdname utilites
 `%>%` <- magrittr::`%>%`
+
+#' @export %<>%
+#' @aliases %<>%
+#' @description \code{%<>%}: ...
+#' @rdname utilites
 `%<>%` <- magrittr::`%<>%`
 
-.expath <- system.file("extdata", ".", package = "utils.tool")
+#' @export .expath
+#' @aliases .expath
+#' @description \code{.expath}: ...
+#' @rdname utilites
+.expath <- system.file("extdata", ".", 
+  package = gsub("^.*:", "", environmentName(topenv(environment()))))
 
+#' @export agroup
+#' @aliases agroup
+#' @description \code{agroup}: ...
+#' @rdname utilites
 agroup <- function(group, value, FUN.VALUE = character(1)) {
   ug <- unique(group)
   if (length(ug) > length(value))
@@ -179,18 +252,30 @@ agroup <- function(group, value, FUN.VALUE = character(1)) {
   vapply(group, function(g) dic[[g]], FUN.VALUE)
 }
 
+#' @export write_tsv
+#' @aliases write_tsv
+#' @description \code{write_tsv}: ...
+#' @rdname utilites
 write_tsv <-
   function(x, filename, col.names = T, row.names = F){
     write.table(x, file = filename, sep = "\t",
                 col.names = col.names, row.names = row.names, quote = F)
   }
 
+#' @export read_tsv
+#' @aliases read_tsv
+#' @description \code{read_tsv}: ...
+#' @rdname utilites
 read_tsv <- function(path){
   file <- data.table::fread(input = path, sep = "\t",
                             header = T, quote = "", check.names = F)
   return(file)
 }
 
+#' @export mapply_rename_col
+#' @aliases mapply_rename_col
+#' @description \code{mapply_rename_col}: ...
+#' @rdname utilites
 mapply_rename_col <- 
   function(
            mutate_set,
@@ -209,6 +294,10 @@ mapply_rename_col <-
     return(names)
   }
 
+#' @export turn_vector
+#' @aliases turn_vector
+#' @description \code{turn_vector}: ...
+#' @rdname utilites
 turn_vector <- function(vec) {
   names <- names(vec)
   names(vec) <- unname(vec)
@@ -216,6 +305,10 @@ turn_vector <- function(vec) {
   vec
 }
 
+#' @export group_switch
+#' @aliases group_switch
+#' @description \code{group_switch}: ...
+#' @rdname utilites
 group_switch <- function(data, meta.lst, by) {
   if (!is.character(data[[ by ]]))
     stop( "is.character(data[[ by ]]) == F" )
@@ -236,6 +329,10 @@ group_switch <- function(data, meta.lst, by) {
   split(data, group)
 }
 
+#' @export .find_and_sort_strings
+#' @aliases .find_and_sort_strings
+#' @description \code{.find_and_sort_strings}: ...
+#' @rdname utilites
 .find_and_sort_strings <- 
   function(strings, patterns){
     lapply(patterns,
@@ -244,6 +341,10 @@ group_switch <- function(data, meta.lst, by) {
            })
   }
 
+#' @export maps
+#' @aliases maps
+#' @description \code{maps}: ...
+#' @rdname utilites
 maps <- function(data, value, from, to) {
   if (!is.list(value))
     value <- list(value)
@@ -256,6 +357,10 @@ maps <- function(data, value, from, to) {
          })
 }
 
+#' @export order_list
+#' @aliases order_list
+#' @description \code{order_list}: ...
+#' @rdname utilites
 order_list <- 
   function(
            list
@@ -269,6 +374,10 @@ order_list <-
     return(lt)
   }
 
+#' @export molconvert_structure
+#' @aliases molconvert_structure
+#' @description \code{molconvert_structure}: ...
+#' @rdname utilites
 ## use 'molconvert' ...
 ## https://chemaxon.com/marvin
 molconvert_structure <-
@@ -278,3 +387,11 @@ molconvert_structure <-
     ChemmineOB::convertToImage("MOL", "SVG", source = src, toFile = path)
     rsvg::rsvg_svg(path, path)
   }
+
+#' @export obj.size
+#' @aliases obj.size
+#' @description \code{obj.size}: ...
+#' @rdname utilites
+obj.size <- function(x, ...) {
+  format(object.size(x), units = "MB", ...)
+}

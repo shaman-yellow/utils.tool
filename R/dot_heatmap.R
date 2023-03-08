@@ -2,9 +2,23 @@
 # heat map with ggplot2
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-## data: long data
+#' @aliases plot_heatmap
+#'
+#' @title Plot heat map with ggplot2
+#'
+#' @description According to list of 'ID' to draw mutiple heatmap...
+#'
+#' @name plot_heatmap
+NULL
+#> NULL
+
+#' @export plot_heatmap
+#' @aliases plot_heatmap
+#' @description \code{plot_heatmap}: ...
+#' @rdname plot_heatmap
 plot_heatmap <- function(id.lst, data, metadata,
-  pal_class = ggsci::pal_futurama()(12), pal_group)
+  pal_class = ggsci::pal_futurama()(12), pal_group,
+  clust_row = T, clust_col = T, method = 'complete')
 {
   if (is.null(names(id.lst))) {
     stop("is.null(names(id.lst)) == T. The names of `id.lst` should be chemical classes.")
@@ -26,11 +40,16 @@ plot_heatmap <- function(id.lst, data, metadata,
       pal_class <- pal_class[names(pal_class) == class.name]
       p <- add_ygroup.tile.heatmap(data.class, p, pal_class)
       ## cluster tree
-      data.w <- tidyr::spread(data, .data$sample, .data$value)
-      data.w <- data.frame(data.w)
-      rownames(data.w) <- data.w$.features_id
-      data.w <- dplyr::select(data.w, dplyr::all_of(metadata[[ "sample" ]]))
-      p <- add_tree.heatmap(data.w, p)
+      if (clust_row | clust_col) {
+        data.w <- tidyr::spread(data, .data$sample, .data$value)
+        data.w <- data.frame(data.w)
+        rownames(data.w) <- data.w$.features_id
+        data.w <- dplyr::select(data.w, dplyr::all_of(metadata[[ "sample" ]]))
+        p <- add_tree.heatmap(
+          data.w, p, method = method,
+          clust_row = clust_row, clust_col = clust_col
+        )
+      }
       ## sample metadata
       p <- add_xgroup.tile.heatmap(metadata, p, pal_group)
       return(p)
@@ -38,8 +57,12 @@ plot_heatmap <- function(id.lst, data, metadata,
   return(lst)
 }
 
-## For each subset of data, the missing values will be filled with the average
-## value; if the set is all missing values, they will be filled with zero.
+#' @export handling_na
+#' @aliases handling_na
+#' @description \code{handling_na}:
+#' For each subset of data, the missing values will be filled with the average
+#' value; if the set is all missing values, they will be filled with zero.
+#' @rdname plot_heatmap
 handling_na <- function(data, id.cols = c(".features_id"),
   metadata, sample.col = "sample", group.col = "group")
 {
@@ -65,8 +88,12 @@ handling_na <- function(data, id.cols = c(".features_id"),
   dplyr::bind_cols(id.cols, data)
 }
 
-## Convert wide data to long data; log transform the values; if there is a
-## value 0, replace it with 1/10 of the minimum value of the value column.
+#' @export log_trans
+#' @aliases log_trans
+#' @description \code{log_trans}:
+#' Convert wide data to long data; log transform the values; if there is a
+#' value 0, replace it with 1/10 of the minimum value of the value column.
+#' @rdname plot_heatmap
 log_trans <- function(data, id.cols = c(".features_id"),
   key = "sample", value = "value",
   set_min = T, factor = 10, fun = log2, center = T)
@@ -83,7 +110,6 @@ log_trans <- function(data, id.cols = c(".features_id"),
   return(data)
 }
 
-## long data
 dot_heatmap <- function(df){
   p <- ggplot(df, aes(x = sample, y = .features_id)) +
     geom_point(aes(size = abs(value), color = value), shape = 16) +
@@ -112,21 +138,32 @@ tile_heatmap <-
       return(p)
   }
 
-## wide data
+#' @export add_tree.heatmap
+#' @aliases add_tree.heatmap
+#' @description \code{add_tree.heatmap}: ...
+#' @rdname plot_heatmap
 add_tree.heatmap <- 
-  function(df, p, phc.height = 0.3){
-    phr <- hclust(dist(df))
-    phr <- ggtree::ggtree(phr, layout = "rectangular", branch.length = "branch.length") +
-      theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
-    phc <- hclust(dist(t(df))) 
-    phc <- ggtree::ggtree(phc, layout = "rectangular", branch.length = "branch.length") +
-      ggtree::layout_dendrogram() +
-      theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
-    com <- aplot::insert_left(p, phr, width = 0.3)
-    com <- aplot::insert_top(com, phc, height = phc.height)
-    return(com)
+  function(df, p, clust_row = T, clust_col = T, method = 'complete'){
+    if (clust_row) {
+      phr <- hclust(dist(df), method)
+      phr <- ggtree::ggtree(phr, layout = "rectangular", branch.length = "branch.length") +
+        theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+      p <- aplot::insert_left(p, phr, width = 0.3)
+    }
+    if (clust_col) {
+      phc <- hclust(dist(t(df)), method)
+      phc <- ggtree::ggtree(phc, layout = "rectangular", branch.length = "branch.length") +
+        ggtree::layout_dendrogram() +
+        theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+      p <- aplot::insert_top(p, phc, height = 0.3)
+    }
+    return(p)
   }
 
+#' @export add_xgroup.heatmap
+#' @aliases add_xgroup.heatmap
+#' @description \code{add_xgroup.heatmap}: ...
+#' @rdname plot_heatmap
 add_xgroup.heatmap <- 
   function(df, p){
     p.xgroup <- ggplot(df, aes(y = "Group", x = sample)) +
@@ -144,6 +181,10 @@ add_xgroup.heatmap <-
       return(com)
   }
 
+#' @export add_xgroup.tile.heatmap
+#' @aliases add_xgroup.tile.heatmap
+#' @description \code{add_xgroup.tile.heatmap}: ...
+#' @rdname plot_heatmap
 add_xgroup.tile.heatmap <- 
   function(df, p, pal = NA){
     expr.pal <- ifelse(is.na(pal),
@@ -165,6 +206,10 @@ add_xgroup.tile.heatmap <-
       return(com)
   }
 
+#' @export add_ygroup.tile.heatmap
+#' @aliases add_ygroup.tile.heatmap
+#' @description \code{add_ygroup.tile.heatmap}: ...
+#' @rdname plot_heatmap
 add_ygroup.tile.heatmap <-
   function(df, p, pal = NA){
     expr.pal <- ifelse(is.na(pal),

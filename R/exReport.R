@@ -19,6 +19,7 @@
 #   sections
 # }
 
+#' @export .workflow_name
 .workflow_name <-
   substitute(
     c("Abstract" = 1, "Introduction" = 1, "Set-up" = 1,

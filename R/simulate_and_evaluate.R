@@ -773,7 +773,7 @@ visualize_stat <-
       coord_flip()
     pm.theme <- pm.theme2 <- theme(
       axis.text.y = element_blank(),
-      text = element_text(family = "Times", face = "bold"),
+      text = element_text(family = .font, face = "bold"),
       plot.title = element_text(hjust = 0.3)
     )
     pm.theme$legend.position <- "none"
@@ -789,7 +789,7 @@ visualize_stat <-
       coord_flip() +
       theme(axis.text.y = element_blank(),
         axis.ticks = element_blank(),
-        text = element_text(family = "Times", face = "bold")) +
+        text = element_text(family = .font, face = "bold")) +
       geom_blank()
     pl <- ggplot(annotation) +
       geom_col(aes(x = stringr::str_wrap(class.name, width = 25), y = 1,
@@ -801,7 +801,7 @@ visualize_stat <-
         values = colorRampPalette(group_palette)(length(unique(annotation$parent_class)))
         ) +
       theme(
-        text = element_text(face = "bold", family = "Times"),
+        text = element_text(face = "bold", family = .font),
         axis.text.x = element_text(color = "transparent"),
         axis.ticks.x = element_blank(),
         legend.key.height = unit(1.5, "cm"),
@@ -861,7 +861,7 @@ visualize_statComplex <-
         values = colorRampPalette(group_palette)(length(unique(annotation$parent_class)))
         ) +
       theme(
-        text = element_text(face = "bold", family = "Times"),
+        text = element_text(face = "bold", family = .font),
         axis.text.x = element_text(color = "transparent"),
         axis.ticks.x = element_blank(),
         legend.key.height = unit(1.5, "cm"),
@@ -944,7 +944,7 @@ visualize_statComplex <-
     pm.theme <- theme(
       legend.position = "bottom",
       axis.text.y = element_blank(),
-      text = element_text(family = "Times", face = "bold"),
+      text = element_text(family = .font, face = "bold"),
       plot.title = element_text(hjust = 0.3)
     )
     pm.legend <- MCnebula2:::.get_legend(pm + pm.theme)
@@ -987,7 +987,7 @@ visualize_statComplex <-
     pr.theme <- theme(
       axis.text.y = element_blank(),
       axis.ticks = element_blank(),
-      text = element_text(family = "Times", face = "bold")
+      text = element_text(family = .font, face = "bold")
     )
     pr.legend <- MCnebula2:::.get_legend(pr + pr.theme + pr.lab)
     pr.theme$legend.position <- "none"
@@ -1021,13 +1021,13 @@ visualize_comparison <-
     list1,
     list2,
     ylim_min = 50,
-    group_levels = c("origin", "medium_noise", "high_noise"), 
-    from = c("MCnebula2", "MolnetEnhancer"),
+    from = c("MCnebula2", "GNPS"),
     ylab = "Classified number",
     xlab = "Classes",
     color_lab = "Methods",
     palette = ggsci::pal_npg()(9)
-    ){
+    )
+  {
     ## select in common classification
     common.class <- dplyr::select(merge(list1[[1]], list2[[1]], by = "class.name"), 1)
     ## filter classification
@@ -1045,8 +1045,12 @@ visualize_comparison <-
       })
     ## for segment
     df <- merge(list[[1]], list[[2]], by = c("group", "class.name"))
+    group_levels = c(origin = "Origin", medium_noise = "Medium noise",
+      high_noise = "High noise")
+    df$group <- vapply(df$group, function(x) group_levels[[ x ]], character(1))
     ## for point
     df2 <- dplyr::bind_rows(list[[1]], list[[2]])
+    df2$group <- vapply(df2$group, function(x) group_levels[[ x ]], character(1))
     ## plot figure
     p <- ggplot() +
       geom_segment(
@@ -1067,10 +1071,79 @@ visualize_comparison <-
       facet_wrap(~ factor(group, levels = group_levels)) +
       theme(
         legend.position = "bottom",
-        text = element_text(family = "Times", face = "bold"),
+        text = element_text(family = .font, face = "bold"),
         plot.title = element_text(hjust = 0.3)) +
       geom_blank()
-    as_grob(p)
+    grob <- as_grob(p)
+    attr(grob, "data") <- list
+    return(grob)
+  }
+
+visualize_summary <- 
+  function(summary){
+    data <- data.frame(do.call(rbind, summary))
+    data <- dplyr::mutate_if(data, is.list, unlist)
+    data <- dplyr::mutate(
+      data, type = form(rownames(data)),
+      type = factor(type, levels = type)
+    )
+    ## draw plot of classified number
+    theme1 <- theme2 <- theme(text = element_text(family = .font))
+    theme2$legend.position <- "none"
+    p.num <- ggplot(dplyr::mutate(data, type = factor(type, levels = rev(type)))) +
+      geom_col(aes(x = type, y = sum, fill = type), width = .5, fill = "#709AE1FF") +
+      geom_text(aes(x = type, y = sum, label = round(sum)),
+        family = .font, hjust = -1) +
+      labs(x = "", y = "Sum") + 
+      coord_flip(ylim = c(0, 250)) +
+      theme_classic() + theme2
+    theme3 <- theme1
+    theme3$legend.position <- "bottom"
+    theme3$panel.spacing <- u(0, line)
+    data.ratioFal <- dplyr::mutate(data, `non-false` = 100 - false)
+    data.ratioFal <- tidyr::gather(data.ratioFal, evaluate, value, -sum, -type)
+    data.ratioSt <- dplyr::mutate(
+      data.ratioFal, change = (max(sum) - sum ) / max(sum) * 100,
+      evaluate = ifelse(evaluate == "false", "lost", "non-lost"),
+      change = ifelse(evaluate == "lost", change, 100 - change),
+      change = round(change, 1)
+    )
+    ## draw plot of stability
+    data.ratioSt <- dplyr::filter(data.ratioSt, type != "Origin")
+    p.ratioSt <- ggplot(data.ratioSt) +
+      geom_col(aes(x = 0, y = change, fill = form(evaluate))) +
+      geom_text(data = dplyr::filter(data.ratioSt, evaluate == "lost"),
+        aes(x = -2, y = 0, label = paste0(change, "%")),
+        hjust = .5, family = .font) +
+      coord_polar(theta = "y", direction = -1) +
+      xlim(-2, .5) +
+      ylim(0, 100) +
+      labs(fill = "") +
+      scale_fill_manual(values = c("#D9D9D9", "#91D1C2")) +
+      facet_wrap(~ type, nrow = 1) +
+      theme_void()
+    p.ratioSt <- sep_legend(p.ratioSt, theme3)
+    lostRate <- mean(dplyr::filter(data.ratioSt, evaluate == "lost")$change) / 100
+    data.ratioRelFal <- dplyr::mutate(
+      data.ratioFal, rel.value = ifelse(evaluate == "false",
+        100 - (100 - value) * (1 - lostRate),
+        value * (1 - lostRate)
+      )
+    )
+    p.ratioRelFal <- ggplot(data.ratioRelFal) +
+      geom_col(aes(x = 0, y = rel.value, fill = form(evaluate))) +
+      geom_text(data = dplyr::filter(data.ratioRelFal, evaluate == "false"),
+        aes(x = -2, y = 0, label = paste0(round(rel.value, 1), "%")),
+        hjust = .5, family = .font) +
+      coord_polar(theta = "y", direction = -1) +
+      xlim(-2, .5) +
+      ylim(0, 100) +
+      labs(fill = "") +
+      scale_fill_manual(values = c("#E64B35FF", "#FED439FF")) +
+      facet_wrap(~ type, nrow = 1) +
+      theme_void()
+    p.ratioRelFal <- sep_legend(p.ratioRelFal, theme3)
+    namel(p.num, p.ratioSt, p.ratioRelFal)
   }
 
 visualize_idRes <- 
@@ -1106,10 +1179,14 @@ visualize_idRes <-
         color = Hmisc::capitalize(color_lab)) +
       coord_flip() +
       theme(legend.position = "bottom",
-        text = element_text(family = "Times", face = "bold"),
+        text = element_text(family = .font, face = "bold"),
         plot.title = element_text(hjust = 0.3)) + 
       geom_blank()
     as_grob(p)
   }
 
-
+gtext90 <- function(label, fill, rot = 90) {
+  rect_mcnebula <- roundrectGrob(gp = gpar(col = "transparent", fill = fill))
+  gtext <- gtext(label, list(cex = 1.2, col = "white"), rot = rot)
+  ggather(rect_mcnebula, gtext)
+}

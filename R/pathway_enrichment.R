@@ -1,20 +1,25 @@
 # ==========================================================================
 # Combining multiple tools for pathway enrichment analysis.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-cid.to.kegg <- 
-  function(cids){
-    if (!requireNamespace("MetaboAnalystR", quietly = T)) {
-      stop("package 'MetaboAnalystR' not available.",
-        "See <https://github.com/xia-lab/MetaboAnalystR> for installation.")
-    }
-    obj <- MetaboAnalystR::InitDataObjects("conc", "msetora", F)
-    obj <- MetaboAnalystR::Setup.MapData(obj, cids)
-    obj <- MetaboAnalystR::CrossReferencing(obj, "pubchem")
-    obj <- MetaboAnalystR::CreateMappingResultTable(obj)
-    obj <- dplyr::as_tibble(obj$dataSet$map.table)
-    dplyr::filter(obj, KEGG != "NA")
-  }
 
+#' @aliases pathway_enrichment
+#'
+#' @title Perform pathway enrichment via package of 'FELLA'
+#'
+#' @description Pathway enrichment analysis was performed using KEGG ID
+#' via package of 'FELLA'.
+#' (Convert CID to KEGG ID using the 'MetaboAnalystR' package.
+#' See <https://github.com/xia-lab/MetaboAnalystR> for installation.)
+#'
+#' @name pathway_enrichment
+NULL
+#> NULL
+
+#' @export init_fella
+#' @aliases init_fella
+#' @description \code{init_fella}: ...
+#' @seealso [FELLA::buildDataFromGraph()], [FELLA::buildGraphFromKEGGREST()]
+#' @rdname pathway_enrichment
 init_fella <- 
   function(dir, org = c("hsa", "mmu", "rno"), seed = 1, rebuild = F) {
     if (!file.exists(dir))
@@ -41,6 +46,10 @@ init_fella <-
     return(db.dir)
   }
 
+#' @export load_fella
+#' @aliases load_fella
+#' @description \code{load_fella}: ...
+#' @rdname pathway_enrichment
 load_fella <- function(dir) {
   if(!file.exists(dir)){
     stop("file.exists(dir) == F")
@@ -51,6 +60,10 @@ load_fella <- function(dir) {
   )
 }
 
+#' @export enrich_fella
+#' @aliases enrich_fella
+#' @description \code{enrich_fella}: ...
+#' @rdname pathway_enrichment
 enrich_fella <- function(id.lst, data) {
   if (!is.list(id.lst)) {
     id.lst <- list(id.lst)
@@ -73,6 +86,10 @@ enrich_fella <- function(id.lst, data) {
     })
 }
 
+#' @export graph_fella
+#' @aliases graph_fella
+#' @description \code{graph_fella}: ...
+#' @rdname pathway_enrichment
 graph_fella <- function( obj.lst, data, method = c("pagerank", "diffusion", "hypergeom"),
   threshold = .1)
 {
@@ -111,6 +128,11 @@ graph_fella <- function( obj.lst, data, method = c("pagerank", "diffusion", "hyp
 }
 
 #' @import ggraph
+#' @export plotGraph_fella
+#' @aliases plotGraph_fella
+#' @description \code{plotGraph_fella}: Draw the graph via
+#' package of 'ggplot2'.
+#' @rdname pathway_enrichment
 plotGraph_fella <- function(
   graph, layout = "graphopt", seed = 1,
   shape = c(Input = 15, Others = 16),
@@ -159,5 +181,23 @@ plotGraph_fella <- function(
     theme_void() +
     theme(text = element_text(family = "Times"))
 }
+
+#' @export cid.to.kegg
+#' @aliases cid.to.kegg
+#' @description \code{cid.to.kegg}: ...
+#' @rdname pathway_enrichment
+cid.to.kegg <- 
+  function(cids){
+    if (!requireNamespace("MetaboAnalystR", quietly = T)) {
+      stop("package 'MetaboAnalystR' not available.",
+        "See <https://github.com/xia-lab/MetaboAnalystR> for installation.")
+    }
+    obj <- MetaboAnalystR::InitDataObjects("conc", "msetora", F)
+    obj <- MetaboAnalystR::Setup.MapData(obj, cids)
+    obj <- MetaboAnalystR::CrossReferencing(obj, "pubchem")
+    obj <- MetaboAnalystR::CreateMappingResultTable(obj)
+    obj <- dplyr::as_tibble(obj$dataSet$map.table)
+    dplyr::filter(obj, KEGG != "NA")
+  }
 
 

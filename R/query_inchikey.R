@@ -1,6 +1,27 @@
 # ==========================================================================
 # query inchikey for compounds using pubchem API
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#' @aliases query_inchikey
+#'
+#' @title Query InChIkey of compounds via 'InChIkey 2D'
+#'
+#' @description 
+#' The API:
+#' url_start = paste0("https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/", type, "/")
+#' url_end = paste0("/property/", paste(get, collapse = ","), "/CSV")
+#' url = paste0(url_start, "/", inchikey2d, "/", url_end)
+#' 
+#' @family queries
+#'
+#' @name query_inchikey
+NULL
+#> NULL
+
+#' @export query_inchikey
+#' @aliases query_inchikey
+#' @description \code{query_inchikey}: ...
+#' @rdname query_inchikey
 query_inchikey <- 
   function(
            inchikey2d,
@@ -26,6 +47,10 @@ query_inchikey <-
     return(paste0(dir, "/", rdata.name))
   }
 
+#' @export pubchem_get_inchikey
+#' @aliases pubchem_get_inchikey
+#' @description \code{pubchem_get_inchikey}: ...
+#' @rdname query_inchikey
 pubchem_get_inchikey <- 
   function(
            inchikey2d,

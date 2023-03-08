@@ -3,9 +3,11 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 new_package.fromFiles <- function(pkg.path, files, path = NULL,
-                                  depends = c("ggplot2", "grid"),
-                                  ...) {
+  depends = c("ggplot2", "grid"),
+  exclude = c("MSnbase"),
+  ...) {
   imports <- parent_packs(files, path)
+  imports <- imports[ !imports %in% exclude ]
   new_package(pkg.path, imports, depends, ...)
   if (!is.null(path))
     files <- paste0(path, "/", files)
@@ -13,9 +15,9 @@ new_package.fromFiles <- function(pkg.path, files, path = NULL,
 }
 
 new_package <- function(path, imports = NULL, depends = NULL, extdata = T,
-                        fields = .new_package_fields(),
-                        gitignore_templ = .gitignore_templ()
-                        ) {
+  fields = .new_package_fields(),
+  gitignore_templ = .gitignore_templ()
+  ) {
   pre.wd <- getwd()
   if (!file.exists(path)) {
     usethis::create_package(path, fields)
@@ -23,7 +25,7 @@ new_package <- function(path, imports = NULL, depends = NULL, extdata = T,
     dir.create(paste0(path, "/inst/extdata"), recursive = T)
     file.copy(gitignore_templ, ".")
     writeLines(c(paste0("# ", stringr::str_extract(path, "[^/]*$")),
-                 "", "Under preparation...", ""), "README.md")
+        "", "Under preparation...", ""), "README.md")
   } else {
     setwd(path)
   }
@@ -41,11 +43,11 @@ parent_packs <- function(files, path = NULL){
   if (!is.null(path))
     files <- paste0(path, "/", files)
   names <- lapply(files,
-                  function(file){
-                    file <- readLines(file)
-                    names <- grep_operater(file)
-                    names
-                  })
+    function(file){
+      file <- readLines(file)
+      names <- grep_operater(file)
+      names
+    })
   unique(unlist(names))
 }
 
@@ -62,24 +64,24 @@ match_function <- function(txt){
   parent <- lapply(funs, findFunction)
   parent <- parent[vapply(parent, function(p) if (length(p) > 0) T else F, logical(1))]
   parent <- lapply(parent, function(envs) {
-                     name <- lapply(envs,
-                                    function(env) {
-                                      attr(env, "name")
-                                    })
-                     gsub("^.*:", "", unlist(name))
-                  })
+    name <- lapply(envs,
+      function(env) {
+        attr(env, "name")
+      })
+    gsub("^.*:", "", unlist(name))
+    })
   unique(unlist(parent))
 }
 
 .new_package_fields <- function() {
   author <- c(person(given = "LiChuang", family = "Huang",
-                     email = "shaman.yellow@foxmail.com",
-                     role = c("aut"),
-                     comment = c(ORCID = "0000-0002-5445-1988")),
-              person(given = "Gang", family = "Cao",
-                     role = c("cre")))
+      email = "shaman.yellow@foxmail.com",
+      role = c("aut"),
+      comment = c(ORCID = "0000-0002-5445-1988")),
+    person(given = "Gang", family = "Cao",
+      role = c("cre")))
   list(`Authors@R` = author, Author = author,
-       Maintainer = "LiChuang Huang <shaman.yellow@foxmail.com>"
+    Maintainer = "LiChuang Huang <shaman.yellow@foxmail.com>"
   )
 }
 
