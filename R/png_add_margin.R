@@ -59,21 +59,7 @@ png_gather_two <-
     }
     dev.off()
   }
-get_path <- 
-  function(
-           path_str
-           ){
-    path <- stringr::str_extract(path_str, ".*(?=/)")
-    return(path)
-  }
-get_filename <- 
-  function(
-           path_str
-           ){
-    filename <- stringr::str_extract(path_str, "(?<=/)[^/]*$")
-    return(filename)
-  }
-## ---------------------------------------------------------------------- 
+
 png_to_pdf <- 
   function(
            file

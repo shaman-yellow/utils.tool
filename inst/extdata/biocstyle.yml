@@ -1,0 +1,10 @@
+title: ""
+bibliography: '`r system.file("extdata", "library.bib", package = "MCnebula2")`'
+csl: '`r system.file("extdata", "vancouver.csl", package = "MCnebula2")`'
+reference-section-title: "Reference"
+link-citations: true
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3

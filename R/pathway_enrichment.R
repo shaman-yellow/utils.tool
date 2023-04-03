@@ -167,7 +167,7 @@ plotGraph_fella <- function(
       aes(label = stringr::str_wrap(
           abbrev.name, 15)),
       size = 3,
-      family = "Times",
+      family = .font,
       color = "black") +
     scale_shape_manual(values = shape) +
     scale_color_manual(values = color) +
@@ -179,7 +179,7 @@ plotGraph_fella <- function(
       color = guide_legend(override.aes = list(size = 4))) +
     labs(color = "Category", shape = "Type") +
     theme_void() +
-    theme(text = element_text(family = "Times"))
+    theme(text = element_text(family = .font))
 }
 
 #' @export cid.to.kegg

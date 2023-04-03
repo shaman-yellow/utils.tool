@@ -1,0 +1,22 @@
+bibliography: 'library.bib'
+csl: 'style.csl'
+reference-section-title: "Reference"
+link-citations: true
+output:
+  rmarkdown::pdf_document:
+    pandoc_args: [
+      "--filter", "pandoc-fignos",
+      "--filter", "pandoc-tablenos"
+    ]
+    keep_tex: true
+    toc: false
+    toc_depth: 3
+    latex_engine: xelatex
+header-includes:
+  \usepackage{caption}
+  \captionsetup{font={footnotesize},width=6in}
+  \renewcommand{\dblfloatpagefraction}{.9}
+  \makeatletter
+  \renewenvironment{figure}
+  {\def\@captype{figure}}
+  \makeatletter

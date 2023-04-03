@@ -2,36 +2,83 @@
 # tools for fastly write formatting thesis
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-inclu.fig <- function(image, saveDir = "thesis_fig", dpi = 300){
+inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
+  scale = if (land) {
+    list(width = 10, height = 6.2)
+  } else {
+    list(width = 6.2, height = 10)
+  })
+{
   if (!file.exists(saveDir))
     dir.create(saveDir)
   upper <- get_path(image)
   if (is.na(upper))
     upper <- "."
   file <- get_filename(image)
+  ## backup for figure
   if (grepl("\\.pdf$", file)) {
     savename <- paste0(saveDir, "/", sub("\\.pdf$", ".png", file))
     if (!file.exists(savename)) {
-      pdf_convert(image, filenames = savename, dpi = dpi)
+      pdf_convert(image, filenames = savename, dpi = dpi, pages = 1)
       exists <- T
     } else exists <- F
   } else {
     savename <- paste0(saveDir, "/", file)
     if (!file.exists(savename)) {
-      file.copy(file, savename)
+      file.copy(image, savename)
       exists <- T
     } else exists <- F
   }
+  ## trim the border
   if (!exists) {
+    gc()
     pic_trim(savename)
   }
+  ## record image info
+  if (is.null(image_info[[ savename ]])) {
+    img <- magick::image_read(savename)
+    info <- magick::image_info(img)
+    magick::image_destroy(img)
+    image_info[[ savename ]] <- list(width = info$width, height = info$height)
+    assign("image_info", image_info, envir = .env)
+  } else {
+    info <- image_info[[ savename ]]
+  }
+  ## set figure display
+  ratio <- info$width / info$height
+  if ((scale$width / scale$height) >= ratio) {
+    ## height as reference
+    height <- scale$height
+    width <- height * ratio
+  } else {
+    ## width as reference
+    width <- scale$width
+    height <- width / ratio
+  }
+  knitr::opts_current$set(fig.height = height, fig.width = width)
   knitr::include_graphics(savename)
 }
+
+inclu.capt <- function(img, saveDir = "thesis_fig") {
+  filename <- get_filename(img)
+  savename <- paste0(saveDir, "/", filename)
+  if (!file.exists(savename)) {
+    png(savename, 1000, 1000, res = 150)
+    grid::grid.raster(png::readPNG(img))
+    dev.off()
+  }
+  inclu.fig(savename)
+}
+
+.env <- topenv(environment())
+
+image_info <- list()
 
 pic_trim <- function(file){
   img <- magick::image_read(file)
   img <- magick::image_trim(img)
   magick::image_write(img, file)
+  magick::image_destroy(img)
 }
 
 pretty_flex <- function(data,
@@ -62,6 +109,9 @@ pretty_flex <- function(data,
     data <- flextable::bold(data, part = "header", bold = TRUE)
   }
   if (!is.null(footer)) {
+    if (is.character(footer)) {
+      footer <- paste0(footer, collapse = "\n")
+    }
     data <- flextable::add_footer_lines(data, footer)
   }
   data <- flextable::width(data, width = w.width)
@@ -71,6 +121,10 @@ pretty_flex <- function(data,
   data <- flextable::fontsize(data, size = font.size, part = 'all')
   data <- flextable::set_caption(data, caption, word_stylename = caption_style)
   data
+}
+
+flex_footer <- function(x, props = fp_text(font.size = 10.5, font.family = "SimSun")) {
+  flextable::as_chunk(x, props = props)
 }
 
 match_fun2 <- function(txt, pattern = "^[0-9_.A-Za-z]*(?= <-)"){
@@ -112,14 +166,200 @@ as_code_list2 <- function(lst){
 }
 
 # ==========================================================================
+# insert text
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ftext <- officer::ftext
+fp_text <- officer::fp_text
+fpar <- officer::fpar
+fp_par <- officer::fp_par
+
+st.index <- fp_text(font.size = 14, font.family = "SimHei")
+
+# ==========================================================================
+# custom render
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+custom_render <- function(file, theme = 'thesis', fix = fix_spell,
+  fun_render = rmarkdown::render, heading_mark = "#") {
+  ## initialize
+  global <- environment()
+  clear <- function(ns) {
+    lapply(ns, function(n) assign(paste0("n", n), 0, envir = global))
+  }
+  clear(1:9)
+  attr(n1, 'part') <- 0
+  ## numbering heading
+  md <- fix(readLines(file))
+  h.pos <- grep(paste0("^", heading_mark), md)
+  chunk.pos <- get_chunkPos(md)
+  h.pos <- h.pos[ !h.pos %in% chunk.pos ]
+  toc <- lapply(md[h.pos],
+    function(ch) {
+      level <- length(stringr::str_extract_all(ch, heading_mark)[[ 1 ]])
+      fun <- match.fun(paste0("rheader", ifelse(level > 4, 4, level), ".", theme))
+      nch <- fun(ch, level = level, global = global, clear = clear)
+      if (grepl("@@part", ch)) level <- 0
+      list(heading = nch, level = level)
+    })
+  md[h.pos] <- vapply(toc, function(x) x$heading, character(1))
+  ## cross-reference
+  ids <- stringr::str_extract(md, "(?<=\\{@@id:)[a-zA-Z._0-9]*(?=\\})")
+  ids.pos <- (1:length(md))[ !is.na(ids) ]
+  if (length(ids.pos) > 0) {
+    ids.relToc <- vapply(ids.pos, FUN.VALUE = character(1),
+      function(pos) {
+        as_ref.ch(search_toc(pos, toc = toc, toc.pos = h.pos))
+      })
+    ids.db <- as.list(sc(ids[ !is.na(ids) ], ids.relToc))
+    md[ ids.pos ] <- gsub("\\{@@id:[a-zA-Z._0-9]*\\}", "", md[ ids.pos ])
+    refs <- stringr::str_extract_all(md, "(?<=\\{@@ref:)[a-zA-Z._0-9]*(?=\\})")
+    refs <- unique(unlist(refs))
+    refs <- refs[ !is.na(refs) ]
+    if (length(refs) > 0) {
+      refs.content <- vapply(refs, FUN.VALUE = character(1),
+        function(ref) {
+          content <- ids.db[[ ref ]]
+          if (is.null(content)) {
+            stop("The reference id: ", ref, " not found.")
+          }
+          content
+        })
+      for (i in 1:length(refs)) {
+        md <- gsub(paste0("{@@ref:", refs[i], "}"), refs.content[i], md, fixed = T)
+      }
+    }
+  }
+  ## output
+  filename <- get_filename(file)
+  filepath <- get_path(file)
+  writeLines(md, nfile <- paste0(filepath, "/", "_temp_", filename))
+  fun_render(nfile)
+}
+
+get_chunkPos <- function(md) {
+  chunk.pos <- grep("^```", md)
+  unlist(lapply(seq(1, length(chunk.pos), by = 2),
+      function(n) {
+        chunk.pos[n]:chunk.pos[ n + 1 ]
+      }))
+}
+
+fix_spell <- function(md) {
+  chunk.pos <- get_chunkPos(md)
+  yaml.pos <- grep("^---", md)
+  yaml.pos <- 1:(yaml.pos[2])
+  pos <- (1:length(md))
+  pos <- pos[ !pos %in% c(chunk.pos, yaml.pos) ]
+  md[ pos ] <- gsub("\"",  "\'", md[ pos ])
+  md[ pos ] <- gsub("(?<=[^，^。])\\s*\'\\s*(?=[a-zA-Z])", " \'", md[ pos ], perl = T)
+  md[ pos ] <- gsub("(?<=[a-zA-Z0-9])\\s*\'\\s*(?=[^，^。])", "\' ", md[ pos ], perl = T)
+  md
+}
+
+as_ref.ch <- function(rel.toc, sep = " &gt; ") {
+  if (is.list(rel.toc)) {
+    rel.toc <- vapply(rel.toc, function(x) x$heading, character(1))
+  }
+  heading <- gsub("^#*\\s*|\\s*\\{-\\}", "", rel.toc)
+  paste0(heading, collapse = sep)
+}
+
+search_toc <- function(pos, toc, toc.pos)
+{
+  previous <- toc[toc.pos <= pos]
+  pre.levels <- vapply(previous, function(x) x$level, double(1))
+  top.level <- tail(pre.levels, n = 1) + 1
+  is.rel <- rev(vapply(rev(pre.levels), FUN.VALUE = logical(1),
+    function(level) {
+      if (level < top.level) {
+        top.level <<- level
+        return(T)
+      } else F
+    }))
+  previous[ is.rel ]
+}
+
+rheader1.thesis <- function(x, global, clear, ...,
+  fun.part = function() {
+    x <- sub("# @@part ", paste0("# ", "第", chn(attr(n, 'part')), "部分 "), x)
+    paste0(x, " {-}")
+  },
+  fun.normal = function() {
+    paste0(sub("# ", paste0("# ", chn(n), "、"), x), "{-}")
+  })
+{
+  if (grepl('\\{-\\}', x)) {
+    return(x)
+  } else if (grepl('@@part ', x)) {
+    n <- 0
+    n1 <- get("n1", envir = global)
+    attr(n, 'part') <- attr(n1, 'part') + 1
+    clear(1:9)
+    assign("n1", n, envir = global)
+    fun.part()
+  } else {
+    n <- get("n1", envir = global) + 1
+    clear(1:9)
+    assign("n1", n, envir = global)
+    fun.normal()
+  }
+}
+
+rheader2.thesis <- function(x, global, clear, ...,
+  fun = function() {
+    sub("## ", paste0("## ", "（", chn(n), "）"), sub("$", " {-}", x))
+  })
+{
+  n <- get("n2", envir = global) + 1
+  clear(2:9)
+  assign("n2", n, envir = global)
+  fun()
+}
+
+rheader3.thesis <- function(x, global, clear, ...,
+  fun = function() {
+    sub("### ", paste0("### ", n, ". "), sub("$", " {-}", x))
+  }) 
+{
+  n <- get("n3", envir = global) + 1
+  clear(3:9)
+  assign("n3", n, envir = global)
+  fun()
+}
+
+rheader4.thesis <- function(x, global, clear, level = 4, ...) {
+  n <- get(paste0("n", level), envir = global) + 1
+  clear(level:9)
+  assign(paste0("n", level), n, envir = global)
+  num <- vapply(3:level, function(n) get(paste0("n", n), envir = global), double(1))
+  num <- paste0(num, collapse = ".")
+  sub("#* ",
+    paste0(paste0(rep("#", level), collapse = ""), " ", num, " "),
+    sub("$", " {-}", x))
+}
+
+chn <- function(n) {
+  switch(n,
+    "1" = "一", "2" = "二", "3" = "三", "4" = "四", "5" = "五",
+    "6" = "六", "7" = "七", "8" = "八", "9" = "九", "10" = "十"
+  )
+}
+
+# ==========================================================================
 # custom docx tools
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 custom_docx_document <- function(...){
   args <- list(...)
+  expr <- args$reference_docx
+  if (grepl("^`r ", expr)) {
+    path <- eval(parse(text = gsub("^`r |`$", "", expr)))
+    args$reference_docx <- path
+  }
   args <- list(
     reference_docx = args$reference_docx,
-    df_print = "kable",
+    df_print = "tibble",
     tables = list(
       style = "Table", width = 1, topcaption = TRUE, tab.lp = "tab:",
       caption = list(
@@ -321,6 +561,14 @@ repl_xml.fontSzCs <- function(xml,
   main = "style", target = "rPr", ttag = "szCs", namespace = "w",
   insert_ttag = XML::xmlNode(ttag, attrs = sc(param, as), namespace = namespace),
   force_target = F)
+{
+  args <- as.list(environment())
+  args$match.arg <- F
+  do.call(repl_xml.font, args)
+}
+
+dele_xml.lang <- function(xml,
+  name = "Normal", target = "rPr", ttag = "lang", delete_ttag = T)
 {
   args <- as.list(environment())
   args$match.arg <- F
@@ -534,4 +782,17 @@ pdf_convert <- function (pdf, format = "png", pages = NULL, filenames = NULL,
     "text")
   pdftools:::poppler_convert(pdftools:::loadfile(pdf), format, pages, filenames, 
     dpi, opw, upw, antialiasing, text_antialiasing, verbose)
+}
+
+# ==========================================================================
+# other tools
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+as_df.lst <- function(lst, col.name = 'type', col.value = 'name') {
+  data <- data.frame(
+    x = rep(names(lst), lengths(lst), each = T), 
+    y = unlist(lst, use.names = F)
+  )
+  colnames(data) <- c(col.name, col.value)
+  data
 }

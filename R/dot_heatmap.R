@@ -116,7 +116,7 @@ dot_heatmap <- function(df){
     theme_minimal() +
     guides(size = "none") +
     scale_color_gradient2(low = "#3182BDFF", high = "#A73030FF") +
-    theme(text = element_text(family = "Times"),
+    theme(text = element_text(family = .font),
       axis.text.x = element_text(angle = 90))
     return(p)
 }
@@ -131,7 +131,7 @@ tile_heatmap <-
       scale_fill_gradient2(low = "#3182BDFF", high = "#A73030FF",
         limits = c(min(df$value), max(df$value))) +
       labs(x = "Sample", y = "Feature ID", fill = "log2 (Feature level)") +
-      theme(text = element_text(family = "Times", face = "bold"),
+      theme(text = element_text(family = .font, face = "bold"),
         axis.text = element_text(face = "plain"),
         axis.text.x = element_blank()
       )
@@ -174,7 +174,7 @@ add_xgroup.heatmap <-
       theme(
         axis.text.x = element_blank(),
         axis.text.y = element_blank(),
-        text = element_text(family = "Times", face = "bold"),
+        text = element_text(family = .font, face = "bold"),
         plot.margin = unit(c(0, 0, 0, 0), "cm")
       )
       com <- aplot::insert_bottom(p, p.xgroup, height = 0.05)
@@ -199,7 +199,7 @@ add_xgroup.tile.heatmap <-
       theme(
         axis.text.x = element_blank(),
         axis.text.y = element_blank(),
-        text = element_text(family = "Times", face = "bold"),
+        text = element_text(family = .font, face = "bold"),
         plot.margin = unit(c(0, 0, 0, 0), "cm")
       )
       com <- aplot::insert_bottom(p, p.xgroup, height = 0.05)
@@ -224,7 +224,7 @@ add_ygroup.tile.heatmap <-
       theme(
         axis.text.x = element_blank(),
         axis.text.y = element_blank(),
-        text = element_text(family = "Times", face = "bold"),
+        text = element_text(family = .font, face = "bold"),
         plot.margin = unit(c(0, 0, 0, 0), "cm")
       )
       com <- aplot::insert_left(p, p.ygroup, width = 0.02) 
