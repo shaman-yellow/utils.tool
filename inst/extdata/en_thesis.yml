@@ -1,0 +1,7 @@
+title: ''
+bibliography: '`r system.file("extdata", "library.bib", package = "utils.tool")`'
+csl: '`r system.file("extdata", "nature.csl", package = "utils.tool")`'
+reference-section-title: "Reference"
+output:
+  custom_docx_document2:
+    reference_docx: '`r system.file("extdata", "ch_thesis.docx", package = "utils.tool")`'

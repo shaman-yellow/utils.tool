@@ -1,15 +1,16 @@
 # ==========================================================================
 # manualy set figure number in artical
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-pandoc.docx <- 
-  function(
+pandoc.docx <- function(
     file.md,
     format = ".docx",
     output = sub("\\.[a-z]*$", format, file.md),
     deal_with = T,
     script = "pandoc.sh",
     script_path = system.file("extdata", script, package = "utils.tool"),
-    template = "template.tex")
+    template = "template.tex",
+    hasLink = T
+  )
   {
     ## read md
     md <- readLines(file.md)
@@ -21,7 +22,10 @@ pandoc.docx <-
       ## unique
       citation.key <- unique(citation.key)
       ## paste as pattern.set
-      pattern.set <- paste0("\\{@", citation.key, ":[^{]{1,50}\\}\\{nolink=True\\}")
+      pattern.set <- paste0(
+        "\\{@", citation.key, ":[^{]{1,50}\\}",
+        if (hasLink) "\\{nolink=True\\}" else NULL
+      )
       record <-  lapply(pattern.set,
         function(pattern){
           cite <- stringr::str_extract(citation, pattern)
@@ -38,8 +42,9 @@ pandoc.docx <-
     cat(md, sep = "\n", file = ".TMP.md")
     tmp_script <- paste0(".TMP.", script)
     file.copy(script_path, tmp_script)
+    file.copy(paste0(.expath, "/custom-reference.docx"), "custom-reference.docx")
     system(paste0("bash ", tmp_script, " .TMP.md ", output, " ", template))
-    file.remove(tmp_script)
+    file.remove(tmp_script, "custom-reference.docx")
     if (deal_with)
       return(record)
   }
@@ -199,21 +204,25 @@ extract_ref_pan2md.sci_bull <- function(md){
   generate_ref_key(ref)
 }
 
-## Vancouver (superscript)
+## Vancouver (superscript); ac
 
 revise_pan2md.vanco <- function(file, output = "tmp.md"){
   md <- readLines(file)
   md <- revise_symbol_pan2md(md)
   ## ref
+  md <- gsub("log2", "log~2~", md)
+  md <- gsub("log10", "log~10~", md)
+  md <- gsub("\\(#ref-[0-9a-zA-Z_.]*\\)", "(\\\\l)", md)
   md <- gsub("\\[\\^", "^[", md)
   md <- gsub("\\^\\]\\(\\\\l\\)", "](\\\\l)^", md)
+  md <- gsub("\\^\\]", "]^", md)
   md <- gsub("\\(\\\\l\\)(?!,\\[|\\-\\-|\\^)", "(\\\\l)^", md, perl = T)
   md <- gsub("(?<!\\^|l\\),|\\-\\-)\\[(?=[0-9])", "^[", md, perl = T)
   return(md)
 }
 
 extract_ref_pan2md.vanco <- function(md) {
-  ref <- unlist(stringr::str_extract_all(md, "\\^\\[.*?\\)\\^"))
+  ref <- unlist(stringr::str_extract_all(md, "\\^\\[.*?\\)\\^|\\^\\[[0-9\\-]*\\]\\^"))
   generate_ref_key(ref)
 }
 
@@ -291,5 +300,19 @@ get_filename <- function(path_str){
 
 
 # ==========================================================================
-# modify citation
+# modify figure citation
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+rm.instFig <- function(md, getID = T) {
+  pos <- grepl("^!\\[", md)
+  target <- md[pos]
+  md[pos] <- ""
+  if (getID) {
+    ids <- stringr::str_extract(
+      target, "(?<=\\{#).*(?=\\})"
+    )
+    notes <- paste0('[citation]: {@', ids, '}\n')
+    md <- c(md, notes)
+  }
+  return(md)
+}

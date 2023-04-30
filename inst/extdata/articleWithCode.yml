@@ -5,10 +5,10 @@ reference-section-title: "Reference"
 link-citations: true
 output:
   bookdown::pdf_document2:
-    pandoc_args: [
-      "--filter", "pandoc-fignos",
-      "--filter", "pandoc-tablenos"
-    ]
+    # pandoc_args: [
+      # "--filter", "pandoc-fignos",
+      # "--filter", "pandoc-tablenos"
+    # ]
     keep_tex: true
     toc: true
     toc_depth: 3

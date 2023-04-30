@@ -1,7 +1,19 @@
 
-new_scene <- 
-  function(scene, weight = rep(100, length(scene)), ex_weight = weight,
-    path = "~/MCnebula2", suffix = "/content/en", tar = "docs", index_Draft = T){
+set_hugoDir <- function(path) {
+  assign("hugoDir", path, topenv())
+}
+
+hugoDir <- "~/MCnebula2/"
+
+new_notes <- function(scene, weight, parent = "notes") {
+  names(scene) <- rep(parent, length(scene))
+  weight <- rep(weight, length(scene))
+  ex_weight <- weight + 1:length(scene)
+  new_scene(scene, weight, ex_weight)
+}
+
+new_scene <- function(scene, weight = rep(100, length(scene)), ex_weight = weight,
+    path = hugoDir, suffix = "/content/en", tar = "docs", index_Draft = T){
     if (!is.vector(scene)) {
       stop("is.vector(scene) == F")
     }
@@ -84,7 +96,7 @@ setGeneric("set_home",
 setMethod("set_home", 
   signature = setMissing("set_home"),
   function(){
-    function(path = "~/MCnebula2/config", tar = "params.toml") {
+    function(path = paste0(hugoDir, "/config"), tar = "params.toml") {
       target_file(path, tar)
     }
   })
@@ -121,7 +133,7 @@ setGeneric("set_index",
 setMethod("set_index", 
   signature = setMissing("set_index"),
   function(){
-    function(tar = "en/_index.Rmd", path = "~/MCnebula2/content/en") {
+    function(tar = "en/_index.Rmd", path = paste0(hugoDir, "/content/en")) {
       target_file(path, tar)
     }
   })
@@ -148,7 +160,7 @@ setMethod("set_index",
 
 inclu.fig.ht <- function(src, to, caption = "This is a figure",
   width = "100%", height = NULL,
-  rel.path = "~/MCnebula2/content/en")
+  rel.path = paste0(hugoDir, "/content/en"))
 {
   if (!file.exists(paste0(rel.path, to))) {
     if (!file.exists(src)) {

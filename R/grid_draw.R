@@ -1060,10 +1060,12 @@ sym_fill <- function(long, short){
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 #' @export .expathsvg
-.expathsvg <-
-  system.file("extdata", "svg",
-    package = gsub("^.*:", "",
-      environmentName(topenv(environment()))))
+.expathsvg <- function() {
+  .expathsvg <- system.file("extdata", "svg", package = gsub("^.*:", "",
+      environmentName(topenv())))
+  assign('.expathsvg', .expathsvg, envir = topenv())
+}
+
 prefix <- c()
 
 #' @export .check_external_svg
@@ -1091,7 +1093,6 @@ prefix <- c()
   if (!is.null(log))
     writeLines(log, log.path)
 }
-.check_external_svg()
 
 #' @export ex_grob
 ex_grob <- function(name, fun = .cairosvg_to_grob){
@@ -1212,3 +1213,30 @@ zoom_pdf <- function(file, position = c(.5, .5), size = c(.15, .1), page = 1, dp
   }
   return(res)
 }
+
+# ==========================================================================
+# shape
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+simulate_peaks <- function(all_range = list(1:30, 31:60, 61:100, 101:140),
+  shift = rnorm(10, 2, 1))
+{
+  lst <- mapply(shift, 1:length(shift), SIMPLIFY = F, FUN = function(shift, id){
+    peak <- mapply(all_range, SIMPLIFY = F,
+      FUN = function(range){
+        peak <- dnorm(range, median(range) + shift, rnorm(1, 5, 1.2)) *
+          rnorm(1, 0.7, 0.15)
+      })
+    feature <- mapply(1:length(all_range), lengths(all_range),
+      FUN = function(seq, rep){
+        rep(paste0("peak", seq), rep)
+      })
+    tibble::tibble(x = unlist(all_range), y = unlist(peak),
+      sample = paste0("sample", id),
+      peak = unlist(feature)
+    )
+  })
+  data.table::rbindlist(lst)
+}
+
+

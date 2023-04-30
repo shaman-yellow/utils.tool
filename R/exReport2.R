@@ -2,6 +2,8 @@
 # for conversion of 'report'
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+
+
 as_report.rough <- function(lines) {
   yaml.pos <- grep("^---", lines)
   yaml.pos <- 1:(yaml.pos[2])
@@ -13,8 +15,17 @@ as_report.rough <- function(lines) {
 write_biocStyle <- function(
   report, savename, title, change_include_fun = "inclu.fig",
   bioyml = readLines(paste0(.expath, "/", "biocstyle.yml")),
-  origin_include_fun = "knitr::include_graphics")
+  origin_include_fun = "knitr::include_graphics",
+  render = rmarkdown::render)
 {
+  require("MCnebula2")
+  if (is.character(report)) {
+    if (file.exists(report)) {
+      report <- as_report.rough(readLines(report))
+    } else {
+      stop( "file.exists(report) == F" )
+    }
+  }
   if (length(x <- grep("^title:", bioyml)) > 0) {
     bioyml <- bioyml[-x]
   }
@@ -28,22 +39,33 @@ write_biocStyle <- function(
     lines <- gsub(origin_include_fun, change_include_fun, lines)
   }
   writeLines(lines, savename)
+  if (is.function(render)) {
+    render(savename)
+  }
 }
 
 write_thesisDocx <- function(report, savename, title,
   change_include_fun = "inclu.fig",
   yml = readLines(paste0(.expath, "/", "ch_thesis.yml")),
-  origin_include_fun = "knitr::include_graphics")
+  origin_include_fun = "knitr::include_graphics", ...)
 {
-  write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun)
+  write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun, ...)
+}
+
+write_thesisDocxEn <- function(report, savename, title,
+  change_include_fun = "inclu.fig",
+  yml = readLines(paste0(.expath, "/", "en_thesis.yml")),
+  origin_include_fun = "knitr::include_graphics", ...)
+{
+  write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun, ...)
 }
 
 write_articlePdf <- function(report, savename, title,
   change_include_fun = NULL,
   yml = readLines(paste0(.expath, "/", "articleWithCode.yml")),
-  origin_include_fun = "knitr::include_graphics")
+  origin_include_fun = "knitr::include_graphics", ...)
 {
-  write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun)
+  write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun, ...)
 }
 
 kable_less <- function(x, ...) {

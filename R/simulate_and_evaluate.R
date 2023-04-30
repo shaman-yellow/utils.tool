@@ -1022,7 +1022,7 @@ visualize_comparison <-
     list2,
     ylim_min = 50,
     from = c("MCnebula2", "GNPS"),
-    ylab = "Classified number",
+    ylab = "Classified number (TP + FP)",
     xlab = "Classes",
     color_lab = "Methods",
     palette = ggsci::pal_npg()(9)
@@ -1112,38 +1112,66 @@ visualize_summary <-
     data.ratioSt <- dplyr::filter(data.ratioSt, type != "Origin")
     p.ratioSt <- ggplot(data.ratioSt) +
       geom_col(aes(x = 0, y = change, fill = form(evaluate))) +
-      geom_text(data = dplyr::filter(data.ratioSt, evaluate == "lost"),
+      geom_text(data = dplyr::filter(data.ratioSt, evaluate == "non-lost"),
         aes(x = -2, y = 0, label = paste0(change, "%")),
         hjust = .5, family = .font) +
       coord_polar(theta = "y", direction = -1) +
       xlim(-2, .5) +
       ylim(0, 100) +
       labs(fill = "") +
-      scale_fill_manual(values = c("#D9D9D9", "#91D1C2")) +
+      scale_fill_manual(values = c("grey95", "#91D1C2")) +
       facet_wrap(~ type, nrow = 1) +
       theme_void()
     p.ratioSt <- sep_legend(p.ratioSt, theme3)
+    ## draw precision (1 - relative false rate)
     lostRate <- mean(dplyr::filter(data.ratioSt, evaluate == "lost")$change) / 100
     data.ratioRelFal <- dplyr::mutate(
       data.ratioFal, rel.value = ifelse(evaluate == "false",
         100 - (100 - value) * (1 - lostRate),
         value * (1 - lostRate)
-      )
+        ),
+      prec.value = 100 - rel.value
     )
-    p.ratioRelFal <- ggplot(data.ratioRelFal) +
-      geom_col(aes(x = 0, y = rel.value, fill = form(evaluate))) +
+    p.precision <- ggplot(data.ratioRelFal) +
+      geom_col(aes(x = 0, y = prec.value, fill = form(evaluate))) +
       geom_text(data = dplyr::filter(data.ratioRelFal, evaluate == "false"),
-        aes(x = -2, y = 0, label = paste0(round(rel.value, 1), "%")),
+        aes(x = -2, y = 0, label = paste0(round(prec.value, 1), "%")),
+        hjust = .5, family = .font) +
+      coord_polar(theta = "y", direction = 1) +
+      xlim(-2, .5) +
+      ylim(0, 100) +
+      labs(fill = "") +
+      scale_fill_manual(values = c("#FED439FF", "grey95")) +
+      facet_wrap(~ type, nrow = 1) +
+      theme_void()
+    p.precision <- sep_legend(p.precision, theme3)
+    ## precision = TP. = 1 - rel.value; FP. = rel.value; FN. = lostRate
+    ## recall = TP / (TP + FN)
+    data.recall <- dplyr::mutate(
+      dplyr::filter(data.ratioRelFal, evaluate == "non-false"), 
+      recall.value = rel.value * 100 / (rel.value + lostRate * 100)
+    )
+    fun <- function(data) {
+      data2 <- data
+      data2$evaluate <- 'false'
+      data2$recall.value <- 100 - data2$recall.value
+      rbind(data, data2)
+    }
+    tt <<- data.recall <- fun(data.recall)
+    p.recall <- ggplot(data.recall) +
+      geom_col(aes(x = 0, y = recall.value, fill = form(evaluate))) +
+      geom_text(data = dplyr::filter(data.recall, evaluate == "non-false"),
+        aes(x = -2, y = 0, label = paste0(round(recall.value, 1), "%")),
         hjust = .5, family = .font) +
       coord_polar(theta = "y", direction = -1) +
       xlim(-2, .5) +
       ylim(0, 100) +
       labs(fill = "") +
-      scale_fill_manual(values = c("#E64B35FF", "#FED439FF")) +
+      scale_fill_manual(values = c("grey95", "#D5E4A2FF")) +
       facet_wrap(~ type, nrow = 1) +
       theme_void()
-    p.ratioRelFal <- sep_legend(p.ratioRelFal, theme3)
-    namel(p.num, p.ratioSt, p.ratioRelFal)
+    p.recall <- sep_legend(p.recall, theme3)
+    namel(p.num, p.ratioSt, p.precision, p.recall)
   }
 
 visualize_idRes <- 

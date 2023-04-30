@@ -81,6 +81,16 @@ pic_trim <- function(file){
   magick::image_destroy(img)
 }
 
+pretty_flex2 <- function(data,
+  caption = "This is table", footer = NULL,  bold_header = F,
+  weight = sc(colnames(data), rep(1, length(data))), width = 6,
+  family = "Times New Roman", e.family = "SimSun", font.size = 10.5,
+  caption_style = "Table Caption", form_body = F, form_header = T)
+{
+  args <- as.list(environment())
+  do.call(pretty_flex, args)
+}
+
 pretty_flex <- function(data,
   caption = "This is table", footer = "This is footer",  bold_header = F,
   weight = sc(colnames(data), rep(1, length(data))), width = 6,
@@ -390,6 +400,49 @@ custom_docx_document <- function(...){
   )
   do.call(officedown::rdocx_document, c(list('bookdown::word_document2'), args))
 }
+
+custom_docx_document2 <- function(...){
+  args <- list(...)
+  expr <- args$reference_docx
+  if (grepl("^`r ", expr)) {
+    path <- eval(parse(text = gsub("^`r |`$", "", expr)))
+    args$reference_docx <- path
+  }
+  args <- list(
+    reference_docx = args$reference_docx,
+    df_print = "tibble",
+    tables = list(
+      style = "Table", width = 1, topcaption = TRUE, tab.lp = "tab:",
+      caption = list(
+        style = "Table Caption", pre = "Tab. ", sep = " ", tnd = 0, tns = "-",
+        fp_text = structure(list(
+          font.size = NA, bold = TRUE, italic = NA,
+          underlined = NA, color = NA, font.family = NA, bold.cs = FALSE,
+          font.size.cs = NA, vertical.align = 'baseline', shading.color = NA,
+          hansi.family = NA, eastasia.family = NA, cs.family = NA,
+          lang.val = NA, lang.eastasia = NA, lang.bidi = NA
+        ), structure = "fp_text")
+      )),
+    plots = list(
+      style = "Normal", align = "center", fig.lp = "fig:", topcaption = FALSE,
+      caption = list(
+        style = "Image Caption", pre = "Fig. ", sep = " ", tnd = 0, tns = "-",
+        fp_text = structure(list(
+          font.size = NA, bold = TRUE, italic = NA,
+          underlined = NA, color = NA, font.family = NA, bold.cs = FALSE,
+          font.size.cs = NA, vertical.align = 'baseline', shading.color = NA,
+          hansi.family = NA, eastasia.family = NA, cs.family = NA,
+          lang.val = NA, lang.eastasia = NA, lang.bidi = NA
+        ), structure = "fp_text")
+        )),
+    page_margins = list(
+      bottom = 1, top = 1, right = 1.25, left = 1.25, header = 0.5,
+      footer = 0.5, gutter = 0.5)
+  )
+  do.call(officedown::rdocx_document, c(list('bookdown::word_document2'), args))
+}
+
+
 
 # ==========================================================================
 # xml tools

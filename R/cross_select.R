@@ -89,3 +89,23 @@ cross_select <- function(data.lst, filter.lst, target, split = NULL) {
   }
   return(res)
 }
+
+#' @importFrom rlang as_label
+.check_data <- 
+  function(object, lst, tip = "(...)"){
+    target <- rlang::as_label(substitute(object))
+    mapply(lst, names(lst), FUN = function(value, name){
+             obj <- match.fun(name)(object)
+             if (is.null(obj)) {
+               stop(paste0("is.null(", name, "(", target, ")) == T. ",
+                           "use `", value, tip, "` previously."))
+             }
+             if (is.list(obj)) {
+               if (length(obj) == 0) {
+                 stop(paste0("length(", name, "(", target, ")) == 0. ",
+                             "use `", value, tip, "` previously."))
+               }
+             }
+           })
+  }
+

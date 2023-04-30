@@ -237,8 +237,16 @@ repSuffix <-
 #' @aliases .expath
 #' @description \code{.expath}: ...
 #' @rdname utilites
-.expath <- system.file("extdata", ".", 
-  package = gsub("^.*:", "", environmentName(topenv(environment()))))
+.expath <- function() {
+  .expath <- system.file("extdata", ".", package = gsub("^.*:", "", environmentName(topenv())))
+  assign('.expath', .expath, envir = topenv())
+}
+
+.onLoad <- function(libname, pkgname) {
+  .expath()
+  .expathsvg()
+  .check_external_svg()
+}
 
 #' @export agroup
 #' @aliases agroup
