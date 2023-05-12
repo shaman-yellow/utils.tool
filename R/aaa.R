@@ -182,6 +182,9 @@ fill_list <- function(names, vec, default = vec[1]) {
 #' @description \code{n}: ...
 #' @rdname utilites
 n <- function(name, n){
+  if (n == 0) {
+    return(NULL)
+  }
   name <- as.character(substitute(name))
   paste0(name, 1:n)
 }

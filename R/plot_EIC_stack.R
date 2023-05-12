@@ -44,6 +44,9 @@ plot_EIC_stack <-
         feature, .features_id = 1, mz = 2, rt = 3,
         dplyr::contains(metadata$sample) & dplyr::contains("Peak RT")
       )
+      if (ncol(feature) == 3) {
+        stop("`feature` get by data.table::fread(quant.path) not contains 'Peak RT' information.")
+      }
       feature <- dplyr::mutate(feature, .features_id = as.character(.features_id))
       feature <- dplyr::filter(feature, .features_id %in% idset)
       feature <- tidyr::gather(feature, type, time, -.features_id, -mz, -rt)

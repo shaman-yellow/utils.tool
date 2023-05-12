@@ -29,10 +29,12 @@ write_biocStyle <- function(
   if (length(x <- grep("^title:", bioyml)) > 0) {
     bioyml <- bioyml[-x]
   }
-  if (!grepl("^title: ", title)) {
-    title <- paste0("title: ", title)
+  if (!is.null(title)) {
+    if (!grepl("^title: ", title)) {
+      title <- paste0("title: ", title)
+    }
+    bioyml <- c(title, bioyml)
   }
-  bioyml <- c(title, bioyml)
   yaml(report) <- bioyml
   lines <- call_command(report)
   if (!is.null(change_include_fun)) {

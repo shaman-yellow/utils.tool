@@ -7,14 +7,16 @@ pretty_table <-
     df, title = "compounds summary", subtitle = "LC-MS",
     footnote = "...", spanner = F, default = F,
     filename = "tmp.html", path = tempdir(),
-    font = "Times New Roman")
+    font = "Times New Roman", widths = NULL, caption = NULL)
   {
-    title = paste0("**", Hmisc::capitalize(title), "**")
-    subtitle = paste0("**", Hmisc::capitalize(subtitle), "**")
+    if (!is.null(title)) {
+      title = paste0("**", Hmisc::capitalize(title), "**")
+      subtitle = paste0("**", Hmisc::capitalize(subtitle), "**")
+    }
     colnames(df) <- Hmisc::capitalize(colnames(df))
     if(!default){
       t <- gt_solid_line(df, title = title, subtitle = subtitle,
-        footnote = footnote, font = font)
+        footnote = footnote, font = font, widths = widths, caption = caption)
     }
     if(default){
       t <- opt_table_font(gt(df), font=list(font))
@@ -29,7 +31,9 @@ pretty_table <-
       t <- tab_spanner_delim(t, columns = columns,
         delim = "#")
     }
-    gtsave(t, filename, path)
+    if (!is.null(filename)) {
+      gtsave(t, filename, path)
+    }
     return(t)
   }
 
@@ -40,13 +44,17 @@ footnote <- function(gt, text, columns){
 
 gt_solid_line <- 
   function(df, title = "Table", subtitle = "Table", footnote = "...",
-    font = "Times New Roman")
+    font = "Times New Roman", widths = NULL, caption = NULL)
   {
-    t <- opt_table_font(gt(df), font = list(font))
-    t <- tab_header(t, title = md(title),
-      subtitle = md(subtitle))
-    t <- tab_footnote(t, footnote = footnote,
-      locations = cells_title(groups = c("title")))
+    t <- opt_table_font(gt(df, caption = caption), font = list(font))
+    if (!is.null(title)) {
+      t <- tab_header(t, title = md(title),
+        subtitle = if (!is.null(subtitle)) md(subtitle) else NULL)
+    }
+    if (!is.null(footnote)) {
+      t <- tab_footnote(t, footnote = footnote,
+        locations = cells_title(groups = c("title")))
+    }
     t <- opt_align_table_header(t, align = "left")
     t <- cols_align(t, align = "left",
       columns = everything()) 
@@ -72,6 +80,9 @@ gt_solid_line <-
         weight = px(1),
         style = "solid"),
       locations = cells_row_groups(groups = everything()))
+    if (!is.null(widths)) {
+      t <- cols_width(t, .list = widths)
+    }
     return(t)
   }
 

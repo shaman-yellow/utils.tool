@@ -20,17 +20,17 @@ inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
     savename <- paste0(saveDir, "/", sub("\\.pdf$", ".png", file))
     if (!file.exists(savename)) {
       pdf_convert(image, filenames = savename, dpi = dpi, pages = 1)
-      exists <- T
-    } else exists <- F
+      need_trim <- T
+    } else need_trim <- F
   } else {
     savename <- paste0(saveDir, "/", file)
     if (!file.exists(savename)) {
       file.copy(image, savename)
-      exists <- T
-    } else exists <- F
+      need_trim <- T
+    } else need_trim <- F
   }
   ## trim the border
-  if (!exists) {
+  if (!need_trim) {
     gc()
     pic_trim(savename)
   }
@@ -59,7 +59,39 @@ inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
   knitr::include_graphics(savename)
 }
 
+prepare.fig <- function(image, saveDir = "thesis_fig", dpi = 300)
+{
+  if (!file.exists(saveDir))
+    dir.create(saveDir)
+  upper <- get_path(image)
+  if (is.na(upper))
+    upper <- "."
+  file <- get_filename(image)
+  ## backup for figure
+  if (grepl("\\.pdf$", file)) {
+    savename <- paste0(saveDir, "/", sub("\\.pdf$", ".png", file))
+    if (!file.exists(savename)) {
+      pdf_convert(image, filenames = savename, dpi = dpi, pages = 1)
+      need_trim <- T
+    } else need_trim <- F
+  } else {
+    savename <- paste0(saveDir, "/", file)
+    if (!file.exists(savename)) {
+      file.copy(image, savename)
+      need_trim <- T
+    } else need_trim <- F
+  }
+  ## trim the border
+  if (need_trim) {
+    gc()
+    pic_trim(savename)
+  }
+}
+
 inclu.capt <- function(img, saveDir = "thesis_fig") {
+  if (!file.exists(saveDir)) {
+    dir.create(saveDir)
+  }
   filename <- get_filename(img)
   savename <- paste0(saveDir, "/", filename)
   if (!file.exists(savename)) {
@@ -175,6 +207,144 @@ as_code_list2 <- function(lst){
     })
 }
 
+as_pander.flex <- function(obj, page.width = 12) {
+  require(pander)
+  data <- obj$body$dataset
+  caption <- obj$caption$value
+  pandoc.table(data, caption)
+}
+
+as_kable.flex <- function(obj, page.width = 14, landscape.width = 19) {
+  require(kableExtra)
+  data <- obj$body$dataset
+  if (length(n <- grep("InChIKey", colnames(data))) > 0) {
+    ch <- data[[ n ]]
+    ch <- vapply(ch,
+      function(ch) {
+        paste0(substring(ch, c(1, 7), c(8, 100)), collapse = " ")
+      }, character(1))
+    data[[ n ]] <- ch
+  }
+  caption <- obj$caption$value
+  kable <- kable(
+    data, "latex", booktabs = TRUE,
+    longtable = TRUE, caption = caption
+  )
+  if (ncol(data) > 8) {
+    page.width <- landscape.width
+  }
+  widths <- obj$body$colwidths
+  widths <- as.list(
+    paste0(widths / sum(widths) * page.width, "cm")
+  )
+  for (i in 1:length(widths)) {
+    kable <- column_spec(kable, i, width = widths[[ i ]])
+  }
+  kable <- kable_styling(
+    kable, latex_options = c("hold_position", "repeat_header"),
+    font_size = 10.5
+  )
+  if (length(footnotes <- obj$footer$dataset[[ 1 ]]) > 0 ) {
+    footnotes <- strsplit(footnotes, split = "\n")[[1]]
+    kable <- kableExtra::footnote(
+      kable, number = footnotes, fixed_small_size = T
+    )
+  }
+  kable
+}
+
+as_gt.flex <- function(obj, page.width = 650) {
+  require(gt)
+  data <- obj$body$dataset
+  colnames <- colnames(data)
+  widths <- obj$body$colwidths
+  widths <- as.list(widths / sum(widths) * page.width)
+  widths <- lapply(1:length(widths),
+    function(n) {
+      eval(parse(text = paste0("`", colnames[n], "`", " ~ ",
+            "px(", widths[n], ")")))
+    })
+  caption <- obj$caption$value
+  gt <- pretty_table(
+    data, title = NULL, footnote = NULL,
+    filename = NULL, caption = md(paste0("**", caption, "**")), widths = widths
+  )
+  if (length(footnotes <- obj$footer$dataset[[ 1 ]]) > 0 ) {
+    if (grepl(":|：", footnotes)) {
+      footnotes <- strsplit(footnotes, split = "\n")[[1]]
+      locates <- stringr::str_extract(footnotes, "^.*?(?=:|：)")
+      footnotes <- gsub("^.*?[:：]", "", footnotes)
+      for (i in 1:length(footnotes)) {
+        gt <- tab_footnote(gt, footnote = footnotes[i],
+          locations = cells_column_labels(columns = dplyr::starts_with(locates[i])))
+      }
+    } else {
+      gt <- tab_footnote(gt, footnote = footnotes)
+    }
+  }
+  gt <- tab_options(gt, table.font.size = px(10.5), footnotes.font.size = px(8))
+  if (knitr::is_latex_output()) {
+    chunk_label <- knitr::opts_current$get("tab.id")
+    gt <- as_latex_with_caption(gt, chunk_label, caption)
+  }
+  gt
+}
+
+as_latex_with_caption <- function(gt, chunk_label, caption) {
+  gt <- gt::as_latex(gt)
+  caption <- paste0("\\caption{\\label{tab:", chunk_label, "}", caption, "}\\\\")
+  latex <- strsplit(gt[1], split = "\n")[[1]]
+  pos <- grep("\\\\begin\\{longtable\\}", latex)
+  # pos.end <- grep("\\\\end\\{longtable\\}", latex)
+  if (!length(pos) == 1)
+    stop("length(pos) != 1")
+  # if (!length(pos.end) == 1)
+    # stop("length(pos.end) != 1")
+  latex[pos] <- paste0(latex[pos], "\n", caption, "\n")
+  # latex[pos] <- paste0("\\resizebox{\\linewidth}{!}{\n", latex[pos], "\n", caption, "\n")
+  # latex[pos.end] <- paste0(latex[pos.end], "\n", "}")
+  latex <- paste(latex, collapse = "\n")
+  gt[1] <- latex
+  return(gt)
+}
+
+thesis_as_latex.word <- function(md, flex_as_kable = "(^flex_.*)") {
+  if (length(md) > 1) {
+    message("Guess `md` has been read by readLines.")
+  } else {
+    md <- readLines(md)
+    md <- gsub("<!---BLOCK_LANDSCAPE_START--->", "\\\\landstart", md)
+    md <- gsub("<!---BLOCK_LANDSCAPE_STOP--->", "\\\\landend", md)
+    md <- gsub("<!---BLOCK_TOC--->", "\\\\tableofcontents", md)
+    md <- gsub("<!---BLOCK_TOC\\{seq_id: 'fig'\\}--->", "\\\\listoffigures", md)
+    md <- gsub("<!---BLOCK_TOC\\{seq_id: 'tab'\\}--->", "\\\\listoftables", md)
+    md <- gsub("(\\*\\*.*?[:：]\\*\\*)", "\\\\noindent\n\\1", md)
+    if (!is.null(flex_as_kable)) {
+      md <- gsub(flex_as_kable, "as_kable.flex(\\1)", md)
+    }
+    md <- gsub("^(```\\{r.*)tab.id", "\\1label", md)
+    # md <- gsub("tab.id\\s*=\\s*\"(.*?)\"", "\\1", md)
+    md <- gsub("&emsp;&emsp;\\s*", "", md)
+  }
+}
+
+insert_pdf.tex <- function(lines, pos, pdf, set_pagenumber = T) {
+  if (set_pagenumber) {
+    command <- "\\includepdfset{pagecommand={\\thispagestyle{fancy}}}"
+    lines[pos] <- paste0(lines[pos], "\n", command)
+  }
+  pages <- paste0("1-", pdftools::pdf_info(pdf)$pages)
+  command <- paste0("\\includepdfmerge{", pdf, ",", pages, "}\n")
+  lines[pos] <- paste0(lines[pos], "\n", command)
+  return(lines)
+}
+
+insert_tocCont.tex <- function(lines, pos, name, style = "section") {
+  command <- paste0("\n\\newpage\n", "\\addcontentsline{toc}{", style, "}{", name, "}")
+  lines[pos] <- paste0(lines[pos], "\n", command)
+  return(lines)
+}
+
 # ==========================================================================
 # insert text
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -244,7 +414,8 @@ custom_render <- function(file, theme = 'thesis', fix = fix_spell,
   filename <- get_filename(file)
   filepath <- get_path(file)
   writeLines(md, nfile <- paste0(filepath, "/", "_temp_", filename))
-  fun_render(nfile)
+  if (!is.null(fun_render))
+    fun_render(nfile)
 }
 
 get_chunkPos <- function(md) {
@@ -255,6 +426,11 @@ get_chunkPos <- function(md) {
       }))
 }
 
+## chinese \u4e00-\u9fa5
+## double [^\x00-\xff] 
+
+pch <- function() "[\u4e00-\u9fa5]"
+
 fix_spell <- function(md) {
   chunk.pos <- get_chunkPos(md)
   yaml.pos <- grep("^---", md)
@@ -262,9 +438,23 @@ fix_spell <- function(md) {
   pos <- (1:length(md))
   pos <- pos[ !pos %in% c(chunk.pos, yaml.pos) ]
   md[ pos ] <- gsub("\"",  "\'", md[ pos ])
-  md[ pos ] <- gsub("(?<=[^，^。])\\s*\'\\s*(?=[a-zA-Z])", " \'", md[ pos ], perl = T)
-  md[ pos ] <- gsub("(?<=[a-zA-Z0-9])\\s*\'\\s*(?=[^，^。])", "\' ", md[ pos ], perl = T)
+  md[ pos ] <- fix_quote(md[ pos ])
   md
+}
+
+fix_quote <- function(lines, left = "‘", right = "’", extra = "：、，。+（）") {
+  pattern <- paste0("[\u4e00-\u9fa5", extra, "]")
+  lines <- gsub(paste0("(?<=", pattern, ")\\s*\'\\s*(?=[a-zA-Z])"), left, lines, perl = T)
+  lines <- gsub(paste0("(?<=[a-zA-Z0-9])\\s*\'\\s*(?=", pattern, ")"), right, lines, perl = T)
+  lines
+}
+
+fix_quote.latex <- function(lines) {
+  lines <- gsub('‘', '`', lines)
+  lines <- gsub('’', '\'', lines)
+  lines <- gsub("\'([a-zA-Z_.\\(\\)0-9]{1,})\'", "`\\1\'", lines)
+  lines <- gsub("`([a-zA-Z_.\\(\\)0-9]{1,})`", "`\\1\'", lines)
+  lines
 }
 
 as_ref.ch <- function(rel.toc, sep = " &gt; ") {

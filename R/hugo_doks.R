@@ -3,7 +3,7 @@ set_hugoDir <- function(path) {
   assign("hugoDir", path, topenv())
 }
 
-hugoDir <- "~/MCnebula2/"
+hugoDir <- "~/siteBlog/"
 
 new_notes <- function(scene, weight, parent = "notes") {
   names(scene) <- rep(parent, length(scene))
@@ -157,6 +157,21 @@ setMethod("set_index",
     }
     writeLines(lines, path)
   })
+
+inht2 <- inclu.fig.ht2 <- function(src, caption = "...",
+  file = get_filename(src), parent = "/docs/notes/",
+  parent.ex = "figs", width = "100%", height = NULL,
+  rel.path = paste0(hugoDir, "/content/en"))
+{
+  inclu.fig.ht(src, to = paste0(parent, "/", parent.ex, "/", file), caption,
+    width, height, rel.path)
+}
+
+smallsvg <- function(p, file, width = 4, height = 3, mkdir = "figs") {
+  if (!file.exists(mkdir))
+    dir.create(mkdir)
+  ggsave(paste0(mkdir, "/", file), p, width = width, height = height)
+}
 
 inclu.fig.ht <- function(src, to, caption = "This is a figure",
   width = "100%", height = NULL,
