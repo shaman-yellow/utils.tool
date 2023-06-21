@@ -104,9 +104,9 @@ asTex.rmd <- function(file.md, yaml = paste0(.expath, "/", "article.yml"),
   writeLines("Done")
 }
 
-sep_list <- function(lines, sep = "^\\s*$")
+sep_list <- function(lines, sep = "^\\s*$", before = F)
 {
-  seps <- grep(sep, lines) + 1
+  seps <- grep(sep, lines) + if (before) 0 else 1
   group <- 1
   groups <- vapply(1:length(lines), FUN.VALUE = double(1),
     function(n) {

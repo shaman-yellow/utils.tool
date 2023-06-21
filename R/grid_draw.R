@@ -728,7 +728,7 @@ NULL
 #> NULL
 
 #' @export .font
-.font <- if (.Platform$OS.type == 'unix') "Times" else "Times New Roman"
+.font <- "Times"
 
 #' @export .title_gp
 .title_gp <- gpar(col = "black", cex = 1, fontfamily = .font, fontface = "bold")
@@ -1239,4 +1239,36 @@ simulate_peaks <- function(all_range = list(1:30, 31:60, 61:100, 101:140),
   data.table::rbindlist(lst)
 }
 
+# ==========================================================================
+# get_ggsets
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+#' @export nebulae_as_grob
+#' @aliases nebulae_as_grob
+#' @title Convert Nebulae as 'grob' object
+#' @description \code{nebulae_as_grob}: This will convert Child-Nebulae
+#' as a 'grob' object. See package `grid` about 'grob' object.
+#' @param x [mcnebula-class] object.
+#' @rdname nebulae_as_grob
+nebulae_as_grob <- function(x) {
+  chAsGrob <- function(ch, x) {
+    ggset <- modify_default_child(ch)
+    as_grob(call_command(ggset))
+  }
+  sets <- lapply(ggset(child_nebulae(x)), chAsGrob, x = x)
+  sets <- lapply(names(sets),
+    function(name) {
+      ggather(sets[[name]],
+        vp = viewports(child_nebulae(x))[[name]])
+    })
+  sets_vp <- viewport(layout = grid_layout(child_nebulae(x)))
+  sets <- do.call(ggather, c(sets, list(vp = sets_vp)))
+  legendH <- MCnebula2:::.legend_hierarchy(child_nebulae(x), x)
+  legendG <- MCnebula2:::.get_legend(
+    call_command(modify_default_child(ggset(child_nebulae(x))[[1]], x))
+  )
+  ## integrate
+  vis <- frame_row(list(sets = 5, legendH = .5), namel(sets, legendH))
+  vis <- frame_col(list(vis = 4, legendG = 1), namel(vis, legendG))
+  vis
+}

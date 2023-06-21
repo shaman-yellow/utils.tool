@@ -8,7 +8,7 @@
 \usage{
 fast_layout(edges, layout = "fr", nodes = NULL)
 
-random_graph(ids, n = 5, e = 4, layout = "fr")
+random_graph(ids, n = length(ids), e = 4, layout = "fr")
 }
 \description{
 ...

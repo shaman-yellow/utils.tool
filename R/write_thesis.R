@@ -218,12 +218,7 @@ as_kable.flex <- function(obj, page.width = 14, landscape.width = 19) {
   require(kableExtra)
   data <- obj$body$dataset
   if (length(n <- grep("InChIKey", colnames(data))) > 0) {
-    ch <- data[[ n ]]
-    ch <- vapply(ch,
-      function(ch) {
-        paste0(substring(ch, c(1, 7), c(8, 100)), collapse = " ")
-      }, character(1))
-    data[[ n ]] <- ch
+    data[[ n ]] <- gsub("([A-Z]{7})([A-Z]{1,})", "\\1- \\2", data[[ n ]])
   }
   caption <- obj$caption$value
   kable <- kable(
@@ -1038,4 +1033,38 @@ as_df.lst <- function(lst, col.name = 'type', col.value = 'name') {
   )
   colnames(data) <- c(col.name, col.value)
   data
+}
+
+cutWords <- function(ch, len = 15, len.post = 3, max = len + len.post + 1) {
+  while( any(grepl(paste0("[^ ^\\-]{", max, "}"), ch)) ) {
+    ch <- gsub(paste0("\\b([^ ^\\-]{", len, "})([^ ^\\-]{", len.post, ",})\\b"), "\\1-\\2", ch)
+  }
+  ch
+}
+
+formatBib <- function(bib = paste0(.expath, "/library.bib"), savename = "tmp.bib", 
+  journalAbb_file = paste0(.expath, "/endlib.txt"))
+{
+  endlib <- tibble::as_tibble(data.table::fread(journalAbb_file, header = F))
+  dics <- .as_dic(endlib[[2]], endlib[[1]])
+  names(dics) <- tolower(names(dics))
+  lst <- read_bib(bib)
+  lst <- lapply(lst,
+    function(ch) {
+      pos <- grepl("^\\s*journal =", ch)
+      if (any(pos)) {
+        journal <- stringr::str_extract(ch[pos], "(?<=\\{).*(?=\\})")
+        journal <- tolower(journal)
+        if (journal %in% names(dics)) {
+          abb <- dics[[ journal ]]
+          ch[pos] <- sub("\\{.*\\}", paste0("{", abb, "}"), ch[pos])
+        } else {
+          message("No journal abbrev: ", journal)
+        }
+      }
+      pos <- grepl("^\\s*doi =", ch)
+      ch[ !pos ]
+    })
+  writeLines(unlist(lst), savename)
+  return(savename)
 }

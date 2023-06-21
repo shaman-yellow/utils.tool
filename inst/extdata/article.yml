@@ -14,9 +14,14 @@ output:
     latex_engine: xelatex
 header-includes:
   \usepackage{caption}
+  \renewcommand{\figurename}{Fig.}
   \captionsetup{font={footnotesize},width=6in}
   \renewcommand{\dblfloatpagefraction}{.9}
   \makeatletter
   \renewenvironment{figure}
   {\def\@captype{figure}}
   \makeatletter
+  \usepackage{setspace}
+  \setstretch{1.3} 
+  \linespread{1.3}
+

@@ -16,7 +16,8 @@ write_biocStyle <- function(
   report, savename, title, change_include_fun = "inclu.fig",
   bioyml = readLines(paste0(.expath, "/", "biocstyle.yml")),
   origin_include_fun = "knitr::include_graphics",
-  render = rmarkdown::render)
+  render = rmarkdown::render,
+  bib = NULL)
 {
   require("MCnebula2")
   if (is.character(report)) {
@@ -34,6 +35,9 @@ write_biocStyle <- function(
       title <- paste0("title: ", title)
     }
     bioyml <- c(title, bioyml)
+  }
+  if (!is.null(bib)) {
+    bioyml <- gsub("(bibliography:).*", paste0("\\1 ", bib), bioyml)
   }
   yaml(report) <- bioyml
   lines <- call_command(report)

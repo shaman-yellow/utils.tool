@@ -406,3 +406,10 @@ molconvert_structure <-
 obj.size <- function(x, ...) {
   format(object.size(x), units = "MB", ...)
 }
+
+clearMatch <- function(strs)
+{
+  strs <- unlist(strs)
+  strs <- strs[ !vapply(strs, is.na, logical(1)) ]
+  strs
+}

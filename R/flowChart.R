@@ -102,3 +102,12 @@ zoRange <- function (x, factor)
   return(x)
 }
 
+ll <- function(str, sep = ":", link = ":") {
+  strs <- strsplit(str, split = sep)[[ 1 ]]
+  lst <- list()
+  length(lst) <- length(strs) - 1
+  for (i in 1:(length(strs) - 1)) {
+    lst[[ i ]] <- paste0(strs[i], ":", strs[i + 1])
+  }
+  return(lst)
+}

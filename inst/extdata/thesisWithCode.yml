@@ -1,0 +1,54 @@
+title: ""
+bibliography: '`r system.file("extdata", "library.bib", package = "utils.tool")`'
+csl: '`r system.file("extdata", "gbt7714_2015.csl", package = "utils.tool")`'
+reference-section-title: "参考文献"
+link-citations: true
+fontsize: 12pt
+section-bibs-level: 2
+output:
+  bookdown::pdf_document2:
+    keep_tex: true
+    toc: false
+    toc_depth: 3
+    latex_engine: xelatex
+    pandoc_args: [
+      "--lua-filter=/home/echo/quarto-cli/_extensions/pandoc-ext/section-bibliographies/section-bibliographies.lua"]
+header-includes:
+  \usepackage{caption}
+  \captionsetup{font={footnotesize},width=6in}
+  \renewcommand{\dblfloatpagefraction}{.9}
+  \makeatletter
+  \renewenvironment{figure}{\def\@captype{figure}}
+  \makeatletter
+  \definecolor{shadecolor}{RGB}{242,242,242}
+  \usepackage{xeCJK}
+  \setCJKmainfont{SimSun}[BoldFont=SimHei]
+  \setCJKmonofont{SimSun}
+  \usepackage{ctex}
+  \ctexset{space=true}
+  \usepackage{titlesec}
+  \renewcommand{\listfigurename}{附：图目录}
+  \renewcommand{\listtablename}{附：表格目录}
+  \titleformat{\section}
+    {\fontsize{14pt}{0pt}\centering\heiti\bfseries}{}{0em}{}[]
+  \titleformat{\subsection}
+    {\fontsize{12pt}{0pt}\heiti\bfseries}{}{0em}{}[]
+  \titleformat{\subsubsection}
+    {\fontsize{12pt}{0pt}\heiti\bfseries} {} {0em} {} []
+  \titleformat{\paragraph}
+    {\fontsize{12pt}{0pt}\heiti} {} {0em} {} []
+  \usepackage{setspace}
+  \setstretch{1.5} 
+  \linespread{1.5}
+  \usepackage{geometry} 
+  \geometry{left=30mm,right=20mm,top=30mm,bottom=20mm}
+  \usepackage{indentfirst}
+  \setlength{\parindent}{2em}
+  \usepackage{pdfpages}
+  \usepackage{lscape}
+  \newcommand{\landstart}{\begin{landscape}}
+  \newcommand{\landend}{\end{landscape}}
+  \usepackage{titletoc}
+  \titlecontents{section}[3em]{\vspace{6pt}}{\contentslabel{1em}}{\hspace*{-4em}}{\titlerule*[0.3pc]{$.$}{\hspace*{-0.5em}}\contentspage}
+  \titlecontents{subsection}[3em]{\vspace{5pt}}{\contentslabel{1em}}{\hspace*{-4em}}{\titlerule*[0.3pc]{$.$}{\hspace*{-0.5em}}\contentspage}
+  \titlecontents{subsubsection}[3em]{\vspace{5pt}}{\contentslabel{1em}}{\hspace*{-3em}}{\titlerule*[0.3pc]{$.$}{\hspace*{-0.5em}}\contentspage}
