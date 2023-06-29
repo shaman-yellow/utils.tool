@@ -43,7 +43,9 @@ anno.gene.biomart <-
       ensembl <- biomaRt::useEnsembl(biomart = "ensembl", dataset = db, host = host)
     }
     if(!is.character(attr)){
-      attr <- c("ensembl_gene_id",
+      attr <- c(
+        "ensembl_gene_id",
+        "entrezgene_id",
         "hgnc_symbol",
         "chromosome_name",
         "start_position",

@@ -1,0 +1,7 @@
+---
+---
+
+```{r setup, include = F}
+knitr::opts_chunk$set(echo = F, eval = F, message = F)
+devtools::load_all("~/utils.tool/")
+```
