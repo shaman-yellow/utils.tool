@@ -55,5 +55,5 @@ package of 'ggplot2'.
 \code{cid.to.kegg}: ...
 }
 \seealso{
-\code{\link[FELLA:data-funs]{FELLA::buildDataFromGraph()}}, \code{\link[FELLA:data-funs]{FELLA::buildGraphFromKEGGREST()}}
+\code{\link[FELLA:buildDataFromGraph]{FELLA::buildDataFromGraph()}}, \code{\link[FELLA:buildGraphFromKEGGREST]{FELLA::buildGraphFromKEGGREST()}}
 }

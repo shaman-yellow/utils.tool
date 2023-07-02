@@ -43,21 +43,6 @@ reCallMethod <-
     eval(parse(text = expr))
   }
 
-setMissing <- 
-  function(generic, ..., .SIG = "missing"){
-    args <- list(...)
-    sig <- getGeneric(generic)@signature
-    res <- vapply(sig, FUN.VALUE = "character",
-                  function(name){
-                    if (is.null(args[[ name ]]))
-                      .SIG
-                    else
-                      args[[ name ]]
-                  })
-    names(res) <- sig
-    return(res)
-  }
-
 .fresh_param <- 
   function(default, args){
     if (missing(args))
