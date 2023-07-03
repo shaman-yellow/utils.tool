@@ -286,9 +286,6 @@ add_attr.igraph <- function(igraph, data, by.x = "name", by.y, dedup.edges = T)
 
 output_graph <- function(igraph, file, format = "graphml", toCyDir = T) {
   igraph::write_graph(igraph, file, format = format)
-  if (toCyDir) {
-    file.copy(file, "~/Cytoscape_v3.9.1/", T)
-  }
 }
 
 plot_network.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
@@ -311,15 +308,15 @@ plot_network.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
 
 plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   label.size = 4, node.size = 12, sc = 5, ec = 5, 
-  arr.len = 2, edge.color = 'lightblue', edge.width = 1, lab.fill = "PR value")
+  arr.len = 2, edge.color = 'lightblue', edge.width = 1, lab.fill = "MCC score")
 {
   p <- ggraph(graph) +
     geom_edge_fan(aes(x = x, y = y),
       start_cap = circle(sc, 'mm'),
       end_cap = circle(ec, 'mm'),
-      arrow = arrow(length = unit(arr.len, 'mm')),
+      # arrow = arrow(length = unit(arr.len, 'mm')),
       color = edge.color, width = edge.width) +
-    geom_node_point(aes(x = x, y = y, fill = weight),
+    geom_node_point(aes(x = x, y = y, fill = MCC_score),
       size = node.size, shape = 21, stroke = .3) +
     geom_node_text(aes(label = preferred_name), size = label.size) +
     scale_fill_gradient(low = "lightyellow", high = "red") +
@@ -462,10 +459,107 @@ fwrite2 <- function(data, file, mkdir = "tabs") {
   data.table::fwrite(data, paste0(mkdir, "/", file))
 }
 
-cal_mcc <- function(numMax) {
-  sum(vapply(1:numMax, FUN.VALUE = double(1),
-    function(n) {
-      factorial(n - 1)
-    }))
+sortDup_edges <- function(edges) {
+  edges.sort <- apply(dplyr::select(edges, 1:2), 1,
+    function(vec) {
+      sort(vec)
+    })
+  edges.sort <- tibble::as_tibble(data.frame(t(edges.sort)))
+  edges.sort <- dplyr::distinct(edges.sort)
+  edges.sort
 }
 
+getBelong_edges <- function(edges) {
+  nodes <- unique(unlist(c(edges[, 1], edges[, 2])))
+  edges.rev <- edges
+  edges.rev[, 1:2] <- edges.rev[, 2:1]
+  links.db <- rbind(edges, edges.rev)
+  lst.belong <- split(links.db, unlist(links.db[, 1]))
+  lst.belong <- lapply(lst.belong,
+    function(data) unlist(data[, 2], use.names = F))
+  lst.belong
+}
+
+cal_mcc <- function(edges) {
+  if (is(edges, "igraph")) {
+    igraph <- edges
+    edges <- igraph::as_data_frame(edges, "edges")
+  } else if (is(edges, "data.frame")) {
+    igraph <- igraph::graph_from_data_frame(edges, F)
+  }
+  nodes <- unique(unlist(c(edges[, 1], edges[ , 2])))
+  maxCliques <- igraph::max_cliques(igraph)
+  scores <- vapply(nodes, FUN.VALUE = double(1), USE.NAMES = F,
+    function(node) {
+      if.contains <- vapply(maxCliques, FUN.VALUE = logical(1), USE.NAMES = F,
+        function(clique) {
+          members <- attributes(clique)$names
+          if (any(members == node)) T else F
+        })
+      in.cliques <- maxCliques[ if.contains ]
+      scores <- vapply(in.cliques, FUN.VALUE = double(1),
+        function(clique) {
+          num <- length(attributes(clique)$names)
+          factorial(num - 1)
+        })
+      sum(scores)
+    })
+  res <- data.frame(name = nodes, MCC_score = scores)
+  res <- tibble::as_tibble(dplyr::arrange(res, dplyr::desc(MCC_score)))
+  res
+}
+
+get_subgraph.mcc <- function(igraph, resMcc, top = 10) {
+  tops <- dplyr::arrange(resMcc, dplyr::desc(MCC_score))
+  tops <- head(tops$name, n = 10)
+  data <- igraph::as_data_frame(igraph, "both")
+  nodes <- dplyr::filter(data$vertices, name %in% !!tops)
+  nodes <- merge(nodes, resMcc, by = "name", all.x = T)
+  edges <- dplyr::filter(data$edges, (from %in% !!tops) & (to %in% !!tops))
+  igraph <- igraph::graph_from_data_frame(edges, F, nodes)
+  igraph
+}
+
+search_resFile <- function(file = "index.Rmd",
+  pattern.field = "\\*\\*\\(对应文件.*?\\)\\*\\*",
+  pattern.file = "(?<=`).*?(?=`)")
+{
+  md <- readLines(file)
+  md <- paste0(md, collapse = "\n")
+  matchs <- stringr::str_extract_all(md, pattern.field)[[1]]
+  files <- unlist(stringr::str_extract_all(matchs, pattern.file))
+  files <- files[ !grepl("^,", files) ]
+  res <- lapply(files,
+    function(file) {
+      if (!file.exists(file))
+        stop("file.exists(", file, ") == F")
+      file
+    })
+  unlist(res)
+}
+
+package_results <- function(
+  master_include = NULL,
+  report = "output.pdf",
+  main = search_resFile("index.Rmd"), 
+  headPattern = "[^r][^e][^s].*业务.*\\.zip", head = list.files(".", headPattern),
+  masterSource = c("output.Rmd", "install.R", "read_me.txt", head),
+  prefix = "results_", zip = paste0(prefix, head),
+  clientZip = "client.zip", masterZip = "master.zip",
+  clear = T)
+{
+  file.copy(report, "readMe_introduction.pdf", T)
+  report <- "readMe_introduction.pdf"
+  files.client <- c(report, main)
+  files.master <- c(files.client, head, masterSource)
+  zip(clientZip, files.client)
+  zip(masterZip, files.master)
+  zip(zip, c(clientZip, masterZip), flags = "-ur9X")
+  if (clear) {
+    file.remove(c(clientZip, masterZip))
+  }
+}
+
+colSum <- function(col) {
+  length(unique(col))
+}

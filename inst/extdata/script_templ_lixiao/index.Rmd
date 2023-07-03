@@ -3,5 +3,9 @@
 
 ```{r setup, include = F}
 knitr::opts_chunk$set(echo = F, eval = F, message = F)
-devtools::load_all("~/utils.tool/")
+## the package are available at <https://github.com/shaman-yellow/utils.tool>
+if (requireNamespace("utils.tool"))
+  devtools::load_all("~/utils.tool/")
+## if you want to run codes of this Rmarkdown,
+## please install the package `utils.tool` and other related packages (run install.R)
 ```
