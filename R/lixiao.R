@@ -2,7 +2,52 @@
 # work and function
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+# <https://cran.r-project.org/web/packages/RSelenium/index.html>
 
+start_drive <- function(command = "java -jar ~/.vim/after/ftplugin/selenium.jar",
+  port = 4444, extra = NULL, ...)
+{
+  system(paste(command, "-port", port, extra), wait = F)
+  new_link(port = port)
+}
+
+end_drive <- function(pattern = "[0-9]\\s*java.*-jar") {
+  tmp <- tempfile(fileext = ".txt")
+  system(paste0("ps aux > ", tmp))
+  text <- readLines(tmp)
+  text <- text[ grepl(pattern, text) ]
+  pid <- stringr::str_extract(text, "(?<=\\s)[0-9]{1,}(?=\\s)")
+  system(paste("kill", paste0(pid, collapse = " ")))
+}
+
+download_herbs <- function(link, ids,
+  urls = paste0("http://herb.ac.cn/Detail/?v=", ids, "&label=Herb"),
+  sleep = 3)
+{
+  link$open()
+  jobn <- 1
+  lapply(urls,
+    function(url) {
+      link$navigate(url)
+      if (jobn > 2) {
+        link$refresh()
+      }
+      jobn <<- jobn + 1
+      ele <- link$findElement(
+        using = "xpath",
+        value = "//main//div//h4[text()='Related Ingredients']/../div//button"
+      )
+      ele$sendKeysToElement(list("Download", key = "enter"))
+    })
+}
+
+new_link <- function(port = 4444L, browser = "firefox", addr = "localhost")
+{
+  RSelenium::remoteDriver(
+    remoteServerAddr = addr, port = port,
+    browserName = browser
+  )
+}
 
 merge.componentsGenes <- function(data, genes.lst) {
   names(genes.lst) <- data[[1]]
