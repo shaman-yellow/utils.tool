@@ -2,6 +2,8 @@
 # work and function
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+
+
 merge.componentsGenes <- function(data, genes.lst) {
   names(genes.lst) <- data[[1]]
   genes.lst <- lapply(genes.lst,
@@ -110,6 +112,22 @@ general_attrs <- function() {
 
 hsym <- function() {
   "hgnc_symbol"
+}
+
+get_herb_data <- function(herb = "../HERB_herb_info.txt", component = "../HERB_ingredient_info.txt",
+  target = "../HERB_target_info.txt")
+{
+  db <- lapply(namel(herb, component, target),
+    function(file) {
+      tibble::as_tibble(suppressWarnings(data.table::fread(file)))
+    })
+  names <- colnames(db$component)
+  colnames(db$component) <- c(names[-1], "extra_id")
+  db
+}
+
+ftibble <- function(file, ...) {
+  tibble::as_tibble(data.table::fread(file, ...))
 }
 
 get_nci60_data <- function(comAct = "../comAct_nci60/DTP_NCI60_ZSCORE.xlsx",
