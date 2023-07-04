@@ -4,42 +4,6 @@
 
 # <https://cran.r-project.org/web/packages/RSelenium/index.html>
 
-nl <- function(names, values, ...) {
-  .as_dic(values, names, ...)
-}
-
-smiles_as_sdfs.obabel <- function(smiles) {
-  lst.sdf <- pbapply::pbsapply(smiles, simplify = F,
-    function(smi) {
-      ChemmineOB::convertFormat("SMI", "SDF", source = test)
-    })
-  lst.sdf
-}
-
-sdfs_as_pdbqts <- function(lst.sdf, mkdir.sdf = "sdf", mkdir.pdbqt = "pdbqt")
-{
-  lapply(c(mkdir.sdf, mkdir.pdbqt), dir.create, showWarnings = F)
-  all_sdfs <- paste0(lst.sdf, collapse = "\n\n\n")
-  writeLines(all_sdfs, paste0(mkdir.sdf, "/all_compounds.sdf"))
-  n <- 1
-  pbapply::pbsapply(lst.sdf, 
-    function(sdf){
-      writeLines(sdf, file <- paste0(mkdir.sdf, "/", n, ".sdf"))
-      # system(paste0("mk_prepare_ligand.py -i ", file, " -o ", ))
-      n <<- n + 1
-    })
-  meta <- data.frame(
-    smiles = names(lst.sdf),
-    filename = paste0(1:length(smiles), ".sdf")
-  )
-  data.table::fwrite(meta, paste0(mkdir.sdf, "/metadata_of_filename.csv"))
-  data.table::fwrite(
-    dplyr::mutate(meta, filename = gsub("\\.sdf$", "\\.pdbqt$", filename)),
-    paste0(mkdir.pdbqt, "/metadata_of_filename.csv")
-  )
-  return(meta)
-}
-
 start_drive <- function(command = "java -jar ~/.vim/after/ftplugin/selenium.jar",
   port = 4444, extra = NULL, ...)
 {
@@ -56,20 +20,10 @@ end_drive <- function(pattern = "[0-9]\\s*java.*-jar") {
   system(paste("kill", paste0(pid, collapse = " ")))
 }
 
-download_herbTargets <- function(link, ids,
+download_herbs <- function(link, ids,
   urls = paste0("http://herb.ac.cn/Detail/?v=", ids, "&label=Herb"),
-    heading = "Related Gene Targets")
+  sleep = 3)
 {
-  download_herbCompounds(link, ids, heading = heading)
-}
-
-download_herbCompounds <- function(link, ids,
-  urls = paste0("http://herb.ac.cn/Detail/?v=", ids, "&label=Herb"),
-  heading = "Related Ingredients")
-{
-  checks <- list.files("~/Downloads", "\\.xlsx$", full.names = T)
-  if (length(checks) > 0)
-    file.remove(checks)
   link$open()
   jobn <- 1
   lapply(urls,
@@ -81,55 +35,24 @@ download_herbCompounds <- function(link, ids,
       jobn <<- jobn + 1
       ele <- link$findElement(
         using = "xpath",
-        value = paste0("//main//div//h4[text()='", heading, "']/../div//button")
+        value = "//main//div//h4[text()='Related Ingredients']/../div//button"
       )
       ele$sendKeysToElement(list("Download", key = "enter"))
     })
 }
 
-moveToDir_herbs <- function(ids,
-  file.pattern = "\\.xlsx$", index.pfun = file_seq.by_time,
-  from = "~/Downloads", to = "herbs_ingredient", suffix = ".xlsx")
-{
-  args <- as.list(environment())
-  files <- do.call(moveToDir, args)
-  data <- lapply(files, openxlsx::read.xlsx)
-  names(data) <- ids
-  data <- tibble::as_tibble(data.table::rbindlist(data, idcol = T, fill = T))
-  data <- dplyr::rename(data, herb_id = .id)
-  dplyr::relocate(data, herb_id)
-}
-
-moveToDir <- function(ids,
-  file.pattern, index.pfun = file_seq.by_time,
-  from, to, suffix)
-{
-  files <- list.files(from, file.pattern, full.names = T)
-  index <- index.pfun(files)
-  files <- files[order(index)][1:length(ids)]
-  files <- rev(files)
-  dir.create(to, F)
-  files <- lapply(1:length(ids),
-    function(n) {
-      file.copy(files[ n ], file <- paste0(to, "/", ids[n], suffix), T)
-      file
-    })
-  files
-}
-
-file_seq.by_time <- function(files) {
-  info <- fs::file_info(files)
-  info <- dplyr::mutate(info, .INDEX = 1:nrow(info))
-  info <- dplyr::arrange(info, dplyr::desc(modification_time))
-  info <- dplyr::mutate(info, .SEQ = 1:nrow(info))
-  info <- dplyr::arrange(info, .INDEX)
-  info$.SEQ
-}
-
-format_index.by_num <- function(index) {
+moveToDir_herbs <- function(ids, from = "~/Downloads", to = "herbs_ingredient") {
+  files <- list.files(from, "^herb.*xlsx$", full.names = T)
+  index <- stringr::str_extract(files, "\\([0-9]*\\)(?=\\.xlsx$)")
   index <- gsub("\\(|\\)", "", index)
   index <- ifelse(is.na(index), "0", index)
-  as.integer(index)
+  names(files) <- index
+  dir.create(to, F)
+  lapply(0:(length() - 1),
+    function(n) {
+      file.rename()
+    })
+
 }
 
 new_link <- function(port = 4444L, browser = "firefox", addr = "localhost")

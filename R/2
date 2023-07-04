@@ -8,7 +8,7 @@ nl <- function(names, values, ...) {
   .as_dic(values, names, ...)
 }
 
-smiles_as_sdfs.obabel <- function(smiles) {
+smiles_as_sdfs <- function(smiles) {
   lst.sdf <- pbapply::pbsapply(smiles, simplify = F,
     function(smi) {
       ChemmineOB::convertFormat("SMI", "SDF", source = test)
@@ -16,16 +16,13 @@ smiles_as_sdfs.obabel <- function(smiles) {
   lst.sdf
 }
 
-sdfs_as_pdbqts <- function(lst.sdf, mkdir.sdf = "sdf", mkdir.pdbqt = "pdbqt")
+sdfs_as_pdbqt <- function(lst.sdf, mkdir.sdf = "sdf", mkdir.pdbqt = "pdbqt")
 {
   lapply(c(mkdir.sdf, mkdir.pdbqt), dir.create, showWarnings = F)
-  all_sdfs <- paste0(lst.sdf, collapse = "\n\n\n")
-  writeLines(all_sdfs, paste0(mkdir.sdf, "/all_compounds.sdf"))
   n <- 1
   pbapply::pbsapply(lst.sdf, 
     function(sdf){
-      writeLines(sdf, file <- paste0(mkdir.sdf, "/", n, ".sdf"))
-      # system(paste0("mk_prepare_ligand.py -i ", file, " -o ", ))
+      writeLines(sdf, paste0(mkdir.sdf, "/", n, ".sdf"))
       n <<- n + 1
     })
   meta <- data.frame(
