@@ -16,29 +16,104 @@ smiles_as_sdfs.obabel <- function(smiles) {
   lst.sdf
 }
 
-sdfs_as_pdbqts <- function(lst.sdf, mkdir.sdf = "sdf", mkdir.pdbqt = "pdbqt")
-{
-  lapply(c(mkdir.sdf, mkdir.pdbqt), dir.create, showWarnings = F)
-  all_sdfs <- paste0(lst.sdf, collapse = "\n\n\n")
-  writeLines(all_sdfs, paste0(mkdir.sdf, "/all_compounds.sdf"))
-  n <- 1
-  pbapply::pbsapply(lst.sdf, 
-    function(sdf){
-      writeLines(sdf, file <- paste0(mkdir.sdf, "/", n, ".sdf"))
-      # system(paste0("mk_prepare_ligand.py -i ", file, " -o ", ))
-      n <<- n + 1
-    })
-  meta <- data.frame(
-    smiles = names(lst.sdf),
-    filename = paste0(1:length(smiles), ".sdf")
-  )
-  data.table::fwrite(meta, paste0(mkdir.sdf, "/metadata_of_filename.csv"))
-  data.table::fwrite(
-    dplyr::mutate(meta, filename = gsub("\\.sdf$", "\\.pdbqt$", filename)),
-    paste0(mkdir.pdbqt, "/metadata_of_filename.csv")
-  )
-  return(meta)
+sdf_as_pdbqts <- function(sdf_file, mkdir.pdbqt = "pdbqt", check = F) {
+  dir.create(mkdir.pdbqt, F)
+  check_sdf_validity <- function(file) {
+    lst <- sep_list(readLines(file), "^\\${4,}$")
+    lst <- lst[ - length(lst) ]
+    osum <- length(lst)
+    lst <- lapply(lst,
+      function(line) {
+        pos <- grep("^\\s*-OEChem|M\\s*END", line)
+        if (pos[2] - pos[1] > 5)
+          line
+      })
+    lst <- lst[ !vapply(lst, is.null, logical(1)) ]
+    nsum <- length(lst)
+    list(data = lst, osum = osum, nsum = nsum, dec = osum - nsum)
+  }
+  if (check) {
+    lst <- check_sdf_validity(sdf_file)
+    lines <- unlist(lst$data)
+    lst <- lst[ -1 ]
+    writeLines(lines, sdf_file <- gsub("\\.sdf", "_modified.sdf", sdf_file))
+  } else {
+    lst <- list(file = sdf_file)
+  }
+  system(paste0("mk_prepare_ligand.py -i ", sdf_file, " --multimol_outdir ", mkdir.pdbqt))
+  lst$file <- sdf_file
+  lst$pdbqt <- list.files(mkdir.pdbqt, "\\.pdbqt$", full.names = T)
+  lst$pdbqt.num <- length(lst$pdbqt)
+  lst$pdbqt.cid <- stringr::str_extract(lst$pdbqt, "(?<=/|^)[0-9]{1,}")
+  return(lst)
 }
+
+get_pdb <- function(ids, cl = 3, mkdir.pdb = "protein_pdb") {
+  dir.create(mkdir.pdb, F)
+  ids <- tolower(ids)
+  ids <- grouping_vec2list(ids, round(length(ids) / cl), T)
+  pbapply::pblapply(ids, cl = cl,
+    function(ids) {
+      tmp <- tempfile(fileext = ".txt")
+      cat(ids, sep = ", ", file = tmp)
+      system(paste0("get_pdb.sh -f ", tmp, " -p -o ", mkdir.pdb))
+    })
+  lapply(list.files(mkdir.pdb, ".*\\.gz$", full.names = T), R.utils::gunzip)
+  files <- list.files(mkdir.pdb, ".*\\.pdb$", full.names = T)
+  files <- nl(gsub(".*?([^/]{1,})\\.pdb$", "\\1", files), files)
+  files
+}
+
+filter_pdbs <- function(files, pattern = "ORGANISM_SCIENTIFIC: HOMO SAPIENS") {
+  res <- lapply(files,
+    function(file) {
+      line <- readLines(file)
+      if (any(grepl(pattern, line, T)))
+        return(file)
+      else NULL
+    })
+  res <- res[ !vapply(res, is.null, logical(1)) ]
+  res
+}
+
+prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {
+  dir.create(mkdir.pdbqt, F)
+  file <- lapply(files,
+    function(file) {
+      if (!is.null(file)) {
+        newfile <- gsub("\\.pdb$", ".pdbqt", get_filename(file))
+        newfile <- paste0(mkdir.pdbqt, "/", newfile)
+        system(paste0("prepare_receptor -r ", file, " -o ", newfile, " -A hydrogens"))
+        return(newfile)
+      }
+    })
+  file <- file[ !vapply(file, is.null, logical(1)) ]
+  file[ vapply(file, file.exists, logical(1)) ]
+}
+
+# sdfs_as_pdbqts <- function(lst.sdf, mkdir.sdf = "sdf", mkdir.pdbqt = "pdbqt")
+# {
+#   lapply(c(mkdir.sdf, mkdir.pdbqt), dir.create, showWarnings = F)
+#   all_sdfs <- paste0(lst.sdf, collapse = "\n\n\n")
+#   writeLines(all_sdfs, paste0(mkdir.sdf, "/all_compounds.sdf"))
+#   n <- 1
+#   pbapply::pbsapply(lst.sdf, 
+#     function(sdf){
+#       writeLines(sdf, file <- paste0(mkdir.sdf, "/", n, ".sdf"))
+#       # system(paste0("mk_prepare_ligand.py -i ", file, " -o ", ))
+#       n <<- n + 1
+#     })
+#   meta <- data.frame(
+#     smiles = names(lst.sdf),
+#     filename = paste0(1:length(smiles), ".sdf")
+#   )
+#   data.table::fwrite(meta, paste0(mkdir.sdf, "/metadata_of_filename.csv"))
+#   data.table::fwrite(
+#     dplyr::mutate(meta, filename = gsub("\\.sdf$", "\\.pdbqt$", filename)),
+#     paste0(mkdir.pdbqt, "/metadata_of_filename.csv")
+#   )
+#   return(meta)
+# }
 
 start_drive <- function(command = "java -jar ~/.vim/after/ftplugin/selenium.jar",
   port = 4444, extra = NULL, ...)
@@ -239,6 +314,7 @@ general_attrs <- function() {
   attrs <- c("ensembl_gene_id",
     "entrezgene_id",
     "hgnc_symbol",
+    "pdb",
     "chromosome_name",
     "start_position",
     "end_position",
@@ -716,4 +792,27 @@ package_results <- function(
 
 colSum <- function(col) {
   length(unique(col))
+}
+
+show_multi <- function(layers, col, symbol = "Progein"){
+  cat(crayon::silver("Data of", length(layers), "\n"))
+  res <- mapply(layers, 1:length(layers), names(layers),
+    FUN = function(com, seq, name){
+      cat(crayon::silver("  +++ ", symbol, " ", seq, "+++\n"))
+      cat("  ", crayon::yellow(name), "\n", rep(" ", 4), "Sum: ", nrow(com),
+        "\n", sep = "")
+      if (is.null(com)) {
+        cat(paste0(rep(" ", 6), collapse = ""), crayon::silver("No data.\n"), sep = "")
+        return()
+      }
+      args <- com[[ col ]]
+      if (length(args) <= 4) {
+        cat(paste0(paste0(rep(" ", 6), collapse = ""),
+            col, ": ", paste0(args, collapse = ", ")), sep = "\n")
+      } else {
+        cat(paste0(paste0(rep(" ", 6), collapse = ""), col, ": ",
+            paste0(c(args[1:4], "..."), collapse = ", ")), sep = "\n")
+      }
+      cat("\n")
+    })
 }
