@@ -4,6 +4,49 @@
 
 # <https://cran.r-project.org/web/packages/RSelenium/index.html>
 
+get_realname <- function(filename) {
+  name <- vapply(filename, get_filename, character(1))
+  gsub("\\..*$", "", name)
+}
+
+cdRun <- function(..., path, sinkFile = NULL) {
+  owd <- getwd()
+  setwd(path)
+  if (is.null(sinkFile)) {
+    tryCatch(system(paste0(...)), finally = setwd(owd))
+  } else {
+    tryCatch(
+      capture.output(system(paste0(...)),
+        file = sinkFile, split = T),
+      finally = setwd(owd))
+  }
+}
+
+vina <- function(lig, recep, dir = "vina_space",
+  exhaustiveness = 32, scoreing = "ad4", stout = "/tmp/res.log")
+{
+  if (!file.exists(dir)) {
+    dir.create(dir, F)
+  } 
+  subdir <- paste0(reals <- get_realname(c(lig, recep)), collapse = "_into_")
+  wd <- paste0(dir, "/", subdir)
+  dir.create(wd, F)
+  file.copy(c(recep, lig), wd)
+  .message_info("Generating affinity maps", subdir)
+  .cdRun <- function(...) cdRun(..., path = wd)
+  files <- vapply(c(lig, recep), get_filename, character(1))
+  .cdRun("prepare_gpf.py -l ", files[1], " -r ", files[2], " -y")
+  .cdRun("autogrid4 -p ", reals[2], ".gpf ", " -l ", reals[2], ".glg")
+  cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = T)
+  .cdRun("vina  --ligand ", files[1],
+    " --maps ", reals[2],
+    " --scoring ", scoreing,
+    " --exhaustiveness ", exhaustiveness,
+    " --out ", subdir, "_out.pdbqt",
+    " >> ", stout)
+  message("")
+}
+
 nl <- function(names, values, ...) {
   .as_dic(values, names, ...)
 }
