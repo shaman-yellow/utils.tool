@@ -4,14 +4,35 @@
 
 # <https://cran.r-project.org/web/packages/RSelenium/index.html>
 
+format_bindingdb.tsv <- function(file,
+  select = c("PubChem CID", "PDB ID(s) of Target Chain"), cl = 4, lines = NULL)
+{
+  .message_info("Read", file)
+  data <- readLines(file)
+  if (!is.null(lines)) {
+    data <- data[ lines ]
+  }
+  .message_info("Split", "data")
+  data <- strsplit(data, "\t")
+  pos <- which(data[[1]] %in% select)
+  pos <- pos[ 1:length(select) ]
+  data <- pbapply::pblapply(data, function(ch) ch[ pos ], cl = cl)
+  colnames <- data[[1]]
+  .message_info("as.data.frame", "")
+  data <- data.frame(t(dplyr::bind_cols(data[ -1 ])))
+  data <- tibble::as_tibble(data)
+  colnames(data) <- colnames
+  namel(data, pos)
+}
+
 get_realname <- function(filename) {
   name <- vapply(filename, get_filename, character(1))
   gsub("\\..*$", "", name)
 }
 
-cdRun <- function(..., path, sinkFile = NULL) {
+cdRun <- function(..., path = ".", sinkFile = NULL) {
   owd <- getwd()
-  setwd(path)
+  setwd(normalizePath(path))
   if (is.null(sinkFile)) {
     tryCatch(system(paste0(...)), finally = setwd(owd))
   } else {
@@ -22,8 +43,12 @@ cdRun <- function(..., path, sinkFile = NULL) {
   }
 }
 
+vina_limit <- function(lig, recep, timeLimit = 120, ...) {
+  try(vina(lig, recep, ..., timeLimit = timeLimit), T)
+}
+
 vina <- function(lig, recep, dir = "vina_space",
-  exhaustiveness = 32, scoreing = "ad4", stout = "/tmp/res.log")
+  exhaustiveness = 32, scoreing = "ad4", stout = "/tmp/res.log", timeLimit = 60)
 {
   if (!file.exists(dir)) {
     dir.create(dir, F)
@@ -38,17 +63,41 @@ vina <- function(lig, recep, dir = "vina_space",
   .cdRun("prepare_gpf.py -l ", files[1], " -r ", files[2], " -y")
   .cdRun("autogrid4 -p ", reals[2], ".gpf ", " -l ", reals[2], ".glg")
   cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = T)
-  .cdRun("vina  --ligand ", files[1],
-    " --maps ", reals[2],
-    " --scoring ", scoreing,
-    " --exhaustiveness ", exhaustiveness,
-    " --out ", subdir, "_out.pdbqt",
-    " >> ", stout)
-  message("")
+  try(.cdRun("timeout ", timeLimit, 
+      " vina  --ligand ", files[1],
+      " --maps ", reals[2],
+      " --scoring ", scoreing,
+      " --exhaustiveness ", exhaustiveness,
+      " --out ", subdir, "_out.pdbqt",
+      " >> ", stout), T)
 }
 
-nl <- function(names, values, ...) {
-  .as_dic(values, names, ...)
+summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$"){
+  files <- list.files(space, pattern, recursive = T, full.names = T)
+  res_dock <- lapply(files,
+    function(file) {
+      lines <- readLines(file)
+      if (length(lines) >= 1) {
+        name <- gsub("_out\\.pdbqt", "", get_filename(file))
+        top <- stringr::str_extract(lines[2], "[\\-0-9.]{1,}")
+        top <- as.double(top)
+        names(top) <- name
+        top
+      }
+    })
+  res_dock <- unlist(res_dock)
+  res_dock <- tibble::tibble(
+    Combn = names(res_dock), Affinity = unname(res_dock)
+  )
+  res_dock <- dplyr::mutate(
+    res_dock, PubChem_id = stringr::str_extract(Combn, "^[^_]{1,}"),
+    PDB_ID = stringr::str_extract(Combn, "[^_]{1,}$")
+  )
+  dplyr::select(res_dock, PubChem_id, PDB_ID, Affinity)
+}
+
+nl <- function(names, values, as.list = T, ...) {
+  .as_dic(values, names, as.list = as.list, ...)
 }
 
 smiles_as_sdfs.obabel <- function(smiles) {
@@ -57,6 +106,33 @@ smiles_as_sdfs.obabel <- function(smiles) {
       ChemmineOB::convertFormat("SMI", "SDF", source = test)
     })
   lst.sdf
+}
+
+tbmerge <- function(...) {
+  tibble::as_tibble(merge(...))
+}
+
+ld_cols <- function(file, sep = "\t") {
+  line <- readLines(file, n = 1)
+  strsplit(line, sep)[[ 1 ]]
+}
+
+lst_clear0 <- function(lst, len = 0) {
+  lst[ vapply(lst, function(v) if (length(v) > len) T else F, logical(1)) ]
+}
+
+ld_cutRead <- function(file, cols, abnum = T, sep = "\t", tmp = "/tmp/ldtmp.txt") {
+  if (is.character(cols)) {
+    names <- ld_cols(file, sep)
+    pos <- which( names %in% cols )
+    if (abnum) {
+      pos <- head(pos, n = length(cols))
+    }
+  } else {
+    pos <- cols
+  }
+  cdRun("cut -f ", paste0(pos, collapse = ","), " ", file, " > ", tmp)
+  ftibble(tmp)
 }
 
 sdf_as_pdbqts <- function(sdf_file, mkdir.pdbqt = "pdbqt", check = F) {
@@ -107,7 +183,7 @@ get_pdb <- function(ids, cl = 3, mkdir.pdb = "protein_pdb") {
   files
 }
 
-filter_pdbs <- function(files, pattern = "ORGANISM_SCIENTIFIC: HOMO SAPIENS") {
+select_files_by_grep <- function(files, pattern){
   res <- lapply(files,
     function(file) {
       line <- readLines(file)
@@ -117,6 +193,10 @@ filter_pdbs <- function(files, pattern = "ORGANISM_SCIENTIFIC: HOMO SAPIENS") {
     })
   res <- res[ !vapply(res, is.null, logical(1)) ]
   res
+}
+
+filter_pdbs <- function(files, pattern = "ORGANISM_SCIENTIFIC: HOMO SAPIENS") {
+  select_files_by_grep(files, pattern)
 }
 
 prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {
@@ -859,3 +939,6 @@ show_multi <- function(layers, col, symbol = "Progein"){
       cat("\n")
     })
 }
+
+# map_from <- function(lst, db_names, db_values){}
+
