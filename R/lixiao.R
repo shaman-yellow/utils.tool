@@ -72,6 +72,24 @@ vina <- function(lig, recep, dir = "vina_space",
       " >> ", stout), T)
 }
 
+vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space", timeLimit = 1, backup = NULL)
+{
+  if (!file.exists(path <- paste0(dir, "/", subdir))) {
+    stop("file.exists(path <- paste0(dir, \"/\", subdir))")
+  } 
+  wd <- paste0(dir, "/", subdir)
+  out <- paste0(Combn, "_out.pdbqt")
+  recep <- paste0(recep, ".pdbqt")
+  res <- paste0(Combn, ".png")
+  .cdRun <- function(...) cdRun(..., path = wd)
+  try(.cdRun("timeout ", timeLimit, 
+      " pymol ", out, " ", recep,
+      " -g ", res), T)
+  if (is.character(backup)) {
+    file.copy(paste0(wd, "/", res), backup, T)
+  }
+}
+
 summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$"){
   files <- list.files(space, pattern, recursive = T, full.names = T)
   res_dock <- lapply(files,
@@ -91,10 +109,14 @@ summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$"){
   )
   res_dock <- dplyr::mutate(
     res_dock, PubChem_id = stringr::str_extract(Combn, "^[^_]{1,}"),
-    PDB_ID = stringr::str_extract(Combn, "[^_]{1,}$")
+    PDB_ID = stringr::str_extract(Combn, "[^_]{1,}$"),
+    dir = paste0(space, "/", Combn),
+    file = paste0(dir, "/", Combn, "_out.pdbqt")
   )
-  dplyr::select(res_dock, PubChem_id, PDB_ID, Affinity)
+  dplyr::select(res_dock, PubChem_id, PDB_ID, Affinity, dir, file, Combn)
 }
+
+
 
 nl <- function(names, values, as.list = T, ...) {
   .as_dic(values, names, as.list = as.list, ...)
