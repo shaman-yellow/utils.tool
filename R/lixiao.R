@@ -30,7 +30,8 @@ get_realname <- function(filename) {
   gsub("\\..*$", "", name)
 }
 
-cdRun <- function(..., path = ".", sinkFile = NULL) {
+cdRun <- function(..., path = ".", sinkFile = NULL)
+{
   owd <- getwd()
   setwd(normalizePath(path))
   if (is.null(sinkFile)) {
@@ -91,7 +92,8 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
   }
 }
 
-summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$"){
+summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$")
+{
   files <- list.files(space, pattern, recursive = T, full.names = T)
   res_dock <- lapply(files,
     function(file) {
@@ -394,7 +396,8 @@ extract_id <- function(ch) {
   data.frame(links = links, ids = ids)
 }
 
-get_tcm.componentToGenes <- function(ids, key = "Candidate Target Genes", dep = T) {
+get_tcm.componentToGenes <- function(ids, key = "Candidate Target Genes", dep = T) 
+{
   link_prefix <- "http://www.tcmip.cn/ETCM/index.php/Home/Index/cf_details.html?id="
   lst <- pbapply::pblapply(ids,
     function(id) {
@@ -420,7 +423,8 @@ writePlots <- function(lst, dir, width = 7, height = 7, postfix = ".pdf") {
   writeDatas(lst, dir, fun, postfix = postfix)
 }
 
-writeDatas <- function(lst, dir, fun = data.table::fwrite, postfix = ".csv") {
+writeDatas <- function(lst, dir, fun = data.table::fwrite, postfix = ".csv") 
+{
   if (is.null(names(lst))) {
     stop("is.null(names(lst)) == T")
   }
@@ -446,7 +450,8 @@ new_biomart <- function(dataset = c("hsapiens_gene_ensembl"))
 }
 
 filter_biomart <- function(mart, attrs, filters = "", values = "") {
-  anno <- biomaRt::getBM(attributes = attrs, filters = filters, values = values, mart = mart)
+  anno <- biomaRt::getBM(attributes = attrs, filters = filters,
+    values = values, mart = mart)
   tibble::as_tibble(anno)
 }
 
@@ -470,7 +475,8 @@ hsym <- function() {
   "hgnc_symbol"
 }
 
-get_herb_data <- function(herb = "../HERB_herb_info.txt", component = "../HERB_ingredient_info.txt",
+get_herb_data <- function(herb = "../HERB_herb_info.txt",
+  component = "../HERB_ingredient_info.txt",
   target = "../HERB_target_info.txt")
 {
   db <- lapply(namel(herb, component, target),
@@ -962,4 +968,33 @@ show_multi <- function(layers, col, symbol = "Progein"){
 }
 
 # map_from <- function(lst, db_names, db_values){}
+
+esearch <- function(query = NULL, fetch.save = paste0(gsub(" ", "_", query), ".xml"),
+  path = "~/operation", tract.save = "res.tsv",
+  fields = c("SortPubDate", "Title", "FullJournalName", "Name", "Id"))
+{
+  if (!is.null(query)) {
+    if (!file.exists(paste0(path, "/", fetch.save))) {
+      cdRun("esearch -db pubmed -query \"", query, "\"",
+        " | efetch -format docsum > ", fetch.save,
+        path = path)
+    }
+  } else if (fetch.save == ".xml") {
+    stop("fetch.save == \".xml\"")
+  }
+  cdRun(" cat ", fetch.save, " | xtract -pattern DocumentSummary ",
+    " -sep \"|\" -element ", paste0(fields, collapse = " "),
+    " > ", tract.save, path = path)
+  file <- paste0(path, "/", tract.save)
+  res <- ftibble(file, sep = "\t", quote = "", fill = T, header = F)
+  colnames(res) <- fields
+  if (any("SortPubDate" == fields)) {
+    res <- dplyr::mutate(res, SortPubDate = as.Date(SortPubDate))
+    res <- dplyr::arrange(res, dplyr::desc(SortPubDate))
+  }
+  if (any("Id" == fields)) {
+    res <- dplyr::mutate(res, Id = as.character(Id))
+  }
+  res
+}
 

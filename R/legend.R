@@ -12,3 +12,17 @@ sumText <- function(num, simplify = T, files = paste0("ch", num, ".md")) {
     })
 }
 
+format_chname <- function(dir, pattern = "ch[0-9]{1,}\\.md", num = 3){
+  files <- list.files(dir, pattern, full.names = T)
+  names <- get_filename(files)
+  count <- nchar(stringr::str_extract(names, "[0-9]{1,}"))
+  mapply(files, count, USE.NAMES = F,
+    FUN = function(file, c){
+      if (c <= num) {
+        fix <- paste0(rep("0", num - c), collapse = "")
+        new <- gsub("ch([0-9]{1,})\\.md", paste0("ch", fix, "\\1.md"), file)
+        file.rename(file, new)
+      }
+    })
+}
+
