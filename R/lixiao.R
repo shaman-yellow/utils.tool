@@ -260,7 +260,7 @@ prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {
 #   return(meta)
 # }
 
-start_drive <- function(command = "java -jar ~/.vim/after/ftplugin/selenium.jar",
+start_drive <- function(command = "java -jar ~/operation/selenium.jar",
   port = 4444, extra = NULL, ...)
 {
   system(paste(command, "-port", port, extra), wait = F)
