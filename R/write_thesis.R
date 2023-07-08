@@ -40,6 +40,8 @@ inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
     info <- magick::image_info(img)
     magick::image_destroy(img)
     image_info[[ savename ]] <- list(width = info$width, height = info$height)
+    if (bindingIsLocked("image_info", .env))
+      unlockBinding("image_info", .env)
     assign("image_info", image_info, envir = .env)
   } else {
     info <- image_info[[ savename ]]

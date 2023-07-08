@@ -26,7 +26,7 @@ format_bindingdb.tsv <- function(file,
 }
 
 get_realname <- function(filename) {
-  name <- vapply(filename, get_filename, character(1))
+  name <- get_filename(filename)
   gsub("\\..*$", "", name)
 }
 
@@ -59,7 +59,7 @@ vina <- function(lig, recep, dir = "vina_space",
   file.copy(c(recep, lig), wd)
   .message_info("Generating affinity maps", subdir)
   .cdRun <- function(...) cdRun(..., path = wd)
-  files <- vapply(c(lig, recep), get_filename, character(1))
+  files <- get_filename(c(lig, recep))
   .cdRun("prepare_gpf.py -l ", files[1], " -r ", files[2], " -y")
   .cdRun("autogrid4 -p ", reals[2], ".gpf ", " -l ", reals[2], ".glg")
   cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = T)
@@ -72,7 +72,8 @@ vina <- function(lig, recep, dir = "vina_space",
       " >> ", stout), T)
 }
 
-vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space", timeLimit = 1, backup = NULL)
+vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
+  timeLimit = 3, backup = NULL)
 {
   if (!file.exists(path <- paste0(dir, "/", subdir))) {
     stop("file.exists(path <- paste0(dir, \"/\", subdir))")
@@ -115,8 +116,6 @@ summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$"){
   )
   dplyr::select(res_dock, PubChem_id, PDB_ID, Affinity, dir, file, Combn)
 }
-
-
 
 nl <- function(names, values, as.list = T, ...) {
   .as_dic(values, names, as.list = as.list, ...)

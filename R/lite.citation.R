@@ -287,15 +287,17 @@ comb_ref <- function(n, ref) {
 }
 
 get_path <- function(path_str){
-  if (!grepl("/", path_str))
-    return(".")
-  stringr::str_extract(path_str, ".*(?=/)")
+  vapply(path_str, FUN.VALUE = character(1),
+    USE.NAMES = F,
+    function(str){
+      if (!grepl("/", str))
+        return(".")
+      stringr::str_extract(str, ".*(?=/)")
+    })
 }
 
 get_filename <- function(path_str){
-  if (!grepl("/", path_str))
-    return(path_str)
-  stringr::str_extract(path_str, "(?<=/)[^/]*$")
+  stringr::str_extract(path_str, "[^/]*$")
 }
 
 
