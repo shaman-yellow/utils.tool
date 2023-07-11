@@ -26,11 +26,16 @@ preprocess_bib <- function(file = paste0(.expath, "/library.bib")) {
   writeLines(unlist(lst), "library.bib")
 }
 
+.bib <- c()
+
 reload_bib <- function(file = "library.bib",
   exclude = c("doi", "urldate", "issn", "address", "isbn"))
 {
   bib <- bibtex::read.bib(file)
   bib <- fix_bib(bib, exclude)
+  if (bindingIsLocked(".bib", topenv())) {
+    unlockBinding(".bib", topenv())
+  }
   assign(".bib", bib, envir = topenv())
 }
 
@@ -97,8 +102,9 @@ citethis <- function(..., trunc = T, trunc.author = 1, trunc.title = F,
           b$title <- "#";
         }
         b$number <- NULL
-        b$volume <- NULL;
+        b$volume <- NULL
         b$pages <- NULL
+        b$url <- NULL
         return(b)
       })
     bib <- do.call(c, bib)
