@@ -279,9 +279,16 @@ end_drive <- function(pattern = "[0-9]\\s*java.*-jar") {
 
 download_herbTargets <- function(link, ids,
   urls = paste0("http://herb.ac.cn/Detail/?v=", ids, "&label=Herb"),
-    heading = "Related Gene Targets")
+  heading = "Related Gene Targets")
 {
   download_herbCompounds(link, ids, heading = heading)
+}
+
+download_compoundTargets <- function(link, ids,
+  urls = paste0("http://herb.ac.cn/Detail/?v=", ids, "&label=Ingredient"),
+  heading = "Related Gene Targets")
+{
+  download_herbCompounds(link, ids, urls, heading = heading)
 }
 
 download_herbCompounds <- function(link, ids,
@@ -292,33 +299,46 @@ download_herbCompounds <- function(link, ids,
   if (length(checks) > 0)
     file.remove(checks)
   link$open()
-  jobn <- 1
+  jobn <- 0
   lapply(urls,
     function(url) {
       link$navigate(url)
-      if (jobn > 2) {
+      jobn <<- jobn + 1
+      if (jobn > 1) {
         link$refresh()
       }
-      jobn <<- jobn + 1
-      ele <- link$findElement(
-        using = "xpath",
-        value = paste0("//main//div//h4[text()='", heading, "']/../div//button")
-      )
-      ele$sendKeysToElement(list("Download", key = "enter"))
+      res <- try(silent = T, {
+        ele <- link$findElement(
+          using = "xpath",
+          value = paste0("//main//div//h4[text()='", heading, "']/../div//button")
+        )
+        ele$sendKeysToElement(list("Download", key = "enter"))
+      })
+      if (inherits(res, "try-error")) {
+        writeLines("", paste0("~/Downloads/empty_", jobn, ".xlsx"))
+      }
     })
 }
 
 moveToDir_herbs <- function(ids,
   file.pattern = "\\.xlsx$", index.pfun = file_seq.by_time,
-  from = "~/Downloads", to = "herbs_ingredient", suffix = ".xlsx")
+  from = "~/Downloads", to = "herbs_ingredient", suffix = ".xlsx", .id = "herb_id")
 {
   args <- as.list(environment())
   files <- do.call(moveToDir, args)
-  data <- lapply(files, openxlsx::read.xlsx)
+  data <- lapply(files,
+    function(file) {
+      res <- try(openxlsx::read.xlsx(file), T)
+      if (inherits(res, "try-error")) {
+        tibble::tibble()
+      } else res
+    })
   names(data) <- ids
   data <- tibble::as_tibble(data.table::rbindlist(data, idcol = T, fill = T))
-  data <- dplyr::rename(data, herb_id = .id)
-  dplyr::relocate(data, herb_id)
+  cols <- colnames(data)
+  data <- dplyr::relocate(data, .id)
+  colnames(data)[ which(cols == ".id") ] <- .id
+  data
 }
 
 moveToDir <- function(ids,
@@ -997,4 +1017,73 @@ esearch <- function(query = NULL, fetch.save = paste0(gsub(" ", "_", query), ".x
   }
   res
 }
+
+split_lapply_rbind <- function(data, f, fun, ...) {
+  data <- split(data, f)
+  data <- lapply(data, fun, ...)
+  data <- data.table::rbindlist(data)
+  tibble::as_tibble(data)
+}
+
+handling_na.long <- function(data) {
+  .check_columns(data, c("sample", "group"))
+  metadata <- dplyr::select(data, sample, group)
+  data.wide <- dplyr::select(data, -group)
+  data.wide <- tidyr::gather(data.wide, "var", "value", -sample)
+  data.wide <- tidyr::spread(data.wide, sample, value)
+  data.wide <- handling_na(data.wide, "var", metadata)
+  data.long <- tidyr::gather(data.wide, "sample", "value", -var)
+  data.long <- dplyr::mutate(data.long, group = metadata$group)
+  dplyr::relocate(data.long, sample, group)
+}
+
+variance_analysis <- function(data.long){
+  .check_columns(data.long, c("sample", "group"))
+  ## shapiro
+  p.shapiro <- lapply(split(data.long, ~ group),
+    function(data){
+      shapiro.test(data$value)$p.value
+    })
+  p.shapiro <- as_df.lst(p.shapiro, "name", "p.value")
+  p.shapiro$type <- "Shapiro"
+  ## bartlett
+  p.bartlett <- bartlett.test(data.long$value, data.long$group)$p.value
+  p.bartlett <- data.frame(type = "Bartlett", name = "All", p.value = p.bartlett)
+  ## aov
+  aov <- aov(value ~ group, data = data.long)
+  p.aov <- unlist(summary(aov))[[ "Pr(>F)1" ]]
+  p.aov <- data.frame(type = "Variance.", name = "All", p.value = p.aov)
+  ## lsd or hsd
+  res <- lapply(c("hsd", "lsd"),
+    function(method){
+      res <- DescTools::PostHocTest(aov, method = method)$group
+      data.frame(type = switch(method, hsd = "Tukey HSD", lsd = "Fisher LSD"),
+        name = rownames(res), p.value = data.frame(res)$pval)
+    })
+  res <- data.table::rbindlist(res)
+  all.p <- rbind(p.shapiro, p.bartlett, p.aov, res)
+  all.p
+}
+
+pca_data.long <- function(data.long) {
+  .check_columns(data.long, c("sample", "group"))
+  metadata <- dplyr::select(data.long, group, sample)
+  metadata <- tibble::as_tibble(metadata)
+  data <- dplyr::select(data.long, -group, -sample)
+  data <- t(data)
+  colnames(data) <- metadata$sample
+  raw_matrix <- data
+  data <- scale(data)
+  data <- prcomp(data, scale. = F, center = F)
+  anno <- round(summary(data)$importance[2, ], 3)
+  data <- dplyr::mutate(data.frame(data[[ 2 ]]),
+    sample = metadata$sample, group = metadata$group)
+  data <- dplyr::select(data, sample, group, PC1, PC2)
+  data <- tibble::as_tibble(data)
+  namel(data, anno, metadata, raw_matrix)
+}
+
+opls_data.matrix <- function(raw_matrix, metadata) {
+}
+
 
