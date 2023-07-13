@@ -880,7 +880,8 @@ getBelong_edges <- function(edges) {
   lst.belong
 }
 
-cal_mcc <- function(edges) {
+cal_mcc <- function(edges) 
+{
   if (is(edges, "igraph")) {
     igraph <- edges
     edges <- igraph::as_data_frame(edges, "edges")
@@ -909,7 +910,8 @@ cal_mcc <- function(edges) {
   res
 }
 
-get_subgraph.mcc <- function(igraph, resMcc, top = 10) {
+get_subgraph.mcc <- function(igraph, resMcc, top = 10) 
+{
   tops <- dplyr::arrange(resMcc, dplyr::desc(MCC_score))
   tops <- head(tops$name, n = 10)
   data <- igraph::as_data_frame(igraph, "both")
@@ -1074,12 +1076,12 @@ pca_data.long <- function(data.long) {
   colnames(data) <- metadata$sample
   raw_matrix <- data
   data <- scale(data)
-  data <- prcomp(data, scale. = F, center = F)
+  data <- prcomp(data, retx = F, scale. = F, center = F)
   anno <- round(summary(data)$importance[2, ], 3)
-  data <- dplyr::mutate(data.frame(data[[ 2 ]]),
-    sample = metadata$sample, group = metadata$group)
+  data <- tibble::as_tibble(data$rotation)
+  data <- dplyr::mutate(data, sample = metadata$sample,
+    group = metadata$group)
   data <- dplyr::select(data, sample, group, PC1, PC2)
-  data <- tibble::as_tibble(data)
   namel(data, anno, metadata, raw_matrix)
 }
 
