@@ -508,8 +508,15 @@ get_herb_data <- function(herb = "../HERB_herb_info.txt",
   db
 }
 
-ftibble <- function(file, ...) {
-  tibble::as_tibble(data.table::fread(file, ...))
+ftibble <- function(files, ...) {
+  if (length(files) > 1) {
+    lapply(files,
+      function(file){
+        tibble::as_tibble(data.table::fread(file, ...))
+      })
+  } else {
+    tibble::as_tibble(data.table::fread(files, ...))
+  }
 }
 
 get_nci60_data <- function(comAct = "../comAct_nci60/DTP_NCI60_ZSCORE.xlsx",
@@ -1067,25 +1074,180 @@ variance_analysis <- function(data.long){
   all.p
 }
 
-pca_data.long <- function(data.long) {
+.split_data.long <- function(data.long){
   .check_columns(data.long, c("sample", "group"))
   metadata <- dplyr::select(data.long, group, sample)
   metadata <- tibble::as_tibble(metadata)
   data <- dplyr::select(data.long, -group, -sample)
-  data <- t(data)
-  colnames(data) <- metadata$sample
-  raw_matrix <- data
-  data <- scale(data)
-  data <- prcomp(data, retx = F, scale. = F, center = F)
+  rownames(data) <- metadata$sample
+  namel(data, metadata)
+}
+
+.andata <- setClass("andata", 
+  contains = character(),
+  representation = 
+    representation(
+      data = "ANY",
+      anno = "ANY",
+      metadata = "ANY",
+      palette = "ANY",
+      raw = "ANY",
+      extra = "ANY"),
+    prototype = NULL
+)
+
+setGeneric("pal", 
+  function(x) standardGeneric("pal"))
+
+setMethod("pal", 
+  signature = c(x = "andata"),
+  function(x){ 
+    pal <- x@palette
+    if (is.null(pal)) {
+      group <- unique(x@metadata$group)
+      pal <- nl(group, MCnebula2:::.get_color_set()[1:length(group)], F)
+    }
+    pal
+  })
+
+.andata_pca <- setClass("andata_pca", contains = c("andata"))
+
+pca_data.long <- function(data.long, fun_scale = function(x) scale(x)) {
+  lst <- .split_data.long(data.long)
+  data <- t(lst$data)
+  metadata <- lst$metadata
+  if (!is.null(fun_scale)) {
+    data <- fun_scale(data)
+  }
+  data <- prcomp(data, retx = F)
   anno <- round(summary(data)$importance[2, ], 3)
   data <- tibble::as_tibble(data$rotation)
   data <- dplyr::mutate(data, sample = metadata$sample,
     group = metadata$group)
   data <- dplyr::select(data, sample, group, PC1, PC2)
-  namel(data, anno, metadata, raw_matrix)
+  .andata_pca(data = data, anno = anno, metadata = metadata)
 }
 
-opls_data.matrix <- function(raw_matrix, metadata) {
+.andata_opls <- setClass("andata_opls", 
+  contains = c("andata"),
+  representation = representation(vip = "ANY"), prototype = NULL)
+
+opls_data.long <- function(data.long, combns, inter.fig = F) {
+  lst <- .split_data.long(data.long)
+  data <- lst$data
+  metadata <- lst$metadata
+  if (!is.list(combns)) {
+    stop("is.list(combns) == F")
+  }
+  res <- lapply(combns,
+    function(combn){
+      whi <- which(metadata$group %in% combn)
+      metadata <- metadata[whi, ]
+      data <- data[whi, ]
+      opls <- ropls::opls(
+        data, as.character(metadata$group),
+        predI = 1, orthoI = NA, fig.pdfC = F
+      )
+      data <- cbind(opls@scoreMN[, 1], opls@orthoScoreMN[, 1])
+      colnames(data) <- c("h1", "o1")
+      data <- tibble::as_tibble(data)
+      anno <- c(
+        x = paste0("T score[1](", opls@modelDF[1, "R2X"] * 100, "%)"),
+        y = paste0("Orthogonal T score[1](", opls@modelDF[2, "R2X"] * 100, "%)")
+      )
+      vip <- data.frame(opls@vipVn)
+      vip <- cbind(rownames(vip), vip)
+      colnames(vip) <- c("var", "vip")
+      vip <- tibble::as_tibble(vip)
+      .andata_opls(data = data, anno = anno, metadata = metadata, vip = vip)
+    })
+  names(res) <- paste0("combn", 1:length(combns))
+  res
 }
 
+setGeneric("plot_andata", 
+  function(x, ...) standardGeneric("plot_andata"))
+
+setMethod("plot_andata", 
+  signature = c(x = "andata_pca"),
+  function(x){
+    p <- ggplot(x@data, aes(x = PC1, y = PC2, fill = group)) +
+      geom_point(size = 3, shape = 21, stroke = 0, color = "transparent") +
+      stat_ellipse(aes(color = group), level  =  0.95) +
+      labs(x = paste0("PC1 (", x@anno[1] * 100, "%)"),
+        y = paste0("PC2 (", x@anno[2] * 100, "%)"), color = "Group", fill = "Group") +
+      scale_fill_manual(values = pal(x)) +
+      scale_color_manual(values = pal(x)) +
+      theme()
+    p
+  })
+
+setMethod("plot_andata", 
+  signature = c(x = "andata_opls"),
+  function(x){
+    p <- ggplot(x@data, aes(x = h1, y = o1)) +
+      geom_point(size = 3, shape = 21,
+        aes(fill = x@metadata$group), stroke = 0, color = "transparent") +
+      stat_ellipse(aes(color = x@metadata$group), level  =  0.95) +
+      scale_fill_manual(values = pal(x)) +
+      scale_color_manual(values = pal(x)) +
+      labs(x = x@anno[1], y = x@anno[2], color = "Group", fill = "Group") +
+      theme()
+    p
+  })
+
+get_metadata.geo <- function(lst,
+  select = rlang::quos(title, ),
+  pattern = c("diagnosis", "Sex", "^age", "^time point", "data_processing"),
+  abbrev = c("data_processing"))
+{
+  res <- lapply(lst,
+    function(eset){
+      tibble::as_tibble(eset@phenoData@data)
+    })
+  if (!is.null(select)) {
+    main <- lapply(res,
+      function(data){
+        cols <- colnames(data)
+        extra <- unlist(.find_and_sort_strings(cols, pattern))
+        dplyr::select(data, !!!select, dplyr::all_of(extra))
+      })
+    if (!is.null(abbrev)) {
+      abbrev <- lapply(res,
+        function(data){
+          cols <- colnames(data)
+          extra <- unlist(.find_and_sort_strings(cols, abbrev))
+          dplyr::distinct(data, dplyr::pick(extra))
+        })
+    } else abbrev <- NULL
+    res <- namel(main, abbrev, res)
+  }
+  lst_clear0(res)
+}
+
+show_lst.ch <- function(lst, width = 60) {
+  sapply(names(lst),
+    function(name){
+      message("+++ ", name, " +++\n")
+      MCnebula2:::textSh(lst[[ name ]], wrap_width = width, pre_wrap = T)
+    })
+  message()
+}
+
+get_prod.geo <- function(lst) {
+  res <- as.list(dplyr::distinct(do.call(rbind, lst$abbrev)))
+  .lich(res)
+}
+
+.lich <- setClass("lich", 
+  contains = c("list"),
+  representation = 
+    representation(),
+  prototype = NULL)
+
+setMethod("show", 
+  signature = c(object = "lich"),
+  function(object){
+    show_lst.ch(object)
+  })
 
