@@ -1483,3 +1483,5 @@ limma_downstream <- function(dge.list, group., design, contr.matrix,
 fuzzy <- function(str) {
   make.names(gsub(" ", "", str))
 }
+
+

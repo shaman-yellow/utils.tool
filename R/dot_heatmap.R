@@ -122,8 +122,7 @@ dot_heatmap <- function(df){
 }
 
 ## long data
-tile_heatmap <- 
-  function(df){
+tile_heatmap <- function(df){
     p <- ggplot(df, aes(x = sample, y = .features_id)) +
       geom_tile(aes(fill = value),
         color = "white", height = 1, width = 1, size = 0.2) +
