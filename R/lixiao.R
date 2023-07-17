@@ -3,7 +3,6 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # <https://cran.r-project.org/web/packages/RSelenium/index.html>
-
 format_bindingdb.tsv <- function(file,
   select = c("PubChem CID", "PDB ID(s) of Target Chain"), cl = 4, lines = NULL)
 {
@@ -131,8 +130,10 @@ smiles_as_sdfs.obabel <- function(smiles) {
   lst.sdf
 }
 
-tbmerge <- function(...) {
-  tibble::as_tibble(merge(...))
+tbmerge <- function(x, y, ...) {
+  x <- data.table::as.data.table(x)
+  y <- data.table::as.data.table(y)
+  tibble::as_tibble(data.table::merge.data.table(x, y, ...))
 }
 
 ld_cols <- function(file, sep = "\t") {
@@ -262,10 +263,10 @@ prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {
 # }
 
 start_drive <- function(command = "java -jar ~/operation/selenium.jar",
-  port = 4444, extra = NULL, ...)
+  port = 4444, extra = NULL, browser = c("chrome", "firefox"), ...)
 {
   system(paste(command, "-port", port, extra), wait = F)
-  new_link(port = port)
+  new_link(port = port, browser = match.arg(browser))
 }
 
 end_drive <- function(pattern = "[0-9]\\s*java.*-jar") {
@@ -314,6 +315,7 @@ download_herbCompounds <- function(link, ids,
         )
         ele$sendKeysToElement(list("Download", key = "enter"))
       })
+      Sys.sleep(.5)
       if (inherits(res, "try-error")) {
         writeLines("", paste0("~/Downloads/empty_", jobn, ".xlsx"))
       }
@@ -373,12 +375,21 @@ format_index.by_num <- function(index) {
   as.integer(index)
 }
 
-new_link <- function(port = 4444L, browser = "firefox", addr = "localhost")
+new_link <- function(port = 4444L, browser = c("chrome", "firefox"), addr = "localhost")
 {
-  RSelenium::remoteDriver(
-    remoteServerAddr = addr, port = port,
-    browserName = browser
-  )
+  browser <- match.arg(browser)
+  if (browser == "firefox") {
+    RSelenium::remoteDriver(
+      remoteServerAddr = addr, port = port,
+      browserName = browser
+    )
+  } else if (browser == "chrome") {
+    RSelenium::remoteDriver(
+      remoteServerAddr = addr, port = port,
+      browserName = browser,
+      extraCapabilities = list()
+    )
+  }
 }
 
 merge.componentsGenes <- function(data, genes.lst) {
@@ -678,10 +689,18 @@ get_nodes <- function(igraph, from = "vertices") {
   tibble::as_tibble(igraph::as_data_frame(igraph, from))
 } 
 
+dedup.edges <- function(igraph){
+  add_attr.igraph(igraph)
+}
+
 add_attr.igraph <- function(igraph, data, by.x = "name", by.y, dedup.edges = T)
 {
   comps <- igraph::as_data_frame(igraph, "both")
-  nodes <- merge(comps$vertices, data, by.x = by.x, by.y = by.y, all.x = T)
+  if (!missing(data)) {
+    nodes <- merge(comps$vertices, data, by.x = by.x, by.y = by.y, all.x = T)
+  } else {
+    nodes <- comps$vertices
+  }
   if (dedup.edges) {
     edges <- dplyr::distinct(comps$edges)
   } else {
@@ -725,7 +744,7 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
       color = edge.color, width = edge.width) +
     geom_node_point(aes(x = x, y = y, fill = MCC_score),
       size = node.size, shape = 21, stroke = .3) +
-    geom_node_text(aes(label = preferred_name), size = label.size) +
+    geom_node_text(aes(label = genes), size = label.size) +
     scale_fill_gradient(low = "lightyellow", high = "red") +
     scale_x_continuous(limits = zoRange(graph$x, scale.x)) +
     scale_y_continuous(limits = zoRange(graph$y, scale.y)) +
@@ -746,9 +765,9 @@ multi_enrichKEGG <- function(lst.entrez_id)
   res
 }
 
-multi_enrichGO <- function(lst.entrez_id, orgDb = 'org.Hs.eg.db')
+multi_enrichGO <- function(lst.entrez_id, orgDb = 'org.Hs.eg.db', cl = NULL)
 {
-  res <- pbapply::pblapply(lst.entrez_id,
+  res <- pbapply::pblapply(lst.entrez_id, cl = cl,
     function(ids) {
       onts <- c("BP", "CC", "MF")
       res <- sapply(onts, simplify = F,
@@ -887,6 +906,15 @@ getBelong_edges <- function(edges) {
   lst.belong
 }
 
+cal_mcc.str <- function(res.str){
+  hubs_score <- cal_mcc(res.str$graph)
+  hubs_score <- tbmerge(res.str$mapped, hubs_score, by.x = "STRING_id", by.y = "name", all.x = T)
+  hubs_score <- dplyr::relocate(hubs_score, name, MCC_score)
+  hubs_score <- dplyr::arrange(hubs_score, dplyr::desc(MCC_score))
+  hubs_score <- dplyr::rename(hubs_score, genes = name)
+  hubs_score
+}
+
 cal_mcc <- function(edges) 
 {
   if (is(edges, "igraph")) {
@@ -920,12 +948,13 @@ cal_mcc <- function(edges)
 get_subgraph.mcc <- function(igraph, resMcc, top = 10) 
 {
   tops <- dplyr::arrange(resMcc, dplyr::desc(MCC_score))
-  tops <- head(tops$name, n = 10)
+  tops <- head(tops$STRING_id, n = 10)
   data <- igraph::as_data_frame(igraph, "both")
   nodes <- dplyr::filter(data$vertices, name %in% !!tops)
-  nodes <- merge(nodes, resMcc, by = "name", all.x = T)
+  nodes <- merge(nodes, resMcc, by.x = "name", by.y = "STRING_id", all.x = T)
   edges <- dplyr::filter(data$edges, (from %in% !!tops) & (to %in% !!tops))
   igraph <- igraph::graph_from_data_frame(edges, F, nodes)
+  igraph <- dedup.edges(igraph)
   igraph
 }
 
@@ -1112,8 +1141,8 @@ setMethod("pal",
 
 .andata_pca <- setClass("andata_pca", contains = c("andata"))
 
-pca_data.long <- function(data.long, fun_scale = function(x) scale(x)) {
-  lst <- .split_data.long(data.long)
+pca_data.long <- function(x, fun_scale = function(x) scale(x)) {
+  lst <- .split_data.long(x)
   data <- t(lst$data)
   metadata <- lst$metadata
   if (!is.null(fun_scale)) {
@@ -1251,3 +1280,206 @@ setMethod("show",
     show_lst.ch(object)
   })
 
+new_dge <- function(metadata, counts, genes, idname, message = T)
+{
+  ## sort and make name for metadata and counts
+  colnames(metadata) %<>% make.names()
+  metadata <- dplyr::rename(metadata, sample = 1)
+  select_args <- lapply(metadata$sample,
+    function(name){
+      rlang::quo(dplyr::contains(!!name))
+    })
+  select_args <- do.call(c, select_args)
+  counts <- dplyr::select(counts, 1, !!!select_args)
+  metadata$sample %<>% make.names()
+  colnames(counts) %<>% make.names()
+  ## sort genes
+  data_id <- do.call(data.frame, nl(idname, list(counts[[1]])))
+  genes <- dplyr::distinct(genes, !!rlang::sym(idname), .keep_all = T)
+  genes <- tbmerge(
+    data_id, genes,
+    by.x = idname, by.y = colnames(genes)[1],
+    sort = F, all.x = T
+  )
+  if (message) {
+    message("## The missing genes in `genes`")
+    check.na <- dplyr::filter(
+      genes, is.na(!!rlang::sym(colnames(genes)[2]))
+    )
+    print(check.na)
+  }
+  counts <- dplyr::select(counts, -1)
+  colnames(counts) <- metadata$sample
+  edgeR::DGEList(counts, samples = metadata, genes = genes)
+}
+
+.eset <- c("DGEList", "EList")
+setOldClass(.eset)
+
+.data_long.eset <- setClass("data_long.eset", 
+  contains = c("data.frame"),
+  representation = representation(),
+  prototype = NULL)
+
+setGeneric("as_data_long", 
+  function(x) standardGeneric("as_data_long"))
+
+setMethod("as_data_long", 
+  signature = c(x = "DGEList"),
+  function(x){
+    data <- tibble::as_tibble(x$counts)
+    data$genes <- x$genes[[ 1 ]]
+    data <- tidyr::gather(data, sample, value, -genes)
+    data <- tbmerge(data, x$samples, by = "sample", all.x = T)
+    .data_long.eset(data)
+  })
+
+setMethod("as_data_long", 
+  signature = c(x = "EList"),
+  function(x){
+    data <- tibble::as_tibble(x$E)
+    data$genes <- x$genes[[ 1 ]]
+    data <- tidyr::gather(data, sample, value, -genes)
+    data <- tbmerge(data, x$targets, by = "sample", all.x = T)
+    .data_long.eset(data)
+  })
+
+setGeneric("pca_data.long", 
+  function(x, fun_scale) standardGeneric("pca_data.long"))
+
+setMethod("pca_data.long", 
+  signature = c(x = "data_long.eset"),
+  function(x){
+    x <- dplyr::select(tibble::as_tibble(data.frame(x)), sample, group, genes, value)
+    x <- tidyr::spread(x, genes, value)
+    callNextMethod(x, NULL)
+  })
+
+filter_low.dge <- function(dge, group., min.count = 10, prior.count = 2) {
+  dge$samples$group = group.
+  mean <- mean(dge$samples$lib.size) * 1e-6
+  median <- median(dge$samples$lib.size) * 1e-6
+  cutoff <- log2(min.count / median + 2 / mean)
+  ## raw
+  raw_dge <- dge
+  raw_dge$counts <- edgeR::cpm(raw_dge, log = T, prior.count = prior.count)
+  ## filter
+  keep.exprs <- edgeR::filterByExpr(dge, group = group., min.count = min.count)
+  pro_dge <- dge <- edgeR::`[.DGEList`(dge, keep.exprs, , keep.lib.sizes = F)
+  pro_dge$counts <- edgeR::cpm(pro_dge, log = T)
+  ## plot
+  data <- list(Raw = as_data_long(raw_dge), Filtered = as_data_long(pro_dge))
+  data <- data.table::rbindlist(data, idcol = T)
+  data <- dplyr::select(data, .id, sample, value)
+  p <- ggplot(data) +
+    geom_density(aes(x = value, color = sample), alpha = .7) +
+    geom_vline(xintercept = cutoff, linetype = "dashed") +
+    facet_wrap(~ factor(.id, c("Raw", "Filtered"))) +
+    labs(x = "Log2-cpm", y = "Density")
+  attr(dge, "p") <- p
+  dge
+}
+
+mx <- function(...){
+  design <- model.matrix(...)
+  colnames(design) %<>% gsub("group.", "", .)
+  design
+}
+
+norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ...){
+  ## raw
+  raw_dge <- dge
+  raw_dge$counts <- edgeR::cpm(raw_dge, log = T, prior.count = prior.count)
+  ## pro
+  dge <- edgeR::calcNormFactors(dge, method = "TMM")
+  pro_dge <- dge <- fun(dge, design, ...)
+  ## data long
+  data <- list(Raw = as_data_long(raw_dge), Normalized = as_data_long(pro_dge))
+  data <- data.table::rbindlist(data, idcol = T, fill = T)
+  data <- dplyr::select(data, .id, sample, value)
+  p <- ggplot(data) +
+    geom_boxplot(aes(x = sample, y = value),
+      outlier.color = "grey60", outlier.size = .5) +
+    coord_flip() +
+    facet_wrap(~ factor(.id, c("Raw", "Normalized"))) +
+    labs(x = "Sample", y = "Log2-cpm")
+  attr(dge, "p") <- p
+  dge
+}
+
+diff_test <- function(x, design, contr, block = NULL){
+  if (!is.null(block)){
+    dupcor <- limma::duplicateCorrelation(x, design, block = block)
+    cor <- dupcor$consensus.correlation
+    message("## Within-donor correlation:", cor)
+  } else {
+    cor <- NULL
+  }
+  fit <- limma::lmFit(x, design, block = block, correlation = cor)
+  fit <- limma::contrasts.fit(fit, contrasts = contr)
+  fit <- limma::eBayes(fit)
+  fit
+}
+
+extract_tops <- function(x, cut.q = 0.05, cut.fc = 0.3){
+  res <- lapply(1:ncol(x$contrasts),
+    function(coef){
+      res <- limma::topTable(x, coef = coef, number = Inf)
+      if (!is.null(cut.q) & !is.null(cut.fc)) {
+        res <- dplyr::filter(res, adj.P.Val < cut.q, abs(logFC) > cut.fc)
+      }
+      dplyr::as_tibble(res) 
+    })
+  names(res) <- colnames(x$contrasts)
+  res
+}
+
+limma_downstream <- function(dge.list, group., design, contr.matrix,
+    min.count = 10, voom = T, cut.q = 0.05, cut.fc = 0.3,
+    get_ebayes = F, get_normed.exprs = F, block = NULL)
+  {
+    # if (NA %in% dge.list$samples[["lib.size"]]){
+    # dge.list$samples[["lib.size"]] <- apply(dge.list$counts, 2, sum, na.rm = T)
+    # }
+    keep.exprs <- edgeR::filterByExpr(dge.list, group = group., min.count = min.count)
+    dge.list <- edgeR::`[.DGEList`(dge.list, keep.exprs, , keep.lib.sizes = F)
+    if (voom){
+      dge.list <- edgeR::calcNormFactors(dge.list, method = "TMM")
+      dge.list <- limma::voom(dge.list, design)
+    }else{
+      genes <- dge.list$genes
+      targets <- dge.list$samples
+      dge.list <- scale(dge.list$counts, scale = F, center = T)
+    }
+    if (get_normed.exprs)
+      return(dge.list)
+    if (!is.null(block)){
+      dupcor <- limma::duplicateCorrelation(dge.list, design, block = block)
+      cor <- dupcor$consensus.correlation
+      cat("## Within-donor correlation:", cor, "\n")
+    }else{
+      cor <- NULL
+    }
+    fit <- limma::lmFit(dge.list, design, block = block, correlation = cor)
+    if (!voom){
+      fit$genes <- genes
+      fit$targets <- targets
+    }
+    fit.cont <- limma::contrasts.fit(fit, contrasts = contr.matrix)
+    ebayes <- limma::eBayes(fit.cont)
+    if (get_ebayes)
+      return(ebayes)
+    res <- lapply(1:ncol(contr.matrix),
+      function(coef){
+        results <- limma::topTable(ebayes, coef = coef, number = Inf) %>% 
+          dplyr::filter(adj.P.Val < cut.q, abs(logFC) > cut.fc) %>% 
+          dplyr::as_tibble() 
+        return(results)
+      })
+    names(res) <- colnames(contr.matrix)
+    return(res)
+  }
+
+fuzzy <- function(str) {
+  make.names(gsub(" ", "", str))
+}

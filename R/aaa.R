@@ -398,3 +398,6 @@ clearMatch <- function(strs)
   strs <- strs[ !vapply(strs, is.na, logical(1)) ]
   strs
 }
+
+eg <- data.frame(x = sample(1:10, 10), y = sample(1:10, 10), z = sample(1:10, 10))
+eg2 <- data.frame(a = sample(1:10, 10), b = sample(1:10, 10), c = sample(1:10, 10))

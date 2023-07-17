@@ -157,71 +157,26 @@ get_gsm.data <-
     })
   }
 
-limma_downstream <- 
-  function(dge.list, group., design, contr.matrix,
-    min.count = 10, voom = T, cut.q = 0.05, cut.fc = 0.3,
-    get_ebayes = F, get_normed.exprs = F, block = NULL)
-  { # if(NA %in% dge.list$samples[["lib.size"]]){
-    # dge.list$samples[["lib.size"]] <- apply(dge.list$counts, 2, sum, na.rm = T)
-    # }
-    keep.exprs <- edgeR::filterByExpr(dge.list, group = group., min.count = min.count)
-    dge.list <- edgeR::`[.DGEList`(dge.list, keep.exprs, , keep.lib.sizes = F)
-    if(voom){
-      dge.list <- edgeR::calcNormFactors(dge.list, method = "TMM")
-      dge.list <- limma::voom(dge.list, design)
-    }else{
-      genes <- dge.list$genes
-      targets <- dge.list$samples
-      dge.list <- scale(dge.list$counts, scale = F, center = T)
-    }
-    if(get_normed.exprs)
-      return(dge.list)
-    if(!is.null(block)){
-      dupcor <- limma::duplicateCorrelation(dge.list, design, block = block)
-      cor <- dupcor$consensus.correlation
-      cat("## Within-donor correlation:", cor, "\n")
-    }else{
-      cor <- NULL
-    }
-    fit <- limma::lmFit(dge.list, design, block = block, correlation = cor)
-    if(!voom){
-      fit$genes <- genes
-      fit$targets <- targets
-    }
-    fit.cont <- limma::contrasts.fit(fit, contrasts = contr.matrix)
-    ebayes <- limma::eBayes(fit.cont)
-    if(get_ebayes)
-      return(ebayes)
-    res <- lapply(1:ncol(contr.matrix), function(coef){
-      results <- limma::topTable(ebayes, coef = coef, number = Inf) %>% 
-        dplyr::filter(adj.P.Val < cut.q, abs(logFC) > cut.fc) %>% 
-        dplyr::as_tibble() 
-      return(results)
-    })
-    names(res) <- colnames(contr.matrix)
-    return(res)
-  }
- 
-limma_downstream.eset <- 
-  function(
-    eset,
-    design,
-    contr.matrix,
-    cut.q = 0.05,
-    cut.fc = 0.3
-    ){
-    fit <- limma::lmFit(eset, design)
-    fit.cont <- limma::contrasts.fit(fit, contrasts = contr.matrix)
-    ebayes <- limma::eBayes(fit.cont)
-    res <- lapply(1:ncol(contr.matrix), function(coef){
-      results <- limma::topTable(ebayes, coef = coef, number = Inf) %>% 
-        dplyr::filter(adj.P.Val < cut.q, abs(logFC) > cut.fc) %>% 
-        dplyr::as_tibble() 
-      return(results)
-    })
-    names(res) <- colnames(contr.matrix)
-    return(res)
-  }
+# limma_downstream.eset <- 
+#   function(
+#     eset,
+#     design,
+#     contr.matrix,
+#     cut.q = 0.05,
+#     cut.fc = 0.3
+#     ){
+#     fit <- limma::lmFit(eset, design)
+#     fit.cont <- limma::contrasts.fit(fit, contrasts = contr.matrix)
+#     ebayes <- limma::eBayes(fit.cont)
+#     res <- lapply(1:ncol(contr.matrix), function(coef){
+#       results <- limma::topTable(ebayes, coef = coef, number = Inf) %>% 
+#         dplyr::filter(adj.P.Val < cut.q, abs(logFC) > cut.fc) %>% 
+#         dplyr::as_tibble() 
+#       return(results)
+#     })
+#     names(res) <- colnames(contr.matrix)
+#     return(res)
+#   }
 
 list.attr.biomart <- 
   function(biomart = "ensembl", dataset = "hsapiens_gene_ensembl")
