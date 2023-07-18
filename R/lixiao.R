@@ -1063,6 +1063,11 @@ split_lapply_rbind <- function(data, f, fun, ...) {
   tibble::as_tibble(data)
 }
 
+.data_long <- setClass("data_long", 
+  contains = c("data.frame"),
+  representation = representation(),
+  prototype = NULL)
+
 handling_na.long <- function(data) {
   .check_columns(data, c("sample", "group"))
   metadata <- dplyr::select(data, sample, group)
@@ -1317,7 +1322,7 @@ new_dge <- function(metadata, counts, genes, idname, message = T)
 setOldClass(.eset)
 
 .data_long.eset <- setClass("data_long.eset", 
-  contains = c("data.frame"),
+  contains = c("data_long"),
   representation = representation(),
   prototype = NULL)
 
