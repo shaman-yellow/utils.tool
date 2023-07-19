@@ -991,7 +991,9 @@ package_results <- function(
   files.client <- c(report, main)
   files.master <- c(files.client, head, masterSource)
   zip(clientZip, files.client)
-  zip(masterZip, files.master)
+  if (!is.null(masterZip)) {
+    zip(masterZip, files.master)
+  }
   zip(zip, c(clientZip, masterZip), flags = "-ur9X")
   if (clear) {
     file.remove(c(clientZip, masterZip))
