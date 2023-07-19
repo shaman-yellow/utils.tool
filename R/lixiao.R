@@ -43,6 +43,10 @@ cdRun <- function(..., path = ".", sinkFile = NULL)
   }
 }
 
+# ==========================================================================
+# autodock vina
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 vina_limit <- function(lig, recep, timeLimit = 120, ...) {
   try(vina(lig, recep, ..., timeLimit = timeLimit), T)
 }
@@ -262,6 +266,10 @@ prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {
 #   return(meta)
 # }
 
+# ==========================================================================
+# crawl data
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 start_drive <- function(command = "java -jar ~/operation/selenium.jar",
   port = 4444, extra = NULL, browser = c("chrome", "firefox"), ...)
 {
@@ -474,6 +482,10 @@ writeDatas <- function(lst, dir, fun = data.table::fwrite, postfix = ".csv")
     })
 }
 
+# ==========================================================================
+# biomart
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 new_biomart <- function(dataset = c("hsapiens_gene_ensembl"))
 {
   ensembl <- biomaRt::useEnsembl(biomart = "ensembl", dataset = match.arg(dataset))
@@ -538,6 +550,10 @@ get_nci60_data <- function(comAct = "../comAct_nci60/DTP_NCI60_ZSCORE.xlsx",
   rna <- dplyr::mutate(rna, genes = gsub("\\.[0-9]*$", "", `Gene name d`))
   list(comAct = comAct, rna = rna)
 }
+
+# ==========================================================================
+# cor test
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 mul_corTest <- function(data.x, data.y, namecol.x = 1, namecol.y = 1, method = "pearson",
   p.cutoff = .05, cor.cutoff = NULL, saveAllRes = T)
@@ -641,6 +657,10 @@ cal_annoCoord <- function(data, col = "group", pos.x = .1, pos.y = 1.3) {
     })
   data.table::rbindlist(anno, idcol = T)
 }
+
+# ==========================================================================
+# network
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 new_stringdb <- function(
   score_threshold = 200,
@@ -1119,6 +1139,10 @@ variance_analysis <- function(data.long){
   namel(data, metadata)
 }
 
+# ==========================================================================
+# pca and oplsda
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 .andata <- setClass("andata", 
   contains = character(),
   representation = 
@@ -1286,6 +1310,10 @@ setMethod("show",
   function(object){
     show_lst.ch(object)
   })
+
+# ==========================================================================
+# limma and edgeR
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 new_dge <- function(metadata, counts, genes, idname, message = T)
 {
@@ -1491,4 +1519,190 @@ fuzzy <- function(str) {
   make.names(gsub(" ", "", str))
 }
 
+# ==========================================================================
+# heatmap
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+.heatdata <- setClass("heatdata", 
+  contains = c(),
+  representation = 
+    representation(
+      raw = "ANY",
+      data_long = "ANY",
+      main = "ANY",
+      aesn = "ANY",
+      ymeta = "ANY",
+      y_aesn = "ANY",
+      y_pal = "ANY",
+      xmeta = "ANY",
+      x_aesn = "ANY",
+      x_pal = "ANY",
+      para = "ANY",
+      gg_xtree = "ANY",
+      gg_ytree = "ANY",
+      gg_main = "ANY",
+      gg_xgroup = "ANY",
+      gg_ygroup = "ANY"),
+    prototype = NULL)
+
+setMethod("show", 
+  signature = c(object = "heatdata"),
+  function(object){
+    message("A 'heatdata' object")
+  })
+
+.heatdata_gene <- setClass("heatdata_gene", 
+  contains = c("heatdata"),
+  representation = representation(),
+  prototype = prototype(
+    aesn = list(
+      x = "sample", y = "gene", fill = "value",
+      lab_x = "Samples", lab_y = "Genes", lab_fill = "Gene level"),
+    para = list(
+      clust_row = T, clust_col = T, method = 'complete'),
+    x_aesn = list(x = "sample", y = "group", fill = "group",
+      lab_x = "", lab_y = "", lab_fill = "Group"),
+    x_pal = MCnebula2:::.get_color_set(),
+    y_aesn = list(x = "module", y = "gene", fill = "module",
+      lab_x = "", lab_y = "", lab_fill = "Module"),
+    y_pal = WGCNA::standardColors()
+    ))
+
+setGeneric("naviRaw", 
+  function(x) standardGeneric("naviRaw"))
+
+setMethod("naviRaw", 
+  signature = c(x = "heatdata_gene"),
+  function(x){
+    data_long <- as_data_long(x@raw)
+    x@data_long <- tibble::as_tibble(data_long)
+    x
+  })
+
+setGeneric("standby", 
+  function(x) standardGeneric("standby"))
+
+setMethod("standby", 
+  signature = c(x = "heatdata"),
+  function(x){
+    cols <- unlist(x@aesn[ names(x@aesn) %in% c("x", "y", "fill") ])
+    .check_columns(x@data_long, cols)
+    main <- dplyr::select(x@data_long, dplyr::all_of(unname(cols)))
+    main <- tidyr::spread(main, cols[[ "x" ]], cols[[ "fill" ]])
+    main <- data.frame(main)
+    rownames(main) <- main[[ cols[[ "y" ]] ]]
+    main <- dplyr::select(main, -!!rlang::sym(cols[[ "y" ]]))
+    x@main <- main
+    x
+  })
+
+setGeneric("xmeta", 
+  function(x, metadata) standardGeneric("xmeta"))
+
+setMethod("xmeta", 
+  signature = c(x = "heatdata_gene"),
+  function(x){
+    x@xmeta <- dplyr::distinct(x@data_long, sample, group)
+    x
+  })
+
+setGeneric("callheatmap", 
+  function(x) standardGeneric("callheatmap"))
+
+setMethod("callheatmap", 
+  signature = c(x = "heatdata"),
+  function(x){
+    y.reformat <- x.reformat <- 0L
+    if (!is.null(x@ymeta)) {
+      x@data_long <- dplyr::filter(
+        x@data_long, 
+        !!rlang::sym(x@aesn[[ "y" ]]) %in% x@ymeta[[ x@aesn[[ "y" ]] ]]
+      )
+      y.reformat <- 1L
+    }
+    if (!is.null(x@xmeta)) {
+      x@data_long <- dplyr::filter(
+        x@data_long, 
+        !!rlang::sym(x@aesn[[ "x" ]]) %in% x@xmeta[[ x@aesn[[ "x" ]] ]]
+      )
+      x.reformat <- 1L
+    }
+    if (any(c(y.reformat, x.reformat)) | is.null(x@main)) {
+      x <- standby(x)
+    }
+    x@gg_main <- do.call(tile_heatmap, c(list(x@data_long), x@aesn))
+    if (y.reformat) {
+      if (any(colnames(x@ymeta) == x@y_aesn[[ "fill" ]])) {
+        args <- c(list(data = x@ymeta, p = NULL, pal = x@y_pal), x@y_aesn)
+        x@gg_ygroup <- do.call(add_ygroup.tile.heatmap, args)
+      }
+    }
+    x@gg_xtree <- plot_xtree(x@main, x@para[[ "method" ]])
+    x@gg_ytree <- plot_ytree(x@main, x@para[[ "method" ]])
+    if (x.reformat) {
+      if (any(colnames(x@xmeta) == x@x_aesn[[ "fill" ]])) {
+        args <- c(list(data = x@xmeta, p = NULL, pal = x@x_pal), x@x_aesn)
+        x@gg_xgroup <- do.call(add_xgroup.tile.heatmap, args)
+      }
+    }
+    return(x)
+  })
+
+draw_sampletree <- function(x) {
+  aplot::insert_top(x@gg_xgroup, x@gg_xtree, height = 8) 
+}
+
+draw_genetree <- function(x) {
+  aplot::insert_left(x@gg_ygroup, x@gg_ytree, width = 8)
+}
+
+setMethod("draw", 
+  signature = c(x = "heatdata"),
+  function(x){
+    p <- x@gg_main
+    if (!is.null(x@gg_ygroup)) {
+      p <- aplot::insert_left(p, x@gg_ygroup, width = 0.02) 
+    }
+    if (x@para[[ "clust_col" ]]) {
+      p <- aplot::insert_top(p, x@gg_xtree, height = 0.3)
+    }
+    if (x@para[[ "clust_row" ]]) {
+      p <- aplot::insert_left(p, x@gg_ytree, width = 0.3)
+    }
+    if (!is.null(x@gg_xgroup)) {
+      p <- aplot::insert_bottom(p, x@gg_xgroup, height = 0.05) 
+    }
+    p
+  })
+
+as_df.distframe <- function(data, threshold = NULL) {
+  row <- 0
+  names <- rownames(data)
+  data <- apply(data, 1,
+    function(value){
+      row <<- row + 1
+      data.frame(from = names[row], to = names(value), value = unname(value))
+    }, simplify = F)
+  data <- do.call(rbind, data)
+  data <- tibble::as_tibble(data)
+  if (!is.null(threshold)) {
+    data <- dplyr::filter(data, value > threshold)
+  }
+  data
+}
+
+as_edges.distframe <- function(data, threshold = NULL) 
+{
+  data <- as_df.distframe(data, threshold)
+  meta <- apply(data[, 1:2], 1, sort)
+  meta <- data.frame(t(meta))
+  colnames(meta) <- c("from", "to")
+  data <- cbind(meta, data[, -(1:2)])
+  data <- dplyr::distinct(data, from, to, .keep_all = T)
+  data <- dplyr::filter(data, from != to)
+  tibble::as_tibble(data)
+}
+
+# ==========================================================================
+# wgcna
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

@@ -122,38 +122,56 @@ dot_heatmap <- function(df){
 }
 
 ## long data
-tile_heatmap <- function(df){
-    p <- ggplot(df, aes(x = sample, y = .features_id)) +
-      geom_tile(aes(fill = value),
-        color = "white", height = 1, width = 1, size = 0.2) +
-      theme_minimal() +
-      scale_fill_gradient2(low = "#3182BDFF", high = "#A73030FF",
-        limits = c(min(df$value), max(df$value))) +
-      labs(x = "Sample", y = "Feature ID", fill = "log2 (Feature level)") +
-      theme(text = element_text(family = .font, face = "bold"),
-        axis.text = element_text(face = "plain"),
-        axis.text.x = element_blank()
-      )
-      return(p)
+tile_heatmap <- function(data, x = "sample", y = ".features_id", fill = "value",
+  lab_x = "Sample", lab_y = "Feature ID", lab_fill = "log2 (Feature level)", ...)
+{
+  scale_fill <- if ( 0L > min(data[[ fill ]]) & 0L < max(data[[ fill ]])) {
+    scale_fill_gradient2(
+      low = "#3182BDFF", high = "#A73030FF",
+      limits = c(min(data[[ fill ]]), max(data[[ fill ]]))) 
+  } else {
+    scale_fill_gradientn(
+      colors = c("#3182BDFF", "white", "#A73030FF"),
+      limits = c(min(data[[ fill ]]), max(data[[ fill ]])))
   }
+  p <- ggplot(data, aes(x = !!rlang::sym(x), y = !!rlang::sym(y))) +
+    geom_tile(aes(fill = !!rlang::sym(fill)),
+      color = "white", height = 1, width = 1, size = 0.2) +
+    theme_minimal() +
+    scale_fill +
+    labs(x = lab_x, y = lab_y, fill = lab_fill) +
+    theme(text = element_text(family = .font, face = "bold"),
+      axis.text = element_text(face = "plain"),
+      axis.text.x = element_blank()) +
+    geom_blank()
+  return(p)
+}
+
+plot_ytree <- function(data, method = "complete") {
+  p <- hclust(dist(data), method)
+  p <- ggtree::ggtree(p, layout = "rectangular", branch.length = "branch.length") +
+    theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+  p
+}
+
+plot_xtree <- function(data, method = "complete") {
+  p <- plot_ytree(t(data), method) +
+    ggtree::layout_dendrogram()
+  p
+}
 
 #' @export add_tree.heatmap
 #' @aliases add_tree.heatmap
 #' @description \code{add_tree.heatmap}: ...
 #' @rdname plot_heatmap
 add_tree.heatmap <- 
-  function(df, p, clust_row = T, clust_col = T, method = 'complete'){
+  function(data, p, clust_row = T, clust_col = T, method = 'complete', ...){
     if (clust_row) {
-      phr <- hclust(dist(df), method)
-      phr <- ggtree::ggtree(phr, layout = "rectangular", branch.length = "branch.length") +
-        theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+      phr <- plot_ytree(data)
       p <- aplot::insert_left(p, phr, width = 0.3)
     }
     if (clust_col) {
-      phc <- hclust(dist(t(df)), method)
-      phc <- ggtree::ggtree(phc, layout = "rectangular", branch.length = "branch.length") +
-        ggtree::layout_dendrogram() +
-        theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+      phc <- plot_xtree(data)
       p <- aplot::insert_top(p, phc, height = 0.3)
     }
     return(p)
@@ -185,24 +203,28 @@ add_xgroup.heatmap <-
 #' @description \code{add_xgroup.tile.heatmap}: ...
 #' @rdname plot_heatmap
 add_xgroup.tile.heatmap <- 
-  function(df, p, pal = NA){
+  function(data, p = NULL, pal = NA, x = "sample", y = "Group", fill = "group",
+    lab_x = "", lab_y = "", lab_fill = "Group")
+  {
     expr.pal <- ifelse(is.na(pal),
       'ggsci::scale_fill_simpsons()',
       'scale_fill_manual(values = pal)')
-    p.xgroup <- ggplot(df, aes(y = "Group", x = sample)) +
-      geom_tile(aes(fill = group), 
+    p.xgroup <- ggplot(data, aes(y = !!y, x = !!rlang::sym(x))) +
+      geom_tile(aes(fill = !!rlang::sym(fill)), 
         color = "white", height = 1, width = 1, size = 0.2) +
       eval(parse(text = expr.pal)) +
-      labs(x = "", y = "", fill = "Group") +
+      labs(x = lab_x, y = lab_y, fill = lab_fill) +
       theme_minimal() +
       theme(
         axis.text.x = element_blank(),
         axis.text.y = element_blank(),
         text = element_text(family = .font, face = "bold"),
-        plot.margin = unit(c(0, 0, 0, 0), "cm")
-      )
-      com <- aplot::insert_bottom(p, p.xgroup, height = 0.05)
-      return(com)
+        plot.margin = unit(c(0, 0, 0, 0), "cm")) +
+      geom_blank()
+    if (is.null(p))
+      return(p.xgroup)
+    com <- aplot::insert_bottom(p, p.xgroup, height = 0.05)
+    return(com)
   }
 
 #' @export add_ygroup.tile.heatmap
@@ -210,22 +232,26 @@ add_xgroup.tile.heatmap <-
 #' @description \code{add_ygroup.tile.heatmap}: ...
 #' @rdname plot_heatmap
 add_ygroup.tile.heatmap <-
-  function(df, p, pal = NA){
-    expr.pal <- ifelse(is.na(pal),
+  function(data, p = NULL, pal = NULL, x = "Class", y = ".features_id", fill = "class",
+    lab_x = "", lab_y = "", lab_fill = "From")
+  {
+    expr.pal <- ifelse(is.null(pal),
       'ggsci::scale_fill_npg()',
       'scale_fill_manual(values = pal)')
-    p.ygroup <- ggplot(df, aes(x = "Class", y = .features_id)) +
-      geom_tile(aes(fill = class),
+    p.ygroup <- ggplot(data, aes(x = !!x, y = !!rlang::sym(y))) +
+      geom_tile(aes(fill = !!rlang::sym(fill)),
         color = "white", height = 1, width = 1, size = 0.2) +
-      labs(x = "", y = "", fill = "From") +
+      labs(x = lab_x, y = lab_y, fill = lab_fill) +
       eval(parse(text = expr.pal)) +
       theme_minimal() +
       theme(
         axis.text.x = element_blank(),
         axis.text.y = element_blank(),
         text = element_text(family = .font, face = "bold"),
-        plot.margin = unit(c(0, 0, 0, 0), "cm")
-      )
-      com <- aplot::insert_left(p, p.ygroup, width = 0.02) 
-      return(com)
+        plot.margin = unit(c(0, 0, 0, 0), "cm")) +
+      geom_blank()
+    if (is.null(p))
+      return(p.ygroup)
+    com <- aplot::insert_left(p, p.ygroup, width = 0.02) 
+    return(com)
   }
