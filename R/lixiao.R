@@ -1315,9 +1315,15 @@ setMethod("show",
 # limma and edgeR
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-new_dge <- function(metadata, counts, genes, idname, message = T)
+prepare_expr_data <- function(metadata, counts, genes, idname, message = T) 
 {
   ## sort and make name for metadata and counts
+  checkDup <- function(x) {
+    if (any(duplicated(x))) {
+      stop("The value in ID column are duplicated.")
+    }
+  }
+  lapply(list(counts[[ 1 ]], genes[[ 1 ]], metadata[[ 1 ]]), checkDup)
   colnames(metadata) %<>% make.names()
   metadata <- dplyr::rename(metadata, sample = 1)
   select_args <- lapply(metadata$sample,
@@ -1345,11 +1351,36 @@ new_dge <- function(metadata, counts, genes, idname, message = T)
   }
   counts <- dplyr::select(counts, -1)
   colnames(counts) <- metadata$sample
-  edgeR::DGEList(counts, samples = metadata, genes = genes)
+  namel(counts, metadata, genes)
+}
+
+new_dge <- function(metadata, counts, genes, idname, message = T)
+{
+  lst <- do.call(prepare_expr_data, as.list(environment()))
+  edgeR::DGEList(lst$counts, samples = lst$metadata, genes = lst$genes)
+}
+
+new_elist <- function(metadata, counts, genes, idname, message = T)
+{
+  lst <- do.call(prepare_expr_data, as.list(environment()))
+  elist(list(E = tibble::as_tibble(lst$counts), targets = lst$metadata, genes = lst$genes))
 }
 
 .eset <- c("DGEList", "EList")
 setOldClass(.eset)
+setClassUnion("eset", .eset)
+
+elist <- setClass("elist", 
+  contains = c("EList", "list"),
+  representation = representation(),
+    prototype = NULL)
+
+setValidity("elist", 
+  function(object){
+    if (nrow(object$E) != nrow(object$genes))
+      F
+    else T
+  })
 
 .data_long.eset <- setClass("data_long.eset", 
   contains = c("data_long"),
@@ -1363,8 +1394,8 @@ setMethod("as_data_long",
   signature = c(x = "DGEList"),
   function(x){
     data <- tibble::as_tibble(x$counts)
-    data$genes <- x$genes[[ 1 ]]
-    data <- tidyr::gather(data, sample, value, -genes)
+    data$gene <- x$genes[[ 1 ]]
+    data <- tidyr::gather(data, sample, value, -gene)
     data <- tbmerge(data, x$samples, by = "sample", all.x = T)
     .data_long.eset(data)
   })
@@ -1373,8 +1404,8 @@ setMethod("as_data_long",
   signature = c(x = "EList"),
   function(x){
     data <- tibble::as_tibble(x$E)
-    data$genes <- x$genes[[ 1 ]]
-    data <- tidyr::gather(data, sample, value, -genes)
+    data$gene <- x$genes[[ 1 ]]
+    data <- tidyr::gather(data, sample, value, -gene)
     data <- tbmerge(data, x$targets, by = "sample", all.x = T)
     .data_long.eset(data)
   })
@@ -1385,8 +1416,8 @@ setGeneric("pca_data.long",
 setMethod("pca_data.long", 
   signature = c(x = "data_long.eset"),
   function(x){
-    x <- dplyr::select(tibble::as_tibble(data.frame(x)), sample, group, genes, value)
-    x <- tidyr::spread(x, genes, value)
+    x <- dplyr::select(tibble::as_tibble(data.frame(x)), sample, group, gene, value)
+    x <- tidyr::spread(x, gene, value)
     callNextMethod(x, NULL)
   })
 
@@ -1551,7 +1582,7 @@ setMethod("show",
     message("A 'heatdata' object")
   })
 
-.heatdata_gene <- setClass("heatdata_gene", 
+heatdata_gene <- setClass("heatdata_gene", 
   contains = c("heatdata"),
   representation = representation(),
   prototype = prototype(
@@ -1559,7 +1590,7 @@ setMethod("show",
       x = "sample", y = "gene", fill = "value",
       lab_x = "Samples", lab_y = "Genes", lab_fill = "Gene level"),
     para = list(
-      clust_row = T, clust_col = T, method = 'complete'),
+      clust_row = T, clust_col = T, method = 'average'),
     x_aesn = list(x = "sample", y = "group", fill = "group",
       lab_x = "", lab_y = "", lab_fill = "Group"),
     x_pal = MCnebula2:::.get_color_set(),
@@ -1579,6 +1610,16 @@ setMethod("naviRaw",
     x
   })
 
+setGeneric("new_heatdata", 
+  function(x) standardGeneric("new_heatdata"))
+
+setMethod("new_heatdata", 
+  signature = c(x = "EList"),
+  function(x){
+    x <- heatdata_gene(raw = x)
+    naviRaw(hps)
+  })
+
 setGeneric("standby", 
   function(x) standardGeneric("standby"))
 
@@ -1586,7 +1627,7 @@ setMethod("standby",
   signature = c(x = "heatdata"),
   function(x){
     cols <- unlist(x@aesn[ names(x@aesn) %in% c("x", "y", "fill") ])
-    .check_columns(x@data_long, cols)
+    .check_columns(x@data_long, cols, "x@data_long")
     main <- dplyr::select(x@data_long, dplyr::all_of(unname(cols)))
     main <- tidyr::spread(main, cols[[ "x" ]], cols[[ "fill" ]])
     main <- data.frame(main)
@@ -1596,10 +1637,10 @@ setMethod("standby",
     x
   })
 
-setGeneric("xmeta", 
-  function(x, metadata) standardGeneric("xmeta"))
+setGeneric("set_xmeta", 
+  function(x, metadata) standardGeneric("set_xmeta"))
 
-setMethod("xmeta", 
+setMethod("set_xmeta", 
   signature = c(x = "heatdata_gene"),
   function(x){
     x@xmeta <- dplyr::distinct(x@data_long, sample, group)
@@ -1706,3 +1747,159 @@ as_edges.distframe <- function(data, threshold = NULL)
 # ==========================================================================
 # wgcna
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+.wgcData <- setClass("wgcData", 
+  contains = c("data.frame"),
+  representation = representation(),
+    prototype = NULL)
+
+setMethod("show", 
+  signature = c(object = "wgcData"),
+  function(object){
+    print(tibble::as_tibble(data.frame(object)))
+    message(crayon::green("Rownames (Sample names):"))
+    textSh(crayon::cyan(paste0(rownames(object), collapse = ", ")),
+      pre_trunc = T, pre_wrap = T)
+  })
+
+setGeneric("as_wgcData", 
+  function(x) standardGeneric("as_wgcData"))
+
+setMethod("as_wgcData", 
+  signature = c(x = "EList"),
+  function(x){
+    data <- data.frame(t(x$E))
+    colnames(data) <- x$genes[[ 1 ]]
+    .wgcData(data)
+  })
+
+.wgcTrait <- setClass("wgcTrait", 
+  contains = c("wgcData"),
+  representation = representation(),
+    prototype = NULL)
+
+setGeneric("as_wgcTrait", 
+  function(x) standardGeneric("as_wgcTrait"))
+
+setMethod("as_wgcTrait", 
+  signature = c(x = "elist"),
+  function(x){
+    data <- dplyr::select_if(x$targets, is.numeric)
+    data <- data.frame(data)
+    rownames(data) <- x$targets$sample
+    .wgcTrait(data)
+  })
+
+cut_tree <- function(tree, height, size) {
+  clust <- WGCNA::cutreeStatic(tree, height, size)
+  clust == 1
+}
+
+setGeneric("exclude", 
+  function(x, y) standardGeneric("exclude"))
+
+setMethod("exclude", 
+  signature = c(x = "wgcData"),
+  function(x, y){
+    .wgcData(x[y, ])
+  })
+
+setGeneric("draw_sampletree", 
+  function(x) standardGeneric("draw_sampletree"))
+
+setMethod("draw_sampletree", 
+  signature = c(x = "wgcData"),
+  function(x){
+    x <- hclust(dist(x), method = "average")
+    plot(x, main = "Sample clustering", sub = "", xlab = "")
+    return(x)
+  })
+
+cal_sft <- function(data, powers = c(c(1:10), seq(12, 20, by = 2))) 
+{
+  if (!is(data, "wgcData")) {
+    stop("is(data, \"wgcData\") == F")
+  }
+  sft <- WGCNA::pickSoftThreshold(data, powerVector = powers, verbose = 5)
+  sft
+}
+
+plot_sft <- function(sft) 
+{
+  dev.new(width = 9, height = 5)
+  par(mfrow = c(1, 2))
+  # Scale-free topology fit index as a function of the soft-thresholding power
+  plot(sft$fitIndices[, 1], -sign(sft$fitIndices[, 3]) * sft$fitIndices[, 2], 
+    xlab = "Soft Threshold (power)", ylab = "Scale Free Topology Model Fit, signed R^2", type = "n", 
+    main = paste("Scale independence"))
+  text(sft$fitIndices[, 1], -sign(sft$fitIndices[, 3]) * sft$fitIndices[, 2], 
+    labels = powers, cex = cex1, col = "red")
+  # Mean connectivity as a function of the soft-thresholding power
+  plot(sft$fitIndices[, 1], sft$fitIndices[, 5], 
+    xlab = "Soft Threshold (power)", ylab = "Mean Connectivity", type = "n", 
+    main = paste("Mean connectivity"))
+  text(sft$fitIndices[, 1], sft$fitIndices[, 5], labels = powers, cex = cex1, col = "red")
+}
+
+.wgcNet <- setClass("wgcNet", 
+  contains = c("list"),
+  representation = representation(),
+  prototype = NULL)
+
+setMethod("show", 
+  signature = c(object = "wgcNet"),
+  function(object){
+    dev.new(width = 12, height = 9)
+    mergedColors = WGCNA::labels2colors(object$colors)
+    WGCNA::plotDendroAndColors(object$dendrograms[[1]], mergedColors[object$blockGenes[[1]]],
+      "Module colors", dendroLabels = FALSE, hang = 0.01,
+      addGuide = TRUE, guideHang = 0.05)
+  })
+
+cal_module <- function(data, power, cut_hight = .25, min_size = 30, save_tom = "tom",
+  maxBlockSize = 25000, ...)
+{
+  if (!is(data, "wgcData")) {
+    stop("is(data, \"wgcData\") == F")
+  }
+  require(WGCNA)
+  net <- WGCNA::blockwiseModules(
+    datExpr, power = power,
+    TOMType = "unsigned", minModuleSize = min_size,
+    reassignThreshold = 0, mergeCutHeight = cut_hight,
+    numericLabels = TRUE, pamRespectsDendro = FALSE, loadTOM = T,
+    saveTOMs = TRUE, saveTOMFileBase = save_tom,
+    maxBlockSize = maxBlockSize, verbose = 3, ...
+  )
+  .wgcNet(net)
+}
+
+setGeneric("clip_data", 
+  function(x, by) standardGeneric("clip_data"))
+
+setMethod("clip_data", 
+  signature = c(x = "elist", by = "wgcData"),
+  function(x, by){
+    ## filter sample in Counts data
+    validObject(x)
+    fun <- function(data, by) {
+      data <- data[, colnames(data) %in% rownames(by)]
+      data
+    }
+    x$E <- fun(x$E, by)
+    ## filter sample in metadata
+    fun <- function(data, by) {
+      data <- data[data[[ 1 ]] %in% rownames(by), ]
+      data
+    }
+    x$targets <- fun(x$targets, by)
+    ## filter genes in genes and counts data
+    fun <- function(data, by) {
+      data[[1]] %in% colnames(by)
+    }
+    logi <- fun(x$genes, by)
+    x$genes <- x$genes[logi, ]
+    x$E <- x$E[logi, ]
+    validObject(x)
+    x
+  })
