@@ -4,6 +4,8 @@
 
 setClassUnion("data.frame_or_matrix", c("data.frame", "matrix"))
 
+setClassUnion("easywrite", c("data.frame", "matrix", "character", "factor", "numeric"))
+
 # <https://cran.r-project.org/web/packages/RSelenium/index.html>
 format_bindingdb.tsv <- function(file,
   select = c("PubChem CID", "PDB ID(s) of Target Chain"), cl = 4, lines = NULL)
@@ -459,12 +461,13 @@ get_tcm.base <- function(id, link_prefix) {
   data
 }
 
-writePlots <- function(lst, dir, width = 7, height = 7, postfix = ".pdf") {
+writePlots <- function(lst, dir, width = 7, height = 7, ..., postfix = ".pdf") 
+{
   fun <- function(p, file) ggsave(file, p, width = width, height = height)
   writeDatas(lst, dir, fun, postfix = postfix)
 }
 
-writeDatas <- function(lst, dir, fun = data.table::fwrite, postfix = ".csv") 
+writeDatas <- function(lst, dir, ..., fun = data.table::fwrite, postfix = ".csv") 
 {
   if (is.null(names(lst))) {
     stop("is.null(names(lst)) == T")
@@ -476,12 +479,13 @@ writeDatas <- function(lst, dir, fun = data.table::fwrite, postfix = ".csv")
       data <- lst[[name]]
       file <- paste0(dir, "/", n, "_", name, postfix)
       n <<- n + 1
-      if (is.null(data)) {
+      if (is.null(data) | !is.data.frame(data)) {
         writeLines("", file)
       } else {
         fun(data, file)
       }
     })
+  return(dir)
 }
 
 # ==========================================================================
@@ -901,10 +905,34 @@ vis_enrich.go <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
       class = c("element_textbox", "element_text", "element"))
   }
 
-fwrite2 <- function(data, file, mkdir = "tabs") {
+fwrite2 <- function(data, name, ..., file = paste0(get_realname(name), ".csv"),
+  mkdir = "tabs", fun = data.table::fwrite)
+{
   if (!file.exists(mkdir))
     dir.create(mkdir)
-  data.table::fwrite(data, paste0(mkdir, "/", file))
+  fun(data, file <- paste0(mkdir, "/", file))
+  return(file)
+}
+
+write_tsv2 <- function(data, name, ..., file = paste0(get_realname(name), ".tsv"),
+  mkdir = "tabs", fun = write_tsv)
+{
+  do.call(fwrite2, as.list(environment()))
+}
+
+write_xlsx2 <- function(data, name, ..., file = paste0(get_realname(name), ".xlsx"),
+  mkdir = "tabs", fun = openxlsx::write.xlsx)
+{
+  do.call(fwrite2, as.list(environment()))
+}
+
+write_gg <- function(p, name, width = 7, height = 7, ...,
+  file = paste0(get_realname(name), ".pdf"), mkdir = "figs") 
+{
+  if (!file.exists(mkdir))
+    dir.create(mkdir)
+  ggsave(file <- paste0(mkdir, "/", file), p, width = width, height = height)
+  return(file)
 }
 
 sortDup_edges <- function(edges) {
@@ -1600,6 +1628,14 @@ setMethod("show",
       message("A 'heatdata' object")
   })
 
+.get_color_geneModule <- function() {
+  if (!requireNamespace("WGCNA", quietly = T)) {
+    NULL
+  } else {
+    WGCNA::standardColors()
+  }
+}
+
 heatdata_gene <- setClass("heatdata_gene", 
   contains = c("heatdata"),
   representation = representation(),
@@ -1614,7 +1650,7 @@ heatdata_gene <- setClass("heatdata_gene",
     x_pal = MCnebula2:::.get_color_set(),
     y_aesn = list(x = "module", y = "gene", fill = "module",
       lab_x = "", lab_y = "", lab_fill = "Module"),
-    y_pal = WGCNA::standardColors()
+    y_pal = .get_color_geneModule()
     ))
 
 .heatdata_cor <- setClass("heatdata_cor", 
@@ -1644,7 +1680,7 @@ heatdata_gene <- setClass("heatdata_gene",
     ))
 
 .heatdata_gene_cor <- setClass("heatdata_gene_cor", 
-  contains = c("heatdata_cor"),
+  contains = c("heatdata_cor", "heatdata_gene"),
   representation = representation(),
   prototype = prototype(
     aesn = list(
@@ -2071,3 +2107,74 @@ setMethod("clip_data",
     validObject(x)
     x
   })
+
+# ==========================================================================
+# other tools
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+asis <- function(object) {
+  knitr::asis_output(object)
+}
+
+autocv <- function(x, name, ...) {
+  if (!exists("autoRegisters")) {
+    autoRegisters <- character(0)
+  }
+  if (!any(name == names(autoRegisters))) {
+    file <- select_savefun(x)(x, name, ...)
+    autoRegisters <<- c(autoRegisters, nl(name, file, F))
+  }
+}
+
+setGeneric("autocv", 
+  function(x, name, ...) standardGeneric("autocv"))
+
+setMethod("autocv", 
+  signature = c(x = "data.frame"),
+  function(x, name, ..., key){
+    res <- callNextMethod()
+  })
+
+setGeneric("select_savefun", 
+  function(x, ...) standardGeneric("select_savefun"))
+
+setMethod("select_savefun", 
+  signature = c(x = "list"),
+  function(x){
+    fun <- function(x, class) {
+      vapply(x, function(obj) is(obj, class), logical(1))
+    }
+    if (all(fun(x, "easywrite"))) {
+      function(lst, name)
+        get_fun("writeDatas")(lst, get_realname(name))
+    } else if (all(fun(x, "gg.obj"))) {
+      function(lst, name, ...)
+        get_fun("writePlots")(lst, get_realname(name))
+    } else {
+      stop("None function found for save")
+    }
+  })
+
+setMethod("select_savefun", 
+  signature = c(x = "gg.obj"),
+  function(x){
+    get_fun("write_gg")
+  })
+
+setMethod("select_savefun", 
+  signature = c(x = "data.frame"),
+  function(x){
+    data <- dplyr::select_if(x, is.character)
+    check <- apply(data, 2,
+      function(ch) {
+        any(grepl(",", ch))
+      })
+    if (any(check)) {
+      ## around 4.8 Mb
+      if (object.size(x) < 5e6)
+        get_fun("write_xlsx2")
+      else
+        get_fun("write_tsv2")
+    } else get_fun("fwrite2")
+  })
+
