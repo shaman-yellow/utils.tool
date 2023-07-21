@@ -110,15 +110,50 @@ log_trans <- function(data, id.cols = c(".features_id"),
   return(data)
 }
 
-dot_heatmap <- function(df){
-  p <- ggplot(df, aes(x = sample, y = .features_id)) +
-    geom_point(aes(size = abs(value), color = value), shape = 16) +
+# dot_heatmap <- function(df){
+#   p <- ggplot(df, aes(x = sample, y = .features_id)) +
+#     geom_point(aes(size = abs(value), color = value), shape = 16) +
+#     theme_minimal() +
+#     guides(size = "none") +
+#     scale_color_gradient2(low = "#3182BDFF", high = "#A73030FF") +
+#     theme(text = element_text(family = .font),
+#       axis.text.x = element_text(angle = 90))
+#     return(p)
+# }
+
+dot_heatmap <- function(data, x = "sample", y = ".features_id",
+  color = "value", size = "value", shape = NULL,
+  lab_x = "Sample", lab_y = "Feature ID", lab_color = "log2 (Feature level)",
+  lab_size = "", lab_shape = NULL, ...)
+{
+  scale_color <- if ( 0L > min(data[[ color ]]) & 0L < max(data[[ color ]])) {
+    scale_color_gradient2(
+      low = "#3182BDFF", high = "#A73030FF",
+      limits = range(data[[ color ]])) 
+  } else {
+    scale_color_gradientn(
+      colors = c("#3182BDFF", "white", "#A73030FF"),
+      limits = range(data[[ color ]]))
+  }
+  if (is.null(shape)) {
+    geom_point <- geom_point(aes(color = !!rlang::sym(color), size = !!rlang::sym(size)), shape = 16)
+    guides <- geom_blank()
+  } else {
+    geom_point <- geom_point(aes(color = !!rlang::sym(color), size = !!rlang::sym(size),
+        shape = !!rlang::sym(shape)))
+    guides <- guides(shape = guide_legend(override.aes = list(size = 5)))
+  }
+  p <- ggplot(data, aes(x = !!rlang::sym(x), y = !!rlang::sym(y))) +
+    geom_point +
     theme_minimal() +
-    guides(size = "none") +
-    scale_color_gradient2(low = "#3182BDFF", high = "#A73030FF") +
-    theme(text = element_text(family = .font),
-      axis.text.x = element_text(angle = 90))
-    return(p)
+    scale_color +
+    scale_size(limits = range(data[[ size ]])) +
+    labs(x = lab_x, y = lab_y, color = lab_color, size = lab_size, shape = lab_shape) +
+    theme(text = element_text(family = .font, face = "bold"),
+      axis.text = element_text(face = "plain"),
+      axis.text.x = element_blank()) +
+    guides
+  return(p)
 }
 
 ## long data
@@ -149,7 +184,7 @@ tile_heatmap <- function(data, x = "sample", y = ".features_id", fill = "value",
 
 plot_ytree <- function(data, method = "complete") {
   p <- hclust(dist(data), method)
-  p <- ggtree::ggtree(p, layout = "rectangular", branch.length = "branch.length") +
+  p <- ggtree::ggtree(p, layout = "rectangular", branch.length = "none", hang = 0) +
     theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
   p
 }
@@ -198,6 +233,32 @@ add_xgroup.heatmap <-
       return(com)
   }
 
+add_xgroup.dot.heatmap <- 
+  function(data, p = NULL, pal = NA, x = "sample", y = "Group", color = "group",
+    lab_x = "", lab_y = "", lab_color = "Group")
+  {
+    scale_color <- if (is.null(pal)) {
+      ggsci::scale_color_simpsons()
+    } else {
+      scale_color_manual(values = pal)
+    }
+    p.xgroup <- ggplot(data, aes(y = !!y, x = !!rlang::sym(x))) +
+      geom_point(aes(color = !!rlang::sym(color)), shape = 16) +
+      scale_color +
+      labs(x = lab_x, y = lab_y, color = lab_color) +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        text = element_text(family = .font, face = "bold"),
+        plot.margin = unit(c(0, 0, 0, 0), "cm")) +
+      geom_blank()
+    if (is.null(p))
+      return(p.xgroup)
+    com <- aplot::insert_bottom(p, p.xgroup, height = 0.05)
+    return(com)
+  }
+
 #' @export add_xgroup.tile.heatmap
 #' @aliases add_xgroup.tile.heatmap
 #' @description \code{add_xgroup.tile.heatmap}: ...
@@ -206,13 +267,15 @@ add_xgroup.tile.heatmap <-
   function(data, p = NULL, pal = NA, x = "sample", y = "Group", fill = "group",
     lab_x = "", lab_y = "", lab_fill = "Group")
   {
-    expr.pal <- ifelse(is.na(pal),
-      'ggsci::scale_fill_simpsons()',
-      'scale_fill_manual(values = pal)')
+    scale_fill <- if (is.null(pal)) {
+      ggsci::scale_fill_simpsons()
+    } else {
+      scale_fill_manual(values = pal)
+    }
     p.xgroup <- ggplot(data, aes(y = !!y, x = !!rlang::sym(x))) +
       geom_tile(aes(fill = !!rlang::sym(fill)), 
         color = "white", height = 1, width = 1, size = 0.2) +
-      eval(parse(text = expr.pal)) +
+      scale_fill +
       labs(x = lab_x, y = lab_y, fill = lab_fill) +
       theme_minimal() +
       theme(
@@ -227,6 +290,32 @@ add_xgroup.tile.heatmap <-
     return(com)
   }
 
+add_ygroup.dot.heatmap <-
+  function(data, p = NULL, pal = NULL, x = "Class", y = ".features_id", color = "class",
+    lab_x = "", lab_y = "", lab_color = "From")
+  {
+    scale_color <- if (is.null(pal)) {
+      ggsci::scale_color_simpsons()
+    } else {
+      scale_color_manual(values = pal)
+    }
+    p.ygroup <- ggplot(data, aes(x = !!x, y = !!rlang::sym(y))) +
+      geom_point(aes(color = !!rlang::sym(color)), shape = 16, size = 5) +
+      labs(x = lab_x, y = lab_y, color = lab_color) +
+      scale_color +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        text = element_text(family = .font, face = "bold"),
+        plot.margin = unit(c(0, 0, 0, 0), "cm")) +
+      geom_blank()
+    if (is.null(p))
+      return(p.ygroup)
+    com <- aplot::insert_left(p, p.ygroup, width = 0.02) 
+    return(com)
+  }
+
 #' @export add_ygroup.tile.heatmap
 #' @aliases add_ygroup.tile.heatmap
 #' @description \code{add_ygroup.tile.heatmap}: ...
@@ -235,14 +324,16 @@ add_ygroup.tile.heatmap <-
   function(data, p = NULL, pal = NULL, x = "Class", y = ".features_id", fill = "class",
     lab_x = "", lab_y = "", lab_fill = "From")
   {
-    expr.pal <- ifelse(is.null(pal),
-      'ggsci::scale_fill_npg()',
-      'scale_fill_manual(values = pal)')
+    scale_fill <- if (is.null(pal)) {
+      ggsci::scale_fill_simpsons()
+    } else {
+      scale_fill_manual(values = pal)
+    }
     p.ygroup <- ggplot(data, aes(x = !!x, y = !!rlang::sym(y))) +
       geom_tile(aes(fill = !!rlang::sym(fill)),
         color = "white", height = 1, width = 1, size = 0.2) +
       labs(x = lab_x, y = lab_y, fill = lab_fill) +
-      eval(parse(text = expr.pal)) +
+      scale_fill +
       theme_minimal() +
       theme(
         axis.text.x = element_blank(),

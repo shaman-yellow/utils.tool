@@ -2,6 +2,8 @@
 # work and function
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+setClassUnion("data.frame_or_matrix", c("data.frame", "matrix"))
+
 # <https://cran.r-project.org/web/packages/RSelenium/index.html>
 format_bindingdb.tsv <- function(file,
   select = c("PubChem CID", "PDB ID(s) of Target Chain"), cl = 4, lines = NULL)
@@ -1090,6 +1092,12 @@ split_lapply_rbind <- function(data, f, fun, ...) {
   representation = representation(),
   prototype = NULL)
 
+setMethod("show", 
+  signature = c(object = "data_long"),
+  function(object){
+    suppressWarnings(print(tibble::as_tibble(object)))
+  })
+
 handling_na.long <- function(data) {
   .check_columns(data, c("sample", "group"))
   metadata <- dplyr::select(data, sample, group)
@@ -1388,7 +1396,7 @@ setValidity("elist",
   prototype = NULL)
 
 setGeneric("as_data_long", 
-  function(x) standardGeneric("as_data_long"))
+  function(x, y, ...) standardGeneric("as_data_long"))
 
 setMethod("as_data_long", 
   signature = c(x = "DGEList"),
@@ -1554,32 +1562,42 @@ fuzzy <- function(str) {
 # heatmap
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+get_fun <- function(name, envir = topenv()) {
+  get(name, envir = envir, mode = "function")
+}
+
 .heatdata <- setClass("heatdata", 
   contains = c(),
   representation = 
     representation(
       raw = "ANY",
       data_long = "ANY",
-      main = "ANY",
-      aesn = "ANY",
-      ymeta = "ANY",
-      y_aesn = "ANY",
-      y_pal = "ANY",
-      xmeta = "ANY",
-      x_aesn = "ANY",
-      x_pal = "ANY",
-      para = "ANY",
-      gg_xtree = "ANY",
-      gg_ytree = "ANY",
+      main = "ANY", aesn = "ANY", para = "ANY",
+      aesh = "ANY",
+      ymeta = "ANY", y_aesn = "ANY", y_pal = "ANY",
+      xmeta = "ANY", x_aesn = "ANY", x_pal = "ANY",
       gg_main = "ANY",
-      gg_xgroup = "ANY",
-      gg_ygroup = "ANY"),
-    prototype = NULL)
+      gg_xtree = "ANY", gg_ytree = "ANY",
+      gg_xgroup = "ANY", gg_ygroup = "ANY",
+      fun_plot = "ANY"),
+    prototype = prototype(
+      aesh = "fill",
+      fun_plot = list(
+        xtree = get_fun("plot_xtree"),
+        ytree = get_fun("plot_ytree"),
+        main = get_fun("tile_heatmap"),
+        xgroup = get_fun("add_xgroup.tile.heatmap"),
+        ygroup = get_fun("add_ygroup.tile.heatmap")
+      )
+      ))
 
 setMethod("show", 
   signature = c(object = "heatdata"),
   function(object){
-    message("A 'heatdata' object")
+    if (!is.null(object@gg_main))
+      print(draw(object))
+    else
+      message("A 'heatdata' object")
   })
 
 heatdata_gene <- setClass("heatdata_gene", 
@@ -1599,6 +1617,47 @@ heatdata_gene <- setClass("heatdata_gene",
     y_pal = WGCNA::standardColors()
     ))
 
+.heatdata_cor <- setClass("heatdata_cor", 
+  contains = c("heatdata"),
+  representation = representation(),
+  prototype = prototype(
+    aesh = "color",
+    aesn = list(
+      x = "col_var", y = "row_var", color = "cor", size = "-log2(P.value)",
+      shape = "significant", lab_x = "Columns", lab_y = "Rows",
+      lab_color = "Correlation", lab_size = "-log2(P.value)",
+      lab_shape = "Significant"),
+    para = list(
+      clust_row = T, clust_col = T, method = 'average'),
+    x_aesn = list(x = "col_var", y = "group", color = "group",
+      lab_x = "", lab_y = "", lab_color = "Column Group"),
+    x_pal = MCnebula2:::.get_color_set(),
+    y_aesn = list(x = "Group", y = "row_var", color = "group",
+      lab_x = "", lab_y = "", lab_color = "Row group"),
+    y_pal = WGCNA::standardColors(),
+    fun_plot = list(
+      xtree = get_fun("plot_xtree"),
+      ytree = get_fun("plot_ytree"),
+      main = get_fun("dot_heatmap"),
+      xgroup = get_fun("add_xgroup.dot.heatmap"),
+      ygroup = get_fun("add_ygroup.dot.heatmap"))
+    ))
+
+.heatdata_gene_cor <- setClass("heatdata_gene_cor", 
+  contains = c("heatdata_cor"),
+  representation = representation(),
+  prototype = prototype(
+    aesn = list(
+      x = "trait", y = "module", color = "cor", size = "-log2(P.value)",
+      shape = "significant", lab_x = "Traits", lab_y = "",
+      lab_color = "Correlation", lab_size = "-log2(P.value)",
+      lab_shape = "Significant"),
+    x_aesn = list(x = "sample", y = "group", color = "group",
+      lab_x = "", lab_y = "", lab_color = "Group"),
+    y_aesn = list(x = "Module", y = "module", color = "module",
+      lab_x = "", lab_y = "", lab_color = "Module")
+    ))
+
 setGeneric("naviRaw", 
   function(x) standardGeneric("naviRaw"))
 
@@ -1611,13 +1670,13 @@ setMethod("naviRaw",
   })
 
 setGeneric("new_heatdata", 
-  function(x) standardGeneric("new_heatdata"))
+  function(x, y, ...) standardGeneric("new_heatdata"))
 
 setMethod("new_heatdata", 
   signature = c(x = "EList"),
   function(x){
     x <- heatdata_gene(raw = x)
-    naviRaw(hps)
+    naviRaw(x)
   })
 
 setGeneric("standby", 
@@ -1626,10 +1685,10 @@ setGeneric("standby",
 setMethod("standby", 
   signature = c(x = "heatdata"),
   function(x){
-    cols <- unlist(x@aesn[ names(x@aesn) %in% c("x", "y", "fill") ])
+    cols <- unlist(x@aesn[ names(x@aesn) %in% c("x", "y", x@aesh) ])
     .check_columns(x@data_long, cols, "x@data_long")
     main <- dplyr::select(x@data_long, dplyr::all_of(unname(cols)))
-    main <- tidyr::spread(main, cols[[ "x" ]], cols[[ "fill" ]])
+    main <- tidyr::spread(main, cols[[ "x" ]], cols[[ x@aesh ]])
     main <- data.frame(main)
     rownames(main) <- main[[ cols[[ "y" ]] ]]
     main <- dplyr::select(main, -!!rlang::sym(cols[[ "y" ]]))
@@ -1648,7 +1707,16 @@ setMethod("set_xmeta",
   })
 
 setGeneric("callheatmap", 
-  function(x) standardGeneric("callheatmap"))
+  function(x, y, ...) standardGeneric("callheatmap"))
+
+setGeneric("corheatmap", 
+  function(x, y, ...) standardGeneric("corheatmap"))
+
+setMethod("corheatmap", 
+  signature = c(x = "data.frame_or_matrix", y = "data.frame_or_matrix"),
+  function(x, y, row_var = "row_var", col_var = "col_var"){
+    callheatmap(new_heatdata(cal_corp(x, y, row_var, col_var)))
+  })
 
 setMethod("callheatmap", 
   signature = c(x = "heatdata"),
@@ -1671,19 +1739,19 @@ setMethod("callheatmap",
     if (any(c(y.reformat, x.reformat)) | is.null(x@main)) {
       x <- standby(x)
     }
-    x@gg_main <- do.call(tile_heatmap, c(list(x@data_long), x@aesn))
+    x@gg_main <- do.call(x@fun_plot[[ "main" ]], c(list(x@data_long), x@aesn))
     if (y.reformat) {
-      if (any(colnames(x@ymeta) == x@y_aesn[[ "fill" ]])) {
+      if (any(colnames(x@ymeta) == x@y_aesn[[ x@aesh ]])) {
         args <- c(list(data = x@ymeta, p = NULL, pal = x@y_pal), x@y_aesn)
-        x@gg_ygroup <- do.call(add_ygroup.tile.heatmap, args)
+        x@gg_ygroup <- do.call(x@fun_plot[[ "ygroup" ]], args)
       }
     }
-    x@gg_xtree <- plot_xtree(x@main, x@para[[ "method" ]])
-    x@gg_ytree <- plot_ytree(x@main, x@para[[ "method" ]])
+    x@gg_xtree <- x@fun_plot[[ "xtree" ]](x@main, x@para[[ "method" ]])
+    x@gg_ytree <- x@fun_plot[[ "ytree" ]](x@main, x@para[[ "method" ]])
     if (x.reformat) {
-      if (any(colnames(x@xmeta) == x@x_aesn[[ "fill" ]])) {
+      if (any(colnames(x@xmeta) == x@x_aesn[[ x@aesh ]])) {
         args <- c(list(data = x@xmeta, p = NULL, pal = x@x_pal), x@x_aesn)
-        x@gg_xgroup <- do.call(add_xgroup.tile.heatmap, args)
+        x@gg_xgroup <- do.call(x@fun_plot[[ "xgroup" ]], args)
       }
     }
     return(x)
@@ -1704,10 +1772,10 @@ setMethod("draw",
     if (!is.null(x@gg_ygroup)) {
       p <- aplot::insert_left(p, x@gg_ygroup, width = 0.02) 
     }
-    if (x@para[[ "clust_col" ]]) {
+    if (x@para[[ "clust_col" ]] & !is.null(x@gg_xtree)) {
       p <- aplot::insert_top(p, x@gg_xtree, height = 0.3)
     }
-    if (x@para[[ "clust_row" ]]) {
+    if (x@para[[ "clust_row" ]] & !is.null(x@gg_ytree)) {
       p <- aplot::insert_left(p, x@gg_ytree, width = 0.3)
     }
     if (!is.null(x@gg_xgroup)) {
@@ -1845,6 +1913,106 @@ plot_sft <- function(sft)
   contains = c("list"),
   representation = representation(),
   prototype = NULL)
+
+.wgcEigen <- setClass("wgcEigen", 
+  contains = c("wgcData"),
+  representation = representation(colors = "data.frame", members = "list"),
+    prototype = NULL)
+
+.corp <- setClass("corp", 
+  contains = c("data_long"),
+  representation = representation(),
+  prototype = NULL)
+
+setGeneric("cal_corp", 
+  function(x, y, ...) standardGeneric("cal_corp"))
+
+setMethod("cal_corp", 
+  signature = c(x = "data.frame_or_matrix", y = "data.frame_or_matrix"),
+  function(x, y, row_var = "row_var", col_var = "col_var"){
+    cor <- agricolae::correlation(x, y)
+    data <- as_data_long(cor$correlation, cor$pvalue, row_var, col_var, "cor", "pvalue")
+    .corp(add_anno(.corp(data)))
+  })
+
+setMethod("new_heatdata", 
+  signature = c(x = "corp"),
+  function(x){
+    object <- .heatdata_cor()
+    object@data_long <- tibble::as_tibble(x)
+    object@aesn$x <- object@x_aesn$x <- colnames(x)[2]
+    object@aesn$y <- object@y_aesn$y <- colnames(x)[1]
+    object@aesn$lab_x <- Hmisc::capitalize(colnames(x)[2])
+    object@aesn$lab_y <- Hmisc::capitalize(colnames(x)[1])
+    object
+  })
+
+setMethod("as_data_long", 
+  signature = c(x = "data.frame_or_matrix", y = "data.frame_or_matrix"),
+  function(x, y, row_var = "rname", col_var = "cname", 
+    x_value = "x_value", y_value = "y_value")
+  {
+    x <- dplyr::mutate(data.frame(x), !!!nl(row_var, list(rownames(x))))
+    x <- tidyr::gather(x, !!col_var, !!x_value, -!!rlang::sym(row_var))
+    y <- tidyr::gather(data.frame(y), !!col_var, !!y_value)
+    x <- dplyr::mutate(x, !!!nl(y_value, list(y[[ y_value ]])))
+    .data_long(x)
+  })
+
+setGeneric("add_anno", 
+  function(x) standardGeneric("add_anno"))
+
+setMethod("add_anno", 
+  signature = c(x = "corp"),
+  function(x){
+    dplyr::mutate(tibble::as_tibble(data.frame(x)),
+      `-log2(P.value)` = -log2(pvalue),
+      significant = ifelse(pvalue > .05, "> 0.05",
+        ifelse(pvalue > .001, "< 0.05", "< 0.001")),
+      sign = ifelse(pvalue > .05, "-",
+        ifelse(pvalue > .001, "*", "**"))
+    )
+  })
+
+setMethod("new_heatdata", 
+  signature = c(x = "wgcEigen", y = "wgcTrait"),
+  function(x, y){
+    cor <- WGCNA::cor(x, y, use = "p")
+    pvalue <- WGCNA::corPvalueStudent(cor, nrow(x))
+    data <- as_data_long(cor, pvalue, "module", "trait", "cor", "pvalue")
+    data <- add_anno(.corp(data))
+    .heatdata_gene_cor(
+      data_long = data,
+      ymeta = dplyr::select(x@colors, module),
+      y_pal = nl(x@colors$module, x@colors$color, F)
+    )
+  })
+
+setMethod("draw", 
+  signature = c(x = "heatdata_gene_cor"),
+  function(x){
+    if (!is.null(x@gg_xgroup)) {
+      x@gg_xgroup <- x@gg_xgroup +
+        guides(color = "none")
+    } else {
+      x@gg_main <- x@gg_main +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+    }
+    if (!is.null(x@gg_ygroup)) {
+      x@gg_ygroup <- x@gg_ygroup +
+        guides(color = "none")
+    }
+    callNextMethod(x)
+  })
+
+get_eigens <- function(net) {
+  eigens <- WGCNA::orderMEs(net$MEs)
+  colors <- WGCNA::labels2colors(colorIndex <- unique(net$colors))
+  color_data <- tibble::tibble(module = paste0("ME", colorIndex), color = colors)
+  members <- split(names(net$colors), net$colors)
+  names(members) <- paste0("ME", names(members))
+  .wgcEigen(eigens, colors = color_data, members = members)
+}
 
 setMethod("show", 
   signature = c(object = "wgcNet"),
