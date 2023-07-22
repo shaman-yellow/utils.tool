@@ -2175,25 +2175,30 @@ setMethod("autor",
     cat(paste0("Table \\@ref(tab:", name, ") 概览\n"))
     x <- tibble::as_tibble(x)
     if (knitr::is_latex_output()) {
-      x <- dplyr::mutate_all(x, function(str) stringr::str_trunc(str, 15))
-      if (nrow(x) > 15) {
-        x <- head(x, n = 15)
-        blank <- head(x, n = 0)
-        blank[1, ] <- "..."
-        x <- dplyr::bind_rows(x, blank)
-      }
-      col <- vapply(colnames(x), nchar, integer(1))
-      col <- which(cumsum(col) > 80)
-      if (length(col) > 0) {
-        col <- col[1]
-        x <- x[, 1:col]
-        x$... <- "..."
-      }
+      x <- trunc_table(x)
       knitr::kable(x, "markdown", caption = as_caption(name))
     } else {
       print(x)
     }
   })
+
+trunc_table <- function(x) {
+  x <- dplyr::mutate_all(x, function(str) stringr::str_trunc(str, 15))
+  if (nrow(x) > 15) {
+    x <- head(x, n = 15)
+    blank <- head(x, n = 0)
+    blank[1, ] <- "..."
+    x <- dplyr::bind_rows(x, blank)
+  }
+  col <- vapply(colnames(x), nchar, integer(1))
+  col <- which(cumsum(col) > 80)
+  if (length(col) > 0) {
+    col <- col[1]
+    x <- x[, 1:col]
+    x$... <- "..."
+  }
+  x
+}
 
 as_caption <- function(str) {
   Hmisc::capitalize(gsub("-", " ", str))
@@ -2221,8 +2226,18 @@ setGeneric("include",
 setMethod("include", 
   signature = c(x = "fig"),
   function(x, name, ...){
-    structure(as.character(x),
-      class = c("knit_image_paths", "knit_asis"))
+    if (knitr::is_latex_output()) {
+      cat(paste0(glue::glue("\\def\\@captype{figure}",
+            "\\includegraphics{<<x>>}",
+            "\\caption{<<caption>>}\\label{fig:<<name>>}",
+            name = name, x = as.character(x),
+            caption = knitr::opts_current$get("fig.cap"),
+            .open = "<<", .close = ">>"
+            ), collapse = ""))
+    } else {
+      structure(as.character(x),
+        class = c("knit_image_paths", "knit_asis"))
+    }
   })
 
 asis <- function(object) {
