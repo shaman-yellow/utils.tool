@@ -11,8 +11,6 @@ output:
     toc: false
     toc_depth: 3
     latex_engine: xelatex
-    pandoc_args: [
-      "--lua-filter=/home/echo/quarto-cli/_extensions/pandoc-ext/section-bibliographies/section-bibliographies.lua"]
 header-includes:
   \usepackage{caption}
   \captionsetup{font={footnotesize},width=6in}

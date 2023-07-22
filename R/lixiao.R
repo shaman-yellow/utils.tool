@@ -2,8 +2,13 @@
 # work and function
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-setClassUnion("data.frame_or_matrix", c("data.frame", "matrix"))
+fig <- setClass("fig", 
+  contains = c("character"),
+  representation = representation(),
+  prototype = NULL)
 
+setClassUnion("figs", c("gg.obj", "fig"))
+setClassUnion("data.frame_or_matrix", c("data.frame", "matrix"))
 setClassUnion("easywrite", c("data.frame", "matrix", "character", "factor", "numeric"))
 
 # <https://cran.r-project.org/web/packages/RSelenium/index.html>
@@ -2109,31 +2114,124 @@ setMethod("clip_data",
   })
 
 # ==========================================================================
-# other tools
+# autor: save object, summarise object, show object
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-asis <- function(object) {
-  knitr::asis_output(object)
+set_index <- function() {
+  if (knitr::is_latex_output()) {
+    cat("\\listoftables\n\n")
+    cat("\\listoffigures\n\n")
+  }
 }
 
-autocv <- function(x, name, ...) {
+autor_preset <- function(...) {
+  knitr::opts_chunk$set(
+    echo = F, eval = F, message = F,
+    fig.cap = character(0),
+    out.width = "\\linewidth", ...)
+  fun_fig.cap <- function(options) {
+    options$fig.cap <- Hmisc::capitalize(gsub("-", " ", options$label))
+    options
+  }
+  knitr::opts_hooks$set(fig.cap = fun_fig.cap)
+}
+
+## orinal function, for save file, and return file name
+autor <- function(x, name, ...) {
   if (!exists("autoRegisters")) {
     autoRegisters <- character(0)
   }
   if (!any(name == names(autoRegisters))) {
     file <- select_savefun(x)(x, name, ...)
     autoRegisters <<- c(autoRegisters, nl(name, file, F))
+  } else {
+    file <- autoRegisters[[ name ]]
+    .message_info("autor", "file.exists:", name, sig = "[INFO]")
   }
+  return(file)
 }
 
-setGeneric("autocv", 
-  function(x, name, ...) standardGeneric("autocv"))
+setGeneric("autor", 
+  function(x, name, ...) standardGeneric("autor"))
 
-setMethod("autocv", 
-  signature = c(x = "data.frame"),
-  function(x, name, ..., key){
-    res <- callNextMethod()
+setMethod("autor", 
+  signature = c(x = "ANY", name = "missing"),
+  function(x, ...){
+    name <- knitr::opts_current$get("label")
+    autor(x, name, ...)
   })
+
+setMethod("autor", 
+  signature = c(x = "gg.obj", name = "character"),
+  function(x, name, ...){
+    file <- callNextMethod()
+    autor(file, name, ...)
+  })
+
+setMethod("autor", 
+  signature = c(x = "data.frame", name = "character"),
+  function(x, name, ..., key){
+    file <- callNextMethod()
+    cat(paste0("Table \\@ref(tab:", name, ") 概览\n"))
+    x <- tibble::as_tibble(x)
+    if (knitr::is_latex_output()) {
+      x <- dplyr::mutate_all(x, function(str) stringr::str_trunc(str, 15))
+      if (nrow(x) > 15) {
+        x <- head(x, n = 15)
+        blank <- head(x, n = 0)
+        blank[1, ] <- "..."
+        x <- dplyr::bind_rows(x, blank)
+      }
+      col <- vapply(colnames(x), nchar, integer(1))
+      col <- which(cumsum(col) > 80)
+      if (length(col) > 0) {
+        col <- col[1]
+        x <- x[, 1:col]
+        x$... <- "..."
+      }
+      knitr::kable(x, "markdown", caption = as_caption(name))
+    } else {
+      print(x)
+    }
+  })
+
+as_caption <- function(str) {
+  Hmisc::capitalize(gsub("-", " ", str))
+}
+
+setMethod("autor", 
+  signature = c(x = "fig", name = "character"),
+  function(x, name, ...){
+    include(x, name, ...)
+  })
+
+setMethod("autor", 
+  signature = c(x = "character", name = "character"),
+  function(x, name, ...){
+    autor(fig(x), name, ...)
+  })
+
+# ==========================================================================
+# show object in report
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+setGeneric("include", 
+  function(x, name, ...) standardGeneric("include"))
+
+setMethod("include", 
+  signature = c(x = "fig"),
+  function(x, name, ...){
+    structure(as.character(x),
+      class = c("knit_image_paths", "knit_asis"))
+  })
+
+asis <- function(object) {
+  knitr::asis_output(object)
+}
+
+# ==========================================================================
+# select save function
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 setGeneric("select_savefun", 
   function(x, ...) standardGeneric("select_savefun"))

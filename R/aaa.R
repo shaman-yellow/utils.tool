@@ -43,6 +43,11 @@ reCallMethod <-
     eval(parse(text = expr))
   }
 
+get_signature <- 
+  function(args){
+    vapply(args, function(arg) class(arg)[1], FUN.VALUE = "ch")
+  }
+
 .fresh_param <- 
   function(default, args){
     if (missing(args))
