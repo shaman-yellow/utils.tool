@@ -23,6 +23,7 @@ Other queries:
 \code{\link{pick_annotation}},
 \code{\link{query_classification}()},
 \code{\link{query_inchikey}()},
+\code{\link{query_sdfs}()},
 \code{\link{query_synonyms}()}
 }
 \concept{queries}

@@ -1,7 +1,8 @@
 ---
 ---
 
-```{r setup, include = F}
+```{r include = F}
+#| setup
 if (!requireNamespace("utils.tool"))
   devtools::load_all("~/utils.tool/")
 autor_preset()

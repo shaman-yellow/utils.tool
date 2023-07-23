@@ -93,16 +93,14 @@ target_file <-
 
 setGeneric("set_home", 
   function(x, ...) standardGeneric("set_home"))
-setMethod("set_home", 
-  signature = setMissing("set_home"),
+setMethod("set_home", signature = setMissing("set_home"),
   function(){
     function(path = paste0(hugoDir, "/config"), tar = "params.toml") {
       target_file(path, tar)
     }
   })
 
-setMethod("set_home", 
-  signature = setMissing("set_home",
+setMethod("set_home", signature = setMissing("set_home",
     x = "vector"),
   function(x, ...){
     path <- set_home()(...)
@@ -130,16 +128,14 @@ repl_yaml <- function(key, content, lines){
 
 setGeneric("set_index", 
   function(x, tar, ...) standardGeneric("set_index"))
-setMethod("set_index", 
-  signature = setMissing("set_index"),
+setMethod("set_index", signature = setMissing("set_index"),
   function(){
     function(tar = "en/_index.Rmd", path = paste0(hugoDir, "/content/en")) {
       target_file(path, tar)
     }
   })
 
-setMethod("set_index", 
-  signature = setMissing("set_index",
+setMethod("set_index", signature = setMissing("set_index",
     x = "vector",
     tar = "character"),
   function(x, tar, ...){

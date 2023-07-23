@@ -2,14 +2,28 @@
 # work and function
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-fig <- setClass("fig", 
+files <- setClass("files", 
   contains = c("character"),
   representation = representation(),
   prototype = NULL)
 
+fig <- setClass("fig", 
+  contains = c("files"),
+  representation = representation(),
+  prototype = NULL)
+
 setClassUnion("figs", c("gg.obj", "fig"))
-setClassUnion("data.frame_or_matrix", c("data.frame", "matrix"))
+# setClassUnion("data.frame_or_matrix", c("data.frame", "matrix"))
 setClassUnion("easywrite", c("data.frame", "matrix", "character", "factor", "numeric"))
+
+setClassUnion("maybe_numeric_or_character", c("numeric", "character", "missing"))
+setClassUnion("maybe_character", c("NULL", "character", "missing"))
+setClassUnion("maybe_logical", c("NULL", "logical", "missing"))
+
+.df_like <- c("tbl_df", "data.table")
+.df <- c("data.frame", "matrix", "matrix", "array", .df_like)
+setOldClass(.df_like)
+setClassUnion("df", .df)
 
 # <https://cran.r-project.org/web/packages/RSelenium/index.html>
 format_bindingdb.tsv <- function(file,
@@ -469,7 +483,7 @@ get_tcm.base <- function(id, link_prefix) {
 writePlots <- function(lst, dir, width = 7, height = 7, ..., postfix = ".pdf") 
 {
   fun <- function(p, file) ggsave(file, p, width = width, height = height)
-  writeDatas(lst, dir, fun, postfix = postfix)
+  writeDatas(lst, dir, fun = fun, postfix = postfix)
 }
 
 writeDatas <- function(lst, dir, ..., fun = data.table::fwrite, postfix = ".csv") 
@@ -484,7 +498,7 @@ writeDatas <- function(lst, dir, ..., fun = data.table::fwrite, postfix = ".csv"
       data <- lst[[name]]
       file <- paste0(dir, "/", n, "_", name, postfix)
       n <<- n + 1
-      if (is.null(data) | !is.data.frame(data)) {
+      if (is.null(data) | is.character(data)) {
         writeLines("", file)
       } else {
         fun(data, file)
@@ -940,6 +954,17 @@ write_gg <- function(p, name, width = 7, height = 7, ...,
   return(file)
 }
 
+write_grob <- function(grob, name, width = 7, height = 7, ...,
+  file = paste0(get_realname(name), ".pdf"), mkdir = "figs") 
+{
+  if (!file.exists(mkdir))
+    dir.create(mkdir)
+  pdf(file <- paste0(mkdir, "/", file), width = width, height = height)
+  draw(grob)
+  dev.off()
+  return(file)
+}
+
 sortDup_edges <- function(edges) {
   edges.sort <- apply(dplyr::select(edges, 1:2), 1,
     function(vec) {
@@ -1125,8 +1150,7 @@ split_lapply_rbind <- function(data, f, fun, ...) {
   representation = representation(),
   prototype = NULL)
 
-setMethod("show", 
-  signature = c(object = "data_long"),
+setMethod("show", signature = c(object = "data_long"),
   function(object){
     suppressWarnings(print(tibble::as_tibble(object)))
   })
@@ -1200,8 +1224,7 @@ variance_analysis <- function(data.long){
 setGeneric("pal", 
   function(x) standardGeneric("pal"))
 
-setMethod("pal", 
-  signature = c(x = "andata"),
+setMethod("pal", signature = c(x = "andata"),
   function(x){ 
     pal <- x@palette
     if (is.null(pal)) {
@@ -1269,8 +1292,7 @@ opls_data.long <- function(data.long, combns, inter.fig = F) {
 setGeneric("plot_andata", 
   function(x, ...) standardGeneric("plot_andata"))
 
-setMethod("plot_andata", 
-  signature = c(x = "andata_pca"),
+setMethod("plot_andata", signature = c(x = "andata_pca"),
   function(x){
     p <- ggplot(x@data, aes(x = PC1, y = PC2, fill = group)) +
       geom_point(size = 3, shape = 21, stroke = 0, color = "transparent") +
@@ -1283,8 +1305,7 @@ setMethod("plot_andata",
     p
   })
 
-setMethod("plot_andata", 
-  signature = c(x = "andata_opls"),
+setMethod("plot_andata", signature = c(x = "andata_opls"),
   function(x){
     p <- ggplot(x@data, aes(x = h1, y = o1)) +
       geom_point(size = 3, shape = 21,
@@ -1346,8 +1367,7 @@ get_prod.geo <- function(lst) {
     representation(),
   prototype = NULL)
 
-setMethod("show", 
-  signature = c(object = "lich"),
+setMethod("show", signature = c(object = "lich"),
   function(object){
     show_lst.ch(object)
   })
@@ -1407,6 +1427,8 @@ new_elist <- function(metadata, counts, genes, idname, message = T)
   elist(list(E = tibble::as_tibble(lst$counts), targets = lst$metadata, genes = lst$genes))
 }
 
+# #' @importClassesFrom edgeR DGEList
+# #' @importClassesFrom limma EList
 .eset <- c("DGEList", "EList")
 setOldClass(.eset)
 setClassUnion("eset", .eset)
@@ -1431,8 +1453,7 @@ setValidity("elist",
 setGeneric("as_data_long", 
   function(x, y, ...) standardGeneric("as_data_long"))
 
-setMethod("as_data_long", 
-  signature = c(x = "DGEList"),
+setMethod("as_data_long", signature = c(x = "DGEList"),
   function(x){
     data <- tibble::as_tibble(x$counts)
     data$gene <- x$genes[[ 1 ]]
@@ -1441,8 +1462,7 @@ setMethod("as_data_long",
     .data_long.eset(data)
   })
 
-setMethod("as_data_long", 
-  signature = c(x = "EList"),
+setMethod("as_data_long", signature = c(x = "EList"),
   function(x){
     data <- tibble::as_tibble(x$E)
     data$gene <- x$genes[[ 1 ]]
@@ -1454,8 +1474,7 @@ setMethod("as_data_long",
 setGeneric("pca_data.long", 
   function(x, fun_scale) standardGeneric("pca_data.long"))
 
-setMethod("pca_data.long", 
-  signature = c(x = "data_long.eset"),
+setMethod("pca_data.long", signature = c(x = "data_long.eset"),
   function(x){
     x <- dplyr::select(tibble::as_tibble(data.frame(x)), sample, group, gene, value)
     x <- tidyr::spread(x, gene, value)
@@ -1624,8 +1643,7 @@ get_fun <- function(name, envir = topenv()) {
       )
       ))
 
-setMethod("show", 
-  signature = c(object = "heatdata"),
+setMethod("show", signature = c(object = "heatdata"),
   function(object){
     if (!is.null(object@gg_main))
       print(draw(object))
@@ -1702,8 +1720,7 @@ heatdata_gene <- setClass("heatdata_gene",
 setGeneric("naviRaw", 
   function(x) standardGeneric("naviRaw"))
 
-setMethod("naviRaw", 
-  signature = c(x = "heatdata_gene"),
+setMethod("naviRaw", signature = c(x = "heatdata_gene"),
   function(x){
     data_long <- as_data_long(x@raw)
     x@data_long <- tibble::as_tibble(data_long)
@@ -1713,8 +1730,7 @@ setMethod("naviRaw",
 setGeneric("new_heatdata", 
   function(x, y, ...) standardGeneric("new_heatdata"))
 
-setMethod("new_heatdata", 
-  signature = c(x = "EList"),
+setMethod("new_heatdata", signature = c(x = "EList"),
   function(x){
     x <- heatdata_gene(raw = x)
     naviRaw(x)
@@ -1723,8 +1739,7 @@ setMethod("new_heatdata",
 setGeneric("standby", 
   function(x) standardGeneric("standby"))
 
-setMethod("standby", 
-  signature = c(x = "heatdata"),
+setMethod("standby", signature = c(x = "heatdata"),
   function(x){
     cols <- unlist(x@aesn[ names(x@aesn) %in% c("x", "y", x@aesh) ])
     .check_columns(x@data_long, cols, "x@data_long")
@@ -1740,8 +1755,7 @@ setMethod("standby",
 setGeneric("set_xmeta", 
   function(x, metadata) standardGeneric("set_xmeta"))
 
-setMethod("set_xmeta", 
-  signature = c(x = "heatdata_gene"),
+setMethod("set_xmeta", signature = c(x = "heatdata_gene"),
   function(x){
     x@xmeta <- dplyr::distinct(x@data_long, sample, group)
     x
@@ -1753,14 +1767,12 @@ setGeneric("callheatmap",
 setGeneric("corheatmap", 
   function(x, y, ...) standardGeneric("corheatmap"))
 
-setMethod("corheatmap", 
-  signature = c(x = "data.frame_or_matrix", y = "data.frame_or_matrix"),
+setMethod("corheatmap", signature = c(x = "df", y = "df"),
   function(x, y, row_var = "row_var", col_var = "col_var"){
     callheatmap(new_heatdata(cal_corp(x, y, row_var, col_var)))
   })
 
-setMethod("callheatmap", 
-  signature = c(x = "heatdata"),
+setMethod("callheatmap", signature = c(x = "heatdata"),
   function(x){
     y.reformat <- x.reformat <- 0L
     if (!is.null(x@ymeta)) {
@@ -1806,8 +1818,7 @@ draw_genetree <- function(x) {
   aplot::insert_left(x@gg_ygroup, x@gg_ytree, width = 8)
 }
 
-setMethod("draw", 
-  signature = c(x = "heatdata"),
+setMethod("draw", signature = c(x = "heatdata"),
   function(x){
     p <- x@gg_main
     if (!is.null(x@gg_ygroup)) {
@@ -1862,8 +1873,7 @@ as_edges.distframe <- function(data, threshold = NULL)
   representation = representation(),
     prototype = NULL)
 
-setMethod("show", 
-  signature = c(object = "wgcData"),
+setMethod("show", signature = c(object = "wgcData"),
   function(object){
     print(tibble::as_tibble(data.frame(object)))
     message(crayon::green("Rownames (Sample names):"))
@@ -1874,8 +1884,7 @@ setMethod("show",
 setGeneric("as_wgcData", 
   function(x) standardGeneric("as_wgcData"))
 
-setMethod("as_wgcData", 
-  signature = c(x = "EList"),
+setMethod("as_wgcData", signature = c(x = "EList"),
   function(x){
     data <- data.frame(t(x$E))
     colnames(data) <- x$genes[[ 1 ]]
@@ -1890,8 +1899,7 @@ setMethod("as_wgcData",
 setGeneric("as_wgcTrait", 
   function(x) standardGeneric("as_wgcTrait"))
 
-setMethod("as_wgcTrait", 
-  signature = c(x = "elist"),
+setMethod("as_wgcTrait", signature = c(x = "elist"),
   function(x){
     data <- dplyr::select_if(x$targets, is.numeric)
     data <- data.frame(data)
@@ -1907,8 +1915,7 @@ cut_tree <- function(tree, height, size) {
 setGeneric("exclude", 
   function(x, y) standardGeneric("exclude"))
 
-setMethod("exclude", 
-  signature = c(x = "wgcData"),
+setMethod("exclude", signature = c(x = "wgcData"),
   function(x, y){
     .wgcData(x[y, ])
   })
@@ -1916,8 +1923,7 @@ setMethod("exclude",
 setGeneric("draw_sampletree", 
   function(x) standardGeneric("draw_sampletree"))
 
-setMethod("draw_sampletree", 
-  signature = c(x = "wgcData"),
+setMethod("draw_sampletree", signature = c(x = "wgcData"),
   function(x){
     x <- hclust(dist(x), method = "average")
     plot(x, main = "Sample clustering", sub = "", xlab = "")
@@ -1968,16 +1974,14 @@ plot_sft <- function(sft)
 setGeneric("cal_corp", 
   function(x, y, ...) standardGeneric("cal_corp"))
 
-setMethod("cal_corp", 
-  signature = c(x = "data.frame_or_matrix", y = "data.frame_or_matrix"),
+setMethod("cal_corp", signature = c(x = "df", y = "df"),
   function(x, y, row_var = "row_var", col_var = "col_var"){
     cor <- agricolae::correlation(x, y)
     data <- as_data_long(cor$correlation, cor$pvalue, row_var, col_var, "cor", "pvalue")
     .corp(add_anno(.corp(data)))
   })
 
-setMethod("new_heatdata", 
-  signature = c(x = "corp"),
+setMethod("new_heatdata", signature = c(x = "corp"),
   function(x){
     object <- .heatdata_cor()
     object@data_long <- tibble::as_tibble(x)
@@ -1988,8 +1992,7 @@ setMethod("new_heatdata",
     object
   })
 
-setMethod("as_data_long", 
-  signature = c(x = "data.frame_or_matrix", y = "data.frame_or_matrix"),
+setMethod("as_data_long", signature = c(x = "df", y = "df"),
   function(x, y, row_var = "rname", col_var = "cname", 
     x_value = "x_value", y_value = "y_value")
   {
@@ -2003,8 +2006,7 @@ setMethod("as_data_long",
 setGeneric("add_anno", 
   function(x) standardGeneric("add_anno"))
 
-setMethod("add_anno", 
-  signature = c(x = "corp"),
+setMethod("add_anno", signature = c(x = "corp"),
   function(x){
     dplyr::mutate(tibble::as_tibble(data.frame(x)),
       `-log2(P.value)` = -log2(pvalue),
@@ -2015,8 +2017,7 @@ setMethod("add_anno",
     )
   })
 
-setMethod("new_heatdata", 
-  signature = c(x = "wgcEigen", y = "wgcTrait"),
+setMethod("new_heatdata", signature = c(x = "wgcEigen", y = "wgcTrait"),
   function(x, y){
     cor <- WGCNA::cor(x, y, use = "p")
     pvalue <- WGCNA::corPvalueStudent(cor, nrow(x))
@@ -2029,8 +2030,7 @@ setMethod("new_heatdata",
     )
   })
 
-setMethod("draw", 
-  signature = c(x = "heatdata_gene_cor"),
+setMethod("draw", signature = c(x = "heatdata_gene_cor"),
   function(x){
     if (!is.null(x@gg_xgroup)) {
       x@gg_xgroup <- x@gg_xgroup +
@@ -2055,8 +2055,7 @@ get_eigens <- function(net) {
   .wgcEigen(eigens, colors = color_data, members = members)
 }
 
-setMethod("show", 
-  signature = c(object = "wgcNet"),
+setMethod("show", signature = c(object = "wgcNet"),
   function(object){
     dev.new(width = 12, height = 9)
     mergedColors = WGCNA::labels2colors(object$colors)
@@ -2086,8 +2085,7 @@ cal_module <- function(data, power, cut_hight = .25, min_size = 30, save_tom = "
 setGeneric("clip_data", 
   function(x, by) standardGeneric("clip_data"))
 
-setMethod("clip_data", 
-  signature = c(x = "elist", by = "wgcData"),
+setMethod("clip_data", signature = c(x = "elist", by = "wgcData"),
   function(x, by){
     ## filter sample in Counts data
     validObject(x)
@@ -2119,8 +2117,8 @@ setMethod("clip_data",
 
 set_index <- function() {
   if (knitr::is_latex_output()) {
-    cat("\\listoftables\n\n")
     cat("\\listoffigures\n\n")
+    cat("\\listoftables\n\n")
   }
 }
 
@@ -2137,12 +2135,18 @@ autor_preset <- function(...) {
 }
 
 ## orinal function, for save file, and return file name
-autor <- function(x, name, ...) {
+autosv <- function(x, name, ...) {
   if (!exists("autoRegisters")) {
     autoRegisters <- character(0)
   }
   if (!any(name == names(autoRegisters))) {
-    file <- select_savefun(x)(x, name, ...)
+    if (!is(x, "files"))
+      file <- select_savefun(x)(x, name, ...)
+    else if (file.exists(x)) {
+      file <- as.character(x)
+    } else {
+      stop("file.exists(x) == F")
+    }
     autoRegisters <<- c(autoRegisters, nl(name, file, F))
   } else {
     file <- autoRegisters[[ name ]]
@@ -2154,25 +2158,100 @@ autor <- function(x, name, ...) {
 setGeneric("autor", 
   function(x, name, ...) standardGeneric("autor"))
 
-setMethod("autor", 
-  signature = c(x = "ANY", name = "missing"),
+## autor get chunk label for name.
+## Be carefull, if the method not passed into this sub method,
+## the reference of table or figure may be error, unless the `name`
+## is identical with the chunk label.
+## **Note**
+## the `name` decided the auto reference, savename, and the values
+## in `autoRegisters`.
+## However, the 'fig.cap' was decided by chunk label, unless
+## the `autor_preset` was not performed.
+## The best way to use `autor`, don't manualy set the `name`.
+## As there was no way to modify the chunk label by `name` in
+## codes.
+setMethod("autor", signature = c(x = "ANY", name = "missing"),
   function(x, ...){
     name <- knitr::opts_current$get("label")
     autor(x, name, ...)
   })
 
-setMethod("autor", 
-  signature = c(x = "gg.obj", name = "character"),
+setMethod("autor", signature = c(x = "list", name = "character"),
   function(x, name, ...){
-    file <- callNextMethod()
+    file <- autosv(x, name, ...)
+    autor(file, name)
+  })
+
+setClassUnion("can_be_draw", c("gg.obj", "heatdata", "grob.obj"))
+## autor for ggplot
+setMethod("autor", signature = c(x = "can_be_draw", name = "character"),
+  function(x, name, ...){
+    file <- autosv(x, name, ...)
     autor(file, name, ...)
   })
 
-setMethod("autor", 
-  signature = c(x = "data.frame", name = "character"),
-  function(x, name, ..., key){
-    file <- callNextMethod()
-    cat(paste0("Table \\@ref(tab:", name, ") 概览\n"))
+## autor for data.frame
+setMethod("autor", signature = c(x = "df", name = "character"),
+  function(x, name, ...){
+    file <- autosv(x, name, ...)
+    abstract(x, name = name, ...)
+    include(x, name, ...)
+  })
+
+## autor for figures of file
+setMethod("autor", signature = c(x = "fig", name = "character"),
+  function(x, name, ...){
+    file <- autosv(x, name, ...)
+    abstract(x, name, ...)
+    include(x, name, ...)
+  })
+
+setMethod("autor", signature = c(x = "files", name = "character"),
+  function(x, name, ...){
+    file <- autosv(x, name, ...)
+    abstract(x, name, ...)
+  })
+
+setMethod("autor", signature = c(x = "character", name = "character"),
+  function(x, name, ...){
+    if (length(x) > 1)
+      stop("length(x) == 1")
+    if (!file.exists(x))
+      stop("file.exists(x) == F")
+    fig.type <- c(".jpg", ".png", ".pdf")
+    file.type <- stringr::str_extract(x, "\\.[a-zA-Z]+$")
+    if (!is.na(file.type)) {
+      if (any(file.type == fig.type))
+        return(autor(fig(x), name, ...))
+    }
+    autor(files(x), name, ...)
+  })
+
+# ==========================================================================
+# show object in report
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+setGeneric("include", 
+  function(x, name, ...) standardGeneric("include"))
+
+## include for fig
+setMethod("include", signature = c(x = "fig"),
+  function(x, name, ...){
+    if (knitr::is_latex_output()) {
+      cat("\n\\def\\@captype{figure}\n")
+      cat("\\begin{center}\n",
+        "\\includegraphics[width = 0.9\\linewidth]{", as.character(x), "}\n",
+        "\\caption{", knitr::opts_current$get("fig.cap"),
+        "}\\label{fig:", name, "}\n",
+        "\\end{center}\n", sep = "")
+    } else {
+      structure(as.character(x),
+        class = c("knit_image_paths", "knit_asis"))
+    }
+  })
+
+setMethod("include", signature = c(x = "df"),
+  function(x, name, ...){
     x <- tibble::as_tibble(x)
     if (knitr::is_latex_output()) {
       x <- trunc_table(x)
@@ -2181,6 +2260,10 @@ setMethod("autor",
       print(x)
     }
   })
+
+as_caption <- function(str) {
+  Hmisc::capitalize(gsub("-", " ", str))
+}
 
 trunc_table <- function(x) {
   x <- dplyr::mutate_all(x, function(str) stringr::str_trunc(str, 15))
@@ -2200,46 +2283,6 @@ trunc_table <- function(x) {
   x
 }
 
-as_caption <- function(str) {
-  Hmisc::capitalize(gsub("-", " ", str))
-}
-
-setMethod("autor", 
-  signature = c(x = "fig", name = "character"),
-  function(x, name, ...){
-    include(x, name, ...)
-  })
-
-setMethod("autor", 
-  signature = c(x = "character", name = "character"),
-  function(x, name, ...){
-    autor(fig(x), name, ...)
-  })
-
-# ==========================================================================
-# show object in report
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-setGeneric("include", 
-  function(x, name, ...) standardGeneric("include"))
-
-setMethod("include", 
-  signature = c(x = "fig"),
-  function(x, name, ...){
-    if (knitr::is_latex_output()) {
-      cat(paste0(glue::glue("\\def\\@captype{figure}",
-            "\\includegraphics{<<x>>}",
-            "\\caption{<<caption>>}\\label{fig:<<name>>}",
-            name = name, x = as.character(x),
-            caption = knitr::opts_current$get("fig.cap"),
-            .open = "<<", .close = ">>"
-            ), collapse = ""))
-    } else {
-      structure(as.character(x),
-        class = c("knit_image_paths", "knit_asis"))
-    }
-  })
-
 asis <- function(object) {
   knitr::asis_output(object)
 }
@@ -2251,8 +2294,7 @@ asis <- function(object) {
 setGeneric("select_savefun", 
   function(x, ...) standardGeneric("select_savefun"))
 
-setMethod("select_savefun", 
-  signature = c(x = "list"),
+setMethod("select_savefun", signature = c(x = "list"),
   function(x){
     fun <- function(x, class) {
       vapply(x, function(obj) is(obj, class), logical(1))
@@ -2268,15 +2310,29 @@ setMethod("select_savefun",
     }
   })
 
-setMethod("select_savefun", 
-  signature = c(x = "gg.obj"),
+## select_savefun for ggplot
+setMethod("select_savefun", signature = c(x = "gg.obj"),
   function(x){
     get_fun("write_gg")
   })
 
-setMethod("select_savefun", 
-  signature = c(x = "data.frame"),
+setMethod("select_savefun", signature = c(x = "heatdata"),
   function(x){
+    function(x, ...) {
+      write_gg(draw(x), ...)
+    }
+  })
+
+setMethod("select_savefun", signature = c(x = "grob.obj"),
+  function(x){
+    get_fun("write_grob")
+  })
+
+setMethod("select_savefun", signature = c(x = "df"),
+  function(x){
+    if (!is(x, "data.frame")) {
+      x <- tibble::as_tibble(x)
+    }
     data <- dplyr::select_if(x, is.character)
     check <- apply(data, 2,
       function(ch) {
@@ -2291,3 +2347,104 @@ setMethod("select_savefun",
     } else get_fun("fwrite2")
   })
 
+# ==========================================================================
+# summarise the object
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+setGeneric("abstract", 
+  function(x, name, latex, ...) standardGeneric("abstract"))
+
+setMethod("abstract", signature = c(x = "ANY", name = "character", latex = "missing"),
+  function(x, name, ...){
+    restype <- knitr::opts_current$get("results")
+    if (is.null(restype)) {
+      warning("is.null(knitr::opts_current$get(\"results\")) == T")
+    } else if (restype != "asis") {
+      warning("restype != \"asis\"")
+    }
+    if (knitr::is_latex_output())
+      latex <- T
+    else
+      latex <- NULL
+    reCallMethod("abstract", namel(x, name, latex), ...)
+  })
+
+## abstract for table
+setMethod("abstract", signature = c(x = "df", name = "character", latex = "logical"),
+  function(x, name, latex, ..., key = 1, abs = NULL, summary = T, sum.ex = NULL){
+    x <- tibble::as_tibble(x)
+    cat("Table \\@ref(tab:", name, ")",
+      "为表格", gsub("-", " ", name), "概览。\n", sep = "")
+    if (!is.null(abs))
+      cat(abs, "\n")
+    locate_file(name)
+    if (!is.null(summary)) {
+      cat(text_roundrect(sumTbl(x, key, sum.ex)))
+    }
+  })
+
+## abstract for figure of file
+setMethod("abstract", signature = c(x = "fig", name = "character"),
+  function(x, name, ..., abs = NULL){
+    cat("Figure \\@ref(fig:", name, ")",
+      "为图", gsub("-", " ", name), "概览。\n", sep = "")
+    if (!is.null(abs))
+      cat(abs, "\n")
+    locate_file(name)
+  })
+
+setMethod("abstract", signature = c(x = "files", name = "character"),
+  function(x, name, ..., abs = NULL, sum.ex = NULL){
+    if (dir.exists(x)) {
+      cat(abs, "\n")
+      cat("`", as_caption(name), "' 数据已全部提供。", "\n", sep = "")
+      locate_file(name)
+      cat(text_roundrect(sumDir(autoRegisters[[ name ]], sum.ex)))
+    } else {
+      cat(abs, "\n")
+      cat("`", as_caption(name), "' 数据已提供。", "\n", sep = "")
+      locate_file(name)
+    }
+  })
+
+sumDir <- function(dir, sum.ex = NULL) {
+  files <- list.files(dir)
+  if (length(files) > 5)
+    files <- c(head(files, n = 5), "...")
+  files <- fix.tex(files)
+  paste0("注：文件夹", fix.tex(dir), "共包含", length(files), "个文件。\n",
+    sum.ex, "\n",
+    paste0(
+      "\\begin{enumerate}",
+      "\\tightlist\n",
+      paste0(paste0("\\item ", files), collapse = "\n"),
+      "\n\\end{enumerate}",
+      collapse = "\n")
+  )
+}
+
+fix.tex <- function(str) {
+  gsub("_", "\\\\_", str)
+}
+
+sumTbl <- function(x, key, sum.ex) {
+  paste0("注：表格共有", nrow(x), "行", ncol(x), "列，",
+    "以下预览的表格可能省略部分数据；",
+    "表格含有", colSum(x[[ key ]]),
+    "个唯一`", colnames(x[, key]), "'。\n", sum.ex)
+}
+
+locate_file <- function(name) {
+  if (!exists('autoRegisters'))
+    stop("!exists('autoRegisters')")
+  if (!file.exists(autoRegisters[[ name ]]))
+    stop("file.exists(autoRegisters[[ name ]] == F)")
+  cat("\n**(对应文件为 `", autoRegisters[[ name ]], "`)**", "\n", sep = "")
+}
+
+text_roundrect <- function(str) {
+  paste0("\\begin{center}",
+    "\\begin{tcolorbox}[colback=gray!10, colframe=gray!50, width=0.9\\linewidth, arc=1mm, boxrule=0.5pt]",
+    str, "\\end{tcolorbox}\n\\end{center}", collapse = "\n"
+  )
+}

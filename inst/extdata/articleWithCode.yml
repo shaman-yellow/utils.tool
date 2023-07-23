@@ -20,8 +20,9 @@ header-includes:
   \makeatletter
   \renewenvironment{figure}
   {\def\@captype{figure}}
-  \makeatletter
+  \makeatother
   \definecolor{shadecolor}{RGB}{242,242,242}
   \usepackage{xeCJK}
   \usepackage{setspace}
   \setstretch{1.3} 
+  \usepackage{tcolorbox}

@@ -40,13 +40,40 @@ log_trans(
   center = T
 )
 
-add_tree.heatmap(df, p, clust_row = T, clust_col = T, method = "complete")
+add_tree.heatmap(
+  data,
+  p,
+  clust_row = T,
+  clust_col = T,
+  method = "complete",
+  ...
+)
 
 add_xgroup.heatmap(df, p)
 
-add_xgroup.tile.heatmap(df, p, pal = NA)
+add_xgroup.tile.heatmap(
+  data,
+  p = NULL,
+  pal = NA,
+  x = "sample",
+  y = "Group",
+  fill = "group",
+  lab_x = "",
+  lab_y = "",
+  lab_fill = "Group"
+)
 
-add_ygroup.tile.heatmap(df, p, pal = NA)
+add_ygroup.tile.heatmap(
+  data,
+  p = NULL,
+  pal = NULL,
+  x = "Class",
+  y = ".features_id",
+  fill = "class",
+  lab_x = "",
+  lab_y = "",
+  lab_fill = "From"
+)
 }
 \description{
 According to list of 'ID' to draw mutiple heatmap...

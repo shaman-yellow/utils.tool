@@ -66,8 +66,7 @@ setGeneric("draw",
     standardGeneric("draw"))
 
 #' @exportMethod draw
-setMethod("draw", 
-  signature = c(x = "graph", content = "grob.obj"),
+setMethod("draw", signature = c(x = "graph", content = "grob.obj"),
   function(x, content){
     grid.draw(x@grob)
     pushViewport(x@cvp)
@@ -76,16 +75,14 @@ setMethod("draw",
   })
 
 #' @exportMethod draw
-setMethod("draw", 
-  signature = setMissing("draw",
+setMethod("draw", signature = setMissing("draw",
     x = "graph"),
   function(x){
     grid.draw(x@grob)
   })
 
 #' @exportMethod draw
-setMethod("draw", 
-  signature = c(x = "grob.obj"),
+setMethod("draw", signature = c(x = "grob.obj"),
   function(x){
     grid.draw(x)
   })
@@ -98,8 +95,7 @@ setGeneric("into",
   function(x, content) standardGeneric("into"))
 
 #' @exportMethod into
-setMethod("into", 
-  signature = c(x = "graph", content = "grob.obj"),
+setMethod("into", signature = c(x = "graph", content = "grob.obj"),
   function(x, content){
     if (is.null(content$vp)) {
       content$vp <- x@cvp
@@ -117,8 +113,7 @@ setGeneric("setvp",
   function(x, ...) standardGeneric("setvp"))
 
 #' @exportMethod setvp
-setMethod("setvp", 
-  signature = c(x = "ANY"),
+setMethod("setvp", signature = c(x = "ANY"),
   function(x, ...){
     viewport(grobX(x, 90), grobY(x, 0),
       grobWidth(x), grobHeight(x), ...)
@@ -127,8 +122,7 @@ setMethod("setvp",
 #' @exportMethod weight
 setGeneric("weight", 
   function(x, sub) standardGeneric("weight"))
-setMethod("weight", 
-  signature = c(x = "ANY", sub = "character"),
+setMethod("weight", signature = c(x = "ANY", sub = "character"),
   function(x, sub){
     if (isS4(x)) {
       weight <-
@@ -147,8 +141,7 @@ setGeneric("as_grob",
   function(x) standardGeneric("as_grob"))
 
 #' @exportMethod as_grob
-setMethod("as_grob", 
-  signature = c(x = "gg.obj"),
+setMethod("as_grob", signature = c(x = "gg.obj"),
   function(x){
     ggplot2::ggplot_gtable(ggplot2::ggplot_build(x))
   })
@@ -221,8 +214,7 @@ setGeneric("frame_place",
     standardGeneric("frame_place"))
 
 #' @exportMethod frame_place
-setMethod("frame_place", 
-  signature = setMissing("frame_place",
+setMethod("frame_place", signature = setMissing("frame_place",
     weight = "vector",
     data = "list",
     type = "character"),
@@ -250,8 +242,7 @@ setMethod("frame_place",
     }
     frame
   })
-setMethod("frame_place", 
-  signature = setMissing("frame_place",
+setMethod("frame_place", signature = setMissing("frame_place",
     weight = "vector",
     data = "list",
     type = "character",
@@ -448,8 +439,7 @@ setGeneric("garrow",
     standardGeneric("garrow"))
 
 #' @exportMethod garrow
-setMethod("garrow", 
-  signature = setMissing("garrow"),
+setMethod("garrow", signature = setMissing("garrow"),
   function(){
     args_line <- list(square = F, ncp = 10, curvature = .3,
       gp = gpar(fill = "black"))
@@ -463,8 +453,7 @@ setMethod("garrow",
   })
 
 #' @exportMethod garrow
-setMethod("garrow", 
-  signature = c(p1 = "maybe_p1p2", p2 = "maybe_p1p2"),
+setMethod("garrow", signature = c(p1 = "maybe_p1p2", p2 = "maybe_p1p2"),
   function(p1, p2, args_line, args_arrow,
     fun_line, fun_arrow, city){
     args <- as.list(environment())
@@ -476,8 +465,7 @@ setMethod("garrow",
   })
 
 #' @exportMethod garrow
-setMethod("garrow", 
-  signature = c(p1 = "null", p2 = "null",
+setMethod("garrow", signature = c(p1 = "null", p2 = "null",
     args_line = "list",
     args_arrow = "list",
     fun_line = "maybe_function",
@@ -492,8 +480,7 @@ setMethod("garrow",
   })
 
 #' @exportMethod garrow
-setMethod("garrow", 
-  signature = c(p1 = "list", p2 = "list",
+setMethod("garrow", signature = c(p1 = "list", p2 = "list",
     args_line = "list",
     args_arrow = "list",
     fun_line = "maybe_function",
