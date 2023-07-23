@@ -1,6 +1,7 @@
 # ==========================================================================
 # work and function
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# asNamespace("base")
 
 files <- setClass("files", 
   contains = c("character"),
@@ -20,6 +21,8 @@ setClassUnion("maybe_numeric_or_character", c("numeric", "character", "missing")
 setClassUnion("maybe_character", c("NULL", "character", "missing"))
 setClassUnion("maybe_logical", c("NULL", "logical", "missing"))
 
+#' @importClassesFrom data.table data.table
+#' @importClassesFrom tibble tbl_df
 .df_like <- c("tbl_df", "data.table")
 .df <- c("data.frame", "matrix", "matrix", "array", .df_like)
 setOldClass(.df_like)
@@ -1634,6 +1637,16 @@ get_fun <- function(name, envir = topenv()) {
       fun_plot = "ANY"),
     prototype = prototype(
       aesh = "fill",
+      aesn = list(
+        x = "cname", y = "rname", fill = "value",
+        lab_x = "Columns", lab_y = "Rows", lab_fill = "Level"),
+      x_aesn = list(x = "cname", y = "Group", fill = "group",
+        lab_x = "", lab_y = "", lab_fill = "Column group"),
+      x_pal = MCnebula2:::.get_color_set(),
+      y_aesn = list(x = "Group", y = "rname", fill = "group",
+        lab_x = "", lab_y = "", lab_fill = "Row group"),
+      para = list(
+        clust_row = T, clust_col = T, method = 'average'),
       fun_plot = list(
         xtree = get_fun("plot_xtree"),
         ytree = get_fun("plot_ytree"),
@@ -1666,8 +1679,6 @@ heatdata_gene <- setClass("heatdata_gene",
     aesn = list(
       x = "sample", y = "gene", fill = "value",
       lab_x = "Samples", lab_y = "Genes", lab_fill = "Gene level"),
-    para = list(
-      clust_row = T, clust_col = T, method = 'average'),
     x_aesn = list(x = "sample", y = "group", fill = "group",
       lab_x = "", lab_y = "", lab_fill = "Group"),
     x_pal = MCnebula2:::.get_color_set(),
@@ -1981,6 +1992,24 @@ setMethod("cal_corp", signature = c(x = "df", y = "df"),
     .corp(add_anno(.corp(data)))
   })
 
+setMethod("new_heatdata", signature = c(x = "df"),
+  function(x){
+    x <- as_data_long(x)
+    new_heatdata(x)
+  })
+
+setMethod("new_heatdata", signature = c(x = "data_long"),
+  function(x){
+    object <- .heatdata()
+    object@data_long <- tibble::as_tibble(x)
+    object@aesn$x <- object@x_aesn$x <- colnames(x)[2]
+    object@aesn$y <- object@y_aesn$y <- colnames(x)[1]
+    object@aesn$fill <- colnames(x)[3]
+    object@aesn$lab_x <- Hmisc::capitalize(colnames(x)[2])
+    object@aesn$lab_y <- Hmisc::capitalize(colnames(x)[1])
+    object
+  })
+
 setMethod("new_heatdata", signature = c(x = "corp"),
   function(x){
     object <- .heatdata_cor()
@@ -1992,13 +2021,20 @@ setMethod("new_heatdata", signature = c(x = "corp"),
     object
   })
 
+setMethod("as_data_long", signature = c(x = "df"),
+  function(x, row_var = "rname", col_var = "cname", x_value = "value"){
+    x <- dplyr::mutate(tibble::as_tibble(x), !!!nl(row_var, list(rownames(x))))
+    x <- tidyr::gather(x, !!col_var, !!x_value, -!!rlang::sym(row_var))
+    .data_long(x)
+  })
+
 setMethod("as_data_long", signature = c(x = "df", y = "df"),
   function(x, y, row_var = "rname", col_var = "cname", 
     x_value = "x_value", y_value = "y_value")
   {
-    x <- dplyr::mutate(data.frame(x), !!!nl(row_var, list(rownames(x))))
+    x <- dplyr::mutate(tibble::as_tibble(x), !!!nl(row_var, list(rownames(x))))
     x <- tidyr::gather(x, !!col_var, !!x_value, -!!rlang::sym(row_var))
-    y <- tidyr::gather(data.frame(y), !!col_var, !!y_value)
+    y <- tidyr::gather(tibble::as_tibble(y), !!col_var, !!y_value)
     x <- dplyr::mutate(x, !!!nl(y_value, list(y[[ y_value ]])))
     .data_long(x)
   })
