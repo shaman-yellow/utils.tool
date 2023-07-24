@@ -1112,10 +1112,29 @@ show_multi <- function(layers, col, symbol = "Progein"){
 
 # map_from <- function(lst, db_names, db_values){}
 
+.jour_bioinf <- c("Nature Genetics", "Genome Biology", "Genome Research", "Nucleic Acids Res",
+  "Briefings in Bioinformatics", "BMC genomics")
+
+esearch.mj <- function(key, jour = .jour_bioinf, rbind = T)
+{
+  query <- paste(jour, "[JOUR] AND", key)
+  sear <- pbapply::pblapply(query, esearch)
+  names(sear) <- jour
+  if (rbind) {
+    sear <- tibble::as_tibble(data.table::rbindlist(sear, idcol = T, fill = T))
+    if (nrow(sear) > 0)
+      sear <- dplyr::arrange(sear, dplyr::desc(SortPubDate))
+  }
+  sear
+}
+
 esearch <- function(query = NULL, fetch.save = paste0(gsub(" ", "_", query), ".xml"),
-  path = "~/operation", tract.save = "res.tsv",
+  path = "search", tract.save = "res.tsv",
   fields = c("SortPubDate", "Title", "FullJournalName", "Name", "Id"))
 {
+  if (!dir.exists(path)) {
+    dir.create(path)
+  }
   if (!is.null(query)) {
     if (!file.exists(paste0(path, "/", fetch.save))) {
       cdRun("esearch -db pubmed -query \"", query, "\"",
@@ -1130,13 +1149,15 @@ esearch <- function(query = NULL, fetch.save = paste0(gsub(" ", "_", query), ".x
     " > ", tract.save, path = path)
   file <- paste0(path, "/", tract.save)
   res <- ftibble(file, sep = "\t", quote = "", fill = T, header = F)
-  colnames(res) <- fields
-  if (any("SortPubDate" == fields)) {
-    res <- dplyr::mutate(res, SortPubDate = as.Date(SortPubDate))
-    res <- dplyr::arrange(res, dplyr::desc(SortPubDate))
-  }
-  if (any("Id" == fields)) {
-    res <- dplyr::mutate(res, Id = as.character(Id))
+  if (nrow(res > 0)) {
+    colnames(res) <- fields
+    if (any("SortPubDate" == fields)) {
+      res <- dplyr::mutate(res, SortPubDate = as.Date(SortPubDate))
+      res <- dplyr::arrange(res, dplyr::desc(SortPubDate))
+    }
+    if (any("Id" == fields)) {
+      res <- dplyr::mutate(res, Id = as.character(Id))
+    }
   }
   res
 }
@@ -2160,7 +2181,7 @@ set_index <- function() {
 
 autor_preset <- function(...) {
   knitr::opts_chunk$set(
-    echo = F, eval = F, message = F,
+    echo = F, eval = F, message = F, warning = F,
     fig.cap = character(0),
     out.width = "\\linewidth", ...)
   fun_fig.cap <- function(options) {
@@ -2429,8 +2450,8 @@ setMethod("abstract", signature = c(x = "fig", name = "character"),
     locate_file(name)
   })
 
-setMethod("abstract", signature = c(x = "files", name = "character"),
-  function(x, name, ..., abs = NULL, sum.ex = NULL){
+setMethod("abstract", signature = c(x = "files", name = "character", latex = "logical"),
+  function(x, name, latex, ..., abs = NULL, sum.ex = NULL){
     if (dir.exists(x)) {
       cat(abs, "\n")
       cat("`", as_caption(name), "' 数据已全部提供。", "\n", sep = "")

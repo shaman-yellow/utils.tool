@@ -1135,14 +1135,14 @@ NULL
 #' @aliases fast_layout
 #' @description \code{fast_layout}: ...
 #' @rdname network
-fast_layout <- function(edges, layout = "fr", nodes = NULL){
+fast_layout <- function(edges, layout = "fr", nodes = NULL, ...){
   if (is(edges, "data.frame")) {
     graph <- igraph::graph_from_data_frame(edges, directed = T, vertices = nodes)
   } else if (is(edges, "igraph")) {
     graph <- edges
   }
   graph <- tidygraph::as_tbl_graph(graph)
-  ggraph::create_layout(graph, layout)
+  ggraph::create_layout(graph, layout, ...)
 }
 
 #' @export random_graph
