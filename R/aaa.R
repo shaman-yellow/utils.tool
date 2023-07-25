@@ -406,3 +406,32 @@ clearMatch <- function(strs)
 
 eg <- data.frame(x = sample(1:10, 10), y = sample(1:10, 10), z = sample(1:10, 10))
 eg2 <- data.frame(a = sample(1:10, 10), b = sample(1:10, 10), c = sample(1:10, 10))
+
+textSh <- function(..., sep = "", exdent = 4, ending = "\n",
+           pre_collapse = F, collapse = "\n",
+           pre_trunc = T, trunc_width = 200,
+           pre_wrap = T, wrap_width = 60){
+    text <- list(...)
+    if (pre_collapse) {
+      text <- vapply(text, paste, "ch", collapse = collapse)
+    }
+    text <- paste(text, sep = sep)
+    if (pre_trunc) {
+      text <- .text_fold(text, trunc_width)
+    }
+    if (pre_wrap) {
+      text <- paste0(strwrap(text, width = wrap_width), collapse = "\n")
+    }
+    exdent <- paste0(rep(" ", exdent), collapse = "")
+    writeLines(gsub("(?<=\n)|(?<=^)", exdent, text, perl = T))
+    if (!is.null(ending))
+      cat(ending)
+  }
+
+.text_fold <- function(text, width = 200, ellipsis = crayon::silver("...(fold)")){
+  stringr::str_trunc(text, width = width, ellipsis = ellipsis)
+}
+
+gett <- function(obj){
+    system(paste("echo", obj, "| xsel -b -i"))
+  }

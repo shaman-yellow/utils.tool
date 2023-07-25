@@ -948,6 +948,20 @@ write_xlsx2 <- function(data, name, ..., file = paste0(get_realname(name), ".xls
   do.call(fwrite2, as.list(environment()))
 }
 
+write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".pdf"),
+  mkdir = "figs", fun = openxlsx::write.xlsx)
+{
+  if (!file.exists(mkdir))
+    dir.create(mkdir)
+  show(data)
+  size <- par("din")
+  file <- paste0(mkdir, "/", file)
+  dev.copy(pdf, file = file, width = size[1], height = size[2])
+  dev.off()
+  dev.off()
+  return(file)
+}
+
 write_gg <- function(p, name, width = 7, height = 7, ...,
   file = paste0(get_realname(name), ".pdf"), mkdir = "figs") 
 {
@@ -1988,8 +2002,10 @@ plot_sft <- function(sft)
   text(sft$fitIndices[, 1], sft$fitIndices[, 5], labels = powers, cex = cex1, col = "red")
 }
 
+setClass("can_not_be_draw")
+
 .wgcNet <- setClass("wgcNet", 
-  contains = c("list"),
+  contains = c("can_not_be_draw", "list"),
   representation = representation(),
   prototype = NULL)
 
@@ -2239,6 +2255,12 @@ setMethod("autor", signature = c(x = "list", name = "character"),
     autor(file, name)
   })
 
+setMethod("autor", signature = c(x = "can_not_be_draw", name = "character"),
+  function(x, name, ...){
+    file <- autosv(x, name, ...)
+    autor(file, name, ...)
+  })
+
 setClassUnion("can_be_draw", c("gg.obj", "heatdata", "grob.obj"))
 ## autor for ggplot
 setMethod("autor", signature = c(x = "can_be_draw", name = "character"),
@@ -2323,7 +2345,8 @@ as_caption <- function(str) {
 }
 
 trunc_table <- function(x) {
-  x <- dplyr::mutate_all(x, function(str) stringr::str_trunc(str, 15))
+  x <- dplyr::mutate_all(x, function(str) stringr::str_trunc(str, 8))
+  colnames(x) %<>% stringr::str_trunc(8)
   if (nrow(x) > 15) {
     x <- head(x, n = 15)
     blank <- head(x, n = 0)
@@ -2365,6 +2388,11 @@ setMethod("select_savefun", signature = c(x = "list"),
     } else {
       stop("None function found for save")
     }
+  })
+
+setMethod("select_savefun", signature = c(x = "can_not_be_draw"),
+  function(x){
+    get_fun("write_graphics")
   })
 
 ## select_savefun for ggplot
@@ -2505,3 +2533,5 @@ text_roundrect <- function(str) {
     str, "\\end{tcolorbox}\n\\end{center}", collapse = "\n"
   )
 }
+
+

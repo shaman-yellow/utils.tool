@@ -1,9 +1,4 @@
-show_png <- 
-  function(
-           file,
-           size = "500x",
-           path = "."
-           ){
+show_png <- function(file, size = "500x", path = "."){
     if(grepl("\\.svg$", file)){
       tofile <- sub("\\.svg$", ".png", file)
       if(!file.exists(tofile)){
