@@ -2004,6 +2004,18 @@ plot_sft <- function(sft)
 
 setClass("can_not_be_draw")
 
+.mutate_gg.obj <- setClass("mutate_gg.obj", 
+  contains = c("can_not_be_draw", "gg.obj", "ANY"),
+  representation = representation(data = "ANY", width = "ANY", height = "ANY"),
+  prototype = NULL)
+
+setMethod("show", 
+  signature = c(object = "mutate_gg.obj"),
+  function(object){
+    dev.new(width = object@width, height = object@height)
+    print(object@data)
+  })
+
 .wgcNet <- setClass("wgcNet", 
   contains = c("can_not_be_draw", "list"),
   representation = representation(),
@@ -2534,4 +2546,34 @@ text_roundrect <- function(str) {
   )
 }
 
+# ==========================================================================
+# wrapper for dplyr tools
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+lapply(c("mutate", "filter", "arrange", "distinct",
+    "select", "rename", "relocate", "slice"),
+  function(name) {
+    setGeneric(name, function(DF_object, ...) DF_object)
+    setMethod(name, signature = c(DF_object = "df"),
+      function(DF_object, ..., fun_name = name){
+        if (!is(DF_object, "tbl_df")) {
+          DF_object <- tibble::as_tibble(DF_object)
+        }
+        fun <- get_fun(fun_name, asNamespace("dplyr"))
+        fun(DF_object, ...)
+      })
+})
+
+setGeneric("as_tibble", 
+  function(x) standardGeneric("as_tibble"))
+
+setMethod("as_tibble", signature = c(x = "df"),
+  function(x){
+    rownames <- rownames(x)
+    x <- tibble::as_tibble(x)
+    if (!identical(rownames, as.character(1:nrow(x)))) {
+      x <- dplyr::mutate(x, rownames = !!rownames)
+      x <- dplyr::relocate(x, rownames)
+    }
+    return(x)
+  })
