@@ -2004,13 +2004,13 @@ plot_sft <- function(sft)
 
 setClass("can_not_be_draw")
 
-.mutate_gg.obj <- setClass("mutate_gg.obj", 
-  contains = c("can_not_be_draw", "gg.obj", "ANY"),
+wrap <- setClass("wrap", 
+  contains = c("can_not_be_draw"),
   representation = representation(data = "ANY", width = "ANY", height = "ANY"),
   prototype = NULL)
 
 setMethod("show", 
-  signature = c(object = "mutate_gg.obj"),
+  signature = c(object = "wrap"),
   function(object){
     dev.new(width = object@width, height = object@height)
     print(object@data)
@@ -2577,3 +2577,28 @@ setMethod("as_tibble", signature = c(x = "df"),
     }
     return(x)
   })
+
+# ==========================================================================
+# for fast combine object
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+xf <- function(..., DATA_object = list(), Env = parent.frame(1)) {
+  DATA_object <- get_from_env(weight <- list(...), DATA_object, Env)
+  frame_col(weight, DATA_object)
+}
+
+yf <- function(..., DATA_object = list(), Env = parent.frame(1)) {
+  DATA_object <- get_from_env(weight <- list(...), DATA_object, Env)
+  frame_row(weight, DATA_object)
+}
+
+get_from_env <- function (weight, data = list(), env = parent.frame(1)){
+  names <- names(weight)
+  sapply(names, simplify = F,
+    function(name) {
+      if (is.null(data[[ name ]]))
+        get(name, envir = env)
+      else
+        data[[ name ]]
+    })
+}
