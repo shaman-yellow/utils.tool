@@ -48,8 +48,7 @@ get_signature <-
     vapply(args, function(arg) class(arg)[1], FUN.VALUE = "ch")
   }
 
-.fresh_param <- 
-  function(default, args){
+.fresh_param <- function(default, args){
     if (missing(args))
       args <- as.list(parent.frame())
     args <- args[ !vapply(args, is.name, T) ]
