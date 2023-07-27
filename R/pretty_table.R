@@ -1,7 +1,6 @@
 # ==========================================================================
 # format table as .tex .html ...
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#' @import gt
 pretty_table <- 
   function(
     df, title = "compounds summary", subtitle = "LC-MS",
@@ -9,6 +8,7 @@ pretty_table <-
     filename = "tmp.html", path = tempdir(),
     font = "Times New Roman", widths = NULL, caption = NULL)
   {
+    require(gt)
     if (!is.null(title)) {
       title = paste0("**", Hmisc::capitalize(title), "**")
       subtitle = paste0("**", Hmisc::capitalize(subtitle), "**")
@@ -42,10 +42,10 @@ footnote <- function(gt, text, columns){
     locations = cells_column_labels(columns = !!columns))
 }
 
-gt_solid_line <- 
-  function(df, title = "Table", subtitle = "Table", footnote = "...",
+gt_solid_line <- function(df, title = "Table", subtitle = "Table", footnote = "...",
     font = "Times New Roman", widths = NULL, caption = NULL)
   {
+    require(gt)
     t <- opt_table_font(gt(df, caption = caption), font = list(font))
     if (!is.null(title)) {
       t <- tab_header(t, title = md(title),

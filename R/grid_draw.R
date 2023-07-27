@@ -306,8 +306,7 @@ ruler <- function(p1, p2){
 #' @aliases grepPath
 #' @description \code{grepPath}: ...
 #' @rdname setnull
-grepPath <- 
-  function (pattern, x = NULL, grobs = T, viewports = T, perl = F) {
+grepPath <- function (pattern, x = NULL, grobs = T, viewports = T, perl = F) {
     args <- list(x = x, grobs = grobs, viewports = viewports, print = F)
     dl <- do.call(grid.ls, args)
     if (viewports) {
@@ -403,10 +402,10 @@ NULL
 #> NULL
 
 #' @export .gpar_dashed_line
-.gpar_dashed_line <- gpar(fill = "black", lty = "dashed", lwd = unit(2, "line"))
+.gpar_dashed_line <- grid::gpar(fill = "black", lty = "dashed", lwd = unit(2, "line"))
 
 #' @export .gpar_dotted_line
-.gpar_dotted_line <- gpar(fill = "black", lty = "dashed", lwd = unit(2, "line"))
+.gpar_dotted_line <- grid::gpar(fill = "black", lty = "dashed", lwd = unit(2, "line"))
 
 #' @export parrow
 #' @aliases parrow
@@ -718,7 +717,7 @@ NULL
 .font <- "Times"
 
 #' @export .title_gp
-.title_gp <- gpar(col = "black", cex = 1, fontfamily = .font, fontface = "bold")
+.title_gp <- grid::gpar(col = "black", cex = 1, fontfamily = .font, fontface = "bold")
 
 #' @export gtext
 #' @aliases gtext
@@ -798,20 +797,21 @@ NULL
 #> NULL
 
 #' @export .rect_gp
-.rect_gp <- gpar(fill = "transparent")
+.rect_gp <- grid::gpar(fill = "transparent")
 #' @export .rect.r
-.rect.r <- unit(0.3, "lines")
+.rect.r <- grid::unit(0.3, "lines")
 #' @export .vp.sep
-.vp.sep <- unit(0.25, "lines")
+.vp.sep <- grid::unit(0.25, "lines")
 
 #' @export .grecti.vp.p
 .grecti.vp.p <- list(width = unit(1, "npc") - .vp.sep,
   height = unit(1, "npc") - .vp.sep,
   clip = "on")
+
 #' @export .grecti.vp
-.grecti.vp <- do.call(viewport, .grecti.vp.p)
+.grecti.vp <- do.call(grid::viewport, .grecti.vp.p)
 #' @export .grecto.vp
-.grecto.vp <- do.call(viewport, .fresh_param2(.grecti.vp.p, list(clip = "inherit")))
+.grecto.vp <- do.call(grid::viewport, .fresh_param2(.grecti.vp.p, list(clip = "inherit")))
 
 #' @export grect
 #' @aliases grect
@@ -1000,7 +1000,8 @@ gshiny <- function(xn = 4, yn = 3,
   rect = rectGrob(),
   vp = viewport(clip = "off"),
   cvp = viewport(, , .9, .9)
-  ){
+  )
+{
   size <- seq(size[1], size[2], length.out = floor(max(c(length(xps), length(yps))) / 2) + 1)
   xsize <- sym_fill(xps, size)
   xpal <- sym_fill(xps, color)

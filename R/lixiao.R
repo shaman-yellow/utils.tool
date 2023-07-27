@@ -3,6 +3,8 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # asNamespace("base")
 
+setClass("can_not_be_draw")
+
 files <- setClass("files", 
   contains = c("character"),
   representation = representation(),
@@ -1267,7 +1269,7 @@ setMethod("pal", signature = c(x = "andata"),
     pal <- x@palette
     if (is.null(pal)) {
       group <- unique(x@metadata$group)
-      pal <- nl(group, MCnebula2:::.get_color_set()[1:length(group)], F)
+      pal <- nl(group, color_set()[1:length(group)], F)
     }
     pal
   })
@@ -1389,7 +1391,7 @@ show_lst.ch <- function(lst, width = 60) {
   sapply(names(lst),
     function(name){
       message("+++ ", name, " +++\n")
-      MCnebula2:::textSh(lst[[ name ]], wrap_width = width, pre_wrap = T)
+      textSh(lst[[ name ]], wrap_width = width, pre_wrap = T)
     })
   message()
 }
@@ -1657,7 +1659,7 @@ get_fun <- function(name, envir = topenv()) {
 }
 
 .heatdata <- setClass("heatdata", 
-  contains = c(),
+  contains = c("can_not_be_draw"),
   representation = 
     representation(
       raw = "ANY",
@@ -1677,7 +1679,7 @@ get_fun <- function(name, envir = topenv()) {
         lab_x = "Columns", lab_y = "Rows", lab_fill = "Level"),
       x_aesn = list(x = "cname", y = "Group", fill = "group",
         lab_x = "", lab_y = "", lab_fill = "Column group"),
-      x_pal = MCnebula2:::.get_color_set(),
+      x_pal = color_set(),
       y_aesn = list(x = "Group", y = "rname", fill = "group",
         lab_x = "", lab_y = "", lab_fill = "Row group"),
       para = list(
@@ -1699,14 +1701,6 @@ setMethod("show", signature = c(object = "heatdata"),
       message("A 'heatdata' object")
   })
 
-.get_color_geneModule <- function() {
-  if (!requireNamespace("WGCNA", quietly = T)) {
-    NULL
-  } else {
-    WGCNA::standardColors()
-  }
-}
-
 heatdata_gene <- setClass("heatdata_gene", 
   contains = c("heatdata"),
   representation = representation(),
@@ -1716,10 +1710,10 @@ heatdata_gene <- setClass("heatdata_gene",
       lab_x = "Samples", lab_y = "Genes", lab_fill = "Gene level"),
     x_aesn = list(x = "sample", y = "group", fill = "group",
       lab_x = "", lab_y = "", lab_fill = "Group"),
-    x_pal = MCnebula2:::.get_color_set(),
+    x_pal = color_set(),
     y_aesn = list(x = "module", y = "gene", fill = "module",
       lab_x = "", lab_y = "", lab_fill = "Module"),
-    y_pal = .get_color_geneModule()
+    y_pal = wgcna_colors()
     ))
 
 .heatdata_cor <- setClass("heatdata_cor", 
@@ -1736,10 +1730,10 @@ heatdata_gene <- setClass("heatdata_gene",
       clust_row = T, clust_col = T, method = 'average'),
     x_aesn = list(x = "col_var", y = "group", color = "group",
       lab_x = "", lab_y = "", lab_color = "Column Group"),
-    x_pal = MCnebula2:::.get_color_set(),
+    x_pal = color_set(),
     y_aesn = list(x = "Group", y = "row_var", color = "group",
       lab_x = "", lab_y = "", lab_color = "Row group"),
-    y_pal = WGCNA::standardColors(),
+    y_pal = wgcna_colors(),
     fun_plot = list(
       xtree = get_fun("plot_xtree"),
       ytree = get_fun("plot_ytree"),
@@ -1791,7 +1785,7 @@ setMethod("standby", signature = c(x = "heatdata"),
     .check_columns(x@data_long, cols, "x@data_long")
     main <- dplyr::select(x@data_long, dplyr::all_of(unname(cols)))
     main <- tidyr::spread(main, cols[[ "x" ]], cols[[ x@aesh ]])
-    main <- data.frame(main)
+    main <- data.frame(main, check.names = F)
     rownames(main) <- main[[ cols[[ "y" ]] ]]
     main <- dplyr::select(main, -!!rlang::sym(cols[[ "y" ]]))
     x@main <- main
@@ -1867,14 +1861,17 @@ draw_genetree <- function(x) {
 setMethod("draw", signature = c(x = "heatdata"),
   function(x){
     p <- x@gg_main
+    if (is.null(x@gg_xgroup)) {
+      p <- p + theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+    }
     if (!is.null(x@gg_ygroup)) {
       p <- aplot::insert_left(p, x@gg_ygroup, width = 0.02) 
     }
     if (x@para[[ "clust_col" ]] & !is.null(x@gg_xtree)) {
-      p <- aplot::insert_top(p, x@gg_xtree, height = 0.3)
+      p <- aplot::insert_top(p, x@gg_xtree, height = 0.2)
     }
     if (x@para[[ "clust_row" ]] & !is.null(x@gg_ytree)) {
-      p <- aplot::insert_left(p, x@gg_ytree, width = 0.3)
+      p <- aplot::insert_left(p, x@gg_ytree, width = 0.2)
     }
     if (!is.null(x@gg_xgroup)) {
       p <- aplot::insert_bottom(p, x@gg_xgroup, height = 0.05) 
@@ -2002,9 +1999,11 @@ plot_sft <- function(sft)
   text(sft$fitIndices[, 1], sft$fitIndices[, 5], labels = powers, cex = cex1, col = "red")
 }
 
-setClass("can_not_be_draw")
+wrap <- function(data, width = 10, height = 8) {
+  .wrap(data = data, width = width, height = height)
+}
 
-wrap <- setClass("wrap", 
+.wrap <- setClass("wrap", 
   contains = c("can_not_be_draw"),
   representation = representation(data = "ANY", width = "ANY", height = "ANY"),
   prototype = NULL)
@@ -2120,9 +2119,6 @@ setMethod("draw", signature = c(x = "heatdata_gene_cor"),
     if (!is.null(x@gg_xgroup)) {
       x@gg_xgroup <- x@gg_xgroup +
         guides(color = "none")
-    } else {
-      x@gg_main <- x@gg_main +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
     }
     if (!is.null(x@gg_ygroup)) {
       x@gg_ygroup <- x@gg_ygroup +
@@ -2551,7 +2547,8 @@ text_roundrect <- function(str) {
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 lapply(c("mutate", "filter", "arrange", "distinct",
-    "select", "rename", "relocate", "slice"),
+    "select", "rename", "relocate", "slice", "slice_max",
+    "slice_min", "group_by"),
   function(name) {
     setGeneric(name, function(DF_object, ...) DF_object)
     setMethod(name, signature = c(DF_object = "df"),
@@ -2601,4 +2598,12 @@ get_from_env <- function (weight, data = list(), env = parent.frame(1)){
       else
         data[[ name ]]
     })
+}
+
+# ==========================================================================
+# ROC
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+plot_roc <- function(roc) {
+  plot(1- x$specificities, x$sensitivities)
 }
