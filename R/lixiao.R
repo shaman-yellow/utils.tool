@@ -1178,9 +1178,12 @@ esearch <- function(query = NULL, fetch.save = paste0(gsub(" ", "_", query), ".x
   res
 }
 
-split_lapply_rbind <- function(data, f, fun, ...) {
+split_lapply_rbind <- function(data, f, fun, ..., verbose = F) {
   data <- split(data, f)
-  data <- lapply(data, fun, ...)
+  if (verbose)
+    data <- pbapply::pblapply(data, fun, ...)
+  else
+    data <- lapply(data, fun, ...)
   data <- data.table::rbindlist(data)
   tibble::as_tibble(data)
 }
@@ -1969,7 +1972,7 @@ setGeneric("draw_sampletree",
 setMethod("draw_sampletree", signature = c(x = "wgcData"),
   function(x){
     x <- hclust(dist(x), method = "average")
-    plot(x, main = "Sample clustering", sub = "", xlab = "")
+    plot(x, main = "Sample clustering", sub = "", xlab = "", cex = .7)
     return(x)
   })
 
@@ -1984,19 +1987,18 @@ cal_sft <- function(data, powers = c(c(1:10), seq(12, 20, by = 2)))
 
 plot_sft <- function(sft) 
 {
-  dev.new(width = 9, height = 5)
-  par(mfrow = c(1, 2))
-  # Scale-free topology fit index as a function of the soft-thresholding power
-  plot(sft$fitIndices[, 1], -sign(sft$fitIndices[, 3]) * sft$fitIndices[, 2], 
-    xlab = "Soft Threshold (power)", ylab = "Scale Free Topology Model Fit, signed R^2", type = "n", 
-    main = paste("Scale independence"))
-  text(sft$fitIndices[, 1], -sign(sft$fitIndices[, 3]) * sft$fitIndices[, 2], 
-    labels = powers, cex = cex1, col = "red")
-  # Mean connectivity as a function of the soft-thresholding power
-  plot(sft$fitIndices[, 1], sft$fitIndices[, 5], 
-    xlab = "Soft Threshold (power)", ylab = "Mean Connectivity", type = "n", 
-    main = paste("Mean connectivity"))
-  text(sft$fitIndices[, 1], sft$fitIndices[, 5], labels = powers, cex = cex1, col = "red")
+  p1 <- ggplot(sft$fitIndices, aes(x = Power, y = -sign(slope) * SFT.R.sq)) +
+    geom_line(color = "darkred", size = 2, lineend = "round") +
+    labs(x = "Soft Threshold (power)",
+      y = "Scale Free Topology Model Fit, signed R^2") +
+    theme_classic()
+  p2 <- ggplot(sft$fitIndices, aes(x = Power, y = mean.k.)) +
+    geom_line(color = "darkgreen", size = 2, lineend = "round") +
+    labs(x = "Soft Threshold (power)",
+      y = "Mean Connectivity") +
+    theme_classic()
+  require(patchwork)
+  p1 + p2
 }
 
 wrap <- function(data, width = 10, height = 8) {
@@ -2022,7 +2024,7 @@ setMethod("show",
 
 .wgcEigen <- setClass("wgcEigen", 
   contains = c("wgcData"),
-  representation = representation(colors = "data.frame", members = "list"),
+  representation = representation(colors = "df", members = "list"),
     prototype = NULL)
 
 .corp <- setClass("corp", 

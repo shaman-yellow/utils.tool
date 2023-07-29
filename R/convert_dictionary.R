@@ -2,4 +2,16 @@
 # for ZFvim ...
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+.date <- function() {
+  res <- cat(as.character(Sys.Date()))
+}
 
+read_dic <- function(file) {
+  db <- readLines(file)
+  db.i <- stringr::str_extract(db, "^[a-z]*")
+  tibble::tibble(n = 1:length(db), i = db.i, db = db)
+}
+
+gs <- function(x, pattern, replace, ...) {
+  gsub(pattern, replace, x, ...)
+}
