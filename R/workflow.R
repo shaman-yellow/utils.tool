@@ -11,9 +11,10 @@
     plots = "ANY",
     tables = "ANY",
     others = "ANY",
-    step = "integer"
+    step = "integer",
+    info = "ANY"
     ),
-  prototype = prototype(step = -1L))
+  prototype = prototype(step = 0L))
 
 setMethod("show", 
   signature = c(object = "job"),
@@ -109,104 +110,65 @@ setReplaceMethod("others", signature = c(x = "job"),
 # methods of step series
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+available_signatures <- function(f, exclude = c("ANY", "missing", "job")) {
+  signatures <- findMethodSignatures(f)[, 1]
+  signatures <- signatures[ !signatures %in% exclude ]
+  signatures
+}
+
 setGeneric("step0", 
   function(x, ...) standardGeneric("step0"))
 setMethod("step0", signature = c(x = "missing"),
   function(x){
-    message("This step do nothing but description.\n")
+    message(crayon::blue("All available workflow for class:\n"))
+    signatures <- available_signatures("step1")
+    mess <- paste0(paste0(1:length(signatures), ": ", signatures), collapse = "\n")
+    step_message(mess)
+    message(crayon::silver("Example of show description: use `step0(1)`."))
   })
 
-setGeneric("step1", 
-  function(x, ...) standardGeneric("step1"))
-setMethod("step1", signature = c(x = "job"),
+setMethod("step0", signature = c(x = "numeric"),
   function(x){
-    if (x@step >= 1)
-      stop("x@step >= 1. This step has been executed.")
-    x@step <- 1L
-    x
+    signatures <- available_signatures("step1")
+    fun <- get_fun(paste0(".", signatures[ x ]))
+    step0(fun())
   })
 
-setGeneric("step2", 
-  function(x, ...) standardGeneric("step2"))
-setMethod("step2", signature = c(x = "job"),
+setMethod("step0", signature = c(x = "job"),
   function(x){
-    if (x@step >= 2)
-      stop("x@step >= 2. This step has been executed.")
-    x@step <- 2L
-    x
+    message("This step do nothing but description.")
+    message(crayon::silver("Use `step0()` to show all available workflow.\n"))
   })
 
-setGeneric("step3", 
-  function(x, ...) standardGeneric("step3"))
-setMethod("step3", signature = c(x = "job"),
-  function(x){
-    if (x@step >= 3)
-      stop("x@step >= 3. This step has been executed.")
-    x@step <- 3L
-    x
-  })
-
-setGeneric("step4", 
-  function(x, ...) standardGeneric("step4"))
-setMethod("step4", signature = c(x = "job"),
-  function(x){
-    if (x@step >= 4)
-      stop("x@step >= 4. This step has been executed.")
-    x@step <- 4L
-    x
-  })
-
-setGeneric("step5", 
-  function(x, ...) standardGeneric("step5"))
-setMethod("step5", signature = c(x = "job"),
-  function(x){
-    if (x@step >= 5)
-      stop("x@step >= 5. This step has been executed.")
-    x@step <- 5L
-    x
-  })
-
-setGeneric("step6", 
-  function(x, ...) standardGeneric("step6"))
-setMethod("step6", signature = c(x = "job"),
-  function(x){
-    if (x@step >= 6)
-      stop("x@step >= 6. This step has been executed.")
-    x@step <- 6L
-    x
-  })
-
-setGeneric("step7", 
-  function(x, ...) standardGeneric("step7"))
-setMethod("step7", signature = c(x = "job"),
-  function(x){
-    if (x@step >= 7)
-      stop("x@step >= 7. This step has been executed.")
-    x@step <- 7L
-    x
-  })
-
-setGeneric("step8", 
-  function(x, ...) standardGeneric("step8"))
-setMethod("step8", signature = c(x = "job"),
-  function(x){
-    if (x@step >= 8)
-      stop("x@step >= 8. This step has been executed.")
-    x@step <- 8L
-    x
-  })
-
-setGeneric("step9", 
-  function(x, ...) standardGeneric("step9"))
-setMethod("step9", signature = c(x = "job"),
-  function(x){
-    if (x@step >= 9)
-      stop("x@step >= 9. This step has been executed.")
-    x@step <- 9L
-    x
+lapply(1:12,
+  function(n) {
+    STEP <- paste0("step", n)
+    setGeneric(STEP, function(x, ...) x)
+    setMethod(STEP, signature = c(x = "job"),
+      function(x, ...){
+        if (!existsMethod(STEP, class(x)))
+          stop("existsMethod(", STEP, ", class(x)) == F")
+        if (x@step >= n)
+          stop("x@step >= ", n, ". This step has been executed.")
+        if (x@step < n - 1)
+          stop("x@step <", n - 1, ". The previous step has not been executed.")
+        if (STEP == "step1") {
+          if (!is.null(x@info)) {
+            message(crayon::yellow("Workflow information:"))
+            step_message(x@info)
+          }
+        }
+        message(crayon::green("Running", STEP), ":")
+        x@step <- n
+        x
+      })
   })
 
 step_message <- function(...) {
   str <- paste0(unlist(list(...)), collapse = "")
+  str <- gs(str, "red\\{\\{(.*?)\\}\\}", "\033[31m\\1\033[39m")
+  str <- gs(str, "grey\\{\\{(.*?)\\}\\}", "\033[90m\\1\033[39m")
+  str <- gs(str, "yellow\\{\\{(.*?)\\}\\}", "\033[33m\\1\033[39m")
+  str <- gs(str, "blue\\{\\{(.*?)\\}\\}", "\033[34m\\1\033[39m")
   textSh(str, pre_trunc = F)
 }
