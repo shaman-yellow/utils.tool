@@ -436,6 +436,59 @@ gett <- function(obj){
     system(paste("echo", obj, "| xsel -b -i"))
   }
 
+# ==========================================================================
+# get external grob
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#' @export .expathsvg
+.expathsvg <- function() {
+  .expathsvg <- system.file("extdata", "svg", package = gsub("^.*:", "",
+      environmentName(topenv())))
+  assign('.expathsvg', .expathsvg, envir = topenv())
+}
+
+prefix <- c()
+
+#' @export .check_external_svg
+.check_external_svg <- function(){
+  files <- list.files(.expathsvg, "\\.svg$", full.names = T)
+  log.path <- paste0(.expathsvg, "/log")
+  if (file.exists(log.path)) {
+    log <- readLines(log.path)
+    log <- log[vapply(log, file.exists, T)]
+  } else {
+    log <- c()
+  }
+  if (length(files) > 0) {
+    new.log <-
+      lapply(files,
+        function(file) {
+          if (!file %in% log) {
+            rsvg::rsvg_svg(file, file)
+            file
+          }
+        })
+    new.log <- unlist(new.log)
+    log <- c(log, new.log)
+  }
+  if (!is.null(log))
+    writeLines(log, log.path)
+}
+
+#' @export ex_grob
+ex_grob <- function(name, fun = .cairosvg_to_grob){
+  file <- paste0(.expathsvg, "/", name, ".svg")
+  if (file.exists(file)) {
+    fun(file)
+  } else {
+    stop("file.exsits(file) == F")
+  }
+}
+
+#' @export ex_pic
+ex_pic <- function(name){
+  ex_grob(name, fun = grImport2::readPicture)
+}
 
 # ==========================================================================
 # colors
@@ -534,4 +587,5 @@ color_set <- function() {
     "#C80813FF", "#91331FFF", "#1A9993FF", "#FD8CC1FF", "#FF0000FF", "#FF9900FF",
     "#FFCC00FF", "#00FF00FF", "#6699FFFF", "#CC33FFFF")
 }
+
 

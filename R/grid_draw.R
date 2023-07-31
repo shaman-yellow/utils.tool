@@ -15,8 +15,7 @@
 #' \dontrun{
 #' new('graph', ...)
 #' }
-graph <- 
-  setClass("graph", 
+graph <- setClass("graph", 
     contains = character(),
     representation = 
       representation(grob = "ANY",
@@ -242,6 +241,7 @@ setMethod("frame_place", signature = setMissing("frame_place",
     }
     frame
   })
+
 setMethod("frame_place", signature = setMissing("frame_place",
     weight = "vector",
     data = "list",
@@ -426,8 +426,8 @@ parrow <- function(n = 5, col, type = "dashed", lwd = u(1, line)){
 }
 
 setClassUnion("maybe_p1p2", c("null", "list"))
-setClassUnion("maybe_function", c("NULL", "function"))
-setClassUnion("maybe_list", c("NULL", "list"))
+setClassUnion("maybe_function", c("function", "logical"))
+setClassUnion("maybe_list", c("list", "logical"))
 
 #' @exportMethod garrow
 #' @aliases garrow
@@ -1041,60 +1041,6 @@ sym_fill <- function(long, short){
     stop( "any(is.na(res)) == T" )
   else
     return(res)
-}
-
-# ==========================================================================
-# get external grob
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-#' @export .expathsvg
-.expathsvg <- function() {
-  .expathsvg <- system.file("extdata", "svg", package = gsub("^.*:", "",
-      environmentName(topenv())))
-  assign('.expathsvg', .expathsvg, envir = topenv())
-}
-
-prefix <- c()
-
-#' @export .check_external_svg
-.check_external_svg <- function(){
-  files <- list.files(.expathsvg, "\\.svg$", full.names = T)
-  log.path <- paste0(.expathsvg, "/log")
-  if (file.exists(log.path)) {
-    log <- readLines(log.path)
-    log <- log[vapply(log, file.exists, T)]
-  } else {
-    log <- c()
-  }
-  if (length(files) > 0) {
-    new.log <-
-      lapply(files,
-        function(file) {
-          if (!file %in% log) {
-            rsvg::rsvg_svg(file, file)
-            file
-          }
-        })
-    new.log <- unlist(new.log)
-    log <- c(log, new.log)
-  }
-  if (!is.null(log))
-    writeLines(log, log.path)
-}
-
-#' @export ex_grob
-ex_grob <- function(name, fun = .cairosvg_to_grob){
-  file <- paste0(.expathsvg, "/", name, ".svg")
-  if (file.exists(file)) {
-    fun(file)
-  } else {
-    stop("file.exsits(file) == F")
-  }
-}
-
-#' @export ex_pic
-ex_pic <- function(name){
-  ex_grob(name, fun = grImport2::readPicture)
 }
 
 # ==========================================================================

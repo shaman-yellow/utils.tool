@@ -19,9 +19,9 @@ setClassUnion("figs", c("gg.obj", "fig"))
 # setClassUnion("data.frame_or_matrix", c("data.frame", "matrix"))
 setClassUnion("easywrite", c("data.frame", "matrix", "character", "factor", "numeric"))
 
-setClassUnion("maybe_numeric_or_character", c("numeric", "character", "missing"))
-setClassUnion("maybe_character", c("NULL", "character", "missing"))
-setClassUnion("maybe_logical", c("NULL", "logical", "missing"))
+# setClassUnion("maybe_numeric_or_character", c("numeric", "character", "missing"))
+# setClassUnion("maybe_character", c("NULL", "character", "missing"))
+# setClassUnion("maybe_logical", c("NULL", "logical", "missing"))
 
 #' @importClassesFrom data.table data.table
 #' @importClassesFrom tibble tbl_df

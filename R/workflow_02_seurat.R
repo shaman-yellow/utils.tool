@@ -68,8 +68,8 @@ setMethod("step2", signature = c(x = "job_seurat"),
       `Seurat::FindVariableFeatures`;
       `Seurat::SCTransform`;
       `Seurat::RunPCA`.
-      All plots were in `plots(x)[[ 2
-      ]]` NOTE: inspect the plots and red{{Determined dims}} for downstream analysis. "
+      All plots were in `x@plots[[ 2 ]]`
+      NOTE: inspect the plots and red{{Determined dims}} for downstream analysis. "
     )
     if (missing(min.features) | missing(max.features))
       stop("missing(min.features) | missing(max.features)")
@@ -138,6 +138,45 @@ setMethod("step3", signature = c(x = "job_seurat"),
     x@tables[[ 3 ]] <- list(all_markers = markers)
     x@plots[[ 3 ]] <- namel(p.umap, p.toph)
     return(x)
+  })
+
+setMethod("step4", signature = c(x = "job_seurat"),
+  function(x, ref = celldex::HumanPrimaryCellAtlasData()){
+    x <- callNextMethod(x)
+    step_message("Use `SingleR` and `celldex` to annotate cell types.
+      By default, red{{`celldex::HumanPrimaryCellAtlasData`}} was used
+      as red{{`ref`}} dataset. This annotation would generate red{{'SingleR_cell'}}
+      column in `object(x)@meta.data`. Plots were generated in `x@plots[[ 4 ]]`;
+      tables in `x@tables[[ 4 ]]`.
+      ")
+      ref <- celldex::HumanPrimaryCellAtlasData()
+      clusters <- object(x)@meta.data$seurat_clusters
+      anno_SingleR <- SingleR::SingleR(object(x)@assays$SCT@scale.data,
+        ref = ref, labels = ref$label.fine, clusters = clusters
+      )
+      score <- as.matrix(anno_SingleR$scores)
+      rownames(score) <- rownames(anno_SingleR)
+      p.score_SingleR <- callheatmap(
+        new_heatdata(as_data_long(score, 
+            row_var = "Cluster", col_var = "Cell_type"))
+      )
+      p.score_SingleR <- wrap(p.score_SingleR, 30, 8)
+      anno_SingleR <- tibble::tibble(
+        seurat_clusters = rownames(anno_SingleR),
+        SingleR_cell = anno_SingleR$labels
+      )
+      object(x)@meta.data$SingleR_cell <-
+        anno_SingleR$SingleR_cell[match(clusters,
+          anno_SingleR$seurat_clusters)]
+      p.map_SingleR <- Seurat::DimPlot(
+        object(x), reduction = "umap", label = TRUE, pt.size = 0.5,
+        group.by = "SingleR_cell", cols = color_set()
+      )
+      p.map_SingleR <- p.map_SingleR + theme(legend.position = "none")
+      p.map_SingleR <- wrap(p.map_SingleR, 10, 7)
+      x@tables[[ 4 ]] <- namel(anno_SingleR)
+      x@plots[[ 4 ]] <- namel(p.score_SingleR, p.map_SingleR)
+      return(x)
   })
 
 plot_var2000 <- function(x) {
