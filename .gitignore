@@ -39,7 +39,7 @@ vignettes/*.pdf
 *.knit.md
 
 # Temporary files created by vim
-/R/*.swp
+*.swp
 
 # R Environment Variables
 .Renviron
