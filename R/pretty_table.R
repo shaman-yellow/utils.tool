@@ -1,8 +1,7 @@
 # ==========================================================================
 # format table as .tex .html ...
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-pretty_table <- 
-  function(
+pretty_table <- function(
     df, title = "compounds summary", subtitle = "LC-MS",
     footnote = "...", spanner = F, default = F,
     filename = "tmp.html", path = tempdir(),

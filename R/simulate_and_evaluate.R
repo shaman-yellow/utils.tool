@@ -2,47 +2,45 @@
 # simulate .mgf from .msp for evaluation
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ## main function
-msp_to_mgf <-
-  function(
-    name,
-    id_prefix,
-    path = "~/Downloads/msp/MoNA/",
-    write_meta_data = paste0(path, "/", name, ".meta.tsv"),
-    fun = "mutate_deal_with_msp_record",
-    pre_modify = T,
-    ...
-    ){
-    if(pre_modify == T){
-      system(paste0("sed -i 's/\r//g' ", path, "/", name))
-    }
-    msp <- read_msp(paste0(path, "/", name))
-    cache <- new.env()
-    store <- new.env()
-    assign("id", 0, envir = cache)
-    mgf <- paste0(path, "/", name, ".mgf")
-    assign("envir_meta", environment(), envir = parent.env(environment()))
-    cat("", file = mgf)
-    ms_fun <- match.fun(fun)
-    pbapply::pblapply(msp[[1]], ms_fun, 
-      id_prefix = id_prefix,
-      cache = cache,
-      store = store,
-      ...)
-    set <- ls(envir = store)
-    meta_data <- lapply(set, get_envir_df,
-      envir = store)
-    meta_data <- data.table::rbindlist(meta_data, fill = T)
-    if(is.null(write_meta_data) == F){
-      write_tsv(meta_data, write_meta_data)
-    }
-    return(meta_data)
+msp_to_mgf <- function(
+  name,
+  id_prefix,
+  path = "~/Downloads/msp/MoNA/",
+  write_meta_data = paste0(path, "/", name, ".meta.tsv"),
+  fun = "mutate_deal_with_msp_record",
+  pre_modify = T,
+  ...)
+{
+  if(pre_modify == T){
+    system(paste0("sed -i 's/\r//g' ", path, "/", name))
   }
-read_msp <-
-  function(
-    filepath
-    ){
-    msp <- data.table::fread(filepath, sep = NULL, header = F)
+  msp <- read_msp(paste0(path, "/", name))
+  cache <- new.env()
+  store <- new.env()
+  assign("id", 0, envir = cache)
+  mgf <- paste0(path, "/", name, ".mgf")
+  assign("envir_meta", environment(), envir = parent.env(environment()))
+  cat("", file = mgf)
+  ms_fun <- match.fun(fun)
+  pbapply::pblapply(msp[[1]], ms_fun, 
+    id_prefix = id_prefix,
+    cache = cache,
+    store = store,
+    ...)
+  set <- ls(envir = store)
+  meta_data <- lapply(set, get_envir_df,
+    envir = store)
+  meta_data <- data.table::rbindlist(meta_data, fill = T)
+  if(is.null(write_meta_data) == F){
+    write_tsv(meta_data, write_meta_data)
   }
+  return(meta_data)
+}
+
+read_msp <- function(filepath)
+{
+  msp <- data.table::fread(filepath, sep = NULL, header = F)
+}
 get_envir_df <-
   function(
     var,
@@ -449,9 +447,9 @@ collate_as_noise_pool <-
 
 filter_mgf <- 
   function(
-           filter_id = prapare_inst_data(.MCn.structure_set)$.id,
-           file
-           ){
+    filter_id = prapare_inst_data(.MCn.structure_set)$.id,
+    file
+    ){
     mgf <- read_msp(file)
     start <- which(mgf$V1 == "BEGIN IONS")
     end <- which(mgf$V1 == "")
@@ -472,12 +470,12 @@ filter_mgf <-
 ## mutate function of tol_merge, get the non-merged data
 tol_mergeEx <- 
   function(main,
-           sub,
-           main_col = "mz",
-           sub_col = "mz",
-           tol = 0.002,
-           bin_size = 1
-           ){
+    sub,
+    main_col = "mz",
+    sub_col = "mz",
+    tol = 0.002,
+    bin_size = 1
+    ){
     if (main_col == sub_col) {
       new_name <- paste0(sub_col, ".sub")
       colnames(sub)[colnames(sub) == sub_col] <- new_name
@@ -505,18 +503,18 @@ tol_mergeEx <-
 
 mass_shift <- 
   function(
-           df,
-           merge = T,
-           sep = " ",
-           int.sigma = 1,
-           re.ppm = 1e-6,
-           global.sigma = 10/3 * re.ppm,
-           indivi.sigma = 10/3 * re.ppm,
-           sub.factor = 0.03,
-           .noise_pool = noise_pool,
-           alpha = 0.2,
-           ...
-           ){
+    df,
+    merge = T,
+    sep = " ",
+    int.sigma = 1,
+    re.ppm = 1e-6,
+    global.sigma = 10/3 * re.ppm,
+    indivi.sigma = 10/3 * re.ppm,
+    sub.factor = 0.03,
+    .noise_pool = noise_pool,
+    alpha = 0.2,
+    ...
+    ){
     df <- dplyr::mutate(df, mass = as.numeric(mass), inte = as.numeric(inte))
     ## intensity variation
     var <- rnorm(nrow(df), 1, int.sigma)
@@ -644,19 +642,19 @@ mgf_add_anno.gnps <-
 
 simulate_gnps_quant <- 
   function(
-           meta,
-           save_path,
-           file = paste0(save_path, "/", "quant.csv"),
-           rt = 1000,
-           area = 10000,
-           id = ".id",
-           mz = "PRECURSORMZ",
-           simu_id = "row ID",
-           simu_mz = "row m/z",
-           simu_rt = "row retention time",
-           simu_quant = "sample.mzML Peak area",
-           return_df = F
-           ){
+    meta,
+    save_path,
+    file = paste0(save_path, "/", "quant.csv"),
+    rt = 1000,
+    area = 10000,
+    id = ".id",
+    mz = "PRECURSORMZ",
+    simu_id = "row ID",
+    simu_mz = "row m/z",
+    simu_rt = "row retention time",
+    simu_quant = "sample.mzML Peak area",
+    return_df = F
+    ){
     meta <- dplyr::select(meta, all_of(c(id, mz)))
     meta <- dplyr::mutate(meta, rt = rt, sample = area)
     colnames(meta) <- 
@@ -737,14 +735,14 @@ stat_identification <-
 
 visualize_stat <- 
   function(df, mcn,
-           palette = ggsci::pal_npg()(9),
-           group_palette = ggsci::pal_rickandmorty()(12),
-           ylab = "ratio",
-           xlab = "classes",
-           fill_lab = "type",
-           col_max = 500,
-           weight = c(pl = 1, pm = 1.2, pr = 1)
-           )
+    palette = ggsci::pal_npg()(9),
+    group_palette = ggsci::pal_rickandmorty()(12),
+    ylab = "ratio",
+    xlab = "classes",
+    fill_lab = "type",
+    col_max = 500,
+    weight = c(pl = 1, pm = 1.2, pr = 1)
+  )
   {
     parent_class <- unlist(
       lapply(get_parent_classes(df$class.name, mcn),
@@ -1026,7 +1024,7 @@ visualize_comparison <-
     xlab = "Classes",
     color_lab = "Methods",
     palette = ggsci::pal_npg()(9)
-    )
+  )
   {
     ## select in common classification
     common.class <- dplyr::select(merge(list1[[1]], list2[[1]], by = "class.name"), 1)
@@ -1038,7 +1036,7 @@ visualize_comparison <-
       lst <- lapply(lst, dplyr::mutate, sum = ifelse(is.na(sum), 0, sum))
       df <- data.table::rbindlist(lst, idcol = T)
       dplyr::rename(df, group = .id)
-    })
+  })
     list <- mapply(list, from, SIMPLIFY = F,
       FUN = function(df, VALUE) {
         dplyr::mutate(df, from = !!VALUE)

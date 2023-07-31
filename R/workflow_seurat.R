@@ -61,10 +61,14 @@ setMethod("step2", signature = c(x = "job_seurat"),
     x <- callNextMethod(x)
     step_message("This contains several execution: Subset the data,
       Normalization, Feature selection, Scale the data, Linear dimensional
-      reduction, Select dimensionality. red{{`min.features`}} and
-      red{{`max.features`}} were needed for subset. Then `object(x)` were
-      performed with: `Seurat::NormalizeData`; `Seurat::FindVariableFeatures`;
-      `Seurat::SCTransform`; `Seurat::RunPCA`. All plots were in `plots(x)[[ 2
+      reduction, Select dimensionality.
+      red{{`min.features`}} and red{{`max.features`}} were needed for subset.
+      Then `object(x)` were performed with:
+      `Seurat::NormalizeData`;
+      `Seurat::FindVariableFeatures`;
+      `Seurat::SCTransform`;
+      `Seurat::RunPCA`.
+      All plots were in `plots(x)[[ 2
       ]]` NOTE: inspect the plots and red{{Determined dims}} for downstream analysis. "
     )
     if (missing(min.features) | missing(max.features))
@@ -102,13 +106,14 @@ setMethod("step3", signature = c(x = "job_seurat"),
     step_message("This contains several execution: Cluster the cells, UMAP
       reduction, Cluster biomarker (Differential analysis). Object were
       performed with:
-      `Seurat::FindNeighbors`; `Seurat::FindClusters`
-      grey{{(clusters can be accessed by `SeuratObject::Idents`)}};
-      `Seurat::RunUMAP`; `Seurat::FindAllMarkers`.
+      `Seurat::FindNeighbors`;
+      `Seurat::FindClusters` grey{{(clusters can be accessed by `SeuratObject::Idents`)}};
+      `Seurat::RunUMAP`;
+      `Seurat::FindAllMarkers`.
       yellow{{The parameter `resolution` between 0.4-1.2 typically returns good results for
       single-cell datasets of around 3000 cells (ncol). Optimal resolution
-      often increases for larger datasets.}} grey{{Consider use
-      Seurat::FindMarkers Seurat::FindAllMarkers(..., test.use = 'roc') for
+      often increases for larger datasets.}}
+      grey{{Consider use Seurat::FindMarkers Seurat::FindAllMarkers(..., test.use = 'roc') for
       customize differential analysis.}}
       grey{{Consider use `Seurat::VlnPlot` or `Seurat::FeaturePlot`}} for
       customize mapping of features."

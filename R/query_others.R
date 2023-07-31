@@ -17,16 +17,15 @@ NULL
 #' @aliases query_iupac
 #' @description \code{query_iupac}: ...
 #' @rdname query_iupac
-query_iupac <-
-  function(inchikey2d,
-           dir,
-           rdata.name = "iupac.rdata",
-           curl_cl = NULL,
-           gather_as_rdata = T,
-           ...
-           ) {
-    query_inchikey(inchikey2d, dir, rdata.name, curl_cl, gather_as_rdata,
-                   get = "IUPACName")
+query_iupac <- function(inchikey2d,
+  dir,
+  rdata.name = "iupac.rdata",
+  curl_cl = NULL,
+  gather_as_rdata = T,
+  ...)
+{
+  query_inchikey(inchikey2d, dir, rdata.name, curl_cl, gather_as_rdata,
+    get = "IUPACName")
 }
 
 

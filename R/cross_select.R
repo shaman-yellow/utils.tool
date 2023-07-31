@@ -91,8 +91,7 @@ cross_select <- function(data.lst, filter.lst, target, split = NULL) {
 }
 
 #' @importFrom rlang as_label
-.check_data <- 
-  function(object, lst, tip = "(...)"){
+.check_data <- function(object, lst, tip = "(...)"){
     target <- rlang::as_label(substitute(object))
     mapply(lst, names(lst), FUN = function(value, name){
              obj <- match.fun(name)(object)

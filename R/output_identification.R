@@ -28,8 +28,7 @@ rename_table <-
 #' @aliases format_table
 #' @description \code{format_table}: ...
 #' @rdname format_table
-format_table <- 
-  function(data, filter = .filter_format, arrange = .arrange_format,
+format_table <- function(data, filter = .filter_format, arrange = .arrange_format,
     distinct = .distinct_format, mutate = .mutate_format,
     select = .select_format, export_name = .export_name) {
     if (!is.null(filter))
@@ -60,15 +59,13 @@ format_table <-
 #' @aliases .filter_format
 #' @description \code{.filter_format}: ...
 #' @rdname format_table
-.filter_format <- 
-  list(quote(tani.score >= .5))
+.filter_format <- list(quote(tani.score >= .5))
 
 #' @export .arrange_format
 #' @aliases .arrange_format
 #' @description \code{.arrange_format}: ...
 #' @rdname format_table
-.arrange_format <- 
-  list(
+.arrange_format <- list(
     quote(arrange.rank),
     quote(inchikey2d),
     quote(desc(tani.score))
@@ -78,15 +75,13 @@ format_table <-
 #' @aliases .distinct_format
 #' @description \code{.distinct_format}: ...
 #' @rdname format_table
-.distinct_format <- 
-  list(quote(inchikey2d))
+.distinct_format <- list(quote(inchikey2d))
 
 #' @export .mutate_format
 #' @aliases .mutate_format
 #' @description \code{.mutate_format}: ...
 #' @rdname format_table
-.mutate_format <- 
-  list(mz = quote(round(mz, 4)),
+.mutate_format <- list(mz = quote(round(mz, 4)),
     error.mass = quote(floor(error.mass * 10) / 10),
     tani.score = quote(floor(tani.score * 100) / 100),
     rt.min = quote(round(rt.secound / 60, 1))

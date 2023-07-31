@@ -199,8 +199,7 @@ plot_xtree <- function(data, method = "complete") {
 #' @aliases add_tree.heatmap
 #' @description \code{add_tree.heatmap}: ...
 #' @rdname plot_heatmap
-add_tree.heatmap <- 
-  function(data, p, clust_row = T, clust_col = T, method = 'complete', ...){
+add_tree.heatmap <- function(data, p, clust_row = T, clust_col = T, method = 'complete', ...){
     if (clust_row) {
       phr <- plot_ytree(data)
       p <- aplot::insert_left(p, phr, width = 0.3)
@@ -216,8 +215,7 @@ add_tree.heatmap <-
 #' @aliases add_xgroup.heatmap
 #' @description \code{add_xgroup.heatmap}: ...
 #' @rdname plot_heatmap
-add_xgroup.heatmap <- 
-  function(df, p){
+add_xgroup.heatmap <- function(df, p){
     p.xgroup <- ggplot(df, aes(y = "Group", x = sample)) +
       geom_point(aes(color = group), size = 6) +
       ggsci::scale_color_simpsons() +
@@ -233,8 +231,7 @@ add_xgroup.heatmap <-
       return(com)
   }
 
-add_xgroup.dot.heatmap <- 
-  function(data, p = NULL, pal = NA, x = "sample", y = "Group", color = "group",
+add_xgroup.dot.heatmap <- function(data, p = NULL, pal = NA, x = "sample", y = "Group", color = "group",
     lab_x = "", lab_y = "", lab_color = "Group")
   {
     scale_color <- if (is.null(pal)) {
@@ -263,8 +260,7 @@ add_xgroup.dot.heatmap <-
 #' @aliases add_xgroup.tile.heatmap
 #' @description \code{add_xgroup.tile.heatmap}: ...
 #' @rdname plot_heatmap
-add_xgroup.tile.heatmap <- 
-  function(data, p = NULL, pal = NA, x = "sample", y = "Group", fill = "group",
+add_xgroup.tile.heatmap <- function(data, p = NULL, pal = NA, x = "sample", y = "Group", fill = "group",
     lab_x = "", lab_y = "", lab_fill = "Group")
   {
     scale_fill <- if (is.null(pal)) {
@@ -290,8 +286,8 @@ add_xgroup.tile.heatmap <-
     return(com)
   }
 
-add_ygroup.dot.heatmap <-
-  function(data, p = NULL, pal = NULL, x = "Class", y = ".features_id", color = "class",
+add_ygroup.dot.heatmap <- function(data, p = NULL, pal = NULL,
+  x = "Class", y = ".features_id", color = "class",
     lab_x = "", lab_y = "", lab_color = "From")
   {
     scale_color <- if (is.null(pal)) {
@@ -320,8 +316,8 @@ add_ygroup.dot.heatmap <-
 #' @aliases add_ygroup.tile.heatmap
 #' @description \code{add_ygroup.tile.heatmap}: ...
 #' @rdname plot_heatmap
-add_ygroup.tile.heatmap <-
-  function(data, p = NULL, pal = NULL, x = "Class", y = ".features_id", fill = "class",
+add_ygroup.tile.heatmap <- function(data, p = NULL, pal = NULL, x = "Class",
+  y = ".features_id", fill = "class",
     lab_x = "", lab_y = "", lab_fill = "From")
   {
     scale_fill <- if (is.null(pal)) {
