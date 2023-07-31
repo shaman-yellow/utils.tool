@@ -67,6 +67,8 @@ setMethod("step2", signature = c(x = "job_seurat"),
       `Seurat::SCTransform`; `Seurat::RunPCA`. All plots were in `plots(x)[[ 2
       ]]` NOTE: inspect the plots and red{{Determined dims}} for downstream analysis. "
     )
+    if (missing(min.features) | missing(max.features))
+      stop("missing(min.features) | missing(max.features)")
     message("\n`Run SeuratObject::subset.Seurat`")
     object(x) <- SeuratObject:::subset.Seurat(
       object(x), subset = nFeature_RNA > min.features &
@@ -111,6 +113,8 @@ setMethod("step3", signature = c(x = "job_seurat"),
       grey{{Consider use `Seurat::VlnPlot` or `Seurat::FeaturePlot`}} for
       customize mapping of features."
     )
+    if (missing(dims) | missing(resolution))
+      stop("missing(dims) | missing(resolution)")
     if (ncol(object(x)) > 3000 & resolution < 1.2) {
       stop("ncol(object(x)) > 3000 but resolution < 1.2. ",
         "Please consider higher `resolution`. ")

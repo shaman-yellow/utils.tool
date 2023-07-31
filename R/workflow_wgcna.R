@@ -60,6 +60,8 @@ setMethod("step2", signature = c(x = "job_wgcna"),
       "clip `x@object`; generate `x@params$datExpr`; ",
       "generate `x@params$allTraits`. "
     )
+    if (missing(size) | missing(height))
+      stop("missing(size) | missing(height)")
     datExpr <- exclude(params(x)$datExpr0, cut_tree(tree, size, height))
     x@params$datExpr <- datExpr
     object(x) <- clip_data(object(x), datExpr)
