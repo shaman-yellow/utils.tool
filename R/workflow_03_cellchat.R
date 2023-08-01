@@ -35,7 +35,6 @@ setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
 
 setMethod("step0", signature = c(x = "job_cellchat"),
   function(x){
-    callNextMethod()
     step_message("Prepare your data with methods `asjob_cellchat`. ",
       "A processed 'Seurat' object is needed."
     )
@@ -45,7 +44,6 @@ setMethod("step1", signature = c(x = "job_cellchat"),
   function(x, db = CellChat::CellChatDB.human,
     ppi = CellChat::PPI.human, cl = 4)
   {
-    x <- callNextMethod(x)
     step_message("One step forward computation of most.
       yellow{{In a nutshell, this do:
       Infer cell communication;
@@ -94,9 +92,8 @@ setMethod("step1", signature = c(x = "job_cellchat"),
 
 setMethod("step2", signature = c(x = "job_cellchat"),
   function(x, pathways = NULL){
-    x <- callNextMethod(x)
     step_message("This step visualize all results computed in previous step.
-      This visualize:
+      These are:
       1. Cells yellow{{communication}} in heatmap grey{{(and L-R contribution)}};
       2. L-R in cells yellow{{communication}} in bubble;
       3. Gene yellow{{expression}} of signaling in violin;
@@ -154,7 +151,6 @@ setMethod("step2", signature = c(x = "job_cellchat"),
 
 setMethod("step3", signature = c(x = "job_cellchat"),
   function(x){
-    x <- callNextMethod(x)
     step_message("Select pattern number for identify communication patterns.")
     require(NMF)
     lst <- e(sapply(c("outgoing", "incoming"), 
@@ -168,7 +164,6 @@ setMethod("step3", signature = c(x = "job_cellchat"),
 
 setMethod("step4", signature = c(x = "job_cellchat"),
   function(x, k.out, k.in){
-    x <- callNextMethod(x)
     step_message("Identification of major signals for specific
       cell groups and general communication
       patterns.
@@ -197,7 +192,7 @@ setMethod("step4", signature = c(x = "job_cellchat"),
 
 e <- function(expr) {
   expr <- substitute(expr)
-  names <- stringr::str_extract(deparse(expr), "[a-zA-Z0-9_.]*::[a-zA-Z0-9_.]*")
+  names <- stringr::str_extract(deparse(expr), "[a-zA-Z0-9_.]*:::?[a-zA-Z0-9_.]*")
   names <- names[ !is.na(names) ]
   if (!length(names))
     name <- "FUNCTION"

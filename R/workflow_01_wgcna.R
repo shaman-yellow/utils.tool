@@ -24,7 +24,6 @@ job_wgcna <- function(metadata, log_counts,
 
 setMethod("step0", signature = c(x = "job_wgcna"),
   function(x){
-    callNextMethod()
     step_message("Prepare your data with function `job_wgcna`. ",
       "Note that the ", crayon::red("first column"),
       " in each data (metadata, counts, genes annotation)",
@@ -40,7 +39,6 @@ setMethod("step0", signature = c(x = "job_wgcna"),
 
 setMethod("step1", signature = c(x = "job_wgcna"),
   function(x){
-    x <- callNextMethod()
     step_message("Cluster sample tree.",
     "This do:",
     "generate `x@params$raw_sample_tree`; `x@plots[[ 1 ]]`"
@@ -54,7 +52,6 @@ setMethod("step1", signature = c(x = "job_wgcna"),
 
 setMethod("step2", signature = c(x = "job_wgcna"),
   function(x, size, height){
-    x <- callNextMethod(x)
     step_message("Cut sample tree with `height` and `size`. ",
       "This do: ",
       "clip `x@object`; generate `x@params$datExpr`; ",
@@ -72,7 +69,6 @@ setMethod("step2", signature = c(x = "job_wgcna"),
 
 setMethod("step3", signature = c(x = "job_wgcna"),
   function(x){
-    x <- callNextMethod(x)
     step_message("Analysis of network topology for soft-thresholding powers. ",
       "This do: ",
       "Generate x@params$sft; plots in `x@plots[[ 3 ]]`. "
@@ -85,7 +81,6 @@ setMethod("step3", signature = c(x = "job_wgcna"),
 
 setMethod("step4", signature = c(x = "job_wgcna"),
   function(x, power = x@params$sft$powerEstimate, ...){
-    x <- callNextMethod(x)
     step_message("One-step network construction and module detection.
       Extra parameters would passed to `cal_module`.
       This do: Generate `x@params$MEs`; plots (net) in `x@plots[[ 4 ]]`.
@@ -101,7 +96,6 @@ setMethod("step4", signature = c(x = "job_wgcna"),
 
 setMethod("step5", signature = c(x = "job_wgcna"),
   function(x){
-    x <- callNextMethod(x)
     step_message("Correlation test for modules with trait data. ",
       "This do:",
       "Generate plots in `x@plots[[ 5 ]]`; ",
@@ -116,7 +110,6 @@ setMethod("step5", signature = c(x = "job_wgcna"),
 
 setMethod("step6", signature = c(x = "job_wgcna"),
   function(x){
-    x <- callNextMethod(x)
     step_message("Calculate gene significance (GS) and module membership (MM).",
       "This do:",
       "Generate `x@params$mm`, `x@params$gs`; ",

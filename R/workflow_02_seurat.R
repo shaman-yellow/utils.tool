@@ -25,7 +25,6 @@ job_seurat <- function(dir, project = make.names(date()),
 
 setMethod("step0", signature = c(x = "job_seurat"),
   function(x){
-    callNextMethod()
     step_message("Prepare your data with function `job_seurat`. ",
       crayon::red("Required: Seurat v5. "),
       "The `dir` to read would passed to `Seurat::Read10X` to ", 
@@ -37,7 +36,6 @@ setMethod("step0", signature = c(x = "job_seurat"),
 
 setMethod("step1", signature = c(x = "job_seurat"),
   function(x){
-    x <- callNextMethod()
     step_message("QC and selecting cells for further analysis.",
       "This do:",
       "Generate column in `object(x)@meta.data`; ",
@@ -58,7 +56,6 @@ setMethod("step1", signature = c(x = "job_seurat"),
 
 setMethod("step2", signature = c(x = "job_seurat"),
   function(x, min.features, max.features, max.percent.mt = 5, nfeatures = 2000){
-    x <- callNextMethod(x)
     step_message("This contains several execution: Subset the data,
       Normalization, Feature selection, Scale the data, Linear dimensional
       reduction, Select dimensionality.
@@ -73,10 +70,10 @@ setMethod("step2", signature = c(x = "job_seurat"),
     )
     if (missing(min.features) | missing(max.features))
       stop("missing(min.features) | missing(max.features)")
-    object(x) <- SeuratObject:::subset.Seurat(
-      object(x), subset = nFeature_RNA > min.features &
-        nFeature_RNA < max.features & percent.mt < max.percent.mt
-    )
+    object(x) <- e(SeuratObject:::subset.Seurat(
+        object(x), subset = nFeature_RNA > min.features &
+          nFeature_RNA < max.features & percent.mt < max.percent.mt
+        ))
     object(x) <- e(Seurat::NormalizeData(
         object(x), normalization.method = "LogNormalize", scale.factor = 10000
         ))
@@ -96,14 +93,11 @@ setMethod("step2", signature = c(x = "job_seurat"),
 
 setMethod("step3", signature = c(x = "job_seurat"),
   function(x, dims, resolution){
-    x <- callNextMethod(x)
     step_message("This contains several execution: Cluster the cells, UMAP
       reduction, Cluster biomarker (Differential analysis). Object were
       performed with:
       `Seurat::FindNeighbors`;
       `Seurat::FindClusters` grey{{(clusters can be accessed by `SeuratObject::Idents`)}};
-      `Seurat::RunUMAP`;
-      `Seurat::FindAllMarkers`.
       yellow{{The parameter `resolution` between 0.4-1.2 typically returns good results for
       single-cell datasets of around 3000 cells (ncol). Optimal resolution
       often increases for larger datasets.}}
@@ -136,7 +130,6 @@ setMethod("step3", signature = c(x = "job_seurat"),
 
 setMethod("step4", signature = c(x = "job_seurat"),
   function(x, ref = celldex::HumanPrimaryCellAtlasData()){
-    x <- callNextMethod(x)
     step_message("Use `SingleR` and `celldex` to annotate cell types.
       By default, red{{`celldex::HumanPrimaryCellAtlasData`}} was used
       as red{{`ref`}} dataset. This annotation would generate red{{'SingleR_cell'}}
