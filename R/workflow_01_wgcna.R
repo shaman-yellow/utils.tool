@@ -62,7 +62,8 @@ setMethod("step2", signature = c(x = "job_wgcna"),
     )
     if (missing(size) | missing(height))
       stop("missing(size) | missing(height)")
-    datExpr <- exclude(params(x)$datExpr0, cut_tree(tree, size, height))
+    datExpr <- exclude(params(x)$datExpr0,
+      cut_tree(params(x)$raw_sample_tree, size, height))
     x@params$datExpr <- datExpr
     object(x) <- clip_data(object(x), datExpr)
     x@params$allTraits <- as_wgcTrait(object(x))
@@ -85,10 +86,12 @@ setMethod("step3", signature = c(x = "job_wgcna"),
 setMethod("step4", signature = c(x = "job_wgcna"),
   function(x, power = x@params$sft$powerEstimate, ...){
     x <- callNextMethod(x)
-    step_message("One-step network construction and module detection. ",
-      "Extra parameters would passed to `cal_module`. ",
-      "This do:",
-      "Generate `x@params$MEs`; plots (net) in `x@plots[[ 4 ]]`. "
+    step_message("One-step network construction and module detection.
+      Extra parameters would passed to `cal_module`.
+      This do: Generate `x@params$MEs`; plots (net) in `x@plots[[ 4 ]]`.
+      By default, red{{x@params$sft$powerEstimate}} is used
+      as `power` for WGCNA calculation.
+      "
     )
     net <- cal_module(params(x)$datExpr, power, ...)
     x@plots[[ 4 ]] <- list(net = net)

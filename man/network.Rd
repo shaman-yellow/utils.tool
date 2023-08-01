@@ -6,7 +6,7 @@
 \alias{random_graph}
 \title{Quickly draw random network diagrams}
 \usage{
-fast_layout(edges, layout = "fr", nodes = NULL)
+fast_layout(edges, layout = "fr", nodes = NULL, ...)
 
 random_graph(ids, n = length(ids), e = 4, layout = "fr")
 }

@@ -59,7 +59,7 @@ setMethod("plots", signature = c(x = "job"),
   function(x){
     x@plots[[ x@step ]]
   })
-setMethod("plots", signature = c(x = "job", step = "double"),
+setMethod("plots", signature = c(x = "job", step = "numeric"),
   function(x, step){
     x@plots[[ step ]]
   })
@@ -164,11 +164,14 @@ lapply(1:12,
       })
   })
 
-step_message <- function(...) {
+step_message <- function(..., show_end = "Description end") {
   str <- paste0(unlist(list(...)), collapse = "")
   str <- gs(str, "red\\{\\{(.*?)\\}\\}", "\033[31m\\1\033[39m")
   str <- gs(str, "grey\\{\\{(.*?)\\}\\}", "\033[90m\\1\033[39m")
   str <- gs(str, "yellow\\{\\{(.*?)\\}\\}", "\033[33m\\1\033[39m")
   str <- gs(str, "blue\\{\\{(.*?)\\}\\}", "\033[34m\\1\033[39m")
   textSh(str, pre_trunc = F)
+  if (!is.null(show_end))
+    cli::cli_h1(show_end)
 }
+

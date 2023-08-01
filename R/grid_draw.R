@@ -27,16 +27,16 @@ graph <- setClass("graph",
 .grob_class <- c("grob", "frame", "gTree", "null",
   "text", "circle", "segments", "gtable",
   "curve", "polygon", "rastergrob")
-setOldClass(.grob_class)
-setOldClass("viewport")
+lapply(.grob_class, setClass, where = topenv())
+setClass("viewport")
 setClassUnion("grob.obj", .grob_class)
 
 .gg <- c("gg", "ggplot", "ggraph")
-setOldClass(.gg)
+lapply(.gg, setClass, where = topenv())
 setClassUnion("gg.obj", .gg)
 
 .class_unit <- c("unit", "simpleUnit", "unit_v2")
-setOldClass(.class_unit)
+lapply(.class_unit, setClass, where = topenv())
 setClassUnion("units", .class_unit)
 
 # ==========================================================================
@@ -74,8 +74,7 @@ setMethod("draw", signature = c(x = "graph", content = "grob.obj"),
   })
 
 #' @exportMethod draw
-setMethod("draw", signature = setMissing("draw",
-    x = "graph"),
+setMethod("draw", signature = c(x = "graph"),
   function(x){
     grid.draw(x@grob)
   })

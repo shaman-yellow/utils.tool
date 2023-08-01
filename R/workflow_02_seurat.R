@@ -17,9 +17,9 @@
 job_seurat <- function(dir, project = make.names(date()),
   min.cells = 3, min.features = 200, ...)
 {
-  data <- Seurat::Read10X(dir)
-  object <- Seurat::CreateSeuratObject(counts = data, project = project,
-    min.cells = min.cells, min.features = min.features, ...)
+  data <- e(Seurat::Read10X(dir))
+  object <- e(Seurat::CreateSeuratObject(counts = data, project = project,
+      min.cells = min.cells, min.features = min.features, ...))
   .job_seurat(object = object)
 }
 
@@ -47,9 +47,9 @@ setMethod("step1", signature = c(x = "job_seurat"),
       crayon::red("max nFeature_RNA"), ", ",
       "as well as ", crayon::red("percent.mt"), "."
     )
-    object(x)[[ "percent.mt" ]] <- Seurat::PercentageFeatureSet(
+    object(x)[[ "percent.mt" ]] <- e(Seurat::PercentageFeatureSet(
       object(x), pattern = "^MT-"
-    )
+    ))
     require(patchwork)
     p.qc <- plot_qc.seurat(object(x))
     x@plots[[ 1 ]] <- list(p.qc = p.qc)
@@ -73,29 +73,23 @@ setMethod("step2", signature = c(x = "job_seurat"),
     )
     if (missing(min.features) | missing(max.features))
       stop("missing(min.features) | missing(max.features)")
-    message("\n`Run SeuratObject::subset.Seurat`")
     object(x) <- SeuratObject:::subset.Seurat(
       object(x), subset = nFeature_RNA > min.features &
         nFeature_RNA < max.features & percent.mt < max.percent.mt
     )
-    message("\nRun `Seurat::NormalizeData`")
-    object(x) <- Seurat::NormalizeData(
-      object(x), normalization.method = "LogNormalize", scale.factor = 10000
-    )
-    message("\nRun: `Seurat::FindVariableFeatures`")
-    object(x) <- Seurat::FindVariableFeatures(
-      object(x), selection.method = "vst", nfeatures = 2000
-    )
+    object(x) <- e(Seurat::NormalizeData(
+        object(x), normalization.method = "LogNormalize", scale.factor = 10000
+        ))
+    object(x) <- e(Seurat::FindVariableFeatures(
+        object(x), selection.method = "vst", nfeatures = 2000
+        ))
     p.var2000 <- plot_var2000(object(x))
-    message("\nRun: `Seurat::SCTransform`")
-    object(x) <- Seurat::SCTransform(
-      object(x), method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = T,
-    )
-    message("\nRun: `Seurat::RunPCA`")
-    object(x) <- Seurat::RunPCA(
-      object(x), features = SeuratObject::VariableFeatures(object(x))
-    )
-    message("\nPlot PCA ...")
+    object(x) <- e(Seurat::SCTransform(
+        object(x), method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = T,
+        ))
+    object(x) <- e(Seurat::RunPCA(
+        object(x), features = SeuratObject::VariableFeatures(object(x))
+        ))
     x@plots[[ 2 ]] <- c(namel(p.var2000), plot_pca.seurat(object(x)))
     return(x)
   })
@@ -124,16 +118,16 @@ setMethod("step3", signature = c(x = "job_seurat"),
       stop("ncol(object(x)) > 3000 but resolution < 1.2. ",
         "Please consider higher `resolution`. ")
     }
-    object(x) <- Seurat::FindNeighbors(object(x), dims = dims)
-    object(x) <- Seurat::FindClusters(object(x), resolution = resolution)
-    object(x) <- Seurat::RunUMAP(object(x), dims = dims)
-    p.umap <- Seurat::DimPlot(object(x), reduction = "umap", cols = color_set())
+    object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims))
+    object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution))
+    object(x) <- e(Seurat::RunUMAP(object(x), dims = dims))
+    p.umap <- e(Seurat::DimPlot(object(x), reduction = "umap", cols = color_set()))
     markers <- as_tibble(
-      Seurat::FindAllMarkers(object(x), min.pct = 0.25, logfc.threshold = 0.25)
+      e(Seurat::FindAllMarkers(object(x), min.pct = 0.25, logfc.threshold = 0.25))
     )
     tops <- dplyr::filter(markers, p_val_adj < .05)
     tops <- slice_max(group_by(markers, cluster), avg_log2FC, n = 10)
-    p.toph <- Seurat::DoHeatmap(object(x), features = tops$gene, raster = F)
+    p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = F))
     p.toph <- wrap(p.toph, 14, 12)
     x@tables[[ 3 ]] <- list(all_markers = markers)
     x@plots[[ 3 ]] <- namel(p.umap, p.toph)
@@ -149,11 +143,11 @@ setMethod("step4", signature = c(x = "job_seurat"),
       column in `object(x)@meta.data`. Plots were generated in `x@plots[[ 4 ]]`;
       tables in `x@tables[[ 4 ]]`.
       ")
-      ref <- celldex::HumanPrimaryCellAtlasData()
+      ref <- e(celldex::HumanPrimaryCellAtlasData())
       clusters <- object(x)@meta.data$seurat_clusters
-      anno_SingleR <- SingleR::SingleR(object(x)@assays$SCT@scale.data,
-        ref = ref, labels = ref$label.fine, clusters = clusters
-      )
+      anno_SingleR <- e(SingleR::SingleR(object(x)@assays$SCT@scale.data,
+          ref = ref, labels = ref$label.fine, clusters = clusters
+          ))
       score <- as.matrix(anno_SingleR$scores)
       rownames(score) <- rownames(anno_SingleR)
       p.score_SingleR <- callheatmap(
@@ -168,10 +162,10 @@ setMethod("step4", signature = c(x = "job_seurat"),
       object(x)@meta.data$SingleR_cell <-
         anno_SingleR$SingleR_cell[match(clusters,
           anno_SingleR$seurat_clusters)]
-      p.map_SingleR <- Seurat::DimPlot(
-        object(x), reduction = "umap", label = TRUE, pt.size = 0.5,
-        group.by = "SingleR_cell", cols = color_set()
-      )
+      p.map_SingleR <- e(Seurat::DimPlot(
+          object(x), reduction = "umap", label = TRUE, pt.size = 0.5,
+          group.by = "SingleR_cell", cols = color_set()
+          ))
       p.map_SingleR <- p.map_SingleR + theme(legend.position = "none")
       p.map_SingleR <- wrap(p.map_SingleR, 10, 7)
       x@tables[[ 4 ]] <- namel(anno_SingleR)
@@ -181,17 +175,17 @@ setMethod("step4", signature = c(x = "job_seurat"),
 
 plot_var2000 <- function(x) {
   top20 <- head(SeuratObject::VariableFeatures(x), 20)
-  p.var2000 <- Seurat::VariableFeaturePlot(x)
-  p.var2000 <- Seurat::LabelPoints(p.var2000, points = top20, repel = TRUE)
+  p.var2000 <- e(Seurat::VariableFeaturePlot(x))
+  p.var2000 <- e(Seurat::LabelPoints(p.var2000, points = top20, repel = TRUE))
   p.var2000 <- wrap(p.var2000, 12, 8)
   p.var2000
 }
 
 plot_pca.seurat <- function(x) {
-  p.pca_pcComponents <- Seurat::VizDimLoadings(
-    x, dims = 1:2, reduction = "pca",
-    col = ggsci::pal_npg()(2)[2], combine = F
-  )
+  p.pca_pcComponents <- e(Seurat::VizDimLoadings(
+      x, dims = 1:2, reduction = "pca",
+      col = ggsci::pal_npg()(2)[2], combine = F
+      ))
   p.pca_pcComponents <- lapply(p.pca_pcComponents,
     function(p) {
       p$layers[[1]]$aes_params$size <- 4
@@ -199,11 +193,11 @@ plot_pca.seurat <- function(x) {
       p + theme_minimal()
     })
   p.pca_pcComponents <- patchwork::wrap_plots(p.pca_pcComponents, ncol = 2)
-  p.pca_1v2 <- Seurat::DimPlot(x, reduction = "pca", cols = ggsci::pal_npg()(10))
-  p.pca_heatmap <- Seurat::DimHeatmap(
-    x, dims = 1:10, cells = 500,
-    balanced = TRUE, fast = F, combine = F
-  )
+  p.pca_1v2 <- e(Seurat::DimPlot(x, reduction = "pca", cols = ggsci::pal_npg()(10)))
+  p.pca_heatmap <- e(Seurat::DimHeatmap(
+      x, dims = 1:10, cells = 500,
+      balanced = TRUE, fast = F, combine = F
+      ))
   n <- 0
   p.pca_heatmap <- lapply(p.pca_heatmap,
     function(p) {
@@ -217,7 +211,7 @@ plot_pca.seurat <- function(x) {
     })
   p.pca_heatmap <- patchwork::wrap_plots(p.pca_heatmap)
   p.pca_heatmap <- wrap(p.pca_heatmap, 12, 6)
-  p.pca_rank <- Seurat::ElbowPlot(x)
+  p.pca_rank <- e(Seurat::ElbowPlot(x))
   p.pca_rank$layers[[1]]$aes_params$size <- 5
   p.pca_rank$layers[[1]]$aes_params$alpha <- .5
   p.pca_rank$layers[[1]]$aes_params$colour <- "brown"
@@ -228,16 +222,14 @@ plot_pca.seurat <- function(x) {
 }
 
 plot_qc.seurat <- function(x) {
-  p.feature_count_mt <- Seurat::VlnPlot(x, features = c("nFeature_RNA", "nCount_RNA",
-      "percent.mt"), ncol = 3, pt.size = 0, alpha = .3, cols = c("lightyellow"))
-  p.qcv1 <- Seurat::FeatureScatter(
-    x, feature1 = "nCount_RNA", feature2 = "percent.mt",
-    cols = c("lightblue")
-  )
-  p.qcv2 <- Seurat::FeatureScatter(
-    x, feature1 = "nCount_RNA", feature2 = "nFeature_RNA",
-    cols = c("lightblue")
-  )
+  p.feature_count_mt <- e(Seurat::VlnPlot(x, features = c("nFeature_RNA", "nCount_RNA",
+        "percent.mt"), ncol = 3, pt.size = 0, alpha = .3, cols = c("lightyellow")))
+  p.qcv1 <- e(Seurat::FeatureScatter(
+      x, feature1 = "nCount_RNA", feature2 = "percent.mt",
+      cols = c("lightblue")))
+  p.qcv2 <- e(Seurat::FeatureScatter(
+      x, feature1 = "nCount_RNA", feature2 = "nFeature_RNA",
+      cols = c("lightblue")))
   p.qc <- p.feature_count_mt / (p.qcv1 + p.qcv2)
   p.qc <- wrap(p.qc, 14, 12)
   p.qc

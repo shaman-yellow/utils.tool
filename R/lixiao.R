@@ -26,8 +26,8 @@ setClassUnion("easywrite", c("data.frame", "matrix", "character", "factor", "num
 #' @importClassesFrom data.table data.table
 #' @importClassesFrom tibble tbl_df
 .df_like <- c("tbl_df", "data.table")
+# lapply(.df_like, setClass, where = topenv())
 .df <- c("data.frame", "matrix", "matrix", "array", .df_like)
-setOldClass(.df_like)
 setClassUnion("df", .df)
 
 # <https://cran.r-project.org/web/packages/RSelenium/index.html>
@@ -1473,7 +1473,7 @@ new_elist <- function(metadata, counts, genes, idname, message = T)
 # #' @importClassesFrom edgeR DGEList
 # #' @importClassesFrom limma EList
 .eset <- c("DGEList", "EList")
-setOldClass(.eset)
+lapply(.eset, setClass, where = topenv())
 setClassUnion("eset", .eset)
 
 elist <- setClass("elist", 
@@ -1954,7 +1954,7 @@ setMethod("as_wgcTrait", signature = c(x = "elist"),
   })
 
 cut_tree <- function(tree, height, size) {
-  clust <- WGCNA::cutreeStatic(tree, height, size)
+  clust <- e(WGCNA::cutreeStatic(tree, height, size))
   clust == 1
 }
 
@@ -1981,7 +1981,7 @@ cal_sft <- function(data, powers = c(c(1:10), seq(12, 20, by = 2)))
   if (!is(data, "wgcData")) {
     stop("is(data, \"wgcData\") == F")
   }
-  sft <- WGCNA::pickSoftThreshold(data, powerVector = powers, verbose = 5)
+  sft <- e(WGCNA::pickSoftThreshold(data, powerVector = powers, verbose = 5))
   sft
 }
 
@@ -2105,8 +2105,8 @@ setMethod("add_anno", signature = c(x = "corp"),
 
 setMethod("new_heatdata", signature = c(x = "wgcEigen", y = "wgcTrait"),
   function(x, y){
-    cor <- WGCNA::cor(x, y, use = "p")
-    pvalue <- WGCNA::corPvalueStudent(cor, nrow(x))
+    cor <- e(WGCNA::cor(x, y, use = "p"))
+    pvalue <- e(WGCNA::corPvalueStudent(cor, nrow(x)))
     data <- as_data_long(cor, pvalue, "module", "trait", "cor", "pvalue")
     data <- add_anno(.corp(data))
     .heatdata_gene_cor(
@@ -2130,8 +2130,8 @@ setMethod("draw", signature = c(x = "heatdata_gene_cor"),
   })
 
 get_eigens <- function(net) {
-  eigens <- WGCNA::orderMEs(net$MEs)
-  colors <- WGCNA::labels2colors(colorIndex <- unique(net$colors))
+  eigens <- e(WGCNA::orderMEs(net$MEs))
+  colors <- e(WGCNA::labels2colors(colorIndex <- unique(net$colors)))
   color_data <- tibble::tibble(module = paste0("ME", colorIndex), color = colors)
   members <- split(names(net$colors), net$colors)
   names(members) <- paste0("ME", names(members))
@@ -2141,10 +2141,10 @@ get_eigens <- function(net) {
 setMethod("show", signature = c(object = "wgcNet"),
   function(object){
     dev.new(width = 12, height = 9)
-    mergedColors = WGCNA::labels2colors(object$colors)
-    WGCNA::plotDendroAndColors(object$dendrograms[[1]], mergedColors[object$blockGenes[[1]]],
-      "Module colors", dendroLabels = FALSE, hang = 0.01,
-      addGuide = TRUE, guideHang = 0.05)
+    mergedColors = e(WGCNA::labels2colors(object$colors))
+    e(WGCNA::plotDendroAndColors(object$dendrograms[[1]], mergedColors[object$blockGenes[[1]]],
+        "Module colors", dendroLabels = FALSE, hang = 0.01,
+        addGuide = TRUE, guideHang = 0.05))
   })
 
 cal_module <- function(data, power, cut_hight = .25, min_size = 30, save_tom = "tom",
@@ -2154,14 +2154,14 @@ cal_module <- function(data, power, cut_hight = .25, min_size = 30, save_tom = "
     stop("is(data, \"wgcData\") == F")
   }
   require(WGCNA)
-  net <- WGCNA::blockwiseModules(
-    datExpr, power = power,
-    TOMType = "unsigned", minModuleSize = min_size,
-    reassignThreshold = 0, mergeCutHeight = cut_hight,
-    numericLabels = TRUE, pamRespectsDendro = FALSE, loadTOM = T,
-    saveTOMs = TRUE, saveTOMFileBase = save_tom,
-    maxBlockSize = maxBlockSize, verbose = 3, ...
-  )
+  net <- e(WGCNA::blockwiseModules(
+      data, power = power,
+      TOMType = "unsigned", minModuleSize = min_size,
+      reassignThreshold = 0, mergeCutHeight = cut_hight,
+      numericLabels = TRUE, pamRespectsDendro = FALSE, loadTOM = T,
+      saveTOMs = TRUE, saveTOMFileBase = save_tom,
+      maxBlockSize = maxBlockSize, verbose = 3, ...
+      ))
   .wgcNet(net)
 }
 
