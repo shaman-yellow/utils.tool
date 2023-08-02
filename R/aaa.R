@@ -235,7 +235,6 @@ repSuffix <-
 }
 
 .onLoad <- function(libname, pkgname) {
-  message("Export `.expath` for inst files usage.")
   .expath()
   .expathsvg()
   .check_external_svg()
