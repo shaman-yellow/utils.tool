@@ -21,18 +21,16 @@ job_seurat <- function()
 
 setMethod("step0", signature = c(x = "job_seurat"),
   function(x){
-    callNextMethod()
-    step_message("Prepare your data with function `job_seurat`. ",
-      ""
+    step_message("Prepare your data with function `job_seurat`.
+      "
     )
   })
 
 setMethod("step1", signature = c(x = "job_seurat"),
   function(x){
-    x <- callNextMethod()
-    step_message("Quality control (QC).",
-    "This do:",
-    ""
+    step_message("Quality control (QC).
+      This do:
+      "
     )
     return(x)
   })

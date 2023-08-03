@@ -101,6 +101,8 @@ setMethod("step5", signature = c(x = "job_wgcna"),
       "Generate plots in `x@plots[[ 5 ]]`; ",
       "tables in `x@tables[[ 5 ]]`"
     )
+    if (ncol(params(x)$allTraits) == 0)
+      stop("ncol(params(x)$allTraits) == 0, no data in `allTraits`.")
     hps_corp <- new_heatdata(params(x)$MEs, params(x)$allTraits)
     hps_corp <- callheatmap(hps_corp)
     x@plots[[ 5 ]] <- list(hps_corp = hps_corp)

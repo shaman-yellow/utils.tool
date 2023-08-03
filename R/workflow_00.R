@@ -43,6 +43,8 @@ setGeneric("params<-",
   function(x, value) standardGeneric("params<-"))
 setGeneric("others<-", 
   function(x, value) standardGeneric("others<-"))
+setGeneric("ids", 
+  function(x, id, ...) standardGeneric("ids"))
 
 
 setMethod("object", signature = c(x = "job"),
@@ -215,14 +217,16 @@ setGeneric("step12",
 
 checkAddStep <- function(x, n) {
   STEP <- paste0("step", n)
-  if (x@step >= n)
-    stop("x@step >= ", n, ". This step has been executed.")
-  if (x@step < n - 1)
-    stop("x@step <", n - 1, ". The previous step has not been executed.")
-  if (STEP == "step1") {
-    if (!is.null(x@info)) {
-      message(crayon::yellow("Workflow information:"))
-      step_message(x@info)
+  if (getOption("step_check", T)) {
+    if (x@step >= n)
+      stop("x@step >= ", n, ". This step has been executed.")
+    if (x@step < n - 1)
+      stop("x@step <", n - 1, ". The previous step has not been executed.")
+    if (STEP == "step1") {
+      if (!is.null(x@info)) {
+        message(crayon::yellow("Workflow information:"))
+        step_message(x@info, show_end = NULL)
+      }
     }
   }
   message(crayon::green("Running", STEP), ":")
@@ -243,4 +247,13 @@ step_message <- function(..., show_end = "Description end") {
 
 .argEnv <- new.env()
 
-
+e <- function(expr) {
+  expr <- substitute(expr)
+  names <- stringr::str_extract(deparse(expr), "[a-zA-Z0-9_.]*:::?[a-zA-Z0-9_.]*")
+  names <- names[ !is.na(names) ]
+  if (!length(names))
+    name <- "FUNCTION"
+  else name <- names[1]
+  cli::cli_alert_info(name)
+  suppressMessages(eval(expr, envir = parent.frame(1)))
+}

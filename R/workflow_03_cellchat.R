@@ -22,14 +22,17 @@ setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
       and red{{`...`}} would passed to `CellChat::createCellChat`.",
       show_end = NULL
     )
+    if (x@step < 2) {
+      stop("x@step < 2. At least, preprocessed assay data should be ready.")
+    }
     if (group.by == "SingleR_cell") {
       if (x@step < 4L)
         stop("`step4(x)` has not been performed.")
     }
-    object <- CellChat::createCellChat(
-      object = object(x), group.by = group.by, assay = assay,
-      ...
-    )
+    object <- e(CellChat::createCellChat(
+        object = object(x), group.by = group.by, assay = assay,
+        ...
+        ))
     .job_cellchat(object = object)
   })
 
@@ -189,17 +192,6 @@ setMethod("step4", signature = c(x = "job_cellchat"),
     x@plots[[ 4 ]] <- lst.p
     return(x)
   })
-
-e <- function(expr) {
-  expr <- substitute(expr)
-  names <- stringr::str_extract(deparse(expr), "[a-zA-Z0-9_.]*:::?[a-zA-Z0-9_.]*")
-  names <- names[ !is.na(names) ]
-  if (!length(names))
-    name <- "FUNCTION"
-  else name <- names[1]
-  cli::cli_alert_info(name)
-  suppressMessages(eval(expr, envir = parent.frame(1)))
-}
 
 plot_communication.cellchat <- function(x) {
   groupSize <- as.integer(table(x@idents))
