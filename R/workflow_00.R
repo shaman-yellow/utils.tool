@@ -234,7 +234,7 @@ checkAddStep <- function(x, n) {
   x
 }
 
-step_message <- function(..., show_end = "Description end") {
+step_message <- function(..., show_end = "Job Status") {
   str <- paste0(unlist(list(...)), collapse = "")
   str <- gs(str, "red\\{\\{(.*?)\\}\\}", "\033[31m\\1\033[39m")
   str <- gs(str, "grey\\{\\{(.*?)\\}\\}", "\033[90m\\1\033[39m")
@@ -247,13 +247,16 @@ step_message <- function(..., show_end = "Description end") {
 
 .argEnv <- new.env()
 
-e <- function(expr) {
+e <- function(expr, text = NULL) {
   expr <- substitute(expr)
   names <- stringr::str_extract(deparse(expr), "[a-zA-Z0-9_.]*:::?[a-zA-Z0-9_.]*")
   names <- names[ !is.na(names) ]
   if (!length(names))
     name <- "FUNCTION"
   else name <- names[1]
-  cli::cli_alert_info(name)
+  if (is.null(text))
+    cli::cli_alert_info(name)
+  else
+    cli::cli_alert_info(paste0(name, " (", text, ")" ))
   suppressMessages(eval(expr, envir = parent.frame(1)))
 }

@@ -37,6 +37,7 @@ setMethod("asjob_monocle", signature = c(x = "job_seurat"),
       object(mn)@reduce_dim_aux[['PCA']][['model']][['svd_v']] <- object(x)@reductions[["pca"]]@feature.loadings
     if (is.null(object(mn)@reduce_dim_aux[['PCA']][['model']][['svd_sdev']]))
       object(mn)@reduce_dim_aux[['PCA']][['model']][['svd_sdev']] <- object(x)@reductions$pca@stdev
+    mn@params$group.by <- group.by
     mn 
   })
 
@@ -49,7 +50,7 @@ setMethod("step0", signature = c(x = "job_monocle"),
   })
 
 setMethod("step1", signature = c(x = "job_monocle"),
-  function(x, groups = "SingleR_cell"){
+  function(x, groups = x@params$group.by){
     step_message("Constructing single-cell trajectories.
       red{{`groups`}} would passed to `monocle3::plot_cells` for
       annotation in plot. Mutilple group could be given.
@@ -107,33 +108,82 @@ setMethod("step3", signature = c(x = "job_monocle"),
   function(x, formula_string){
     step_message("This step do:
       1. Regression analysis;
-      2. Graph-autocorrelation analysis grey{{(see monocle3::graph_test for help)}};
-      3. Finding modules of co-regulated genes.
+      2. Graph-autocorrelation analysis;
+      3. Finding modules of co-regulated genes (Significant genes).
+      4. Significant genes in co-regulated modules.
       "
     )
     if (!is.character(formula_string)) {
       stop("is.character(formula_string) == F")
     }
-    fits <- e(monocle3::fit_models(object(x), formula_string, cores = 4))
-    fit_coefs <- e(monocle3::coefficient_table(fits))
-    fit_coefs.sig <- dplyr::filter(fit_coefs, term != "(Intercept)", q_value < .05)
-      # goodness <- e(monocle3::evaluate_fits(gene_fits))
-      # fit_coefs.sig <- dplyr::select(fit_coefs.si, gene = gene_short_name, term, q_value, estimate)
-    graph_test <- e(monocle3::graph_test(object(x), neighbor_graph = "knn", cores = 4))
-    graph_test <- as_tibble(graph_test)
-    gene_module <- try(gene_module <- e(monocle3::find_gene_modules(object(x), cores = 4)), T)
-    if (!inherits(gene_module, "try-error")) {
-      gene_module <- as_tibble(gene_module)
+    if (length(x@tables) < 3)
+      x@tables[[ 3 ]] <- list()
+    if (is.null(x@tables[[ 3 ]]$fit_coefs)) {
+      fits <- e(monocle3::fit_models(object(x), formula_string, cores = 4))
+      fit_coefs <- e(monocle3::coefficient_table(fits))
+      fit_coefs.sig <- dplyr::filter(fit_coefs, term != "(Intercept)", q_value < .05)
+      fit_coefs.sig <- dplyr::arrange(fit_coefs.sig, q_value)
+      fit_goodness <- e(monocle3::evaluate_fits(fits))
     } else {
-      gene_module <- tibble::tibble()
+      fit_coefs <- x@tables[[ 3 ]]$fit_coefs
+      fit_coefs.sig <- x@tables[[ 3 ]]$fit_coefs.sig
+      fit_goodness <- x@tables[[ 3 ]]$fit_goodness
     }
-    # x@tables[[ 3 ]] <- namel(fit_coefs, fit_coefs.sig, graph_test, gene_module)
+    if (is.null(x@tables[[ 3 ]]$graph_test)) {
+      graph_test <- e(monocle3::graph_test(object(x), neighbor_graph = "knn", cores = 4))
+      graph_test <- as_tibble(graph_test)
+      graph_test.sig <- dplyr::filter(graph_test, q_value < .05)
+      graph_test.sig <- dplyr::arrange(graph_test.sig, dplyr::desc(morans_I), q_value)
+      graph_test.sig <- dplyr::rename(graph_test.sig, gene_id = 1)
+    } else {
+      graph_test <- x@tables[[ 3 ]]$graph_test
+      graph_test.sig <- x@tables[[ 3 ]]$graph_test.sig
+    }
+    cross.sig <- graph_test.sig$gene_id[ graph_test.sig$gene_id %in% fit_coefs.sig$gene_id ]
+    gene_sigs <- list(
+      fit_coefs.sig = fit_coefs.sig$gene_id,
+      graph_test.sig = graph_test.sig$gene_id,
+      cross.sig = cross.sig
+    )
+    cell_group <- tibble::tibble(
+      cell = row.names(SummarizedExperiment::colData(object(x))), 
+      group = SummarizedExperiment::colData(object(x))[[ x@params$group.by ]]
+    )
+    x@params$cell_group <- cell_group
+    if (is.null(x@tables[[ 3 ]]$gene_module)) {
+      gene_module <- try(cal_modules.cds(object(x), gene_sigs, cell_group), T)
+      gene_module_heatdata <- lapply(gene_module,
+        function(lst) {
+          if (nrow(lst$aggregate) > 0)
+            callheatmap(new_heatdata(as_data_long(lst$aggregate, , "module", "cell")))
+        })
+      x@plots[[ 3 ]] <- namel(gene_module_heatdata)
+    } else {
+      gene_module <- x@tables[[ 3 ]]$gene_module
+    }
+    x@tables[[ 3 ]] <- namel(fit_coefs, fit_coefs.sig, fit_goodness,
+      graph_test, graph_test.sig, gene_module)
     return(x)
   })
 
 setMethod("step4", signature = c(x = "job_monocle"),
-  function(x){
-    step_message("Finding genes that change as a function of pseudotime.")
+  function(x, groups, genes){
+    step_message("Plot genes (in branch) that change as a function of pseudotime.
+      red{{`groups`}} and red{{`genes`}} were used to subset the `object(x)`."
+    )
+    cds <- object(x)
+    fun_sub <- selectMethod("[", class(cds))
+    cds <- fun_sub(cds,
+      rownames(cds) %in% genes,
+      SummarizedExperiment::colData(cds)[[ x@params$group.by ]] %in% groups
+    )
+    genes_in_pseudotime <- e(monocle3::plot_genes_in_pseudotime(cds,
+        label_by_short_name = F,
+        color_cells_by = x@params$group.by,
+        min_expr = 0.5
+        ))
+    x@plots[[ 4 ]] <- namel(genes_in_pseudotime)
+    return(x)
   })
 
 setMethod("ids", signature = c(x = "job_monocle", id = "missing"),
@@ -155,4 +205,28 @@ get_principal_nodes <- function(cds, col, target) {
   pos <- as.numeric(names(which.max(table(closest_vertex[ cell_ids, ]))))
   root_pr_nodes <- igraph::V(monocle3::principal_graph(cds)[["UMAP"]])$name[ pos ]
   root_pr_nodes
+}
+
+cal_modules.cds <- function(cds, gene_sigs, cell_group) {
+  n <- 0
+  e(lapply(gene_sigs,
+    function(genes) {
+      n <<- n + 1
+      if (length(genes) < 10)
+        return(data.frame())
+      anno <- paste0("with ", names(gene_sigs)[n])
+      res <- try(
+        monocle3::find_gene_modules(cds[genes, ], cores = 4, resolution = 10 ^ seq(-6,-1)),
+        silent = T
+      )
+      if (!inherits(res, "try-error")) {
+        aggregate <- monocle3::aggregate_gene_expression(cds, res, cell_group)
+        row.names(aggregate) <- paste0("Module ", row.names(aggregate))
+        module <- as_tibble(res)
+      } else {
+        module <- tibble::tibble()
+        aggregate <- data.frame()
+      }
+      namel(module, aggregate)
+    }))
 }
