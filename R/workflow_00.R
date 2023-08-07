@@ -20,6 +20,7 @@ setMethod("show",
   signature = c(object = "job"),
   function(object){
     message("A workflow of '", class(object), "' in step (done): ", object@step)
+    message("Object size: ", obj.size(object))
   })
 
 setGeneric("params", 
@@ -214,6 +215,9 @@ setGeneric("step12",
     x <- checkAddStep(x, 12L)
     standardGeneric("step12")
   })
+
+setGeneric("as_job_lapply", 
+  function(x, ...) standardGeneric("as_job_lapply"))
 
 checkAddStep <- function(x, n) {
   STEP <- paste0("step", n)

@@ -14,7 +14,7 @@
     info = c("Tutorial: https://satijalab.org/seurat/articles/pbmc3k_tutorial.html")
     ))
 
-job_seurat <- function(dir, project = make.names(date()),
+job_seurat <- function(dir, project = get_filename(sub("/$", "", dir)),
   min.cells = 3, min.features = 200, ...)
 {
   data <- e(Seurat::Read10X(dir))
@@ -48,7 +48,6 @@ setMethod("step1", signature = c(x = "job_seurat"),
     object(x)[[ "percent.mt" ]] <- e(Seurat::PercentageFeatureSet(
       object(x), pattern = "^MT-"
     ))
-    require(patchwork)
     p.qc <- plot_qc.seurat(object(x))
     x@plots[[ 1 ]] <- list(p.qc = p.qc)
     return(x)
@@ -61,8 +60,6 @@ setMethod("step2", signature = c(x = "job_seurat"),
       reduction, Select dimensionality.
       red{{`min.features`}} and red{{`max.features`}} were needed for subset.
       Then `object(x)` were performed with:
-      `Seurat::NormalizeData`;
-      `Seurat::FindVariableFeatures`;
       `Seurat::SCTransform`;
       `Seurat::RunPCA`.
       All plots were in `x@plots[[ 2 ]]`
@@ -74,13 +71,13 @@ setMethod("step2", signature = c(x = "job_seurat"),
         object(x), subset = nFeature_RNA > min.features &
           nFeature_RNA < max.features & percent.mt < max.percent.mt
         ))
-    object(x) <- e(Seurat::NormalizeData(
-        object(x), normalization.method = "LogNormalize", scale.factor = 10000
-        ))
-    object(x) <- e(Seurat::FindVariableFeatures(
-        object(x), selection.method = "vst", nfeatures = 2000
-        ))
-    p.var2000 <- plot_var2000(object(x))
+    # object(x) <- e(Seurat::NormalizeData(
+    #     object(x), normalization.method = "LogNormalize", scale.factor = 10000
+    #     ))
+    # object(x) <- e(Seurat::FindVariableFeatures(
+    #     object(x), selection.method = "vst", nfeatures = 2000
+    #     ))
+    # p.var2000 <- plot_var2000(object(x))
     object(x) <- e(Seurat::SCTransform(
         object(x), method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = T,
         ))
@@ -116,15 +113,15 @@ setMethod("step3", signature = c(x = "job_seurat"),
     object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution))
     object(x) <- e(Seurat::RunUMAP(object(x), dims = dims))
     p.umap <- e(Seurat::DimPlot(object(x), reduction = "umap", cols = color_set()))
-    markers <- as_tibble(
-      e(Seurat::FindAllMarkers(object(x), min.pct = 0.25, logfc.threshold = 0.25))
-    )
-    tops <- dplyr::filter(markers, p_val_adj < .05)
-    tops <- slice_max(group_by(markers, cluster), avg_log2FC, n = 10)
-    p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = F))
-    p.toph <- wrap(p.toph, 14, 12)
-    x@tables[[ 3 ]] <- list(all_markers = markers)
-    x@plots[[ 3 ]] <- namel(p.umap, p.toph)
+    # markers <- as_tibble(
+    #   e(Seurat::FindAllMarkers(object(x), min.pct = 0.25, logfc.threshold = 0.25))
+    # )
+    # tops <- dplyr::filter(markers, p_val_adj < .05)
+    # tops <- slice_max(group_by(markers, cluster), avg_log2FC, n = 10)
+    # p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = F))
+    # p.toph <- wrap(p.toph, 14, 12)
+    # x@tables[[ 3 ]] <- list(all_markers = markers)
+    x@plots[[ 3 ]] <- namel(p.umap)
     return(x)
   })
 
@@ -215,6 +212,7 @@ plot_pca.seurat <- function(x) {
 }
 
 plot_qc.seurat <- function(x) {
+  require(patchwork)
   p.feature_count_mt <- e(Seurat::VlnPlot(x, features = c("nFeature_RNA", "nCount_RNA",
         "percent.mt"), ncol = 3, pt.size = 0, alpha = .3, cols = c("lightyellow")))
   p.qcv1 <- e(Seurat::FeatureScatter(
