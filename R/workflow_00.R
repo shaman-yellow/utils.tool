@@ -264,3 +264,14 @@ e <- function(expr, text = NULL) {
     cli::cli_alert_info(paste0(name, " (", text, ")" ))
   suppressMessages(eval(expr, envir = parent.frame(1)))
 }
+
+parallel <- function(x, fun, workers = 3) {
+  if (isNamespaceLoaded("future")) {
+    e(pkgload::unload("future"))
+  }
+  options(future.globals.maxSize = Inf)
+  e(future::plan(future::multisession, workers = workers))
+  x <- fun(x)
+  e(future::plan(future::sequential))
+  x
+}

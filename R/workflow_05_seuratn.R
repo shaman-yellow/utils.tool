@@ -31,36 +31,59 @@ setMethod("step0", signature = c(x = "job_seuratn"),
   })
 
 setMethod("step1", signature = c(x = "job_seuratn"),
-  function(x){
-    step_message(".
-      Performing integration on datasets normalized with SCTransform.
+  function(x, min.features, max.features, max.percent.mt = 5, nfeatures = 2000){
+    step_message("
+      QC and Preparing integration on datasets normalized with SCTransform.
       "
     )
+    if (missing(min.features) | missing(max.features))
+      stop("missing(min.features) | missing(max.features)")
     object(x) <- e(lapply(object(x),
         function(obj) {
           obj[[ "percent.mt" ]] <- Seurat::PercentageFeatureSet(
             obj, pattern = "^MT-"
           )
+          if (!is.null(min.features)) {
+            obj <- SeuratObject:::subset.Seurat(
+                obj, subset = nFeature_RNA > min.features &
+                  nFeature_RNA < max.features & percent.mt < max.percent.mt
+                )
+          }
           return(obj)
         }))
     object(x) <- e(lapply(object(x), Seurat::SCTransform,
         method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = T,
         ))
-    features <- e(Seurat::SelectIntegrationFeatures(object(x), nfeatures = 3000))
-    object(x) <- e(Seurat::PrepSCTIntegration(object(x), anchor.features = features))
-    object(x) <- e(Seurat::FindIntegrationAnchors(object(x), normalization.method = "SCT",
-        anchor.features = features))
-    object(x) <- e(Seurat::IntegrateData(object(x), normalization.method = "SCT"))
-    object(x) <- e(Seurat::RunPCA(object(x), verbose = FALSE))
+    x@params$anchor.features <- e(Seurat::SelectIntegrationFeatures(object(x), nfeatures = 3000))
+    object(x) <- e(Seurat::PrepSCTIntegration(object(x), anchor.features = x@params$anchor.features))
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_seuratn"),
-  function(x){
-    step_message("Transform the job as 'job_seurat' in step 2.
-      And conduct some visualization.
+  function(x, workers = 3){
+    step_message("Perform integration (time-consumed).
+      Prarameter red{{workers}} would call `future::plan`.
+      If it meet error (Seurat::IntegrateData), the object would be returned.
+      Transform the job as 'job_seurat'.  And conduct some visualization.
       "
     )
+    fun <- function(x) {
+      object(x) <- e(Seurat::FindIntegrationAnchors(object(x), normalization.method = "SCT",
+          anchor.features = x@params$anchor.features))
+      return(x)
+    }
+    if (!is.null(workers)) {
+      x <- parralel(x, fun, workers)
+    } else {
+      x <- fun(x)
+    }
+    res <- try(e(Seurat::IntegrateData(object(x), normalization.method = "SCT")))
+    if (inherits(res, "try-error")) {
+      return(x)
+    } else {
+      object(x) <- res
+    }
+    object(x) <- e(Seurat::RunPCA(object(x), verbose = FALSE))
     x <- .job_seurat(object = object(x), step = 2L)
     x@plots[[ 2 ]] <- plot_pca.seurat(object(x))
     x

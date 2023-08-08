@@ -18,7 +18,7 @@ setGeneric("asjob_monocle",
   function(x, ...) standardGeneric("asjob_monocle"))
 
 setMethod("asjob_monocle", signature = c(x = "job_seurat"),
-  function(x, group.by = "SingleR_cell", ...){
+  function(x, group.by = x@params$group.by, ...){
     step_message("
       Other parameters would be passed to `SeuratWrappers::as.cell_data_set`.
       <http://htmlpreview.github.io/?https://github.com/satijalab/seurat-wrappers/blob/master/docs/monocle3.html>
@@ -27,10 +27,8 @@ setMethod("asjob_monocle", signature = c(x = "job_seurat"),
     if (x@step < 3) {
       stop("x@step < 3. At least step 3 was needed with `Seurat::FindClusters`.")
     }
-    if (group.by == "SingleR_cell") {
-      if (x@step < 4L)
-        stop("`step4(x)` has not been performed.")
-    }
+    if (is.null(group.by))
+      stop("is.null(group.by) == T")
     object <- e(SeuratWrappers::as.cell_data_set(object(x), group.by = group.by, ...))
     mn <- .job_monocle(object = object)
     if (is.null(object(mn)@reduce_dim_aux[['PCA']][['model']][['svd_v']]))
@@ -188,7 +186,7 @@ setMethod("step4", signature = c(x = "job_monocle"),
 
 setMethod("ids", signature = c(x = "job_monocle", id = "missing"),
   function(x, ...){
-    ids(x, id = "SingleR_cell", ...)
+    ids(x, id = x@params$group.by, ...)
   })
 
 setMethod("ids", signature = c(x = "job_monocle", id = "character"),

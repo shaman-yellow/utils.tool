@@ -17,7 +17,7 @@ setGeneric("asjob_cellchat",
   function(x, ...) standardGeneric("asjob_cellchat"))
 
 setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
-  function(x, group.by = "SingleR_cell", assay = "SCT", ...){
+  function(x, group.by = x@params$group.by, assay = "SCT", ...){
     step_message("Prarameter red{{`group.by`}}, red{{`assay`}}, 
       and red{{`...`}} would passed to `CellChat::createCellChat`.",
       show_end = NULL
@@ -25,15 +25,13 @@ setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
     if (x@step < 2) {
       stop("x@step < 2. At least, preprocessed assay data should be ready.")
     }
-    if (group.by == "SingleR_cell") {
-      if (x@step < 4L)
-        stop("`step4(x)` has not been performed.")
-    }
+    if (is.null(group.by))
+      stop("is.null(group.by) == T")
     object <- e(CellChat::createCellChat(
         object = object(x), group.by = group.by, assay = assay,
         ...
         ))
-    .job_cellchat(object = object)
+    .job_cellchat(object = object, params = list(group.by = group.by))
   })
 
 setMethod("step0", signature = c(x = "job_cellchat"),

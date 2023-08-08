@@ -160,7 +160,46 @@ setMethod("step4", signature = c(x = "job_seurat"),
       p.map_SingleR <- wrap(p.map_SingleR, 10, 7)
       x@tables[[ 4 ]] <- namel(anno_SingleR)
       x@plots[[ 4 ]] <- namel(p.score_SingleR, p.map_SingleR)
+      x@params$group.by <- "SingleR_cell"
       return(x)
+  })
+
+setMethod("step5", signature = c(x = "job_seurat"),
+  function(x, workers = 3){
+    fun <- function(x) {
+      markers <- as_tibble(
+        e(Seurat::FindAllMarkers(object(x), min.pct = 0.25,
+            logfc.threshold = 0.25, only.pos = T))
+      )
+    }
+    if (!is.null(workers)) {
+      markers <- parallel(x, fun, workers)
+    } else {
+      markers <- fun(x)
+    }
+    tops <- dplyr::filter(markers, p_val_adj < .05)
+    tops <- slice_max(group_by(markers, cluster), avg_log2FC, n = 10)
+    p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = F))
+    p.toph <- wrap(p.toph, 14, 12)
+    x@tables[[ 5 ]] <- list(all_markers = markers)
+    x@plots[[ 5 ]] <- namel(p.toph)
+    return(x)
+  })
+
+setMethod("step6", signature = c(x = "job_seurat"),
+  function(x, classifier, db = org.Hs.eg.db::org.Hs.eg.db){
+    step_message("
+      Use `garnett::classify_cells` to anntate cells.
+      Prarameter red{{`classifier`}} specify the pre-difined classifier.
+      "
+    )
+    object <- e(SeuratWrappers::as.cell_data_set(object(x),
+        group.by = x@params$group.by, ...))
+    object <- e(garnett::classify_cells(object, classifier, db = db, 
+      cds_gene_id_type = "SYMBOL"))
+    object(x) <- e(SeuratWrappers:::as.Seurat.cell_data_set(object))
+    x@params$group.by <- "cell_type"
+    return(x)
   })
 
 plot_var2000 <- function(x) {
