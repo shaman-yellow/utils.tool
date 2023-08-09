@@ -120,7 +120,7 @@ available_signatures <- function(f, exclude = c("ANY", "missing", "job")) {
 setGeneric("step0", 
   function(x, ...) {
     if (!missing(x)) {
-      if (!is(x, "numeric")) {
+      if (!is(x, "numeric") & !is(x, "character")) {
         message("This step do nothing but description.")
         message(crayon::silver("Use `step0()` to show all available workflow.\n"))
       }
@@ -142,6 +142,15 @@ setMethod("step0", signature = c(x = "numeric"),
     signatures <- available_signatures("step1")
     fun <- get_fun(paste0(".", signatures[ x ]))
     step0(fun())
+  })
+
+setMethod("step0", signature = c(x = "character"),
+  function(x){
+    signatures <- available_signatures("step1")
+    sig <- match.arg(x, sub("job_", "", signatures))
+    fun <- get_fun(paste0(".job_", sig))
+    step0(fun())
+    options(method_name = paste0("job_", sig))
   })
 
 setGeneric("step1",
@@ -339,3 +348,59 @@ parallel <- function(x, fun, workers = 3) {
   e(future::plan(future::sequential))
   x
 }
+
+show_nonstandardGenericFunction <- selectMethod(
+  "show", "nonstandardGenericFunction"
+)
+
+setMethod("print", signature = c(x = "nonstandardGenericFunction"),
+  function(x){
+    show(x)
+  })
+
+setMethod("show", 
+  signature = c(object = "nonstandardGenericFunction"),
+  function(object){
+    if (!hasMethods(object, package = environmentName(topenv()))) {
+      return(show_nonstandardGenericFunction(object))
+    }
+    methods <- findMethods(object)
+    len <- length(methods@names)
+    if (!is.null(ms <- getOption("method_name"))) {
+      nums <- which(methods@names %in% ms)
+      if (!length(nums))
+        return(cli::cli_h1(paste0("No methods for ",
+              paste0(ms, collapse = ", "))))
+    } else {
+      nums <- 1:len
+    }
+    lapply(nums,
+      function(n) {
+        args <- "test"
+        str <- deparse(methods@.Data[[n]])
+        str <- str[ (grep("\\.local <- function \\(", str)[1]):length(str) ]
+        str <- paste0(str, collapse = " ")
+        str <- strsplit(str, "")[[1]]
+        sig <- 0L
+        pair <- 0L
+        char <- c()
+        for (i in str) {
+          if (i == "(") {
+            pair <- 1L
+            sig <- sig + 1L
+          } else if (i == ")") {
+            sig <- sig - 1L
+          }
+          if (sig == 0L & pair)
+            break
+          else if (pair & i != "(")
+            char <- c(char, i)
+        }
+        args <- paste(char, collapse = "")
+        message(crayon::green(methods@names[[n]]), ":")
+        message(strwrap(args, indent = 4))
+      })
+    cli::cli_h1("Methods parameters")
+  })
+
+
