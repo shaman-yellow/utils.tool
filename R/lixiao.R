@@ -951,7 +951,7 @@ write_xlsx2 <- function(data, name, ..., file = paste0(get_realname(name), ".xls
 }
 
 write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".pdf"),
-  mkdir = "figs", fun = openxlsx::write.xlsx)
+  mkdir = "figs")
 {
   if (!file.exists(mkdir))
     dir.create(mkdir)
@@ -2014,7 +2014,11 @@ setMethod("show",
   signature = c(object = "wrap"),
   function(object){
     dev.new(width = object@width, height = object@height)
-    print(object@data)
+    if (is(object@data, "grob.obj")) {
+      grid.draw(object@data)
+    } else {
+      print(object@data)
+    }
   })
 
 .wgcNet <- setClass("wgcNet", 

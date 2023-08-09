@@ -71,20 +71,13 @@ setMethod("step2", signature = c(x = "job_seurat"),
         object(x), subset = nFeature_RNA > min.features &
           nFeature_RNA < max.features & percent.mt < max.percent.mt
         ))
-    # object(x) <- e(Seurat::NormalizeData(
-    #     object(x), normalization.method = "LogNormalize", scale.factor = 10000
-    #     ))
-    # object(x) <- e(Seurat::FindVariableFeatures(
-    #     object(x), selection.method = "vst", nfeatures = 2000
-    #     ))
-    # p.var2000 <- plot_var2000(object(x))
     object(x) <- e(Seurat::SCTransform(
         object(x), method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = T,
         ))
     object(x) <- e(Seurat::RunPCA(
         object(x), features = SeuratObject::VariableFeatures(object(x))
         ))
-    x@plots[[ 2 ]] <- c(namel(p.var2000), plot_pca.seurat(object(x)))
+    x@plots[[ 2 ]] <- plot_pca.seurat(object(x))
     return(x)
   })
 
@@ -113,14 +106,6 @@ setMethod("step3", signature = c(x = "job_seurat"),
     object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution))
     object(x) <- e(Seurat::RunUMAP(object(x), dims = dims))
     p.umap <- e(Seurat::DimPlot(object(x), reduction = "umap", cols = color_set()))
-    # markers <- as_tibble(
-    #   e(Seurat::FindAllMarkers(object(x), min.pct = 0.25, logfc.threshold = 0.25))
-    # )
-    # tops <- dplyr::filter(markers, p_val_adj < .05)
-    # tops <- slice_max(group_by(markers, cluster), avg_log2FC, n = 10)
-    # p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = F))
-    # p.toph <- wrap(p.toph, 14, 12)
-    # x@tables[[ 3 ]] <- list(all_markers = markers)
     x@plots[[ 3 ]] <- namel(p.umap)
     return(x)
   })
@@ -166,6 +151,7 @@ setMethod("step4", signature = c(x = "job_seurat"),
 
 setMethod("step5", signature = c(x = "job_seurat"),
   function(x, workers = 3){
+    step_message("Find all Marders for Cell Cluster.")
     fun <- function(x) {
       markers <- as_tibble(
         e(Seurat::FindAllMarkers(object(x), min.pct = 0.25,
@@ -179,7 +165,7 @@ setMethod("step5", signature = c(x = "job_seurat"),
     }
     tops <- dplyr::filter(markers, p_val_adj < .05)
     tops <- slice_max(group_by(markers, cluster), avg_log2FC, n = 10)
-    p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = F))
+    p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = T))
     p.toph <- wrap(p.toph, 14, 12)
     x@tables[[ 5 ]] <- list(all_markers = markers)
     x@plots[[ 5 ]] <- namel(p.toph)

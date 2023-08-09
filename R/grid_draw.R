@@ -31,7 +31,7 @@ lapply(.grob_class, setClass, where = topenv())
 setClass("viewport")
 setClassUnion("grob.obj", .grob_class)
 
-.gg <- c("gg", "ggplot", "ggraph")
+.gg <- c("gg", "ggplot", "ggraph", "patchwork")
 lapply(.gg, setClass, where = topenv())
 setClassUnion("gg.obj", .gg)
 
@@ -142,6 +142,12 @@ setGeneric("as_grob",
 setMethod("as_grob", signature = c(x = "gg.obj"),
   function(x){
     ggplot2::ggplot_gtable(ggplot2::ggplot_build(x))
+  })
+
+#' @exportMethod as_grob
+setMethod("as_grob", signature = c(x = "patchwork"),
+  function(x){
+    patchwork::patchworkGrob(x)
   })
 
 #' @export get_weight

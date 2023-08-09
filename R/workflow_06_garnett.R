@@ -62,7 +62,16 @@ setMethod("step2", signature = c(x = "job_garnett"),
     return(x)
   })
 
-as_marker_list <- function(lst) {
+as_marker_list <- function(x, freq, filter) {
+  .check_columns(x, c("cluster", "gene"), "x")
+  stat <- table(x$gene)
+  stat <- stat[ stat <= freq ]
+  x <- filter(x, gene %in% names(!!stat), gene %in% !!filter)
+  x <- split(x$gene, x$cluster)
+  x
+}
+
+as_marker_lines <- function(lst) {
   lst <- lapply(names(lst),
     function(name) {
       main <- paste0("expressed: ", paste0(lst[[ name ]], collapse = ", "))

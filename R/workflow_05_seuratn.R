@@ -73,7 +73,7 @@ setMethod("step2", signature = c(x = "job_seuratn"),
       return(x)
     }
     if (!is.null(workers)) {
-      x <- parralel(x, fun, workers)
+      x <- parallel(x, fun, workers)
     } else {
       x <- fun(x)
     }

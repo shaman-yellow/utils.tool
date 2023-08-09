@@ -147,77 +147,141 @@ setMethod("step0", signature = c(x = "numeric"),
 setGeneric("step1",
   function(x, ...) {
     x <- checkAddStep(x, 1L)
-    standardGeneric("step1")
+    x <- standardGeneric("step1")
+    stepPostModify(x, 1)
   })
 
 setGeneric("step2",
   function(x, ...) {
     x <- checkAddStep(x, 2L)
-    standardGeneric("step2")
+    x <- standardGeneric("step2")
+    stepPostModify(x, 2)
   })
 
 setGeneric("step3",
   function(x, ...) {
     x <- checkAddStep(x, 3L)
-    standardGeneric("step3")
+    x <- standardGeneric("step3")
+    stepPostModify(x, 3)
   })
 
 setGeneric("step4",
   function(x, ...) {
     x <- checkAddStep(x, 4L)
-    standardGeneric("step4")
+    x <- standardGeneric("step4")
+    stepPostModify(x, 4)
   })
 
 setGeneric("step5",
   function(x, ...) {
     x <- checkAddStep(x, 5L)
-    standardGeneric("step5")
+    x <- standardGeneric("step5")
+    stepPostModify(x, 5)
   })
 
 setGeneric("step6",
   function(x, ...) {
     x <- checkAddStep(x, 6L)
-    standardGeneric("step6")
+    x <- standardGeneric("step6")
+    stepPostModify(x, 6)
   })
 
 setGeneric("step7",
   function(x, ...) {
     x <- checkAddStep(x, 7L)
-    standardGeneric("step7")
+    x <- standardGeneric("step7")
+    stepPostModify(x, 7)
   })
 
 setGeneric("step8",
   function(x, ...) {
     x <- checkAddStep(x, 8L)
-    standardGeneric("step8")
+    x <- standardGeneric("step8")
+    stepPostModify(x, 8)
   })
 
 setGeneric("step9",
   function(x, ...) {
     x <- checkAddStep(x, 9L)
-    standardGeneric("step9")
+    x <- standardGeneric("step9")
+    stepPostModify(x, 9)
   })
 
 setGeneric("step10",
   function(x, ...) {
     x <- checkAddStep(x, 10L)
-    standardGeneric("step10")
+    x <- standardGeneric("step10")
+    stepPostModify(x, 10)
   })
 
 setGeneric("step11",
   function(x, ...) {
     x <- checkAddStep(x, 11L)
-    standardGeneric("step11")
+    x <- standardGeneric("step11")
+    stepPostModify(x, 11)
   })
 
 setGeneric("step12",
   function(x, ...) {
     x <- checkAddStep(x, 12L)
-    standardGeneric("step12")
+    x <- standardGeneric("step12")
+    stepPostModify(x, 12)
   })
 
-setGeneric("as_job_lapply", 
-  function(x, ...) standardGeneric("as_job_lapply"))
+stepPostModify <- function(x, n) {
+  convertPlots(x, n)
+}
+
+convertPlots <- function(x, n) {
+  if (length(x@plots) >= n)
+    x@plots[[ n ]] <- rapply2_asWrap(x@plots[[ n ]], "gg.obj")
+  gc()
+  x
+}
+
+rapply2_asWrap <- function(x, class = "gg.obj") {
+  fun <- function(x) {
+    if (is(x, "gg.obj"))
+      wrap(as_grob(x))
+    else {
+      wrap(x)
+    }
+  }
+  if (is(x, class)) {
+    name <- attr(x, ".name")
+    x <- fun(x)
+    cli::cli_alert_success(paste("Convert", paste0("`", name, "`"), "as wrap"))
+    x
+  } else if (is(x, "wrap")) {
+    if (is(x@data, class)) {
+      x@data <- as_grob(x@data)
+    }
+    x
+  } else if (is(x, "list")) {
+    names <- names(x)
+    x <- lapply(1:length(x),
+      function(n) {
+        name <- names[[ n ]]
+        obj <- x[[ n ]]
+        attr(obj, ".name") <- name
+        obj
+      })
+    names(x) <- names
+    lapply(x, rapply2_asWrap, class = class)
+  } else {
+    x
+  }
+}
+
+rapply2 <- function(x, fun, class, ...) {
+  if (is(x, class)) {
+    fun(x, ...)
+  } else if (is(x, "list")) {
+    lapply(x, rapply2, fun = fun, class = class, ...)
+  } else {
+    x
+  }
+}
 
 checkAddStep <- function(x, n) {
   STEP <- paste0("step", n)
@@ -270,7 +334,7 @@ parallel <- function(x, fun, workers = 3) {
     e(pkgload::unload("future"))
   }
   options(future.globals.maxSize = Inf)
-  e(future::plan(future::multisession, workers = workers))
+  e(future::plan(future::multicore, workers = workers))
   x <- fun(x)
   e(future::plan(future::sequential))
   x
