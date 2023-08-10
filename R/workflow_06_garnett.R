@@ -62,13 +62,17 @@ setMethod("step2", signature = c(x = "job_garnett"),
     return(x)
   })
 
-as_marker_list <- function(x, freq, filter) {
+as_marker_list <- function(x, filter, unique_level = 1:3) {
   .check_columns(x, c("cluster", "gene"), "x")
   stat <- table(x$gene)
-  stat <- stat[ stat <= freq ]
-  x <- filter(x, gene %in% names(!!stat), gene %in% !!filter)
-  x <- split(x$gene, x$cluster)
-  x
+  maker_list <- lapply(unique_level,
+    function(level) {
+      stat <- stat[ stat <= level ]
+      x <- filter(x, gene %in% names(!!stat), gene %in% !!filter)
+      x <- split(x$gene, x$cluster)
+      x
+    })
+  .marker_list(level = unique_level, marker = maker_list)
 }
 
 as_marker_lines <- function(lst) {

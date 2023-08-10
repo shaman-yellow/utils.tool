@@ -184,16 +184,13 @@ setMethod("step4", signature = c(x = "job_monocle"),
     return(x)
   })
 
-setMethod("ids", signature = c(x = "job_monocle", id = "missing"),
-  function(x, ...){
-    ids(x, id = x@params$group.by, ...)
-  })
-
-setMethod("ids", signature = c(x = "job_monocle", id = "character"),
-  function(x, id, unique = T){
+setMethod("ids", signature = c(x = "job_monocle"),
+  function(x, id = x@params$group.by, unique = T){
     ids <- SummarizedExperiment::colData(object(x))[[ id ]]
     if (unique)
       unique(ids)
+    else
+      ids
   })
 
 get_principal_nodes <- function(cds, col, target) {

@@ -16,6 +16,17 @@
     ),
   prototype = prototype(step = 0L))
 
+.marker_list <- setClass("marker_list", 
+  contains = c(),
+  representation = representation(level = "numeric", marker = "list"),
+  prototype = NULL)
+
+setMethod("show", 
+  signature = c(object = "marker_list"),
+  function(object){
+    .show(object)
+  })
+
 setMethod("show", 
   signature = c(object = "job"),
   function(object){
@@ -45,7 +56,7 @@ setGeneric("params<-",
 setGeneric("others<-", 
   function(x, value) standardGeneric("others<-"))
 setGeneric("ids", 
-  function(x, id, ...) standardGeneric("ids"))
+  function(x, ...) standardGeneric("ids"))
 
 
 setMethod("object", signature = c(x = "job"),
@@ -353,19 +364,17 @@ show_nonstandardGenericFunction <- selectMethod(
   "show", "nonstandardGenericFunction"
 )
 
-setMethod("print", signature = c(x = "nonstandardGenericFunction"),
-  function(x){
-    show(x)
-  })
+show_standardGeneric <- selectMethod(
+  "show", "standardGeneric"
+)
 
-setMethod("show", 
-  signature = c(object = "nonstandardGenericFunction"),
-  function(object){
-    if (!hasMethods(object, package = environmentName(topenv()))) {
-      return(show_nonstandardGenericFunction(object))
-    }
-    methods <- findMethods(object)
-    len <- length(methods@names)
+.show_method <- function(object, default, filter_by_options){
+  if (!hasMethods(object, package = environmentName(topenv()))) {
+    return(default(object))
+  }
+  methods <- findMethods(object)
+  len <- length(methods@names)
+  if (filter_by_options) {
     if (!is.null(ms <- getOption("method_name"))) {
       nums <- which(methods@names %in% ms)
       if (!length(nums))
@@ -374,33 +383,59 @@ setMethod("show",
     } else {
       nums <- 1:len
     }
-    lapply(nums,
-      function(n) {
-        args <- "test"
-        str <- deparse(methods@.Data[[n]])
-        str <- str[ (grep("\\.local <- function \\(", str)[1]):length(str) ]
-        str <- paste0(str, collapse = " ")
-        str <- strsplit(str, "")[[1]]
-        sig <- 0L
-        pair <- 0L
-        char <- c()
-        for (i in str) {
-          if (i == "(") {
-            pair <- 1L
-            sig <- sig + 1L
-          } else if (i == ")") {
-            sig <- sig - 1L
-          }
-          if (sig == 0L & pair)
-            break
-          else if (pair & i != "(")
-            char <- c(char, i)
+  } else {
+    nums <- 1:len
+  }
+  lapply(nums,
+    function(n) {
+      args <- "test"
+      str <- deparse(methods@.Data[[n]])
+      posLocal <- grep("\\.local <- function \\(", str)
+      if (length(posLocal) > 0)
+        str <- str[ posLocal[1]:length(str) ]
+      else
+        str[1] <- sub("^.*?(function)", "\\1", str[1])
+      str <- paste0(str, collapse = " ")
+      str <- strsplit(str, "")[[1]]
+      sig <- 0L
+      pair <- 0L
+      char <- c()
+      for (i in str) {
+        if (i == "(") {
+          pair <- 1L
+          sig <- sig + 1L
+        } else if (i == ")") {
+          sig <- sig - 1L
         }
-        args <- paste(char, collapse = "")
-        message(crayon::green(methods@names[[n]]), ":")
-        message(strwrap(args, indent = 4))
-      })
-    cli::cli_h1("Methods parameters")
+        if (sig == 0L & pair)
+          break
+        else if (pair & i != "(")
+          char <- c(char, i)
+      }
+      args <- paste(char, collapse = "")
+      message(crayon::green(gsub("#", ", ", methods@names[[n]])), ":")
+      message(strwrap(args, indent = 4))
+    })
+  cli::cli_h1("Methods parameters")
+}
+
+setMethod("show", 
+  signature = c(object = "standardGeneric"),
+  function(object){
+    .show_method(object, show_standardGeneric, F)
   })
 
+setMethod("show", 
+  signature = c(object = "nonstandardGenericFunction"),
+  function(object) {
+    .show_method(object, show_nonstandardGenericFunction, T)
+  }
+)
 
+setMethod("print", signature = c(x = "nonstandardGenericFunction"),
+  function(x){
+    show(x)
+  })
+
+setGeneric("map", 
+  function(x, ref, ...) standardGeneric("map"))

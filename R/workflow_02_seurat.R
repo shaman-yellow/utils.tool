@@ -163,7 +163,7 @@ setMethod("step5", signature = c(x = "job_seurat"),
     } else {
       markers <- fun(x)
     }
-    tops <- dplyr::filter(markers, p_val_adj < .05)
+    markers <- dplyr::filter(markers, p_val_adj < .05)
     tops <- slice_max(group_by(markers, cluster), avg_log2FC, n = 10)
     p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = T))
     p.toph <- wrap(p.toph, 14, 12)
@@ -188,6 +188,70 @@ setMethod("step6", signature = c(x = "job_seurat"),
     return(x)
   })
 
+setMethod("map", signature = c(x = "job_seurat", ref = "marker_list"),
+  function(x, ref, p.adjust = .05, log2fc = 1, use_all = T, prop = .6, print = T){
+    if (x@step < 5L)
+      stop("x@step < 5L")
+    all_markers <- tables(x, 5)$all_markers
+    all_markers <- filter(all_markers, p_val_adj < p.adjust, avg_log2FC > log2fc)
+    all_markers <- select(all_markers, cluster, gene)
+    all_markers <- split(all_markers$gene, all_markers$cluster)
+    refs <- lapply(ref@level, function(n) ref@marker[[ n ]])
+    stats <- lapply(all_markers,
+      function(markers) {
+        alls <- lapply(refs,
+          function(ref) {
+            all <- vapply(ref, FUN.VALUE = numeric(1),
+              function(ref.) {
+                res <- prop.table(table(ref. %in% markers))
+                res <- unname(res[ names(res) == "TRUE" ])
+                if (!length(res)) 0
+                else res
+              })
+            tibble::tibble(cell_type = names(all), prop = unname(all))
+          })
+        names(alls) <- ref@level
+        alls <- data.table::rbindlist(alls, fill = T, idcol = T)
+        rename(alls, unique_level = .id)
+      })
+    map_prop <- data.table::rbindlist(stats, fill = T, idcol = T)
+    map_prop <- rename(map_prop, cluster = .id)
+    sr@tables$map_prop <- map_prop
+    map_prop <- mutate(map_prop, unique_level = as.integer(unique_level))
+    map_prop <- arrange(map_prop, dplyr::desc(prop))
+    if (use_all) {
+      mapu <- distinct(map_prop, cell_type, .keep_all = T)
+      mapu <- rbind(mapu, map_prop)
+      map_res <- distinct(mapu, cluster, .keep_all = T)
+    } else {
+      map_res <- filter(map_prop, prop > !!prop)
+      map_res <- distinct(map_res, cluster, .keep_all = T)
+    }
+    if (print)
+      print(map_res, n = 100)
+    object(x)@meta.data$map_cell_type <- do.call(
+      dplyr::recode,
+      c(list(as.character(object(x)@meta.data$seurat_clusters)),
+        nl(map_res$cluster, map_res$cell_type))
+    )
+    x@params$group.by <- "map_cell_type"
+    p.map_marker_list <- e(Seurat::DimPlot(
+        object(x), reduction = "umap", label = TRUE, pt.size = 0.5,
+        group.by = "map_cell_type", cols = color_set()
+        ))
+    x@plots[[ 4 ]]$p.map_marker_list <- wrap(as_grob(p.map_marker_list))
+    message(crayon::yellow(paste0("Use `plots(",
+          as.character(substitute(x, env = parent.frame(1))),
+          ", 4)$p.map_marker_list` to show result.")))
+    return(x)
+  })
+setMethod("ids", signature = c(x = "job_seurat"),
+  function(x, id = x@params$group.by, unique = T){
+    ids <- object(x)@meta.data[[ id ]]
+    if (unique)
+      ids <- unique(ids)
+    ids
+  })
 plot_var2000 <- function(x) {
   top20 <- head(SeuratObject::VariableFeatures(x), 20)
   p.var2000 <- e(Seurat::VariableFeaturePlot(x))
@@ -195,7 +259,6 @@ plot_var2000 <- function(x) {
   p.var2000 <- wrap(p.var2000, 12, 8)
   p.var2000
 }
-
 plot_pca.seurat <- function(x) {
   p.pca_pcComponents <- e(Seurat::VizDimLoadings(
       x, dims = 1:2, reduction = "pca",

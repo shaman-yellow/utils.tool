@@ -358,6 +358,27 @@ download_herbCompounds <- function(link, ids,
     })
 }
 
+get_from_genecards <- function(query, score = 5, keep_drive = F) {
+  query <- gs(query, " ", "%20")
+  url <- paste0('https://www.genecards.org/Search/Keyword?queryString=%22', query,
+    '%22&pageSize=25000&startPage=0')
+  link <- start_drive()
+  Sys.sleep(3)
+  link$open()
+  link$navigate(url)
+  html <- link$getPageSource()[[1]]
+  html <- XML::htmlParse(html)
+  table <- XML::readHTMLTable(html)
+  table <- as_tibble(data.frame(table[[1]]))
+  colnames(table) %<>% gs("\\.+", "_")
+  colnames(table) %<>% gs("X_|_$", "")
+  table <- select(table, -1, -2)
+  table <- filter(table, Score > !!score)
+  if (!keep_drive)
+    end_drive()
+  return(table)
+}
+
 moveToDir_herbs <- function(ids,
   file.pattern = "\\.xlsx$", index.pfun = file_seq.by_time,
   from = "~/Downloads", to = "herbs_ingredient", suffix = ".xlsx", .id = "herb_id")
@@ -485,6 +506,20 @@ get_tcm.base <- function(id, link_prefix) {
   data
 }
 
+get_c2_data <- function(pattern = NULL, path = "../human_c2_v5p2.rdata",
+  download_url = "https://bioinf.wehi.edu.au/software/MSigDB/human_c2_v5p2.rdata")
+{
+  if (!file.exists(path)) {
+    system(paste0("wget ", download_url, " -O ", path))
+  }
+  name <- load(path)
+  db <- get(name)
+  names(db) <- tolower(names(db))
+  if (!is.null(pattern))
+    db <- db[ grep(pattern, names(db)) ]
+  return(db)
+}
+
 writePlots <- function(lst, dir, width = 7, height = 7, ..., postfix = ".pdf") 
 {
   fun <- function(p, file) ggsave(file, p, width = width, height = height)
@@ -532,15 +567,17 @@ list_attrs <- function(mart) {
   tibble::as_tibble(biomaRt::listAttributes(mart))
 }
 
-general_attrs <- function() {
+general_attrs <- function(pdb = F) {
   attrs <- c("ensembl_gene_id",
     "entrezgene_id",
     "hgnc_symbol",
-    "pdb",
     "chromosome_name",
     "start_position",
     "end_position",
     "description")
+  if (pdb) {
+    attrs <- c(attrs, "pdb")
+  }
   attrs
 }
 
@@ -2613,5 +2650,39 @@ get_from_env <- function (weight, data = list(), env = parent.frame(1)){
 plot_roc <- function(roc) {
   plot(1- x$specificities, x$sensitivities)
 }
+
+# ==========================================================================
+# upset plot
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+.upset <- setClass("upset_data", 
+  contains = c("can_not_be_draw", "tbl_df"),
+  representation = representation(),
+  prototype = NULL)
+
+setMethod("show", 
+  signature = c(object = "upset_data"),
+  function(object){
+    data <- suppressWarnings(data.frame(as_tibble(object)))
+    colnames(data) %<>% stringr::str_trunc(20)
+    upset <- UpSetR::upset(data, sets.bar.color = "lightblue", order.by = "freq")
+    dev.off()
+    show(wrap(upset, 9, 7))
+  })
+
+new_upset <- function(..., lst = NULL) {
+  if (is.null(lst)) {
+    lst <- list(...)
+  }
+  members <- unique(unlist(lst, use.names = F))
+  data <- data.frame(members = members)
+  lst <- lapply(lst,
+    function(set) {
+      ifelse(data$members %in% set, 1L, 0L)
+    })
+  data <- do.call(mutate, c(list(data), lst))
+  .upset(data)
+}
+
 
 

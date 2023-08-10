@@ -14,6 +14,18 @@
     info = c("Tutorial: https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/index.html")
     ))
 
+setGeneric("asjob_wgcna", 
+  function(x, ...) standardGeneric("asjob_wgcna"))
+
+setMethod("asjob_wgcna", signature = c(x = "job_seurat"),
+  function(x, features = NULL, cells = NULL){
+    step_message("Use SeuratObject:::subset.Seurat to subset the data.")
+    sub <- e(SeuratObject:::subset.Seurat(object(x),
+        features = features, cells = cells
+        ))
+    metadata <- as_tibble(sub@meta.data)
+  })
+
 job_wgcna <- function(metadata, log_counts,
   gene_annotation, rename_id = "hgnc_symbol")
 {

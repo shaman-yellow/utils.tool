@@ -489,6 +489,25 @@ ex_pic <- function(name){
   ex_grob(name, fun = grImport2::readPicture)
 }
 
+
+.show <- function(object){
+    cat(class(object), "\n")
+    slots_mapply(object, function(names, slots){
+              cat(names, ":\n", sep = "")
+              cat(str(slots))
+              cat("\n\n")
+           })
+  }
+
+slots_mapply <- function(x, fun, ...){
+    slots <- attributes(x)
+    slots <- slots[-length(slots)]
+    res <- mapply(fun, slot = slots, name = names(slots), ...)
+    return(res)
+  }
+
+
+
 # ==========================================================================
 # colors
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
