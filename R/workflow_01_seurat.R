@@ -245,6 +245,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "marker_list"),
           ", 4)$p.map_marker_list` to show result.")))
     return(x)
   })
+
 setMethod("ids", signature = c(x = "job_seurat"),
   function(x, id = x@params$group.by, unique = T){
     ids <- object(x)@meta.data[[ id ]]
@@ -299,6 +300,18 @@ plot_pca.seurat <- function(x) {
   )
 }
 
+setMethod("getsub", signature = c(x = "job_seurat"),
+  function(x, ...){
+    object(x) <- e(SeuratObject:::subset.Seurat(object(x), ...))
+    return(x)
+  })
+
+setMethod("active", signature = c(x = "job_seurat"),
+  function(x, assay = "RNA"){
+    object(x)@active.assay <- assay
+    x
+  })
+
 plot_qc.seurat <- function(x) {
   require(patchwork)
   p.feature_count_mt <- e(Seurat::VlnPlot(x, features = c("nFeature_RNA", "nCount_RNA",
@@ -313,3 +326,5 @@ plot_qc.seurat <- function(x) {
   p.qc <- wrap(p.qc, 14, 12)
   p.qc
 }
+
+

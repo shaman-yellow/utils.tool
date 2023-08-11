@@ -1467,12 +1467,7 @@ prepare_expr_data <- function(metadata, counts, genes, idname, message = T)
   lapply(list(counts[[ 1 ]], genes[[ 1 ]], metadata[[ 1 ]]), checkDup)
   colnames(metadata) %<>% make.names()
   metadata <- dplyr::rename(metadata, sample = 1)
-  select_args <- lapply(metadata$sample,
-    function(name){
-      rlang::quo(dplyr::contains(!!name))
-    })
-  select_args <- do.call(c, select_args)
-  counts <- dplyr::select(counts, 1, !!!select_args)
+  counts <- dplyr::select(counts, 1, dplyr::all_of(metadata$sample))
   metadata$sample %<>% make.names()
   colnames(counts) %<>% make.names()
   ## sort genes
@@ -1483,12 +1478,14 @@ prepare_expr_data <- function(metadata, counts, genes, idname, message = T)
     by.x = idname, by.y = colnames(genes)[1],
     sort = F, all.x = T
   )
-  if (message) {
-    message("## The missing genes in `genes`")
-    check.na <- dplyr::filter(
-      genes, is.na(!!rlang::sym(colnames(genes)[2]))
-    )
-    print(check.na)
+  if (ncol(genes) > 1) {
+    if (message) {
+      message("## The missing genes in `genes`")
+      check.na <- dplyr::filter(
+        genes, is.na(!!rlang::sym(colnames(genes)[2]))
+      )
+      print(check.na)
+    }
   }
   counts <- dplyr::select(counts, -1)
   colnames(counts) <- metadata$sample
@@ -2664,8 +2661,10 @@ setMethod("show",
   signature = c(object = "upset_data"),
   function(object){
     data <- suppressWarnings(data.frame(as_tibble(object)))
-    colnames(data) %<>% stringr::str_trunc(20)
-    upset <- UpSetR::upset(data, sets.bar.color = "lightblue", order.by = "freq")
+    colnames(data) %<>% stringr::str_trunc(30)
+    maxnum <- max(apply(dplyr::select_if(data, is.integer), 2, sum))
+    upset <- UpSetR::upset(data, ncol(data), sets.bar.color = "lightblue", order.by = "freq",
+      set_size.show = T, set_size.scale_max = 1.3 * maxnum)
     dev.off()
     show(wrap(upset, 9, 7))
   })
@@ -2674,6 +2673,7 @@ new_upset <- function(..., lst = NULL) {
   if (is.null(lst)) {
     lst <- list(...)
   }
+  lst <- lapply(lst, unique)
   members <- unique(unlist(lst, use.names = F))
   data <- data.frame(members = members)
   lst <- lapply(lst,

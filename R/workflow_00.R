@@ -261,6 +261,8 @@ convertPlots <- function(x, n) {
 
 rapply2_asWrap <- function(x, class = "gg.obj") {
   fun <- function(x) {
+    if (is.null(x))
+      return()
     if (is(x, "gg.obj"))
       wrap(as_grob(x))
     else {
@@ -277,13 +279,16 @@ rapply2_asWrap <- function(x, class = "gg.obj") {
       x@data <- as_grob(x@data)
     }
     x
+  } else if (is(x, "can_not_be_draw")) {
+    x
   } else if (is(x, "list")) {
     names <- names(x)
     x <- lapply(1:length(x),
       function(n) {
         name <- names[[ n ]]
         obj <- x[[ n ]]
-        attr(obj, ".name") <- name
+        if (!is.null(obj))
+          attr(obj, ".name") <- name
         obj
       })
     names(x) <- names
@@ -439,3 +444,21 @@ setMethod("print", signature = c(x = "nonstandardGenericFunction"),
 
 setGeneric("map", 
   function(x, ref, ...) standardGeneric("map"))
+
+setGeneric("getsub", 
+  function(x, ...) standardGeneric("getsub"))
+
+setGeneric("active", 
+  function(x, ...) standardGeneric("active"))
+
+
+ins <- function(..., lst = NULL) {
+  if (is.null(lst)) {
+    lst <- list(...)
+  }
+  x <- lst[[ 1 ]]
+  for (i in lst[2:length(lst)]) {
+    x <- intersect(x, i)
+  }
+  x
+}

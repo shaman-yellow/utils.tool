@@ -20,10 +20,16 @@ setGeneric("asjob_wgcna",
 setMethod("asjob_wgcna", signature = c(x = "job_seurat"),
   function(x, features = NULL, cells = NULL){
     step_message("Use SeuratObject:::subset.Seurat to subset the data.")
-    sub <- e(SeuratObject:::subset.Seurat(object(x),
-        features = features, cells = cells
-        ))
+    hasIt <- features %in% rownames(object(x))
+    message("Features found:")
+    print(prop.table(table(hasIt)))
+    sub <- e(suppressWarnings(SeuratObject:::subset.Seurat(object(x),
+        features = features[ hasIt ], cells = cells
+        )))
+    log_counts <- as_tibble(sub[[ SeuratObject::DefaultAssay(sub) ]]@scale.data)
     metadata <- as_tibble(sub@meta.data)
+    gene_annotation <- tibble::tibble(gene = rownames(sub))
+    job_wgcna(metadata, log_counts, gene_annotation, "gene")
   })
 
 job_wgcna <- function(metadata, log_counts,
@@ -63,19 +69,19 @@ setMethod("step1", signature = c(x = "job_wgcna"),
   })
 
 setMethod("step2", signature = c(x = "job_wgcna"),
-  function(x, size, height){
+  function(x, size = NULL, height = NULL){
     step_message("Cut sample tree with `height` and `size`. ",
       "This do: ",
       "clip `x@object`; generate `x@params$datExpr`; ",
       "generate `x@params$allTraits`. "
     )
-    if (missing(size) | missing(height))
-      stop("missing(size) | missing(height)")
-    datExpr <- exclude(params(x)$datExpr0,
-      cut_tree(params(x)$raw_sample_tree, size, height))
-    x@params$datExpr <- datExpr
-    object(x) <- clip_data(object(x), datExpr)
-    x@params$allTraits <- as_wgcTrait(object(x))
+    if (!is.null(size)) {
+      datExpr <- exclude(params(x)$datExpr0,
+        cut_tree(params(x)$raw_sample_tree, size, height))
+      x@params$datExpr <- datExpr
+      object(x) <- clip_data(object(x), datExpr)
+      x@params$allTraits <- as_wgcTrait(object(x))
+    }
     return(x)
   })
 
@@ -101,18 +107,26 @@ setMethod("step4", signature = c(x = "job_wgcna"),
       "
     )
     net <- cal_module(params(x)$datExpr, power, ...)
+    if (!is(net, "wgcNet"))
+      net <- .wgcNet(net)
     x@plots[[ 4 ]] <- list(net = net)
     x@params$MEs <- get_eigens(net)
     return(x)
   })
 
 setMethod("step5", signature = c(x = "job_wgcna"),
-  function(x){
+  function(x, traits = NULL){
     step_message("Correlation test for modules with trait data. ",
       "This do:",
       "Generate plots in `x@plots[[ 5 ]]`; ",
       "tables in `x@tables[[ 5 ]]`"
     )
+    if (!is.null(traits)) {
+      traits <- data.frame(traits)
+      x@params$allTraits <- traits
+    }
+    if (is.null(params(x)$allTraits))
+      stop("is.null(params(x)$allTraits) == T")
     if (ncol(params(x)$allTraits) == 0)
       stop("ncol(params(x)$allTraits) == 0, no data in `allTraits`.")
     hps_corp <- new_heatdata(params(x)$MEs, params(x)$allTraits)
@@ -139,4 +153,5 @@ setMethod("step6", signature = c(x = "job_wgcna"),
     x@tables[[ 6 ]] <- list(mm = mm.s, gs = gs.s)
     return(x)
   })
+
 

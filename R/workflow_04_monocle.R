@@ -29,8 +29,31 @@ setMethod("asjob_monocle", signature = c(x = "job_seurat"),
     }
     if (is.null(group.by))
       stop("is.null(group.by) == T")
+    if (FALSE) {
+      # https://github.com/cole-trapnell-lab/monocle3/issues/438
+      actAssay <- SeuratObject::DefaultAssay(object(x))
+      if (actAssay != "RNA") {
+        names <- names(object(x)@assays)
+        names(object(x)@assays)[match(c("RNA", actAssay), names)] <- c(actAssay, "RNA")
+        object(x)@active.assay <- 'RNA'
+        message(crayon::red("As issues in <https://github.com/cole-trapnell-lab/monocle3/issues/438>,",
+            "herein, the assays would be changed name before obtain."
+            ))
+      }
+    }
+    if (TRUE) {
+      # https://github.com/cole-trapnell-lab/monocle3/issues/438
+      message(crayon::red("As issues in <https://github.com/cole-trapnell-lab/monocle3/issues/438>,",
+          "herein, set default assays as 'RNA' before obtain.
+          NOTE: this results in all genes but not genes of integrated stored in monocle object;
+          however, the 'UMAP' data were inherits from 'Seurat' object, so the plots were consistent.
+          "
+          ))
+      object(x)@active.assay <- 'RNA'
+    }
     object <- e(SeuratWrappers::as.cell_data_set(object(x), group.by = group.by, ...))
     mn <- .job_monocle(object = object)
+    object(mn) <- e(monocle3::estimate_size_factors(object(mn)))
     if (is.null(object(mn)@reduce_dim_aux[['PCA']][['model']][['svd_v']]))
       object(mn)@reduce_dim_aux[['PCA']][['model']][['svd_v']] <- object(x)@reductions[["pca"]]@feature.loadings
     if (is.null(object(mn)@reduce_dim_aux[['PCA']][['model']][['svd_sdev']]))
@@ -103,7 +126,7 @@ setMethod("step2", signature = c(x = "job_monocle"),
   })
 
 setMethod("step3", signature = c(x = "job_monocle"),
-  function(x, formula_string){
+  function(x, formula_string = NULL, cores = 4){
     step_message("This step do:
       1. Regression analysis;
       2. Graph-autocorrelation analysis;
@@ -111,24 +134,34 @@ setMethod("step3", signature = c(x = "job_monocle"),
       4. Significant genes in co-regulated modules.
       "
     )
-    if (!is.character(formula_string)) {
-      stop("is.character(formula_string) == F")
-    }
     if (length(x@tables) < 3)
       x@tables[[ 3 ]] <- list()
-    if (is.null(x@tables[[ 3 ]]$fit_coefs)) {
-      fits <- e(monocle3::fit_models(object(x), formula_string, cores = 4))
-      fit_coefs <- e(monocle3::coefficient_table(fits))
-      fit_coefs.sig <- dplyr::filter(fit_coefs, term != "(Intercept)", q_value < .05)
-      fit_coefs.sig <- dplyr::arrange(fit_coefs.sig, q_value)
-      fit_goodness <- e(monocle3::evaluate_fits(fits))
-    } else {
-      fit_coefs <- x@tables[[ 3 ]]$fit_coefs
-      fit_coefs.sig <- x@tables[[ 3 ]]$fit_coefs.sig
-      fit_goodness <- x@tables[[ 3 ]]$fit_goodness
+    if (!is.null(formula_string)) {
+      if (!is.character(formula_string)) {
+        stop("is.character(formula_string) == F")
+      }
+      if (is.null(x@tables[[ 3 ]]$fit_coefs)) {
+        if (FALSE) {
+          if (isNamespaceLoaded("Seurat")) {
+            ## Oh, this is useless, still error
+            message(crayon::red("As <https://github.com/cole-trapnell-lab/monocle3/issues/522>,",
+                "herein, unload the package `Seurat`"))
+            pkgload::unload("Seurat")
+          }
+        }
+        fits <- e(monocle3::fit_models(object(x), formula_string, cores = cores, verbose = T))
+        fit_coefs <- e(monocle3::coefficient_table(fits))
+        fit_coefs.sig <- dplyr::filter(fit_coefs, term != "(Intercept)", q_value < .05)
+        fit_coefs.sig <- dplyr::arrange(fit_coefs.sig, q_value)
+        fit_goodness <- e(monocle3::evaluate_fits(fits))
+      } else {
+        fit_coefs <- x@tables[[ 3 ]]$fit_coefs
+        fit_coefs.sig <- x@tables[[ 3 ]]$fit_coefs.sig
+        fit_goodness <- x@tables[[ 3 ]]$fit_goodness
+      }
     }
     if (is.null(x@tables[[ 3 ]]$graph_test)) {
-      graph_test <- e(monocle3::graph_test(object(x), neighbor_graph = "knn", cores = 4))
+      graph_test <- e(monocle3::graph_test(object(x), neighbor_graph = "knn", cores = cores))
       graph_test <- as_tibble(graph_test)
       graph_test.sig <- dplyr::filter(graph_test, q_value < .05)
       graph_test.sig <- dplyr::arrange(graph_test.sig, dplyr::desc(morans_I), q_value)
@@ -137,12 +170,16 @@ setMethod("step3", signature = c(x = "job_monocle"),
       graph_test <- x@tables[[ 3 ]]$graph_test
       graph_test.sig <- x@tables[[ 3 ]]$graph_test.sig
     }
-    cross.sig <- graph_test.sig$gene_id[ graph_test.sig$gene_id %in% fit_coefs.sig$gene_id ]
-    gene_sigs <- list(
-      fit_coefs.sig = fit_coefs.sig$gene_id,
-      graph_test.sig = graph_test.sig$gene_id,
-      cross.sig = cross.sig
-    )
+    if (!is.null(formula_string)) {
+      cross.sig <- graph_test.sig$gene_id[ graph_test.sig$gene_id %in% fit_coefs.sig$gene_id ]
+      gene_sigs <- list(
+        fit_coefs.sig = fit_coefs.sig$gene_id,
+        graph_test.sig = graph_test.sig$gene_id,
+        cross.sig = cross.sig
+      )
+    } else {
+      gene_sigs <- list(graph_test.sig = graph_test.sig$gene_id)
+    }
     cell_group <- tibble::tibble(
       cell = row.names(SummarizedExperiment::colData(object(x))), 
       group = SummarizedExperiment::colData(object(x))[[ x@params$group.by ]]
@@ -152,15 +189,21 @@ setMethod("step3", signature = c(x = "job_monocle"),
       gene_module <- try(cal_modules.cds(object(x), gene_sigs, cell_group), T)
       gene_module_heatdata <- lapply(gene_module,
         function(lst) {
-          if (nrow(lst$aggregate) > 0)
-            callheatmap(new_heatdata(as_data_long(lst$aggregate, , "module", "cell")))
+          if (!is.null(lst$aggregate)) {
+            if (nrow(lst$aggregate) > 0)
+              callheatmap(new_heatdata(as_data_long(lst$aggregate, , "module", "cell")))
+          }
         })
       x@plots[[ 3 ]] <- namel(gene_module_heatdata)
     } else {
       gene_module <- x@tables[[ 3 ]]$gene_module
     }
-    x@tables[[ 3 ]] <- namel(fit_coefs, fit_coefs.sig, fit_goodness,
-      graph_test, graph_test.sig, gene_module)
+    if (!is.null(formula_string)) {
+      x@tables[[ 3 ]] <- namel(fit_coefs, fit_coefs.sig, fit_goodness,
+        graph_test, graph_test.sig, gene_module)
+    } else {
+      x@tables[[ 3 ]] <- namel(graph_test, graph_test.sig, gene_module)
+    }
     return(x)
   })
 
