@@ -148,9 +148,12 @@ setMethod("step6", signature = c(x = "job_wgcna"),
     gs <- cal_corp(params(x)$datExpr, params(x)$allTraits, "gene", "trait")
     gs.s <- dplyr::mutate(tibble::as_tibble(gs), p.adjust = p.adjust(pvalue, "BH"))
     gs.s <- dplyr::filter(gs.s, pvalue < .05)
+    p.mm_gs <- new_upset(gs = gs.s$gene, mm = mm.s$gene)
     x@params$mm <- mm
     x@params$gs <- gs
+    x@params$ins.mm_gs <- intersect(gs.s$gene, mm.s$gene)
     x@tables[[ 6 ]] <- list(mm = mm.s, gs = gs.s)
+    x@plots[[ 6 ]] <- namel(p.mm_gs)
     return(x)
   })
 

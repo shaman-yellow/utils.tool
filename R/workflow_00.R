@@ -249,7 +249,12 @@ setGeneric("step12",
   })
 
 stepPostModify <- function(x, n) {
-  convertPlots(x, n)
+  x <- convertPlots(x, n)
+  if (!is.null(x@plots[[ n ]]))
+    names(x@plots)[ n ] <- paste0("step", n)
+  if (!is.null(x@tables[[ n ]]))
+    names(x@tables)[ n ] <- paste0("step", n)
+  x
 }
 
 convertPlots <- function(x, n) {

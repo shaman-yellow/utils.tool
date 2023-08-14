@@ -569,6 +569,7 @@ list_attrs <- function(mart) {
 
 general_attrs <- function(pdb = F) {
   attrs <- c("ensembl_gene_id",
+    "ensembl_transcript_id",
     "entrezgene_id",
     "hgnc_symbol",
     "chromosome_name",
@@ -1471,11 +1472,11 @@ prepare_expr_data <- function(metadata, counts, genes, idname, message = T)
   metadata$sample %<>% make.names()
   colnames(counts) %<>% make.names()
   ## sort genes
-  data_id <- do.call(data.frame, nl(idname, list(counts[[1]])))
+  data_id <- do.call(data.frame, nl(colnames(genes)[1], list(counts[[1]])))
   genes <- dplyr::distinct(genes, !!rlang::sym(idname), .keep_all = T)
   genes <- tbmerge(
     data_id, genes,
-    by.x = idname, by.y = colnames(genes)[1],
+    by.x = colnames(data_id)[1], by.y = colnames(genes)[1],
     sort = F, all.x = T
   )
   if (ncol(genes) > 1) {
@@ -1494,8 +1495,9 @@ prepare_expr_data <- function(metadata, counts, genes, idname, message = T)
 
 new_dge <- function(metadata, counts, genes, idname, message = T)
 {
+  ## the idname used to duplicated the data row
   lst <- do.call(prepare_expr_data, as.list(environment()))
-  edgeR::DGEList(lst$counts, samples = lst$metadata, genes = lst$genes)
+  e(edgeR::DGEList(lst$counts, samples = lst$metadata, genes = lst$genes))
 }
 
 new_elist <- function(metadata, counts, genes, idname, message = T)
@@ -1567,7 +1569,7 @@ filter_low.dge <- function(dge, group., min.count = 10, prior.count = 2) {
   raw_dge <- dge
   raw_dge$counts <- edgeR::cpm(raw_dge, log = T, prior.count = prior.count)
   ## filter
-  keep.exprs <- edgeR::filterByExpr(dge, group = group., min.count = min.count)
+  keep.exprs <- e(edgeR::filterByExpr(dge, group = group., min.count = min.count))
   pro_dge <- dge <- edgeR::`[.DGEList`(dge, keep.exprs, , keep.lib.sizes = F)
   pro_dge$counts <- edgeR::cpm(pro_dge, log = T)
   ## plot
@@ -1594,7 +1596,7 @@ norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ...)
   raw_dge <- dge
   raw_dge$counts <- edgeR::cpm(raw_dge, log = T, prior.count = prior.count)
   ## pro
-  dge <- edgeR::calcNormFactors(dge, method = "TMM")
+  dge <- e(edgeR::calcNormFactors(dge, method = "TMM"))
   pro_dge <- dge <- fun(dge, design, ...)
   ## data long
   data <- list(Raw = as_data_long(raw_dge), Normalized = as_data_long(pro_dge))
@@ -1612,27 +1614,27 @@ norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ...)
 
 diff_test <- function(x, design, contr, block = NULL){
   if (!is.null(block)){
-    dupcor <- limma::duplicateCorrelation(x, design, block = block)
+    dupcor <- e(limma::duplicateCorrelation(x, design, block = block))
     cor <- dupcor$consensus.correlation
     message("## Within-donor correlation:", cor)
   } else {
     cor <- NULL
   }
-  fit <- limma::lmFit(x, design, block = block, correlation = cor)
-  fit <- limma::contrasts.fit(fit, contrasts = contr)
-  fit <- limma::eBayes(fit)
+  fit <- e(limma::lmFit(x, design, block = block, correlation = cor))
+  fit <- e(limma::contrasts.fit(fit, contrasts = contr))
+  fit <- e(limma::eBayes(fit))
   fit
 }
 
 extract_tops <- function(x, cut.q = 0.05, cut.fc = 0.3){
-  res <- lapply(1:ncol(x$contrasts),
+  res <- e(lapply(1:ncol(x$contrasts),
     function(coef){
       res <- limma::topTable(x, coef = coef, number = Inf)
       if (!is.null(cut.q) & !is.null(cut.fc)) {
         res <- dplyr::filter(res, adj.P.Val < cut.q, abs(logFC) > cut.fc)
       }
       dplyr::as_tibble(res) 
-    })
+    }))
   names(res) <- colnames(x$contrasts)
   res
 }
@@ -1644,11 +1646,11 @@ limma_downstream <- function(dge.list, group., design, contr.matrix,
     # if (NA %in% dge.list$samples[["lib.size"]]){
     # dge.list$samples[["lib.size"]] <- apply(dge.list$counts, 2, sum, na.rm = T)
     # }
-    keep.exprs <- edgeR::filterByExpr(dge.list, group = group., min.count = min.count)
+    keep.exprs <- e(edgeR::filterByExpr(dge.list, group = group., min.count = min.count))
     dge.list <- edgeR::`[.DGEList`(dge.list, keep.exprs, , keep.lib.sizes = F)
     if (voom){
-      dge.list <- edgeR::calcNormFactors(dge.list, method = "TMM")
-      dge.list <- limma::voom(dge.list, design)
+      dge.list <- e(edgeR::calcNormFactors(dge.list, method = "TMM"))
+      dge.list <- e(limma::voom(dge.list, design))
     }else{
       genes <- dge.list$genes
       targets <- dge.list$samples
@@ -1657,28 +1659,28 @@ limma_downstream <- function(dge.list, group., design, contr.matrix,
     if (get_normed.exprs)
       return(dge.list)
     if (!is.null(block)){
-      dupcor <- limma::duplicateCorrelation(dge.list, design, block = block)
+      dupcor <- e(limma::duplicateCorrelation(dge.list, design, block = block))
       cor <- dupcor$consensus.correlation
       cat("## Within-donor correlation:", cor, "\n")
     }else{
       cor <- NULL
     }
-    fit <- limma::lmFit(dge.list, design, block = block, correlation = cor)
+    fit <- e(limma::lmFit(dge.list, design, block = block, correlation = cor))
     if (!voom){
       fit$genes <- genes
       fit$targets <- targets
     }
-    fit.cont <- limma::contrasts.fit(fit, contrasts = contr.matrix)
-    ebayes <- limma::eBayes(fit.cont)
+    fit.cont <- e(limma::contrasts.fit(fit, contrasts = contr.matrix))
+    ebayes <- e(limma::eBayes(fit.cont))
     if (get_ebayes)
       return(ebayes)
-    res <- lapply(1:ncol(contr.matrix),
-      function(coef){
-        results <- limma::topTable(ebayes, coef = coef, number = Inf) %>% 
-          dplyr::filter(adj.P.Val < cut.q, abs(logFC) > cut.fc) %>% 
-          dplyr::as_tibble() 
-        return(results)
-      })
+    res <- e(lapply(1:ncol(contr.matrix),
+        function(coef){
+          results <- limma::topTable(ebayes, coef = coef, number = Inf) %>% 
+            dplyr::filter(adj.P.Val < cut.q, abs(logFC) > cut.fc) %>% 
+            dplyr::as_tibble() 
+          return(results)
+        }))
     names(res) <- colnames(contr.matrix)
     return(res)
   }
@@ -2512,7 +2514,7 @@ setMethod("abstract", signature = c(x = "df", name = "character", latex = "logic
       cat(abs, "\n")
     locate_file(name)
     if (!is.null(summary)) {
-      cat(text_roundrect(sumTbl(x, key, sum.ex)))
+      cat(text_roundrect(fix.tex(sumTbl(x, key, sum.ex))))
     }
   })
 
