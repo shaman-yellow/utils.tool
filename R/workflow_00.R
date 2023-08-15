@@ -250,10 +250,14 @@ setGeneric("step12",
 
 stepPostModify <- function(x, n) {
   x <- convertPlots(x, n)
-  if (!is.null(x@plots[[ n ]]))
-    names(x@plots)[ n ] <- paste0("step", n)
-  if (!is.null(x@tables[[ n ]]))
-    names(x@tables)[ n ] <- paste0("step", n)
+  if (length(x@plots) >= n) {
+    if (!is.null(x@plots[[ n ]]))
+      names(x@plots)[ n ] <- paste0("step", n)
+  }
+  if (length(x@tables) >= n) {
+    if (!is.null(x@tables[[ n ]]))
+      names(x@tables)[ n ] <- paste0("step", n)
+  }
   x
 }
 
@@ -419,8 +423,11 @@ show_standardGeneric <- selectMethod(
         }
         if (sig == 0L & pair)
           break
-        else if (pair & i != "(")
+        else if (pair) {
+          if (i == "(" & sig == 1L)
+            next
           char <- c(char, i)
+        }
       }
       args <- paste(char, collapse = "")
       message(crayon::green(gsub("#", ", ", methods@names[[n]])), ":")

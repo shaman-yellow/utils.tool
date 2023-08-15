@@ -56,7 +56,7 @@ read_kall_quant <- function(path) {
         select(data, count)
     })
   counts <- suppressMessages(do.call(dplyr::bind_cols, counts))
-  counts <- mutate(counts, target_id = gs(target_id, "\\.[1-9]*$", ""))
+  counts <- mutate(counts, target_id = gs(target_id, "\\.[0-9]{1,}$", ""))
   counts <- distinct(counts, target_id, .keep_all = T)
   colnames(counts)[-1] <- metadata$sample
   namel(counts, metadata)
@@ -67,7 +67,7 @@ fastp_pair <- function(path, pattern = "[1-2]\\.fastq\\.gz$",
   copy_report = T)
 {
   dir.create(paste0(path, "/fastp_qc"), F)
-  dir.create(paste0(path, "/fastp_report"), F)
+  gir.create(paste0(path, "/fastp_report"), F)
   pbapply::pblapply(names,
     function(name) {
       i1 <- paste0(name, "1.fastq.gz")
@@ -89,4 +89,60 @@ fastp_pair <- function(path, pattern = "[1-2]\\.fastq\\.gz$",
     file.copy(paste0(path, "/fastp_report"), ".", recursive = T)
   }
   message("Job finished.")
+}
+
+.fasta <- setClass("fasta", 
+  contains = c("character"),
+  representation = representation(),
+  prototype = NULL)
+
+setMethod("show", 
+  signature = c(object = "fasta"),
+  function(object){
+    print(stringr::str_trunc(head(object, n = 10), 40))
+  })
+
+setGeneric("group", 
+  function(x, ...) standardGeneric("group"))
+
+setMethod("group", signature = c(x = "fasta"),
+  function(x, each = 500){
+    n <- -1
+    group <- vapply(x, FUN.VALUE = numeric(1),
+      function(x) {
+        n <<- n + 1
+        n %/% 2
+      })
+    x <- unname(split(x, group))
+    x <- grouping_vec2list(x, each, T)
+    x <- lapply(x,
+      function(x) {
+        .fasta(unlist(x))
+      })
+    x
+  })
+
+get_seq.pro <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol", to = "peptide") {
+  ids <- unique(ids)
+  data <- e(biomaRt::getSequence(id = ids, type = from, seqType = to, mart = mart))
+  data <- filter(data, !grepl("unavailable", !!rlang::sym(to)))
+  if (unique) {
+    data <- mutate(data, long = nchar(!!rlang::sym(to)))
+    data <- arrange(data, dplyr::desc(long))
+    data <- distinct(data, hgnc_symbol, .keep_all = T)
+  }
+  if (fasta) {
+    fasta <- apply(data, 1,
+      function(vec) {
+        c(paste0(">", vec[[2]]), vec[[1]])
+      })
+    fasta <- .fasta(unlist(fasta))
+    namel(data, fasta)
+  } else {
+    data
+  }
+}
+
+get_seq.rna <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol", to = "cdna") {
+  do.call(get_seq.pro, as.list(environment()))
 }

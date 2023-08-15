@@ -33,9 +33,9 @@ setMethod("asjob_wgcna", signature = c(x = "job_seurat"),
   })
 
 job_wgcna <- function(metadata, log_counts,
-  gene_annotation, rename_id = "hgnc_symbol")
+  gene_annotation)
 {
-  elist <- new_elist(metadata, log_counts, gene_annotation, rename_id)
+  elist <- new_elist(metadata, log_counts, gene_annotation)
   datExpr0 <- as_wgcData(elist)
   .job_wgcna(object = elist, params = list(datExpr0 = datExpr0))
 }
@@ -80,25 +80,26 @@ setMethod("step2", signature = c(x = "job_wgcna"),
         cut_tree(params(x)$raw_sample_tree, size, height))
       x@params$datExpr <- datExpr
       object(x) <- clip_data(object(x), datExpr)
-      x@params$allTraits <- as_wgcTrait(object(x))
     }
+    x@params$allTraits <- as_wgcTrait(object(x))
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_wgcna"),
-  function(x){
+  function(x, powers = 1:50, cores = 7){
     step_message("Analysis of network topology for soft-thresholding powers. ",
       "This do: ",
       "Generate x@params$sft; plots in `x@plots[[ 3 ]]`. "
     )
-    sft <- cal_sft(params(x)$datExpr)
+    e(WGCNA::enableWGCNAThreads(cores))
+    sft <- cal_sft(params(x)$datExpr, powers = powers)
     x@params$sft <- sft
     x@plots[[ 3 ]] <- list(sft = wrap(plot_sft(sft), 10, 5))
     return(x)
   })
 
 setMethod("step4", signature = c(x = "job_wgcna"),
-  function(x, power = x@params$sft$powerEstimate, ...){
+  function(x, power = x@params$sft$powerEstimate, cores = 7, ...){
     step_message("One-step network construction and module detection.
       Extra parameters would passed to `cal_module`.
       This do: Generate `x@params$MEs`; plots (net) in `x@plots[[ 4 ]]`.
@@ -106,6 +107,7 @@ setMethod("step4", signature = c(x = "job_wgcna"),
       as `power` for WGCNA calculation.
       "
     )
+    e(WGCNA::enableWGCNAThreads(cores))
     net <- cal_module(params(x)$datExpr, power, ...)
     if (!is(net, "wgcNet"))
       net <- .wgcNet(net)
@@ -144,7 +146,8 @@ setMethod("step6", signature = c(x = "job_wgcna"),
       "tables (filter by pvalue < 0.05) `x@tables[[ 6 ]]`"
     )
     mm <- cal_corp(params(x)$datExpr, params(x)$MEs, "gene", "module")
-    mm.s <- dplyr::filter(tibble::as_tibble(mm), pvalue < .05)
+    mm.s <- mutate(as_tibble(mm), p.adjust = p.adjust(pvalue, "BH"))
+    mm.s <- dplyr::filter(mm.s, pvalue < .05)
     gs <- cal_corp(params(x)$datExpr, params(x)$allTraits, "gene", "trait")
     gs.s <- dplyr::mutate(tibble::as_tibble(gs), p.adjust = p.adjust(pvalue, "BH"))
     gs.s <- dplyr::filter(gs.s, pvalue < .05)

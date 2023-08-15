@@ -560,6 +560,8 @@ new_biomart <- function(dataset = c("hsapiens_gene_ensembl"))
 filter_biomart <- function(mart, attrs, filters = "", values = "") {
   anno <- biomaRt::getBM(attributes = attrs, filters = filters,
     values = values, mart = mart)
+  anno <- relocate(anno, !!rlang::sym(filters))
+  anno <- distinct(anno, !!rlang::sym(filters), .keep_all = T)
   tibble::as_tibble(anno)
 }
 
@@ -1457,7 +1459,7 @@ setMethod("show", signature = c(object = "lich"),
 # limma and edgeR
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-prepare_expr_data <- function(metadata, counts, genes, idname, message = T) 
+prepare_expr_data <- function(metadata, counts, genes, message = T) 
 {
   ## sort and make name for metadata and counts
   checkDup <- function(x) {
@@ -1473,7 +1475,7 @@ prepare_expr_data <- function(metadata, counts, genes, idname, message = T)
   colnames(counts) %<>% make.names()
   ## sort genes
   data_id <- do.call(data.frame, nl(colnames(genes)[1], list(counts[[1]])))
-  genes <- dplyr::distinct(genes, !!rlang::sym(idname), .keep_all = T)
+  genes <- dplyr::distinct(genes, !!rlang::sym(colnames(genes)[1]), .keep_all = T)
   genes <- tbmerge(
     data_id, genes,
     by.x = colnames(data_id)[1], by.y = colnames(genes)[1],
@@ -1493,14 +1495,13 @@ prepare_expr_data <- function(metadata, counts, genes, idname, message = T)
   namel(counts, metadata, genes)
 }
 
-new_dge <- function(metadata, counts, genes, idname, message = T)
+new_dge <- function(metadata, counts, genes, message = T)
 {
-  ## the idname used to duplicated the data row
   lst <- do.call(prepare_expr_data, as.list(environment()))
   e(edgeR::DGEList(lst$counts, samples = lst$metadata, genes = lst$genes))
 }
 
-new_elist <- function(metadata, counts, genes, idname, message = T)
+new_elist <- function(metadata, counts, genes, message = T)
 {
   lst <- do.call(prepare_expr_data, as.list(environment()))
   elist(list(E = tibble::as_tibble(lst$counts), targets = lst$metadata, genes = lst$genes))
@@ -1587,7 +1588,7 @@ filter_low.dge <- function(dge, group., min.count = 10, prior.count = 2) {
 
 mx <- function(...){
   design <- model.matrix(...)
-  colnames(design) %<>% gsub("group.", "", .)
+  colnames(design) %<>% gsub("group\\.?", "", .)
   design
 }
 
@@ -1612,7 +1613,7 @@ norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ...)
   dge
 }
 
-diff_test <- function(x, design, contr, block = NULL){
+diff_test <- function(x, design, contr = NULL, block = NULL){
   if (!is.null(block)){
     dupcor <- e(limma::duplicateCorrelation(x, design, block = block))
     cor <- dupcor$consensus.correlation
@@ -1621,17 +1622,19 @@ diff_test <- function(x, design, contr, block = NULL){
     cor <- NULL
   }
   fit <- e(limma::lmFit(x, design, block = block, correlation = cor))
-  fit <- e(limma::contrasts.fit(fit, contrasts = contr))
+  if (!is.null(contr)) {
+    fit <- e(limma::contrasts.fit(fit, contrasts = contr))
+  }
   fit <- e(limma::eBayes(fit))
   fit
 }
 
-extract_tops <- function(x, cut.q = 0.05, cut.fc = 0.3){
+extract_tops <- function(x, use = "adj.P.Val", use.cut = 0.05, cut.fc = 0.3){
   res <- e(lapply(1:ncol(x$contrasts),
     function(coef){
       res <- limma::topTable(x, coef = coef, number = Inf)
-      if (!is.null(cut.q) & !is.null(cut.fc)) {
-        res <- dplyr::filter(res, adj.P.Val < cut.q, abs(logFC) > cut.fc)
+      if (!is.null(use.cut) & !is.null(cut.fc)) {
+        res <- dplyr::filter(res, !!rlang::sym(use) < use.cut, abs(logFC) > cut.fc)
       }
       dplyr::as_tibble(res) 
     }))
@@ -2686,5 +2689,13 @@ new_upset <- function(..., lst = NULL) {
   .upset(data)
 }
 
-
+new_venn <- function(..., lst = NULL) {
+  if (is.null(lst)) {
+    lst <- list(...)
+  }
+  lst <- lapply(lst, unique)
+  p <- ggVennDiagram::ggVennDiagram(lst) +
+    scale_fill_gradient(low = "grey90", high = "lightblue")
+  p
+}
 
