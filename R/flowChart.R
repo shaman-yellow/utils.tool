@@ -36,11 +36,12 @@ as_network <- function(lst, layout = 'sugiyama', seed = 100)
       do.call(data.frame, ch)
     })
   data <- data.table::rbindlist(lst)
+  nodes <- data.frame(name = unique(unlist(apply(data, 1, c, simplify = F), use.names = F)))
   if (!is.null(seed)) {
     data <- lapply(seed,
       function(s) {
         set.seed(s)
-        fast_layout(data, layout)
+        fast_layout(data, layout, nodes)
       })
     if (length(seed) == 1)
       data <- data[[1]]
@@ -89,7 +90,7 @@ preview.gl <- function(p.lst) {
   legend <- sapply(names(lst), simplify = F, gtext, gp_arg = list(cex = 2))
   legend <- frame_col(fill_list(names(legend), 1), legend)
   frame <- frame_row(c(legend = 1, panel = 5), namel(panel, legend))
-  dev.new(width = 20)
+  setdev(width = 20)
   draw(frame)
 }
 

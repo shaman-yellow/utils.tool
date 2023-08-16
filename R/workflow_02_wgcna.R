@@ -62,7 +62,7 @@ setMethod("step1", signature = c(x = "job_wgcna"),
     "generate `x@params$raw_sample_tree`; `x@plots[[ 1 ]]`"
     )
     raw_sample_tree <- draw_sampletree(params(x)$datExpr0)
-    raw_sample_tree.p <- wrap(recordPlot(), 14, 7)
+    raw_sample_tree.p <- wrap(recordPlot(), nrow(params(x)$datExpr0) * .8, nrow(params(x)$datExpr0))
     x@params$raw_sample_tree <- raw_sample_tree
     x@plots[[ 1 ]] <- list(raw_sample_tree = raw_sample_tree.p)
     return(x)

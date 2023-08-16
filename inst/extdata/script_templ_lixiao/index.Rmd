@@ -10,9 +10,32 @@ autor_preset()
 ## if you want to run codes of this Rmarkdown,
 ## please install the package `utils.tool` and other related packages (run
 ## install.R)
+options(savedir = list(figs = "Figure+Table", tabs = "Figure+Table"))
 ```
 
 ```{r eval = T, echo = F, results = "asis"}
 set_index()
 ```
 
+# 摘要 {#abstract}
+
+# 研究设计流程图 {#route}
+
+```{r}
+#| route
+route <- as_network(
+  list("RNA_seq_data:Preprocess",
+    ), "tree"
+)
+p.route <- flowChart(route, 1.1, 1)
+```
+
+```{r, eval = T, echo = F, fig.width = 10, fig.height = 7, fig.cap = NULL}
+p.route
+```
+
+# 材料和方法 {#methods}
+
+# 分析结果 {#results}
+
+# 结论 {#dis}

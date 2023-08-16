@@ -100,6 +100,7 @@ setMethod("show",
   signature = c(object = "fasta"),
   function(object){
     print(stringr::str_trunc(head(object, n = 10), 40))
+    cat("...\n")
   })
 
 setGeneric("group", 
@@ -120,6 +121,22 @@ setMethod("group", signature = c(x = "fasta"),
         .fasta(unlist(x))
       })
     x
+  })
+
+setGeneric("write", 
+  function(x, ...) standardGeneric("write"))
+
+setMethod("write", signature = c(x = "fasta"),
+  function(x, max = 500){
+    dir.create("fasta", F)
+    name <- paste0("fasta/", as.character(substitute(x, parent.frame(1))))
+    n <- 0
+    lapply(group(x),
+      function(x) {
+        n <<- n + 1
+        file <- paste0(name, "_", n, ".fasta")
+        writeLines(gs(x, "\\*$", ""), file)
+      })
   })
 
 get_seq.pro <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol", to = "peptide") {

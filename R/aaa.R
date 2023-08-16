@@ -329,6 +329,21 @@ group_switch <- function(data, meta.lst, by) {
   split(data, group)
 }
 
+group_strings <- 
+  function(strings, patterns, target = NA){
+    if (is.null(names(patterns)))
+      stop("`patterns` must be characters with names.")
+    lst <- .find_and_sort_strings(strings, patterns)
+    lst <- lapply(names(lst), function(name){
+                    data.frame(target = lst[[name]], group = name)
+           })
+    df <- do.call(rbind, lst)
+    if (!is.na(target)) {
+      colnames(df)[1] <- target
+    }
+    tibble::as_tibble(df)
+  }
+
 #' @export .find_and_sort_strings
 #' @aliases .find_and_sort_strings
 #' @description \code{.find_and_sort_strings}: ...

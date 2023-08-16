@@ -969,8 +969,21 @@ vis_enrich.go <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
       class = c("element_textbox", "element_text", "element"))
   }
 
+get_savedir <- function(target = NULL) {
+  res <- getOption("savedir")
+  if (is.null(res$figs))
+    res$figs <- "figs"
+  if (is.null(res$tabs))
+    res$tabs <- "tabs"
+  if (!is.null(target)) {
+    res[[ target ]]
+  } else {
+    res
+  }
+}
+
 fwrite2 <- function(data, name, ..., file = paste0(get_realname(name), ".csv"),
-  mkdir = "tabs", fun = data.table::fwrite)
+  mkdir = get_savedir("tabs"), fun = data.table::fwrite)
 {
   if (!file.exists(mkdir))
     dir.create(mkdir)
@@ -979,33 +992,35 @@ fwrite2 <- function(data, name, ..., file = paste0(get_realname(name), ".csv"),
 }
 
 write_tsv2 <- function(data, name, ..., file = paste0(get_realname(name), ".tsv"),
-  mkdir = "tabs", fun = write_tsv)
+  mkdir = get_savedir("tabs"), fun = write_tsv)
 {
   do.call(fwrite2, as.list(environment()))
 }
 
 write_xlsx2 <- function(data, name, ..., file = paste0(get_realname(name), ".xlsx"),
-  mkdir = "tabs", fun = openxlsx::write.xlsx)
+  mkdir = get_savedir("tabs"), fun = openxlsx::write.xlsx)
 {
   do.call(fwrite2, as.list(environment()))
 }
 
 write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".pdf"),
-  mkdir = "figs")
+  mkdir = get_savedir("figs"))
 {
   if (!file.exists(mkdir))
     dir.create(mkdir)
-  show(data)
-  size <- par("din")
   file <- paste0(mkdir, "/", file)
-  dev.copy(pdf, file = file, width = size[1], height = size[2])
-  dev.off()
+  if (is(data, "wrap")) {
+    pdf(file, width = data@width, height = data@height)
+  } else {
+    pdf(file)
+  }
+  show(data)
   dev.off()
   return(file)
 }
 
 write_gg <- function(p, name, width = 7, height = 7, ...,
-  file = paste0(get_realname(name), ".pdf"), mkdir = "figs") 
+  file = paste0(get_realname(name), ".pdf"), mkdir = get_savedir("figs")) 
 {
   if (!file.exists(mkdir))
     dir.create(mkdir)
@@ -1014,7 +1029,7 @@ write_gg <- function(p, name, width = 7, height = 7, ...,
 }
 
 write_grob <- function(grob, name, width = 7, height = 7, ...,
-  file = paste0(get_realname(name), ".pdf"), mkdir = "figs") 
+  file = paste0(get_realname(name), ".pdf"), mkdir = get_savedir("figs")) 
 {
   if (!file.exists(mkdir))
     dir.create(mkdir)
@@ -2052,7 +2067,7 @@ wrap <- function(data, width = 10, height = 8) {
 setMethod("show", 
   signature = c(object = "wrap"),
   function(object){
-    dev.new(width = object@width, height = object@height)
+    setdev(width = object@width, height = object@height)
     if (is(object@data, "grob.obj")) {
       grid.draw(object@data)
     } else {
@@ -2183,7 +2198,7 @@ get_eigens <- function(net) {
 
 setMethod("show", signature = c(object = "wgcNet"),
   function(object){
-    dev.new(width = 12, height = 9)
+    setdev(width = 12, height = 9)
     mergedColors = e(WGCNA::labels2colors(object$colors))
     e(WGCNA::plotDendroAndColors(object$dendrograms[[1]], mergedColors[object$blockGenes[[1]]],
         "Module colors", dendroLabels = FALSE, hang = 0.01,
@@ -2670,8 +2685,7 @@ setMethod("show",
     maxnum <- max(apply(dplyr::select_if(data, is.integer), 2, sum))
     upset <- UpSetR::upset(data, ncol(data), sets.bar.color = "lightblue", order.by = "freq",
       set_size.show = T, set_size.scale_max = 1.3 * maxnum)
-    dev.off()
-    show(wrap(upset, 9, 7))
+    show(wrap(upset))
   })
 
 new_upset <- function(..., lst = NULL) {
@@ -2699,3 +2713,18 @@ new_venn <- function(..., lst = NULL) {
   p
 }
 
+setdev <- function(width, height) {
+  name <- names(dev.cur())
+  if (name == "null device")
+    dev.new(width = width, height = height)
+}
+
+new_pie <- function(x) {
+  x <- split(x, x)
+  x <- vapply(x, length, integer(1))
+  par(mar = c(1, 1, 1, 1))
+  pie(x)
+  p <- recordPlot()
+  dev.off()
+  wrap(p, 5, 4)
+}

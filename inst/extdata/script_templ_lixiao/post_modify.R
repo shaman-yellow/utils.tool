@@ -4,6 +4,4 @@
 
 write_articlePdf("index.Rmd", "output.Rmd", "Report of Analysis\nauthor: 'Huang LiChuang of Wie-Biotech'")
 
-package_results()
-
-
+package_results(head = NULL, masterZip = NULL)

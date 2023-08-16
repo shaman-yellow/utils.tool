@@ -34,9 +34,9 @@ setMethod("step1", signature = c(x = "job_limma"),
       "
     )
     object(x) <- filter_low.dge(object(x), group)
-    p.filter <- wrap(attr(object(x), "p"), 10, 4)
+    p.filter <- wrap(attr(object(x), "p"), 8, 3)
     object(x) <- norm_genes.dge(object(x), design)
-    p.norm <- attr(object(x), "p")
+    p.norm <- wrap(attr(object(x), "p"), 6, length(x@object$targets$sample) * .6)
     pca <- pca_data.long(as_data_long(object(x)))
     p.pca <- plot_andata(pca)
     x@plots[[ 1 ]] <- namel(p.filter, p.norm, p.pca)
@@ -60,6 +60,7 @@ setMethod("step2", signature = c(x = "job_limma"),
       tops <- extract_tops(object(x), use = use, use.cut = use.cut, cut.fc = cut.fc)
     }
     p.valcano <- lapply(tops, plot_valcano, use = use, fc = cut.fc)
+    p.valcano <- lapply(p.valcano, function(p) wrap(p, 5, 4))
     x@tables[[ 2 ]] <- namel(tops)
     x@plots[[ 2 ]] <- namel(p.valcano)
     return(x)
