@@ -976,7 +976,10 @@ get_savedir <- function(target = NULL) {
   if (is.null(res$tabs))
     res$tabs <- "tabs"
   if (!is.null(target)) {
-    res[[ target ]]
+    res <- res[[ target ]]
+    if (!dir.exists(res))
+      dir.create(res, F)
+    res
   } else {
     res
   }
@@ -1003,7 +1006,7 @@ write_xlsx2 <- function(data, name, ..., file = paste0(get_realname(name), ".xls
   do.call(fwrite2, as.list(environment()))
 }
 
-write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".pdf"),
+write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".pdf"), page = -1,
   mkdir = get_savedir("figs"))
 {
   if (!file.exists(mkdir))
@@ -1016,6 +1019,14 @@ write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".
   }
   show(data)
   dev.off()
+  len <- qpdf::pdf_length(file)
+  if (len > 1) {
+    if (page == -1)
+      page <- len
+    newfile <- tempfile(fileext = ".pdf")
+    qpdf::pdf_subset(file, page, newfile)
+    file.copy(newfile, file, T)
+  }
   return(file)
 }
 
@@ -1133,7 +1144,7 @@ search_resFile <- function(file = "index.Rmd",
 package_results <- function(
   master_include = NULL,
   report = "output.pdf",
-  main = search_resFile("index.Rmd"), 
+  main = unique(c(search_resFile("index.Rmd"), autoRegisters)), 
   headPattern = "[^r][^e][^s].*业务.*\\.zip", head = list.files(".", headPattern),
   masterSource = c("output.Rmd", "install.R", "read_me.txt", head),
   prefix = "results_", zip = paste0(prefix, head),
@@ -1147,10 +1158,10 @@ package_results <- function(
   zip(clientZip, files.client)
   if (!is.null(masterZip)) {
     zip(masterZip, files.master)
-  }
-  zip(zip, c(clientZip, masterZip), flags = "-ur9X")
-  if (clear) {
-    file.remove(c(clientZip, masterZip))
+    zip(zip, c(clientZip, masterZip), flags = "-ur9X")
+    if (clear) {
+      file.remove(c(clientZip, masterZip))
+    }
   }
 }
 
@@ -1553,7 +1564,11 @@ setMethod("as_data_long", signature = c(x = "DGEList"),
     data <- tibble::as_tibble(x$counts)
     data$gene <- x$genes[[ 1 ]]
     data <- tidyr::gather(data, sample, value, -gene)
-    data <- tbmerge(data, x$samples, by = "sample", all.x = T)
+    if (!all(unique(data$sample) %in% x$samples$sample)) {
+      stop("!all(unique(data$sample) %in% x$samples$sample) == T")
+    }
+    data <- tbmerge(data, dplyr::select(x$samples, sample, group),
+      by = "sample", all.x = T)
     .data_long.eset(data)
   })
 
@@ -1586,8 +1601,8 @@ filter_low.dge <- function(dge, group., min.count = 10, prior.count = 2) {
   raw_dge$counts <- edgeR::cpm(raw_dge, log = T, prior.count = prior.count)
   ## filter
   keep.exprs <- e(edgeR::filterByExpr(dge, group = group., min.count = min.count))
-  pro_dge <- dge <- edgeR::`[.DGEList`(dge, keep.exprs, , keep.lib.sizes = F)
-  pro_dge$counts <- edgeR::cpm(pro_dge, log = T)
+  pro_dge <- dge <- e(edgeR::`[.DGEList`(dge, keep.exprs, , keep.lib.sizes = F))
+  pro_dge$counts <- e(edgeR::cpm(pro_dge, log = T))
   ## plot
   data <- list(Raw = as_data_long(raw_dge), Filtered = as_data_long(pro_dge))
   data <- data.table::rbindlist(data, idcol = T)
@@ -1597,6 +1612,9 @@ filter_low.dge <- function(dge, group., min.count = 10, prior.count = 2) {
     geom_vline(xintercept = cutoff, linetype = "dashed") +
     facet_wrap(~ factor(.id, c("Raw", "Filtered"))) +
     labs(x = "Log2-cpm", y = "Density")
+  if (length(unique(data$sample)) > 50) {
+    p <- p + theme(legend.position = "none")
+  }
   attr(dge, "p") <- p
   dge
 }
@@ -2682,10 +2700,10 @@ setMethod("show",
   function(object){
     data <- suppressWarnings(data.frame(as_tibble(object)))
     colnames(data) %<>% stringr::str_trunc(30)
-    maxnum <- max(apply(dplyr::select_if(data, is.integer), 2, sum))
+    maxnum <- max(apply(dplyr::select_if(select(data, -members), is.integer), 2, sum))
     upset <- UpSetR::upset(data, ncol(data), sets.bar.color = "lightblue", order.by = "freq",
       set_size.show = T, set_size.scale_max = 1.3 * maxnum)
-    show(wrap(upset))
+    show(wrap(upset, 9, 7))
   })
 
 new_upset <- function(..., lst = NULL) {
@@ -2728,3 +2746,5 @@ new_pie <- function(x) {
   dev.off()
   wrap(p, 5, 4)
 }
+
+

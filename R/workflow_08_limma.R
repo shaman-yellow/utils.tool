@@ -37,9 +37,11 @@ setMethod("step1", signature = c(x = "job_limma"),
     p.filter <- wrap(attr(object(x), "p"), 8, 3)
     object(x) <- norm_genes.dge(object(x), design)
     p.norm <- wrap(attr(object(x), "p"), 6, length(x@object$targets$sample) * .6)
-    pca <- pca_data.long(as_data_long(object(x)))
-    p.pca <- plot_andata(pca)
-    x@plots[[ 1 ]] <- namel(p.filter, p.norm, p.pca)
+    if (F) {
+      pca <- pca_data.long(as_data_long(object(x)))
+      p.pca <- plot_andata(pca)
+    }
+    x@plots[[ 1 ]] <- namel(p.filter, p.norm)
     x@params$group <- group
     x@params$design <- design
     x@params$normed_data <- object(x)

@@ -351,7 +351,7 @@ step_message <- function(..., show_end = "Job Status") {
 
 e <- function(expr, text = NULL) {
   expr <- substitute(expr)
-  names <- stringr::str_extract(deparse(expr), "[a-zA-Z0-9_.]*:::?[a-zA-Z0-9_.]*")
+  names <- stringr::str_extract(deparse(expr), "[a-zA-Z0-9_.]*:::?[^\\(]*")
   names <- names[ !is.na(names) ]
   if (!length(names))
     name <- "FUNCTION"

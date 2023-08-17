@@ -139,6 +139,14 @@ setMethod("write", signature = c(x = "fasta"),
       })
   })
 
+setMethod("write", signature = c(x = "grob.obj"),
+  function(x, name, width, height, dev = "png", factor = 100){
+    file <- paste0(get_savedir("figs"), "/", name, ".", dev)
+    match.fun(dev)(file, width * factor, height * factor)
+    grid.draw(x)
+    dev.off()
+  })
+
 get_seq.pro <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol", to = "peptide") {
   ids <- unique(ids)
   data <- e(biomaRt::getSequence(id = ids, type = from, seqType = to, mart = mart))
