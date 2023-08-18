@@ -1151,8 +1151,6 @@ package_results <- function(
   clientZip = "client.zip", masterZip = "master.zip",
   clear = T)
 {
-  file.copy(report, "readMe_introduction.pdf", T)
-  report <- "readMe_introduction.pdf"
   files.client <- c(report, main)
   files.master <- c(files.client, head, masterSource)
   zip(clientZip, files.client)
@@ -2737,14 +2735,14 @@ setdev <- function(width, height) {
     dev.new(width = width, height = height)
 }
 
-new_pie <- function(x) {
+new_pie <- function(x, title = NULL) {
   x <- split(x, x)
   x <- vapply(x, length, integer(1))
-  par(mar = c(1, 1, 1, 1))
-  pie(x)
-  p <- recordPlot()
-  dev.off()
-  wrap(p, 5, 4)
+  grob <- ggplotify::base2grob(expression({
+    par(mar = rep(1, 4))
+    pie(x, main = title)
+  }))
+  wrap(grob, 5, 4)
 }
 
 

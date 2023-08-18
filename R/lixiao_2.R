@@ -171,3 +171,7 @@ get_seq.pro <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol", 
 get_seq.rna <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol", to = "cdna") {
   do.call(get_seq.pro, as.list(environment()))
 }
+
+gtitle <- function(grob, title, fill = "#E18727FF") {
+  into(grecti3(title, tfill = fill), grob)
+}

@@ -214,15 +214,23 @@ setMethod("step4", signature = c(x = "job_monocle"),
     )
     cds <- object(x)
     fun_sub <- selectMethod("[", class(cds))
-    cds <- fun_sub(cds,
-      rownames(cds) %in% genes,
-      SummarizedExperiment::colData(cds)[[ x@params$group.by ]] %in% groups
-    )
-    genes_in_pseudotime <- e(monocle3::plot_genes_in_pseudotime(cds,
-        label_by_short_name = F,
-        color_cells_by = x@params$group.by,
-        min_expr = 0.5
-        ))
+    gene.groups <- grouping_vec2list(genes, 10, T)
+    pblapply <- pbapply::pblapply
+    colData <- SummarizedExperiment::colData
+    genes_in_pseudotime <- e(pblapply(gene.groups,
+        function(genes) {
+          cds <- fun_sub(cds,
+            rownames(cds) %in% genes,
+            colData(cds)[[ x@params$group.by ]] %in% groups
+          )
+          p <- monocle3::plot_genes_in_pseudotime(cds,
+            label_by_short_name = F,
+            color_cells_by = x@params$group.by,
+            min_expr = 0.5
+          )
+          wrap(p, 6, length(genes) * 1.6)
+        }))
+    names(genes_in_pseudotime) <- paste0("pseudo", 1:length(genes_in_pseudotime))
     x@plots[[ 4 ]] <- namel(genes_in_pseudotime)
     return(x)
   })

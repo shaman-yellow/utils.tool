@@ -463,6 +463,10 @@ setGeneric("getsub",
 setGeneric("active", 
   function(x, ...) standardGeneric("active"))
 
+setMethod("as_grob", signature = c(x = "expression"),
+  function(x, envir = parent.frame(1)){
+    ggplotify::base2grob(x, envir)
+  })
 
 ins <- function(..., lst = NULL) {
   if (is.null(lst)) {
@@ -473,4 +477,13 @@ ins <- function(..., lst = NULL) {
     x <- intersect(x, i)
   }
   x
+}
+
+svr <- function(object) {
+  saveRDS(object, paste0(substitute(object, parent.frame(1)), ".rds"))
+}
+
+ldr <- function(object) {
+  x <- loadRDS(obj <- paste0(substitute(object, parent.frame(1)), ".rds"))
+  assign(obj, x, envir = parent.frame(2))
 }

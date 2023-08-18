@@ -136,7 +136,7 @@ setMethod("weight", signature = c(x = "ANY", sub = "character"),
 #' @description ...
 #' @rdname as_grob-methods
 setGeneric("as_grob",
-  function(x) standardGeneric("as_grob"))
+  function(x, ...) standardGeneric("as_grob"))
 
 #' @exportMethod as_grob
 setMethod("as_grob", signature = c(x = "gg.obj"),

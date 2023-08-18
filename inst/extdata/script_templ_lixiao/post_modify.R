@@ -2,6 +2,18 @@
 # render as report
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-write_articlePdf("index.Rmd", "output.Rmd", "Report of Analysis\nauthor: 'Huang LiChuang of Wie-Biotech'")
+write_articlePdf("index.Rmd", "output.Rmd", "Analysis\nauthor: 'Huang LiChuang of Wie-Biotech'")
 
-package_results(head = NULL, masterZip = NULL)
+id <- "IN2023072803-3+销售：周燕青+客户：戴心怡+斑痕增生+生信分析"
+file.copy("./output.pdf", report <- paste0(id, ".pdf"), T)
+
+package_results(head = NULL, masterZip = NULL, report = report)
+file.rename("./client.zip", paste0(id, ".zip"))
+
+## for check
+
+"孙慧 <sunhui@wie-biotech.com>"
+"汪丽-业务进度 <wl@hzlxsw.com>"
+
+## final:
+"陈芳媛 <wengyuan@wie-biotech.com>"
