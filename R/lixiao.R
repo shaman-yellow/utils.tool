@@ -2355,24 +2355,27 @@ setMethod("autor", signature = c(x = "can_be_draw", name = "character"),
 
 ## autor for data.frame
 setMethod("autor", signature = c(x = "df", name = "character"),
-  function(x, name, ...){
+  function(x, name, ..., asis = T){
     file <- autosv(x, name, ...)
-    abstract(x, name = name, ...)
+    if (asis)
+      abstract(x, name = name, ...)
     include(x, name, ...)
   })
 
 ## autor for figures of file
 setMethod("autor", signature = c(x = "fig", name = "character"),
-  function(x, name, ...){
+  function(x, name, ..., asis = T){
     file <- autosv(x, name, ...)
-    abstract(x, name, ...)
+    if (asis)
+      abstract(x, name, ...)
     include(x, name, ...)
   })
 
 setMethod("autor", signature = c(x = "files", name = "character"),
-  function(x, name, ...){
+  function(x, name, ..., asis = T){
     file <- autosv(x, name, ...)
-    abstract(x, name, ...)
+    if (asis)
+      abstract(x, name, ...)
   })
 
 setMethod("autor", signature = c(x = "character", name = "character"),
@@ -2408,8 +2411,7 @@ setMethod("include", signature = c(x = "fig"),
         "}\\label{fig:", name, "}\n",
         "\\end{center}\n", sep = "")
     } else {
-      structure(as.character(x),
-        class = c("knit_image_paths", "knit_asis"))
+      inclu.fig(as.character(x), saveDir = "report_picture")
     }
   })
 
@@ -2521,7 +2523,9 @@ setMethod("select_savefun", signature = c(x = "df"),
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 setGeneric("abstract", 
-  function(x, name, latex, ...) standardGeneric("abstract"))
+  function(x, name, latex, ...) {
+    standardGeneric("abstract")
+  })
 
 setMethod("abstract", signature = c(x = "ANY", name = "character", latex = "missing"),
   function(x, name, ...){
@@ -2553,8 +2557,8 @@ setMethod("abstract", signature = c(x = "df", name = "character", latex = "logic
   })
 
 ## abstract for figure of file
-setMethod("abstract", signature = c(x = "fig", name = "character"),
-  function(x, name, ..., abs = NULL){
+setMethod("abstract", signature = c(x = "fig", name = "character", latex = "logical"),
+  function(x, name, latex, ..., abs = NULL){
     cat("Figure \\@ref(fig:", name, ")",
       "为图", gsub("-", " ", name), "概览。\n", sep = "")
     if (!is.null(abs))
