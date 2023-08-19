@@ -175,3 +175,141 @@ get_seq.rna <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol", 
 gtitle <- function(grob, title, fill = "#E18727FF") {
   into(grecti3(title, tfill = fill), grob)
 }
+
+# ==========================================================================
+# combine pdf picture
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+.pdf_file <- setClass("pdf_file", 
+  contains = c(),
+  representation = representation(file = "character",
+    width = "numeric", height = "numeric",
+    panel.width = "numeric",
+    symbol = "character"),
+  prototype = prototype(
+    panel.width = .95,
+    symbol = "a"
+    ))
+
+.column <- setClass("column", 
+  contains = c("list"),
+  representation = representation(
+    rel.width = "numeric", rel.height = "numeric"),
+  prototype = NULL)
+
+setValidity("column", 
+  function(object){
+    allif <- vapply(object, function(x) is(x, "pdf_file"), logical(1))
+    if (all(allif)) T else stop("Object must be 'pdf_file'.")
+  })
+
+.columns <- setClass("columns", 
+  contains = c("list"),
+  representation = representation(
+    rel.width = "numeric", rel.height = "numeric",
+    rel.cl.widths = "numeric"),
+  prototype = NULL)
+
+setValidity("columns", 
+  function(object){
+    allif <- vapply(object, function(x) is(x, "column"), logical(1))
+    if (all(allif)) T else stop("Object must be 'column'.")
+  })
+
+setMethod("show", signature = c(object = "column"),
+  function(object){
+    message("Object: ", length(object), "\n",
+      "Relative width: ", object@rel.width, "\n",
+      "Relative height: ", object@rel.height
+    )
+  })
+
+setMethod("show", signature = c(object = "columns"),
+  function(object){
+    message("Object: ", length(object), "\n",
+      "Relative width: ", object@rel.width, "\n",
+      "Relative height: ", round(object@rel.height, 2), "\n",
+      "Relative column width: ", 
+      paste0(round(object@rel.cl.widths, 2), collapse = ", ")
+    )
+  })
+
+setMethod("show", signature = c(object = "pdf_file"),
+  function(object){
+    message(object@file, "\n",
+      "Width: ", object@width, "\nHeight: ", object@height,
+      "\nSymbol: ", object@symbol
+    )
+  })
+
+new_pdf_file <- function(file) {
+  if (!file.exists(file))
+    stop("file.exists(file) == F")
+  info <- pdftools::pdf_pagesize(file)
+  if (nrow(info) > 1)
+    stop("Only one page pdf file supported.")
+  .pdf_file(file = file, width = 1, height = info$height / info$width)
+}
+
+cl <- function(...) {
+  lst <- lapply(list(...), new_pdf_file)
+  sum.height <- sum(vapply(lst, function(x) x@height, numeric(1)))
+  .column(lst, rel.width = 1, rel.height = sum.height)
+}
+
+cls <- function(...) {
+  lst <- list(...)
+  cl.heights <- vapply(lst, function(x) x@rel.height, numeric(1))
+  cl.widths <- 1 / cl.heights
+  rel.cl.widths <- cl.widths / sum(cl.widths)
+  rel.height <- rel.cl.widths[1] * cl.heights[1]
+  .columns(lst, rel.width = 1, rel.height = rel.height, 
+    rel.cl.widths = rel.cl.widths
+  )
+}
+
+setGeneric("render", 
+  function(x, ...) standardGeneric("render"))
+
+setMethod("render", signature = c(x = "columns"),
+  function(x, name, engine = "xelatex"){
+    lines <- astex(x)
+    if (missing(name))
+      name <- paste0(substitute(x, parent.frame(1)), ".pdf")
+    writeLines(lines, name)
+    system(paste0(engine, " ", name))
+  })
+
+setGeneric("astex", 
+  function(x, ...) standardGeneric("astex"))
+
+setMethod("astex", signature = c(x = "columns"),
+  function(x, width = 20, fun_head = pictureMergeHead){
+    head <- fun_head(width, width * x@rel.height)
+    contents <- unlist(mapply(astex, x, x@rel.cl.widths, SIMPLIFY = F))
+    c(head, "", "\\begin{document}", "",  contents, "", "\\end{document}")
+  })
+
+setMethod("astex", signature = c(x = "column"),
+  function(x, width){
+    contents <- unlist(lapply(x, astex))
+    c(paste0("\\begin{col}{", width, "\\textwidth}"), contents,
+    "\\end{col}")
+  })
+
+setMethod("astex", signature = c(x = "pdf_file"),
+  function(x){
+    c(paste0("\\begin{overpic}[width=", x@panel.width, "\\linewidth]{", x@file, "}"),
+    "\\centering",
+    paste0("\\put(0, 100){\\Huge\\textbf{", x@symbol, "}}"),
+    "\\end{overpic}")
+  })
+
+pictureMergeHead <- function(width = 20, height = 20) {
+  head <- readLines(paste0(.expath, "/pictureMergeHead.tex"))
+  page <- paste0("\\geometry{paperheight = ", height, "cm, paperwidth = ", width, "cm, ",
+    "left = 5mm, right = 5mm, top = 7mm, bottom = 1mm}")
+  c(head, page)
+}
+
+
