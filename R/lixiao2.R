@@ -184,11 +184,9 @@ gtitle <- function(grob, title, fill = "#E18727FF") {
   contains = c(),
   representation = representation(file = "character",
     width = "numeric", height = "numeric",
-    panel.width = "numeric",
-    symbol = "character"),
+    panel.width = "numeric"),
   prototype = prototype(
-    panel.width = .95,
-    symbol = "a"
+    panel.width = .95
     ))
 
 .column <- setClass("column", 
@@ -237,8 +235,7 @@ setMethod("show", signature = c(object = "columns"),
 setMethod("show", signature = c(object = "pdf_file"),
   function(object){
     message(object@file, "\n",
-      "Width: ", object@width, "\nHeight: ", object@height,
-      "\nSymbol: ", object@symbol
+      "Width: ", object@width, "\nHeight: ", object@height
     )
   })
 
@@ -259,17 +256,6 @@ cl <- function(...) {
 
 cls <- function(...) {
   lst <- list(...)
-  n <- 0L
-  lst <- lapply(lst,
-    function(cl) {
-      cl@.Data <- lapply(cl@.Data,
-        function(obj) {
-          n <<- n + 1L
-          obj@symbol <- letters[n]
-          obj
-        })
-      cl
-    })
   cl.heights <- vapply(lst, function(x) x@rel.height, numeric(1))
   cl.widths <- 1 / cl.heights
   rel.cl.widths <- cl.widths / sum(cl.widths)
@@ -286,7 +272,7 @@ setMethod("render", signature = c(x = "columns"),
   function(x, name, engine = "xelatex"){
     lines <- astex(x)
     if (missing(name))
-      name <- paste0(substitute(x, parent.frame(1)), ".pdf")
+      name <- paste0(substitute(x, parent.frame(1)), ".tex")
     writeLines(lines, name)
     system(paste0(engine, " ", name))
   })
@@ -298,7 +284,12 @@ setMethod("astex", signature = c(x = "columns"),
   function(x, width = 20, fun_head = pictureMergeHead){
     head <- fun_head(width, width * x@rel.height)
     contents <- unlist(mapply(astex, x, x@rel.cl.widths, SIMPLIFY = F))
-    c(head, "", "\\begin{document}", "",  contents, "", "\\end{document}")
+    c(head, "", "\\begin{document}", "",
+      "\\begin{figure}[htb]\\centering", "",
+      contents, "",
+      "\\label{fig:main}",
+      "\\end{figure}",
+      "", "\\end{document}")
   })
 
 setMethod("astex", signature = c(x = "column"),
@@ -310,16 +301,17 @@ setMethod("astex", signature = c(x = "column"),
 
 setMethod("astex", signature = c(x = "pdf_file"),
   function(x){
-    c(paste0("\\begin{overpic}[width=", x@panel.width, "\\linewidth]{", x@file, "}"),
-    "\\centering",
-    paste0("\\put(0, 100){\\Huge\\textbf{", x@symbol, "}}"),
-    "\\end{overpic}")
+    c("\\begin{minipage}[t]{.95\\linewidth}",
+      paste0("\\sidesubfloat[]{\\includegraphics[width=", x@panel.width,
+        "\\textwidth]{", x@file, "}}"),
+      "\\end{minipage}"
+    )
   })
 
 pictureMergeHead <- function(width = 20, height = 20) {
   head <- readLines(paste0(.expath, "/pictureMergeHead.tex"))
   page <- paste0("\\geometry{paperheight = ", height, "cm, paperwidth = ", width, "cm, ",
-    "left = 5mm, right = 5mm, top = 7mm, bottom = 1mm}")
+    "left = 2mm, right = 2mm, top = 2mm, bottom = 2mm}")
   c(head, page)
 }
 

@@ -2,7 +2,10 @@
 \documentclass[]{article}
 \usepackage{graphicx}
 \usepackage{geometry} 
-\usepackage{overpic}
+\usepackage{floatrow}
+\usepackage{caption}
+\usepackage[label font = huge, font = bf, labelformat = simple]{subfig}
+\floatsetup[figure]{style = plain, subcapbesideposition = top}
 
 \newenvironment{cols}[1][]{}{}
 \newenvironment{col}[1]{\begin{minipage}{#1}\ignorespaces}{%
