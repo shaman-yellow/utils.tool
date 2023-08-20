@@ -180,13 +180,21 @@ gtitle <- function(grob, title, fill = "#E18727FF") {
 # combine pdf picture
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-.pdf_file <- setClass("pdf_file", 
+.fig_frame <- setClass("fig_frame", 
   contains = c(),
   representation = representation(file = "character",
     width = "numeric", height = "numeric",
     panel.width = "numeric"),
   prototype = prototype(
     panel.width = .95
+    ))
+
+.figs_frame <- setClass("figs_frame", 
+  contains = c("fig_frame"),
+  representation = representation(
+    figs_width = "numeric"),
+  prototype = prototype(
+    panel.width = .88
     ))
 
 .column <- setClass("column", 
@@ -197,8 +205,8 @@ gtitle <- function(grob, title, fill = "#E18727FF") {
 
 setValidity("column", 
   function(object){
-    allif <- vapply(object, function(x) is(x, "pdf_file"), logical(1))
-    if (all(allif)) T else stop("Object must be 'pdf_file'.")
+    allif <- vapply(object, function(x) is(x, "fig_frame"), logical(1))
+    if (all(allif)) T else stop("Object must be 'fig_frame'.")
   })
 
 .columns <- setClass("columns", 
@@ -232,24 +240,53 @@ setMethod("show", signature = c(object = "columns"),
     )
   })
 
-setMethod("show", signature = c(object = "pdf_file"),
+setMethod("show", signature = c(object = "fig_frame"),
   function(object){
     message(object@file, "\n",
-      "Width: ", object@width, "\nHeight: ", object@height
+      "Width: ", object@width, "\nHeight: ", round(object@height, 2)
     )
   })
 
-new_pdf_file <- function(file) {
+setMethod("show", signature = c(object = "figs_frame"),
+  function(object){
+    message(paste0(object@file, collapse = ", "), "\n",
+      "Width: ", object@width, "\nHeight: ", round(object@height, 2),
+      "\nFigures width: ",
+      paste0(round(object@figs_width, 2), collapse = ",")
+    )
+  })
+
+new_fig_frame <- function(file) {
   if (!file.exists(file))
     stop("file.exists(file) == F")
   info <- pdftools::pdf_pagesize(file)
   if (nrow(info) > 1)
     stop("Only one page pdf file supported.")
-  .pdf_file(file = file, width = 1, height = info$height / info$width)
+  .fig_frame(file = file, width = 1, height = info$height / info$width)
 }
 
+new_figs_frame <- function(...) {
+  figs <- lapply(list(...), new_fig_frame)
+  files <- vapply(figs, function(x) x@file, character(1))
+  heights <- vapply(figs, function(x) x@height, numeric(1))
+  scale.widths <- 1 / heights
+  rel.widths <- scale.widths / sum(scale.widths) - .01
+  height <- rel.widths[1] * heights[1]
+  .figs_frame(file = files, width = 1, height = height,
+    figs_width = rel.widths)
+}
+
+rw <- new_figs_frame
+
 cl <- function(...) {
-  lst <- lapply(list(...), new_pdf_file)
+  lst <- lapply(list(...),
+    function(x) {
+      if (is(x, "character"))
+        new_fig_frame(x)
+      else if (is(x, "figs_frame"))
+        x
+      else stop("Target can not be added in.")
+    })
   sum.height <- sum(vapply(lst, function(x) x@height, numeric(1)))
   .column(lst, rel.width = 1, rel.height = sum.height)
 }
@@ -277,6 +314,14 @@ setMethod("render", signature = c(x = "columns"),
     system(paste0(engine, " ", name))
   })
 
+setMethod("render", signature = c(x = "column"),
+  function(x, name, engine = "xelatex"){
+    if (missing(name))
+      name <- paste0(substitute(x, parent.frame(1)), ".tex")
+    x <- cls(x)
+    render(x, name, engine)
+  })
+
 setGeneric("astex", 
   function(x, ...) standardGeneric("astex"))
 
@@ -299,7 +344,7 @@ setMethod("astex", signature = c(x = "column"),
     "\\end{col}")
   })
 
-setMethod("astex", signature = c(x = "pdf_file"),
+setMethod("astex", signature = c(x = "fig_frame"),
   function(x){
     c("\\begin{minipage}[t]{.95\\linewidth}",
       paste0("\\sidesubfloat[]{\\includegraphics[width=", x@panel.width,
@@ -308,10 +353,25 @@ setMethod("astex", signature = c(x = "pdf_file"),
     )
   })
 
+setMethod("astex", signature = c(x = "figs_frame"),
+  function(x){
+    lines <- lapply(1:length(x@file), 
+      function(n) {
+        c("\\begin{minipage}[t]{", x@figs_width[n], "\\linewidth}",
+          paste0("\\sidesubfloat[]{\\includegraphics[width=", x@panel.width,
+            "\\textwidth]{", x@file[n], "}}"),
+          "\\end{minipage}"
+        )
+      })
+    c("\\begin{minipage}[t]{.98\\linewidth}",
+      "", unlist(lines), "",
+      "\\end{minipage}")
+  })
+
 pictureMergeHead <- function(width = 20, height = 20) {
   head <- readLines(paste0(.expath, "/pictureMergeHead.tex"))
   page <- paste0("\\geometry{paperheight = ", height, "cm, paperwidth = ", width, "cm, ",
-    "left = 2mm, right = 2mm, top = 2mm, bottom = 2mm}")
+    "left = 3mm, right = 3mm, top = 3mm, bottom = 3mm}")
   c(head, page)
 }
 
