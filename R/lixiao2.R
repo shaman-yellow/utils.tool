@@ -220,7 +220,7 @@ setMethod("show", signature = c(object = "column"),
   function(object){
     message("Object: ", length(object), "\n",
       "Relative width: ", object@rel.width, "\n",
-      "Relative height: ", object@rel.height
+      "Relative height: ", round(object@rel.height, 2)
     )
   })
 
@@ -259,6 +259,17 @@ cl <- function(...) {
 
 cls <- function(...) {
   lst <- list(...)
+  n <- 0L
+  lst <- lapply(lst,
+    function(cl) {
+      cl@.Data <- lapply(cl@.Data,
+        function(obj) {
+          n <<- n + 1L
+          obj@symbol <- letters[n]
+          obj
+        })
+      cl
+    })
   cl.heights <- vapply(lst, function(x) x@rel.height, numeric(1))
   cl.widths <- 1 / cl.heights
   rel.cl.widths <- cl.widths / sum(cl.widths)
