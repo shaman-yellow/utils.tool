@@ -375,4 +375,43 @@ pictureMergeHead <- function(width = 20, height = 20) {
   c(head, page)
 }
 
+# ==========================================================================
+# extract infomation from mail
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+extract_info_from_mail <- function(path = "mail/cur",
+  file = list.files(path, full.names = T)[1])
+{
+  lines <- readLines(file)
+  head <- head(lines, head.pos <- grep("^\\s*$", lines)[1])
+  body <- lines[(head.pos + 1):length(lines)]
+  guess_client <- head[grepl("^Subject: ", head)]
+  guess_client <- stringr::str_extract(guess_client, "(?<=-)[一-龟]{2,3}(?=-)")
+  guess_receiveTime <- head[grepl("^Date: ", head)]
+  guess_receiveTime <- gs(guess_receiveTime, "^Date: (.*[0-9]{2}:[0-9]{2}:[0-9]{2})", "\\1")
+
+}
+
+get_detail_chunk <- function(body) {
+  pattern <- paste0("01-订单编号[：:][A-Z]{1,2}[0-9]+|",
+    paste0(paste0("^0", 2:8, "-"), collapse = "|")
+  )
+  pos <- grep(pattern, body)
+  sig <- pos[1]
+  i.pre <- pos[1]
+  for (i in pos[-1]) {
+    if (i == i.pre + 1) {
+      i.pre <- i
+    } else {
+      sig <- i
+      i.pre <- i
+    }
+    if (i - sig >= 7) {
+      sig.end <- i
+      break
+    }
+  }
+  other_lines <- body[sig.end:length(body)]
+  other_lines <- head(other_lines, grep("^17-项目负责人", other_lines)[1])
+  c(body[sig:sig.end], other_lines)
+}

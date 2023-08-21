@@ -43,7 +43,7 @@ setMethod("step0", signature = c(x = "job_cellchat"),
 
 setMethod("step1", signature = c(x = "job_cellchat"),
   function(x, db = CellChat::CellChatDB.human,
-    ppi = CellChat::PPI.human, cl = 4)
+    ppi = CellChat::PPI.human, cl = 4, python = "/usr/bin/python3")
   {
     step_message("One step forward computation of most.
       yellow{{In a nutshell, this do:
@@ -58,6 +58,10 @@ setMethod("step1", signature = c(x = "job_cellchat"),
       to smooth gene expression level (set NULL to cancel).
       "
     )
+    if (!is.null(python)) {
+      e(base::Sys.setenv(RETICULATE_PYTHON = python))
+      e(reticulate::py_config())
+    }
     p.showdb <- e(CellChat::showDatabaseCategory(db))
     p.showdb <- wrap(p.showdb, 8, 4)
     object(x)@DB <- db
@@ -79,13 +83,20 @@ setMethod("step1", signature = c(x = "job_cellchat"),
     ## Signaling role of cell groups
     object(x) <- e(CellChat::netAnalysis_computeCentrality(object(x), slot.name = "netP"))
     ## Clustering
-    e({
-      for (i in c("functional", "structural")) {
-        object(x) <- CellChat::computeNetSimilarity(object(x), type = i)
-        object(x) <- CellChat::netEmbedding(object(x), type = i)
-        object(x) <- CellChat::netClustering(object(x), type = i, do.parallel = F)
-      }
-    })
+    object <- object(x)
+    res <- try(
+      e({
+        for (i in c("functional", "structural")) {
+          object(x) <- CellChat::computeNetSimilarity(object(x), type = i)
+          object(x) <- CellChat::netEmbedding(object(x), type = i)
+          object(x) <- CellChat::netClustering(object(x), type = i, do.parallel = F)
+        }
+      })
+    )
+    if (inherits(res, "try-error")) {
+      message("Due to error, escape from clustering; But the object were returned.")
+      object(x) <- object
+    }
     x@plots[[ 1 ]] <- c(namel(p.showdb), p.comms)
     x@tables[[ 1 ]] <- namel(lp_net, pathway_net)
     return(x)
@@ -106,12 +117,16 @@ setMethod("step2", signature = c(x = "job_cellchat"),
     if (is.null(pathways)) {
       pathways <- object(x)@netP$pathways
     }
+    sapply <- pbapply::pbsapply
     cell_comm_heatmap <- e(sapply(c("ALL", pathways), simplify = F,
       function(name) {
         if (name == "ALL")
           name <- NULL
-        main <- CellChat::netVisual_heatmap(
-          object(x), color.heatmap = "Reds", signaling = name)
+        main <- try(CellChat::netVisual_heatmap(
+          object(x), color.heatmap = "Reds", signaling = name), T)
+        if (inherits(main, "try-error")) {
+          return(list(main = NULL, contri = NULL))
+        }
         if (!is.null(name)) {
           contri <- CellChat::extractEnrichedLR(object(x),
             signaling = name, geneLR.return = F)
