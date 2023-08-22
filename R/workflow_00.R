@@ -454,6 +454,17 @@ setMethod("print", signature = c(x = "nonstandardGenericFunction"),
     show(x)
   })
 
+setGeneric("clear", 
+  function(x, ...) standardGeneric("clear"))
+
+setMethod("clear", signature = c(x = "job"),
+  function(x, save = T, suffix = NULL){
+    if (save)
+      saveRDS(x, paste0(substitute(x, parent.frame(1)), x@step, suffix, ".rds"))
+    object(x) <- NULL
+    return(x)
+  })
+
 setGeneric("map", 
   function(x, ref, ...) standardGeneric("map"))
 
@@ -487,3 +498,4 @@ ldr <- function(object) {
   x <- loadRDS(obj <- paste0(substitute(object, parent.frame(1)), ".rds"))
   assign(obj, x, envir = parent.frame(2))
 }
+

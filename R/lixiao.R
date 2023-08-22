@@ -2390,6 +2390,11 @@ setMethod("autor", signature = c(x = "files", name = "character"),
       abstract(x, name, ...)
   })
 
+setMethod("autor", signature = c(x = "lich", name = "character"),
+  function(x, name, ...){
+    abstract(x, name, ...)
+  })
+
 setMethod("autor", signature = c(x = "character", name = "character"),
   function(x, name, ...){
     if (length(x) > 1)
@@ -2578,6 +2583,17 @@ setMethod("abstract", signature = c(x = "fig", name = "character", latex = "logi
     locate_file(name)
   })
 
+setMethod("abstract", signature = c(x = "lich", name = "character", latex = "logical"),
+  function(x, name, latex, ..., abs = NULL){
+    str <- sapply(names(x),
+      function(name){
+        ch <- c("\n", name, "\n\n")
+        ch <- c(ch, strwrap(x[[ name ]], indent = 4, width = 60))
+        ch
+      })
+    cat(text_roundrect(paste0(fix.tex(unlist(str)), collapse = "\n")))
+  })
+
 setMethod("abstract", signature = c(x = "files", name = "character", latex = "logical"),
   function(x, name, latex, ..., abs = NULL, sum.ex = NULL){
     if (dir.exists(x)) {
@@ -2627,10 +2643,10 @@ locate_file <- function(name) {
   cat("\n**(对应文件为 `", autoRegisters[[ name ]], "`)**", "\n", sep = "")
 }
 
-text_roundrect <- function(str) {
+text_roundrect <- function(str, collapse = "\n") {
   paste0("\\begin{center}",
     "\\begin{tcolorbox}[colback=gray!10, colframe=gray!50, width=0.9\\linewidth, arc=1mm, boxrule=0.5pt]",
-    str, "\\end{tcolorbox}\n\\end{center}", collapse = "\n"
+    str, "\\end{tcolorbox}\n\\end{center}", collapse = collapse
   )
 }
 
@@ -2714,9 +2730,12 @@ setMethod("show",
   function(object){
     data <- suppressWarnings(data.frame(as_tibble(object)))
     colnames(data) %<>% stringr::str_trunc(30)
-    maxnum <- max(apply(dplyr::select_if(select(data, -members), is.integer), 2, sum))
-    upset <- UpSetR::upset(data, ncol(data), sets.bar.color = "lightblue", order.by = "freq",
-      set_size.show = T, set_size.scale_max = 1.3 * maxnum)
+    data <- dplyr::select(data, -members)
+    maxnum <- max(apply(data, 2, sum))
+    upset <- UpSetR::upset(data, sets = colnames(data),
+      sets.bar.color = "lightblue", order.by = "freq",
+      set_size.show = T, set_size.scale_max = 1.3 * maxnum,
+    )
     show(wrap(upset, 9, 7))
   })
 

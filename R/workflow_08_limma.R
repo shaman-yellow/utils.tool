@@ -68,6 +68,15 @@ setMethod("step2", signature = c(x = "job_limma"),
     return(x)
   })
 
+setMethod("clear", signature = c(x = "job_limma"),
+  function(x, save = T, suffix = NULL){
+    if (save)
+      saveRDS(x, paste0(substitute(x, parent.frame(1)), x@step, suffix, ".rds"))
+    object(x) <- NULL
+    x@params$normed_data <- NULL
+    return(x)
+  })
+
 plot_valcano <- function(top_table, use = "adj.P.Val", fc = .3) {
   data <- select(top_table, hgnc_symbol, logFC, P.Value, adj.P.Val)
   data <- mutate(data,

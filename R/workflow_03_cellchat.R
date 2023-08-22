@@ -94,7 +94,7 @@ setMethod("step1", signature = c(x = "job_cellchat"),
       })
     )
     if (inherits(res, "try-error")) {
-      message("Due to error, escape from clustering; But the object were returned.")
+      message("Due to error, escape from clustering; But the object was returned.")
       object(x) <- object
     }
     x@plots[[ 1 ]] <- c(namel(p.showdb), p.comms)
@@ -139,7 +139,8 @@ setMethod("step2", signature = c(x = "job_cellchat"),
     gene_expr_violin <- e(sapply(pathways, simplify = F,
       function(name) {
         CellChat::plotGeneExpression(object(x),
-            signaling = name, group.by = NULL)
+            signaling = name, group.by = NULL) +
+          theme(legend.position = "none")
       }))
     role_comps_heatmap <- e(sapply(pathways, simplify = F,
         function(name) {
@@ -155,11 +156,16 @@ setMethod("step2", signature = c(x = "job_cellchat"),
           CellChat::netAnalysis_signalingRole_scatter(object(x),
             signaling = name)
         }))
-    lr_role_heatmap <- e(sapply(c("outgoing", "incoming", "all"), simplify = F,
-      function(name) {
-        p <- CellChat::netAnalysis_signalingRole_heatmap(object(x), pattern = name)
-        grid::grid.grabExpr(print(p))
-      }))
+    res <- try(lr_role_heatmap <- e(sapply(c("outgoing", "incoming", "all"), simplify = F,
+          function(name) {
+            p <- CellChat::netAnalysis_signalingRole_heatmap(object(x), pattern = name)
+            grid::grid.grabExpr(print(p))
+          })))
+    if (inherits(res, "try-error")) {
+      lr_role_heatmap <- NULL
+      message("Due to error, escape from `CellChat::netAnalysis_signalingRole_heatmap`; ",
+        "But the object was returned.")
+    }
     x@plots[[ 2 ]] <- namel(cell_comm_heatmap, lr_comm_bubble, gene_expr_violin,
       role_comps_heatmap, role_weight_scatter, lr_role_heatmap)
     return(x)
@@ -236,4 +242,21 @@ cal_panelScale <- function(num) {
   c(nrow, ncol)
 }
 
+setGeneric("select_pathway", 
+  function(x, ...) standardGeneric("select_pathway"))
 
+setMethod("select_pathway", signature = c(x = "job_cellchat"),
+  function(x, pattern){
+    if (x@step < 1) {
+      stop("x@step != 1")
+    }
+    pathways <- filter(x@tables$step1$pathway_net,
+      grepl(pattern, source) | grepl(pattern, target),
+      pval < .05
+    )
+    lps <- filter(x@tables$step1$lp_net,
+      grepl(pattern, source) | grepl(pattern, target),
+      pval < .05
+    )
+    intersect(unique(pathways$pathway_name), unique(lps$pathway_name))
+  })
