@@ -121,6 +121,7 @@ setMethod("step2", signature = c(x = "job_monocle"),
         label_branch_points = FALSE, graph_label_size = 3,
         cell_size = .5
         ))
+    p.pseu <- wrap(p.pseu, 6, 5)
     x@plots[[ 2 ]] <- namel(p.pseu)
     return(x)
   })

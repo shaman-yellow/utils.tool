@@ -3,7 +3,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # asNamespace("base")
 
-setClass("can_not_be_draw")
+setClassUnion("can_not_be_draw", c("recordedplot"))
 
 files <- setClass("files", 
   contains = c("character"),
@@ -2342,7 +2342,12 @@ setGeneric("autor",
 setMethod("autor", signature = c(x = "ANY", name = "missing"),
   function(x, ...){
     name <- knitr::opts_current$get("label")
-    autor(x, name, ...)
+    if (!is.null(name))
+      autor(x, name, ...)
+    else {
+      message("Not in knitr circumstance, show object only.")
+      show(x)
+    }
   })
 
 setMethod("autor", signature = c(x = "list", name = "character"),
@@ -2448,6 +2453,7 @@ as_caption <- function(str) {
 }
 
 trunc_table <- function(x) {
+  x <- dplyr::mutate_all(x, as.character)
   x <- dplyr::mutate_all(x, function(str) stringr::str_trunc(str, 8))
   colnames(x) %<>% stringr::str_trunc(8)
   if (nrow(x) > 15) {
@@ -2587,8 +2593,9 @@ setMethod("abstract", signature = c(x = "lich", name = "character", latex = "log
   function(x, name, latex, ..., abs = NULL){
     str <- sapply(names(x),
       function(name){
-        ch <- c("\n", name, "\n\n")
+        ch <- c("\n\\textbf{", name, ":}\n\n\\vspace{0.5em}\n")
         ch <- c(ch, strwrap(x[[ name ]], indent = 4, width = 60))
+        ch <- c(ch, "\n\\vspace{2em}\n")
         ch
       })
     cat(text_roundrect(paste0(fix.tex(unlist(str)), collapse = "\n")))
@@ -2725,8 +2732,7 @@ plot_roc <- function(roc) {
   representation = representation(),
   prototype = NULL)
 
-setMethod("show", 
-  signature = c(object = "upset_data"),
+setMethod("show", signature = c(object = "upset_data"),
   function(object){
     data <- suppressWarnings(data.frame(as_tibble(object)))
     colnames(data) %<>% stringr::str_trunc(30)
@@ -2736,7 +2742,7 @@ setMethod("show",
       sets.bar.color = "lightblue", order.by = "freq",
       set_size.show = T, set_size.scale_max = 1.3 * maxnum,
     )
-    show(wrap(upset, 9, 7))
+    show(wrap(upset, ncol(data) * 1.4, ncol(data) * 1.3))
   })
 
 new_upset <- function(..., lst = NULL) {

@@ -36,6 +36,7 @@ setMethod("step0", signature = c(x = "job_enrich"),
     )
   })
 
+# Biological Process, Molecular Function, and Cellular Component groups
 setMethod("step1", signature = c(x = "job_enrich"),
   function(x, orgDb = 'org.Hs.eg.db', cl = 4){
     step_message("Use clusterProfiler for enrichment.
@@ -46,6 +47,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
     cli::cli_alert_info("clusterProfiler::enrichGO")
     res.go <- multi_enrichGO(object(x), orgDb = orgDb, cl = cl)
     p.kegg <- vis_enrich.kegg(res.kegg)
+    p.kegg <- lapply(p.kegg, function(x) wrap(x, 8, 4))
     p.go <- vis_enrich.go(res.go)
     x@tables[[ 1 ]] <- namel(res.kegg, res.go)
     x@plots[[ 1 ]] <- namel(p.kegg, p.go)

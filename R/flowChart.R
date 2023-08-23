@@ -36,6 +36,7 @@ as_network <- function(lst, layout = 'sugiyama', seed = 100)
       do.call(data.frame, ch)
     })
   data <- data.table::rbindlist(lst)
+  data <- dplyr::mutate(data, from = Hmisc::capitalize(from), to = Hmisc::capitalize(to))
   nodes <- data.frame(name = unique(unlist(apply(data, 1, c, simplify = F), use.names = F)))
   if (!is.null(seed)) {
     data <- lapply(seed,
@@ -63,13 +64,13 @@ flowChart <- function(graph, scale.x = 1.2, scale.y = 1.2, node.size = 4,
   p.lst <- lapply(graphs,
     function(graph) {
       p <- ggraph(graph) +
+        geom_node_label(aes(label = paste0(sortSugi(y), ". ", name)),
+          size = node.size, label.padding = u(.5, lines)) +
         geom_edge_fan(aes(x = x, y = y),
           start_cap = circle(sc, 'mm'),
           end_cap = circle(ec, 'mm'),
-          arrow = arrow(length = unit(arr.len, 'mm')),
+          arrow = arrow(length = unit(arr.len, 'mm'), type = "closed"),
           color = edge.color, width = edge.width) +
-        geom_node_label(aes(label = paste0(sortSugi(y), ". ", name)),
-          size = node.size, label.padding = u(.5, lines)) +
         scale_x_continuous(limits = zoRange(graph$x, scale.x)) +
         scale_y_continuous(limits = zoRange(graph$y, scale.y)) +
         theme_void()

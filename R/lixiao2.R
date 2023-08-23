@@ -312,6 +312,10 @@ setMethod("render", signature = c(x = "columns"),
       name <- paste0(substitute(x, parent.frame(1)), ".tex")
     writeLines(lines, name)
     system(paste0(engine, " ", name))
+    path <- get_savedir("figs")
+    files <- list.files(".", get_realname(name))
+    file.copy(files, path)
+    file.remove(files)
   })
 
 setMethod("render", signature = c(x = "column"),

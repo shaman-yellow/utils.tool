@@ -104,7 +104,7 @@ setMethod("step3", signature = c(x = "job_tcga"),
     x@params$queries <- object(x)
     object(x) <- e(TCGAbiolinks::GDCprepare(query = query))
     p.vital <- new_pie(colData(object(x))$vital_status)
-    x@tables[[ 3 ]] <- namel(p.vital)
+    x@plots[[ 3 ]] <- namel(p.vital)
     return(x)
   })
 

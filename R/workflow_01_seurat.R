@@ -106,6 +106,7 @@ setMethod("step3", signature = c(x = "job_seurat"),
     object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution))
     object(x) <- e(Seurat::RunUMAP(object(x), dims = dims))
     p.umap <- e(Seurat::DimPlot(object(x), reduction = "umap", cols = color_set()))
+    p.umap <- wrap(p.umap, 6, 5)
     x@plots[[ 3 ]] <- namel(p.umap)
     return(x)
   })
@@ -260,6 +261,7 @@ plot_var2000 <- function(x) {
   p.var2000 <- wrap(p.var2000, 12, 8)
   p.var2000
 }
+
 plot_pca.seurat <- function(x) {
   p.pca_pcComponents <- e(Seurat::VizDimLoadings(
       x, dims = 1:2, reduction = "pca",
@@ -273,6 +275,7 @@ plot_pca.seurat <- function(x) {
     })
   p.pca_pcComponents <- patchwork::wrap_plots(p.pca_pcComponents, ncol = 2)
   p.pca_1v2 <- e(Seurat::DimPlot(x, reduction = "pca", cols = ggsci::pal_npg()(10)))
+  p.pca_1v2 <- wrap(p.pca_1v2, 6, 5)
   p.pca_heatmap <- e(Seurat::DimHeatmap(
       x, dims = 1:10, cells = 500,
       balanced = TRUE, fast = F, combine = F
@@ -294,6 +297,7 @@ plot_pca.seurat <- function(x) {
   p.pca_rank$layers[[1]]$aes_params$size <- 5
   p.pca_rank$layers[[1]]$aes_params$alpha <- .5
   p.pca_rank$layers[[1]]$aes_params$colour <- "brown"
+  p.pca_rank <- wrap(p.pca_rank, 4, 4)
   namel(
     p.pca_pcComponents,
     p.pca_1v2, p.pca_heatmap, p.pca_rank
