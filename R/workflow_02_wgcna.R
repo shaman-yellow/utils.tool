@@ -152,6 +152,9 @@ setMethod("step6", signature = c(x = "job_wgcna"),
     gs.s <- dplyr::mutate(tibble::as_tibble(gs), p.adjust = p.adjust(pvalue, "BH"))
     gs.s <- dplyr::filter(gs.s, pvalue < .05)
     p.mm_gs <- new_upset(gs = gs.s$gene, mm = mm.s$gene)
+    show(p.mm_gs)
+    p.mm_gs <- wrap(recordPlot(), 3, 3)
+    dev.off()
     x@params$mm <- mm
     x@params$gs <- gs
     x@params$ins.mm_gs <- intersect(gs.s$gene, mm.s$gene)

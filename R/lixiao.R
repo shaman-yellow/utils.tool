@@ -1646,12 +1646,16 @@ norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ...)
   data <- list(Raw = as_data_long(raw_dge), Normalized = as_data_long(pro_dge))
   data <- data.table::rbindlist(data, idcol = T, fill = T)
   data <- dplyr::select(data, .id, sample, value)
-  p <- ggplot(data) +
-    geom_boxplot(aes(x = sample, y = value),
-      outlier.color = "grey60", outlier.size = .5) +
-    coord_flip() +
-    facet_wrap(~ factor(.id, c("Raw", "Normalized"))) +
-    labs(x = "Sample", y = "Log2-cpm")
+  if (length(unique(data$sample)) < 50) {
+    p <- ggplot(data) +
+      geom_boxplot(aes(x = sample, y = value),
+        outlier.color = "grey60", outlier.size = .5) +
+      coord_flip() +
+      facet_wrap(~ factor(.id, c("Raw", "Normalized"))) +
+      labs(x = "Sample", y = "Log2-cpm")
+  } else {
+    p <- plot_median_expr_line(data)
+  }
   attr(dge, "p") <- p
   dge
 }
@@ -2740,7 +2744,7 @@ setMethod("show", signature = c(object = "upset_data"),
     maxnum <- max(apply(data, 2, sum))
     upset <- UpSetR::upset(data, sets = colnames(data),
       sets.bar.color = "lightblue", order.by = "freq",
-      set_size.show = T, set_size.scale_max = 1.3 * maxnum,
+      set_size.show = T, set_size.scale_max = 1.5 * maxnum
     )
     show(wrap(upset, ncol(data) * 1.4, ncol(data) * 1.3))
   })
@@ -2786,4 +2790,32 @@ new_pie <- function(x, title = NULL) {
   wrap(grob, 5, 4)
 }
 
-
+plot_median_expr_line <- function(data) {
+  lst <- pbapply::pblapply(split(as_tibble(data_norm), ~ .id),
+    function(data) {
+      data <- lapply(split(data, ~ sample),
+        function(x) {
+          fn <- fivenum(x$value)
+          names(fn) <- n(v, 5)
+          do.call(data.frame, as.list(fn))
+        })
+      data <- data.table::rbindlist(data, idcol = T)
+      rename(data, sample = .id)
+    })
+  seq <- 1:nrow(lst[[1]])
+  spiralize::spiral_initialize(range(seq))
+  spiralize::spiral_track(range(lst[[1]]$v3))
+  spiralize::spiral_lines(seq, max(lst[[1]]$v3), type = "h", gp = gpar(col = "grey70"))
+  spiralize::spiral_lines(seq, lst[[1]]$v3, gp = gpar(col = "red"))
+  spiralize::spiral_lines(seq, lst[[2]]$v3, gp = gpar(col = "blue"))
+  grid.text("Median Expression line", y = .97, gp = gpar(cex = 2))
+  lgd <- ComplexHeatmap::packLegend(
+    ComplexHeatmap::Legend(title = "From", type = "lines", legend_gp = gpar(col = c("blue", "red"), lwd = 2),
+      at = c("Raw", "Normalized"))
+  )
+  ComplexHeatmap::draw(lgd)
+  p <- recordPlot()
+  dev.off()
+  attr(p, "data") <- lst
+  p
+}

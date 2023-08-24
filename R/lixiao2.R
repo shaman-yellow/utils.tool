@@ -314,7 +314,7 @@ setMethod("render", signature = c(x = "columns"),
     system(paste0(engine, " ", name))
     path <- get_savedir("figs")
     files <- list.files(".", get_realname(name))
-    file.copy(files, path)
+    file.copy(files, path, T)
     file.remove(files)
   })
 
