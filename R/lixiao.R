@@ -344,14 +344,17 @@ download_herbCompounds <- function(link, ids,
       if (jobn > 1) {
         link$refresh()
       }
+      Sys.sleep(1)
       res <- try(silent = T, {
         ele <- link$findElement(
           using = "xpath",
           value = paste0("//main//div//h4[text()='", heading, "']/../div//button")
         )
+        Sys.sleep(1)
         ele$sendKeysToElement(list("Download", key = "enter"))
+        Sys.sleep(1)
       })
-      Sys.sleep(.5)
+      Sys.sleep(1)
       if (inherits(res, "try-error")) {
         writeLines("", paste0("~/Downloads/empty_", jobn, ".xlsx"))
       }
@@ -436,9 +439,11 @@ new_link <- function(port = 4444L, browser = c("chrome", "firefox"), addr = "loc
 {
   browser <- match.arg(browser)
   if (browser == "firefox") {
+    prof <- RSelenium::makeFirefoxProfile(list('permissions.default.image' = 2L))
     RSelenium::remoteDriver(
       remoteServerAddr = addr, port = port,
-      browserName = browser
+      browserName = browser,
+      extraCapabilities = prof
     )
   } else if (browser == "chrome") {
     RSelenium::remoteDriver(
@@ -909,6 +914,7 @@ vis_enrich.kegg <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
           shape = 21, stroke = 0, color = "transparent") +
         scale_fill_gradient(high = "yellow", low = "red") +
         scale_size(range = c(4, 6)) +
+        labs(x = "", y = "Gene Ratio") +
         guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
         coord_flip() +
         ylim(zoRange(data$GeneRatio, 1.3)) +
