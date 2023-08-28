@@ -332,33 +332,41 @@ download_herbCompounds <- function(link, ids,
   urls = paste0("http://herb.ac.cn/Detail/?v=", ids, "&label=Herb"),
   heading = "Related Ingredients")
 {
-  checks <- list.files("~/Downloads", "\\.xlsx$", full.names = T)
+  get_all <- function() list.files("~/Downloads", "\\.xlsx$", full.names = T)
+  checks <- get_all()
   if (length(checks) > 0)
     file.remove(checks)
   link$open()
   jobn <- 0
-  lapply(urls,
+  res <- lapply(urls,
     function(url) {
       link$navigate(url)
       jobn <<- jobn + 1
       if (jobn > 1) {
         link$refresh()
       }
-      Sys.sleep(1)
+      Sys.sleep(.5)
       res <- try(silent = T, {
         ele <- link$findElement(
           using = "xpath",
           value = paste0("//main//div//h4[text()='", heading, "']/../div//button")
         )
-        Sys.sleep(1)
+        Sys.sleep(.5)
         ele$sendKeysToElement(list("Download", key = "enter"))
-        Sys.sleep(1)
       })
-      Sys.sleep(1)
+      Sys.sleep(.5)
       if (inherits(res, "try-error")) {
         writeLines("", paste0("~/Downloads/empty_", jobn, ".xlsx"))
       }
+      checks <- get_all()
+      cli::cli_alert_info(paste0("Job number ", jobn))
+      while (length(checks) < jobn) {
+        cli::cli_alert_info("Waiting download ...")
+        Sys.sleep(1)
+        checks <- get_all()
+      }
     })
+  link$close()
 }
 
 get_from_genecards <- function(query, score = 5, keep_drive = F) {
