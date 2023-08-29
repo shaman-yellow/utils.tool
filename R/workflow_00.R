@@ -349,9 +349,19 @@ step_message <- function(..., show_end = "Job Status") {
 
 .argEnv <- new.env()
 
-e <- function(expr, text = NULL) {
-  expr <- substitute(expr)
-  names <- stringr::str_extract(deparse(expr), "[a-zA-Z0-9_.]*:::?[^\\(]*")
+E <- function(expr, text = NULL, internal = F) {
+  e(expr, text, internal, n = 1)
+}
+
+e <- function(expr, text = NULL, internal = T, n = NULL) {
+  if (is.null(n))
+    expr <- substitute(expr)
+  else
+    expr <- substitute(expr, parent.frame(n))
+  if (internal)
+    names <- stringr::str_extract(deparse(expr), "[a-zA-Z0-9_.]*:::?[^\\(]*")
+  else
+    names <- stringr::str_extract(deparse(expr), "(?<=cdRun\\(\")[^ ]+ [^ ]+ [^ ^\"]+")
   names <- names[ !is.na(names) ]
   if (!length(names))
     name <- "FUNCTION"

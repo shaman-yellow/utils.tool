@@ -361,7 +361,8 @@ download_herbCompounds <- function(link, ids,
       checks <- get_all()
       cli::cli_alert_info(paste0("Job number ", jobn))
       while (length(checks) < jobn) {
-        cli::cli_alert_info("Waiting download ...")
+        cli::cli_alert_info("Retry remotes response ...")
+        ele$sendKeysToElement(list("Download", key = "enter"))
         Sys.sleep(1)
         checks <- get_all()
       }
@@ -371,9 +372,9 @@ download_herbCompounds <- function(link, ids,
 
 get_from_genecards <- function(query, score = 5, keep_drive = F) {
   query <- gs(query, " ", "%20")
-  url <- paste0('https://www.genecards.org/Search/Keyword?queryString=%22', query,
-    '%22&pageSize=25000&startPage=0')
-  link <- start_drive()
+  url <- paste0('https://www.genecards.org/Search/Keyword?queryString=', query,
+    '&pageSize=25000&startPage=0')
+  link <- start_drive(browser = "firefox")
   Sys.sleep(3)
   link$open()
   link$navigate(url)
@@ -394,8 +395,14 @@ moveToDir_herbs <- function(ids,
   file.pattern = "\\.xlsx$", index.pfun = file_seq.by_time,
   from = "~/Downloads", to = "herbs_ingredient", suffix = ".xlsx", .id = "herb_id")
 {
-  args <- as.list(environment())
-  files <- do.call(moveToDir, args)
+  if (!file.exists(to)) {
+    args <- as.list(environment())
+    files <- do.call(moveToDir, args)
+    isOrdered <- T
+  } else {
+    files <- list.files(to, file.pattern, full.names = T)
+    isOrdered <- F
+  }
   data <- lapply(files,
     function(file) {
       res <- try(openxlsx::read.xlsx(file), T)
@@ -403,7 +410,11 @@ moveToDir_herbs <- function(ids,
         tibble::tibble()
       } else res
     })
-  names(data) <- ids
+  if (isOrdered) {
+    names(data) <- ids
+  } else {
+    names(data) <- get_realname(files)
+  }
   data <- tibble::as_tibble(data.table::rbindlist(data, idcol = T, fill = T))
   cols <- colnames(data)
   data <- dplyr::relocate(data, .id)
@@ -566,13 +577,13 @@ writeDatas <- function(lst, dir, ..., fun = data.table::fwrite, postfix = ".csv"
 
 new_biomart <- function(dataset = c("hsapiens_gene_ensembl"))
 {
-  ensembl <- biomaRt::useEnsembl(biomart = "ensembl", dataset = match.arg(dataset))
+  ensembl <- e(biomaRt::useEnsembl(biomart = "ensembl", dataset = match.arg(dataset)))
   ensembl
 }
 
 filter_biomart <- function(mart, attrs, filters = "", values = "") {
-  anno <- biomaRt::getBM(attributes = attrs, filters = filters,
-    values = values, mart = mart)
+  anno <- e(biomaRt::getBM(attributes = attrs, filters = filters,
+    values = values, mart = mart))
   anno <- relocate(anno, !!rlang::sym(filters))
   anno <- distinct(anno, !!rlang::sym(filters), .keep_all = T)
   tibble::as_tibble(anno)
@@ -749,16 +760,20 @@ new_stringdb <- function(
   score_threshold = 200,
   species = 9606,
   network_type = c("physical", "full"),
-  input_directory = "../")
+  input_directory = "../",
+  version = "11.5")
 {
-  STRINGdb::STRINGdb$new(score_threshold = score_threshold,
+  e(STRINGdb::STRINGdb$new(score_threshold = score_threshold,
     species = species, network_type = match.arg(network_type),
-    input_directory = input_directory
-  )
+    input_directory = input_directory, version = version
+  ))
 }
 
 create_interGraph <- function(sdb, data, col = "name", rm.na = T) {
+  cli::cli_alert_info("sdb$map")
   mapped <- sdb$map(data.frame(data), col, removeUnmappedRows = rm.na)
+  message()
+  cli::cli_alert_info("sdb$get_subnetwork")
   graph <- sdb$get_subnetwork(mapped$STRING_id)
   list(mapped = mapped, graph = graph)
 }
@@ -837,7 +852,8 @@ plot_network.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
 
 plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   label.size = 4, node.size = 12, sc = 5, ec = 5, 
-  arr.len = 2, edge.color = 'lightblue', edge.width = 1, lab.fill = "MCC score")
+  arr.len = 2, edge.color = 'lightblue', edge.width = 1, lab.fill = "MCC score",
+  label = "genes")
 {
   p <- ggraph(graph) +
     geom_edge_fan(aes(x = x, y = y),
@@ -847,7 +863,7 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
       color = edge.color, width = edge.width) +
     geom_node_point(aes(x = x, y = y, fill = MCC_score),
       size = node.size, shape = 21, stroke = .3) +
-    geom_node_text(aes(label = genes), size = label.size) +
+    geom_node_text(aes(label = !!rlang::sym(label)), size = label.size) +
     scale_fill_gradient(low = "lightyellow", high = "red") +
     scale_x_continuous(limits = zoRange(graph$x, scale.x)) +
     scale_y_continuous(limits = zoRange(graph$y, scale.y)) +
@@ -1085,12 +1101,13 @@ getBelong_edges <- function(edges) {
   lst.belong
 }
 
-cal_mcc.str <- function(res.str){
+cal_mcc.str <- function(res.str, name = "name", rename = T){
   hubs_score <- cal_mcc(res.str$graph)
   hubs_score <- tbmerge(res.str$mapped, hubs_score, by.x = "STRING_id", by.y = "name", all.x = T)
-  hubs_score <- dplyr::relocate(hubs_score, name, MCC_score)
+  hubs_score <- dplyr::relocate(hubs_score, !!rlang::sym(name), MCC_score)
   hubs_score <- dplyr::arrange(hubs_score, dplyr::desc(MCC_score))
-  hubs_score <- dplyr::rename(hubs_score, genes = name)
+  if (rename)
+    hubs_score <- dplyr::rename(hubs_score, genes = name)
   hubs_score
 }
 
@@ -1127,7 +1144,7 @@ cal_mcc <- function(edges)
 get_subgraph.mcc <- function(igraph, resMcc, top = 10) 
 {
   tops <- dplyr::arrange(resMcc, dplyr::desc(MCC_score))
-  tops <- head(tops$STRING_id, n = 10)
+  tops <- head(tops$STRING_id, n = top)
   data <- igraph::as_data_frame(igraph, "both")
   nodes <- dplyr::filter(data$vertices, name %in% !!tops)
   nodes <- merge(nodes, resMcc, by.x = "name", by.y = "STRING_id", all.x = T)
