@@ -354,10 +354,13 @@ E <- function(expr, text = NULL, internal = F) {
 }
 
 e <- function(expr, text = NULL, internal = T, n = NULL) {
-  if (is.null(n))
+  if (is.null(n)) {
     expr <- substitute(expr)
-  else
+    n <- 1
+  } else {
     expr <- substitute(expr, parent.frame(n))
+    n <- 2
+  }
   if (internal)
     names <- stringr::str_extract(deparse(expr), "[a-zA-Z0-9_.]*:::?[^\\(]*")
   else
@@ -370,7 +373,7 @@ e <- function(expr, text = NULL, internal = T, n = NULL) {
     cli::cli_alert_info(name)
   else
     cli::cli_alert_info(paste0(name, " (", text, ")" ))
-  suppressMessages(eval(expr, envir = parent.frame(1)))
+  suppressMessages(eval(expr, envir = parent.frame(n)))
 }
 
 parallel <- function(x, fun, workers = 3) {

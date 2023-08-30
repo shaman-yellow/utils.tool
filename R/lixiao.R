@@ -61,11 +61,12 @@ cdRun <- function(..., path = ".", sinkFile = NULL)
 {
   owd <- getwd()
   setwd(normalizePath(path))
+  expr <- paste0(unlist(list(...)), collapse = "")
   if (is.null(sinkFile)) {
-    tryCatch(system(paste0(...)), finally = setwd(owd))
+    tryCatch(system(expr), finally = setwd(owd))
   } else {
     tryCatch(
-      capture.output(system(paste0(...)),
+      capture.output(system(expr),
         file = sinkFile, split = T),
       finally = setwd(owd))
   }
