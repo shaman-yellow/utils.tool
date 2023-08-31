@@ -98,6 +98,7 @@ setGeneric("asjob_qiime",
   function(x, ...) standardGeneric("asjob_qiime"))
 
 setMethod("asjob_qiime", signature = c(x = "job_sra"),
-  function(x){
-    job_qiime(x@params$metadata, x@params$wd)
+  function(x, wd = "qiime_data"){
+    dir.create(wd)
+    job_qiime(x@params$metadata, wd)
   })

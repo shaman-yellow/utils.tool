@@ -47,7 +47,7 @@ setMethod("show", signature = c(object = "qzv"),
     system(paste0("qiime tools view ", as.character(object)))
   })
 
-job_qiime <- function(metadata, wd)
+job_qiime <- function(metadata, wd = "qiime_data")
 {
   x <- .job_qiime(object = metadata)
   x@params$wd <- wd
@@ -67,12 +67,7 @@ setMethod("step1", signature = c(x = "job_qiime"),
   function(x, env_pattern = "qiime", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda")
   {
     step_message("Standby Qiime2 environment, and import data")
-    conda_env <- e(filter(reticulate::conda_list(), grepl(env_pattern, name))$name)
-    e(base::Sys.setenv(RETICULATE_PYTHON = paste0(env_path, "/", conda_env, "/bin/python")))
-    e(reticulate::py_config())
-    e(reticulate::use_condaenv(conda_env, conda, required = TRUE))
-    platform <- e(reticulate::import("platform"))
-    x@params$platform <- platform
+    x@params$platform <- activate_qiime(env_pattern, env_path, conda)
     if (!is_qiime_file_exists("demux.qza")) {
       E(cdRun(
           "qiime tools import",
@@ -110,7 +105,7 @@ setMethod("step2", signature = c(x = "job_qiime"),
           path = x@params$wd)
       )
     }
-    x@params$table_qza <- paste0(path, "/table.qza")
+    x@params$table_qza <- paste0(x@params$wd, "/table.qza")
     return(x)
   })
 
@@ -308,4 +303,13 @@ is_qiime_file_exists <- function(file, path) {
     path <- x@params$wd
   }
   file.exists(paste0(path, "/", file))
+}
+
+activate_qiime <- function(env_pattern = "qiime", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda")
+{
+  conda_env <- e(filter(reticulate::conda_list(), grepl(env_pattern, name))$name[1])
+  e(base::Sys.setenv(RETICULATE_PYTHON = paste0(env_path, "/", conda_env, "/bin/python")))
+  e(reticulate::py_config())
+  e(reticulate::use_condaenv(conda_env, conda, required = TRUE))
+  e(reticulate::import("platform"))
 }

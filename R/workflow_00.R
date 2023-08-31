@@ -512,3 +512,7 @@ ldr <- function(object) {
   assign(obj, x, envir = parent.frame(2))
 }
 
+set_palette <- function(x, values = color_set()) {
+  x + scale_color_manual(values = values) +
+    scale_fill_manual(values = values)
+}
