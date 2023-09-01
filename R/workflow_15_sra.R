@@ -89,6 +89,7 @@ setMethod("step4", signature = c(x = "job_sra"),
     }
     metadata[[ "forward-absolute-filepath" ]] <- fun(filepath, 1)
     metadata[[ "reverse-absolute-filepath" ]] <- fun(filepath, 2)
+    metadata <- filter(metadata, `forward-absolute-filepath` != "")
     x@params$metadata <- metadata
     print(metadata)
     return(x)
@@ -101,4 +102,18 @@ setMethod("asjob_qiime", signature = c(x = "job_sra"),
   function(x, wd = "qiime_data"){
     dir.create(wd)
     job_qiime(x@params$metadata, wd)
+  })
+
+setGeneric("asjob_sra", 
+  function(x, ...) standardGeneric("asjob_sra"))
+
+setMethod("asjob_sra", signature = c(x = "df"),
+  function(x, path){
+    metadata <- x
+    x <- .job_sra()
+    x@step <- 3L
+    x@params$info <- metadata
+    x@params$wd <- path
+    x <- step4(x)
+    return(x)
   })

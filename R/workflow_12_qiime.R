@@ -68,8 +68,11 @@ setMethod("step1", signature = c(x = "job_qiime"),
   {
     step_message("Standby Qiime2 environment, and import data")
     x@params$platform <- activate_qiime(env_pattern, env_path, conda)
+    if (is.null(x@params$cdRun)) {
+      x@params$cdRun <- cdRun
+    }
     if (!is_qiime_file_exists("demux.qza")) {
-      E(cdRun(
+      E(x@params$cdRun(
           "qiime tools import",
           " --type 'SampleData[PairedEndSequencesWithQuality]'",
           " --input-format PairedEndFastqManifestPhred33V2",
@@ -79,7 +82,8 @@ setMethod("step1", signature = c(x = "job_qiime"),
       )
     }
     if (!is_qiime_file_exists("demux.qzv")) {
-      E(cdRun("qiime demux summarize ",
+      E(x@params$cdRun(
+          "qiime demux summarize ",
           " --i-data demux.qza ",
           " --o-visualization demux.qzv",
           path = x@params$wd)
@@ -93,7 +97,7 @@ setMethod("step2", signature = c(x = "job_qiime"),
   function(x, len_f, len_r, left_f = 0, left_r = 0, workers = 7){
     step_message("Time consumed running.")
     if (!is_qiime_file_exists("table.qza")) {
-      E(cdRun(
+      E(x@params$cdRun(
           "qiime dada2 denoise-paired ",
           " --i-demultiplexed-seqs demux.qza ",
           " --p-n-threads ", workers,
@@ -112,27 +116,27 @@ setMethod("step2", signature = c(x = "job_qiime"),
 setMethod("step3", signature = c(x = "job_qiime"),
   function(x){
     step_message("Some visualization and 'align-to-tree-mafft-fasttree'")
-    E(cdRun(
+    E(x@params$cdRun(
         "qiime metadata tabulate ",
         " --m-input-file denoising-stats.qza ",
         " --o-visualization denoising-stats.qzv",
         path = x@params$wd)
     )
-    E(cdRun(
+    E(x@params$cdRun(
         "qiime feature-table summarize ",
         " --i-table table.qza ",
         " --m-sample-metadata-file metadata.tsv ",
         " --o-visualization table.qzv",
         path = x@params$wd)
     )
-    E(cdRun(
+    E(x@params$cdRun(
         "qiime feature-table tabulate-seqs ",
         " --i-data rep-seqs.qza ",
         " --o-visualization rep-seqs.qzv",
         path = x@params$wd)
     )
     if (!is_qiime_file_exists("tree")) {
-      E(cdRun(
+      E(x@params$cdRun(
           "qiime phylogeny align-to-tree-mafft-fasttree ",
           " --i-sequences rep-seqs.qza ",
           " --output-dir tree",
@@ -148,7 +152,7 @@ setMethod("step4", signature = c(x = "job_qiime"),
     step_message("Before diversity of alpha and beta.")
     x@params$min <- min
     if (!is_qiime_file_exists("diversity")) {
-      E(cdRun(
+      E(x@params$cdRun(
           "qiime diversity core-metrics-phylogenetic ",
           " --i-phylogeny tree/rooted_tree.qza ",
           " --i-table table.qza ",
@@ -172,7 +176,7 @@ setMethod("step5", signature = c(x = "job_qiime"),
     ## alpha
     E(pbapply::pblapply(c("faith_pd", "shannon", "observed_features", "evenness"),
         function(method) {
-          cdRun(
+          x@params$cdRun(
             "qiime diversity alpha-group-significance ",
             " --i-alpha-diversity diversity/", method, "_vector.qza ",
             " --m-metadata-file metadata.tsv ",
@@ -181,7 +185,7 @@ setMethod("step5", signature = c(x = "job_qiime"),
           )
         })
     )
-    E(cdRun(
+    E(x@params$cdRun(
         "qiime diversity alpha-rarefaction ",
         " --i-table table.qza ",
         " --i-phylogeny tree/rooted_tree.qza ",
@@ -193,7 +197,7 @@ setMethod("step5", signature = c(x = "job_qiime"),
     ## beta
     E(pbapply::pblapply(c("unweighted_unifrac", "bray_curtis", "weighted_unifrac", "jaccard"),
         function(index) {
-          cdRun(
+          x@params$cdRun(
             "qiime diversity beta-group-significance ",
             " --i-distance-matrix diversity/", index, "_distance_matrix.qza ",
             " --m-metadata-file metadata.tsv ",
@@ -222,23 +226,24 @@ setMethod("step6", signature = c(x = "job_qiime"),
       E(cdRun("wget -O ", classifier,
           " https://data.qiime2.org/2023.7/common/silva-138-99-nb-weighted-classifier.qza"))
     }
+    classifier <- normalizePath(classifier)
     if (!is_qiime_file_exists("taxonomy.qza")) {
-      E(cdRun(
+      E(x@params$cdRun(
           "qiime feature-classifier classify-sklearn ",
-          " --i-classifier ", normalizePath(classifier),
+          " --i-classifier ", classifier,
           " --i-reads rep-seqs.qza ",
           " --o-classification taxonomy.qza",
           path = x@params$wd)
       )
     }
-    E(cdRun(
+    E(x@params$cdRun(
         "qiime metadata tabulate ",
         " --m-input-file taxonomy.qza ",
         " --o-visualization taxonomy.qzv",
         path = x@params$wd
       )
     )
-    E(cdRun(
+    E(x@params$cdRun(
         "qiime taxa barplot ",
         " --i-table table.qza ",
         " --i-taxonomy taxonomy.qza ",
@@ -258,31 +263,31 @@ setMethod("step7", signature = c(x = "job_qiime"),
     files <- pbapply::pblapply(levels,
       function(level) {
         message()
-        ancom_test(level, table, path = x@params$wd)
+        ancom_test(level, table, path = x@params$wd, x = x)
       })
     x@plots[[ 7 ]] <- new_qzv(lst = files, path = NULL)
     return(x)
   })
 
-ancom_test <- function(level = 6, table = "table.qza", path = "./sra_data") {
+ancom_test <- function(level = 6, table = "table.qza", path = "./sra_data", x) {
   if (!is.null(level)) {
-    E(cdRun(
+    E(x@params$cdRun(
         "qiime taxa collapse ",
         " --i-table ", table,
         " --i-taxonomy taxonomy.qza ",
         " --p-level ", level,
         " --o-collapsed-table ", ntable <- paste0("table_level_", level, ".qza"),
-        path = "./sra_data"
+        path = path
         ))
     table <- ntable
   }
-  E(cdRun(
+  E(x@params$cdRun(
       "qiime composition add-pseudocount ",
       " --i-table ", table,
       " --o-composition-table ", com_table <- paste0("comp_table_level_", level, ".qza"),
       path = path
       ))
-  E(cdRun(
+  E(x@params$cdRun(
       "qiime composition ancom ",
       " --i-table ", com_table,
       " --m-metadata-file metadata.tsv ",
@@ -313,3 +318,11 @@ activate_qiime <- function(env_pattern = "qiime", env_path = "~/miniconda3/envs/
   e(reticulate::use_condaenv(conda_env, conda, required = TRUE))
   e(reticulate::import("platform"))
 }
+
+setGeneric("set_remote", 
+  function(x, ...) standardGeneric("set_remote"))
+
+setMethod("set_remote", signature = c(x = "job_qiime"),
+  function(x){
+
+  })

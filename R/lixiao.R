@@ -57,6 +57,23 @@ get_realname <- function(filename) {
   gsub("\\..*$", "", name)
 }
 
+remoteRun <- function(..., path, remote = "remote", x) {
+  if (missing(remote)) {
+    if (missing(x)) {
+      x <- get("x")
+    }
+    remote <- x@params$remote
+  }
+  script <- tempfile("remote_Script_", fileext = ".sh")
+  expr <- paste0(unlist(list(...)), collapse = "")
+  if (!missing(path)) {
+    expr <- c(paste0("cd ", path), expr)
+  }
+  writeLines(expr, script)
+  system(paste0("ssh ", remote, " < ", script))
+  message(crayon::yellow(paste0("The script file for remote is: ", script)))
+}
+
 cdRun <- function(..., path = ".", sinkFile = NULL)
 {
   owd <- getwd()
