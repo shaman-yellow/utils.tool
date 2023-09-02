@@ -25,33 +25,16 @@
   prototype = NULL)
 
 new_qzv <- function(..., lst = NULL, path) {
+  if (missing(path)) {
+    x <- get("x", envir = parent.frame(1))
+    path <- x@params$wd
+  }
   if (is.null(lst))
     files <- unlist(list(...))
   else 
     files <- unlist(lst)
-  if (missing(path)) {
-    x <- get("x", envir = parent.frame(1))
-    if (!is.null(x@params$set_remote)) {
-      path <- x@params$map_local
-      pbapply::pblapply(files,
-        function(file) {
-          system(paste0("scp -r ", x@params@remote, ":", x@params$wd, "/",
-              file, " ", path))
-        })
-    } else {
-      path <- x@params$wd
-    }
-  }
-  files <- paste0(path, "/", files)
-  files <- lapply(files,
-    function(file) {
-      if (dir.exists(file)) {
-        list.files(file, "*.qzv", full.names = T, recursive = T)
-      } else {
-        file
-      }
-    })
-  files <- unlist(files)
+  if (!is.null(path))
+    files <- paste0(path, "/", files)
   names(files) <- get_realname(files)
   sapply(files, simplify = F,
     function(file) {
@@ -179,7 +162,8 @@ setMethod("step4", signature = c(x = "job_qiime"),
           path = x@params$wd)
       )
     }
-    x@plots[[ 4 ]] <- new_qzv(paste0(x@params$wd, "/diversity"))
+    files <- list.files(paste0(x@params$wd, "/diversity"), "\\.qzv$", full.names = T)
+    x@plots[[ 4 ]] <- new_qzv(lst = files, path = NULL)
     return(x)
   })
 
@@ -227,7 +211,8 @@ setMethod("step5", signature = c(x = "job_qiime"),
     )
     qzvs <- sapply(get_filename(c(ga, gb)), simplify = F,
       function(dir) {
-        new_qzv(paste0(x@params$wd, "/", dir))
+        files <- list.files(paste0(x@params$wd, "/", dir), "\\.qzv$", full.names = T)
+        new_qzv(lst = files, path = NULL)
       })
     x@plots[[ 5 ]] <- qzvs
     return(x)
@@ -280,7 +265,7 @@ setMethod("step7", signature = c(x = "job_qiime"),
         message()
         ancom_test(level, table, path = x@params$wd, x = x)
       })
-    x@plots[[ 7 ]] <- new_qzv(lst = files)
+    x@plots[[ 7 ]] <- new_qzv(lst = files, path = NULL)
     return(x)
   })
 
@@ -321,27 +306,8 @@ is_qiime_file_exists <- function(file, path) {
   if (missing(path)) {
     x <- get("x", envir = parent.frame(1))
     path <- x@params$wd
-    if (!is.null(x@params$set_remote)) {
-      message(crayon::yellow("Check remote ..."))
-      res <- remote_file.exists(paste0(path, "/", file), remote = x@params$remote)
-      return(res)
-    }
   }
   file.exists(paste0(path, "/", file))
-}
-
-remote_file.exists <- function(file, remote = "remote") {
-  if (missing(remote)) {
-    x <- get("x", envir = parent.frame(1))
-    remote <- x@params$remote
-  }
-  res <- system(paste0("ssh ", remote, " '", expr_sys.file.exists(file), "'"), intern = T)
-  if (res == "T") T
-  else F
-}
-
-expr_sys.file.exists <- function(file) {
-  paste0("if [ -e ", file, " ]; then echo T; else echo F; fi")
 }
 
 activate_qiime <- function(env_pattern = "qiime", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda")
@@ -357,30 +323,10 @@ setGeneric("set_remote",
   function(x, ...) standardGeneric("set_remote"))
 
 setMethod("set_remote", signature = c(x = "job_qiime"),
-  function(x, path, wd = path, pattern = "fastq\\.gz$",
-    tmpdir = "/data/hlc/tmp", map_local = "qiime_local", remote = "remote")
-  {
-    files <- pbapply::pbsapply(object(x)$Run, simplify = F,
-      function(id) {
-        files <- system(paste0("ssh ", x@params$remote, " 'find ", path, "/", id, "'"), intern = T)
-        files[ grepl(pattern, files) ]
-      })
-    metadata <- try_fqs_meta(object(x), files, filter = T)
-    print(metadata)
-    object(x) <- metadata
-    meta_file <- tempfile("metadata", fileext = "tsv")
-    write_tsv(metadata, meta_file)
-    system(paste0("scp ", meta_file, " ", remote, ":", wd, "/metadata.tsv"))
-    x@params$meta_file <- paste0(wd, "/metadata.tsv")
-    x@params$cdRun <- remoteRun
-    x@params$set_remote <- T
-    x@params$map_local <- map_local
+  function(x, path, wd = path, remote = "remote"){
     x@params$postfix <- function(x) {
-      x[1] <- gs(x[1], "^qiime", "~/miniconda3/bin/conda run -n qiime2 qiime")
-      x
+      gs(x, "^qiime", "~/miniconda3/bin/conda run -n qiime2 qiime")
     }
-    x@params$remote <- remote
+    x@params$remote
     x@params$wd <- wd
-    x@params$tmpdir <- tmpdir
-    return(x)
   })

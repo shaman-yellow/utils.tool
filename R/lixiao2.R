@@ -62,35 +62,6 @@ read_kall_quant <- function(path) {
   namel(counts, metadata)
 }
 
-fastp_pair <- function(path, pattern = "[1-2]\\.fastq\\.gz$",
-  names = unique(gs(list.files(path, pattern), pattern, "")), workers = 4,
-  copy_report = T)
-{
-  dir.create(paste0(path, "/fastp_qc"), F)
-  gir.create(paste0(path, "/fastp_report"), F)
-  pbapply::pblapply(names,
-    function(name) {
-      i1 <- paste0(name, "1.fastq.gz")
-      i2 <- paste0(name, "2.fastq.gz")
-      o1 <- paste0("fastp_qc/", name, "1.QC.fastq.gz")
-      o2 <- paste0("fastp_qc/", name, "2.QC.fastq.gz")
-      report <- paste0("fastp_report/", name, ".html")
-      cdRun("fastp -i ", i1,
-        " -I ", i2,
-        " -o ", o1,
-        " -O ", o2,
-        " -h ", report,
-        " --detect_adapter_for_pe ",
-        " -w ", workers,
-        path = path
-      )
-    })
-  if (copy_report) {
-    file.copy(paste0(path, "/fastp_report"), ".", recursive = T)
-  }
-  message("Job finished.")
-}
-
 .fasta <- setClass("fasta", 
   contains = c("character"),
   representation = representation(),

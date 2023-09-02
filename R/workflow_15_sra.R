@@ -57,43 +57,51 @@ setMethod("step2", signature = c(x = "job_sra"),
   })
 
 setMethod("step3", signature = c(x = "job_sra"),
-  function(x){
+  function(x, pattern = "fastq\\.gz$"){
     step_message("Format as fastq file")
+    x@params$pattern <- pattern
     E(pbapply::pblapply(x@params$all_sra,
         function(file) {
           path <- get_path(file)
-          if (length(list.files(path, "fastq.gz$")) == 0)
+          if (length(list.files(path, pattern)) == 0)
             cdRun("fastq-dump --gzip --split-3 ", file, " -O ", path)
         }))
     return(x)
   })
 
 setMethod("step4", signature = c(x = "job_sra"),
-  function(x){
+  function(x, filter = T){
     step_message("Try to format `x@params$info` as metadata.")
     info <- mutate(x@params$info, SampleName = gs(SampleName, "_", "."))
-    metadata <- select(info, "sample-id" = SampleName, Run)
     filepath <- lapply(metadata$Run,
       function(id) {
-        path <- list.files(paste0(x@params$wd, "/", id), "fastq\\.gz", full.names = T)
+        path <- list.files(paste0(x@params$wd, "/", id), x@params$pattern, full.names = T)
         normalizePath(path)
       })
-    fun <- function(lst, n) {
-      vapply(lst,
-        function(vec) {
-          if (length(vec) >= n)
-            vec[n]
-          else
-            character(1)
-        }, character(1))
-    }
-    metadata[[ "forward-absolute-filepath" ]] <- fun(filepath, 1)
-    metadata[[ "reverse-absolute-filepath" ]] <- fun(filepath, 2)
-    metadata <- filter(metadata, `forward-absolute-filepath` != "")
+    metadata <- select(info, "sample-id" = SampleName, Run)
+    metadata <- try_fqs_meta(metadata, filepath, filter = filter)
     x@params$metadata <- metadata
     print(metadata)
     return(x)
   })
+
+try_fqs_meta <- function(metadata, filepath, filter = F) {
+  fun <- function(lst, n) {
+    vapply(lst,
+      function(vec) {
+        if (length(vec) >= n)
+          vec[n]
+        else
+          character(1)
+      }, character(1))
+  }
+  metadata[[ "forward-absolute-filepath" ]] <- fun(filepath, 1)
+  metadata[[ "reverse-absolute-filepath" ]] <- fun(filepath, 2)
+  if (filter) {
+    metadata <- filter(metadata, `forward-absolute-filepath` != "")
+  }
+  metadata
+}
 
 setGeneric("asjob_qiime", 
   function(x, ...) standardGeneric("asjob_qiime"))

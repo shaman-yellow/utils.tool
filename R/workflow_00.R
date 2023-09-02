@@ -32,6 +32,8 @@ setMethod("show",
   function(object){
     message("A workflow of '", class(object), "' in step (done): ", object@step)
     message("Object size: ", obj.size(object))
+    if (!is.null(object@params$set_remote))
+      message("Remote: ", object@params$remote)
   })
 
 setGeneric("params", 
@@ -515,4 +517,40 @@ ldr <- function(object) {
 set_palette <- function(x, values = color_set()) {
   x + scale_color_manual(values = values) +
     scale_fill_manual(values = values)
+}
+
+remoteRun <- function(..., path, run_after_cd = NULL,
+  postfix = NULL, remote = "remote", tmpdir = "/data/hlc/tmp", x)
+{
+  expr <- paste0(unlist(list(...)), collapse = "")
+  if (missing(x)) {
+    x <- get("x", parent.frame(1))
+  }
+  if (missing(remote)) {
+    remote <- x@params$remote
+  }
+  if (missing(postfix)) {
+    postfix <- x@params$postfix
+  }
+  if (!is.null(postfix)) {
+    expr <- postfix(expr)
+  }
+  if (missing(tmpdir)) {
+    tmpdir <- x@params$tmpdir
+  }
+  if (!is.null(tmpdir))
+    expr <- c(paste0("export TMPDIR=", tmpdir), expr)
+  if (missing(path)) {
+    path <- x@params$wd
+  }
+  if (!is.null(run_after_cd)) {
+    expr <- c(run_after_cd, expr)
+  }
+  if (!is.null(path)) {
+    expr <- c(paste0("cd ", path), expr)
+  }
+  script <- tempfile("remote_Script_", fileext = ".sh")
+  writeLines(expr, script)
+  writeLines(crayon::yellow(paste0("The script file for remote is: ", script)))
+  system(paste0("ssh ", remote, " < ", script))
 }
