@@ -85,24 +85,6 @@ setMethod("step4", signature = c(x = "job_sra"),
     return(x)
   })
 
-try_fqs_meta <- function(metadata, filepath, filter = F) {
-  fun <- function(lst, n) {
-    vapply(lst,
-      function(vec) {
-        if (length(vec) >= n)
-          vec[n]
-        else
-          character(1)
-      }, character(1))
-  }
-  metadata[[ "forward-absolute-filepath" ]] <- fun(filepath, 1)
-  metadata[[ "reverse-absolute-filepath" ]] <- fun(filepath, 2)
-  if (filter) {
-    metadata <- filter(metadata, `forward-absolute-filepath` != "")
-  }
-  metadata
-}
-
 setGeneric("asjob_qiime", 
   function(x, ...) standardGeneric("asjob_qiime"))
 

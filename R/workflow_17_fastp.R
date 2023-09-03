@@ -37,6 +37,7 @@ setMethod("step1", signature = c(x = "job_fastp"),
       fqs <- list.files(object(x), paste0(suffix, "$"), full.names = T, recursive = T)
     }
     fqs_path <- unique(get_path(fqs))
+    fqs_path <- fqs_path[!grepl("fastp_qc$", fqs_path)]
     if (!is.null(x@params$set_remote)) {
       pbapply::pblapply(fqs_path, fastp_pair.remote,
         f1_r2 = f1_r2, suffix = suffix, workers = workers, x = x)
@@ -51,44 +52,95 @@ setMethod("step1", signature = c(x = "job_fastp"),
 setMethod("step2", signature = c(x = "job_fastp"),
   function(x, pattern_report = "html", pattern_fq = "QC.fastq.gz$"){
     step_message("Collate results which succeed with report as metadata.")
-    reports <- list.files(object(x), pattern_report, full.names = T, recursive = T)
+    if (is.remote(x)) {
+      reports <- list.remote(object(x), pattern_report)
+    } else {
+      reports <- list.files(object(x), pattern_report, full.names = T, recursive = T)
+    }
     dirs <- get_path(get_path(reports))
     metadata <- data.frame(SampleName = get_realname(gs(dirs, "/$", "")),
       dirs = dirs, reports = reports)
     metadata <- mutate(metadata, Run = SampleName)
-    filepath <- lapply(dirs,
-      function(dir) {
-        list.files(dir, pattern_fq, full.names = T, recursive = T)
-      })
+    if (is.remote(x)) {
+      filepath <- list.remote(dirs, pattern_fq)
+    } else {
+      filepath <- lapply(dirs,
+        function(dir) {
+          list.files(dir, pattern_fq, full.names = T, recursive = T)
+        })
+    }
     metadata <- try_fqs_meta(metadata, filepath)
     metadata <- as_tibble(metadata)
-    print(metadata)
+    failed <- x@params$fqs_path[!x@params$fqs_path %in% metadata$dirs]
+    if (length(failed) > 0) {
+      x@params$failed <- failed
+      message("Failed:")
+      print(failed)
+    }
     x@params$metadata <- metadata
+    if (is.remote(x)) {
+      if (!file.exists(to <- x@params$map_local)) {
+        dir.create(to)
+      }
+      cp.remote(metadata$reports, to)
+    }
     return(x)
   })
 
+set_remote.default <- function(x, tmpdir, map_local, remote) {
+  x@params$remote <- remote
+  x@params$set_remote <- T
+  x@params$map_local <- map_local
+  x@params$tmpdir <- tmpdir
+  return(x)
+}
 
 setMethod("set_remote", signature = c(x = "job_fastp"),
-  function(x, tmpdir = "/data/hlc/tmp", map_local = "qiime_local", remote = "remote")
+  function(x, tmpdir = "/data/hlc/tmp", map_local = "fastp_local", remote = "remote")
   {
-    x@params$remote <- remote
-    x@params$set_remote <- T
-    x@params$map_local <- map_local
+    set_remote.default(x, tmpdir, map_local, remote)
     x@params$postfix <- function(x) {
       x[1] <- gs(x[1], "^fastp", "~/miniconda3/bin/conda run -n base fastp")
       x
     }
-    x@params$tmpdir <- tmpdir
     return(x)
   })
+
+cp.remote <- function(from, to, remote = "remote") {
+  if (missing(remote)) {
+    x <- get("x", envir = parent.frame(1))
+    remote <- x@params$remote
+  }
+  pbapply::pblapply(from,
+    function(path) {
+      system(paste0("scp ", remote, ":", path, " ", to))
+    })
+}
 
 list.remote <- function(path, pattern, remote = "remote") {
   if (missing(remote)) {
     x <- get("x", envir = parent.frame(1))
     remote <- x@params$remote
   }
-  files <- system(paste0("ssh ", remote, " 'find ", path, "'"), intern = T)
-  files[ grepl(pattern, files) ]
+  if (length(path) == 1) {
+    files <- system(paste0("ssh ", remote, " 'find ", path, "'"), intern = T)
+    files[ grepl(pattern, files) ]
+  } else if (length(path) > 1) {
+    files <- system(paste0("ssh ", remote, " ",
+        "'for i in ", paste0(path, collapse = " "),
+        "; do find $i; echo -----; done'"),
+      intern = T)
+    files <- sep_list(files, "^-----$")
+    files <- lapply(files,
+      function(files) {
+        files <- files[ -length(files) ]
+        files[ grepl(pattern, files) ]
+      })
+    names(files) <- path
+    files
+  } else {
+    stop("The path may be character(0).")
+  }
 }
 
 fastp_pair <- function(path, suffix = ".fastq.gz", pattern = paste0("[1-2]", suffix, "$"),
@@ -149,8 +201,17 @@ fastp_pair.remote <- function(path, suffix = ".fastq.gz", pattern = paste0(".[1-
         )
       }
     })
-  if (copy_report) {
-    file.copy(paste0(path, "/fastp_report"), ".", recursive = T)
-  }
   message("Job finished.")
 }
+
+setMethod("asjob_qiime", signature = c(x = "job_fastp"),
+  function(x, metadata = x@params$metadata, wd = "qiime_data"){
+    .check_columns(metadata, c("SampleName", "group"))
+    metadata <- rename(metadata, `sample-id` = SampleName)
+    if (!file.exists(wd)) {
+      dir.create(wd)
+    }
+    x <- job_qiime(metadata, wd)
+    x@params$pattern_fq <- "QC.fastq.gz$"
+    x
+  })

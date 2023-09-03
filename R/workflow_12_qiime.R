@@ -35,7 +35,7 @@ new_qzv <- function(..., lst = NULL, path) {
       path <- x@params$map_local
       pbapply::pblapply(files,
         function(file) {
-          system(paste0("scp -r ", x@params@remote, ":", x@params$wd, "/",
+          system(paste0("scp -r ", x@params$remote, ":", x@params$wd, "/",
               file, " ", path))
         })
     } else {
@@ -357,14 +357,13 @@ setGeneric("set_remote",
   function(x, ...) standardGeneric("set_remote"))
 
 setMethod("set_remote", signature = c(x = "job_qiime"),
-  function(x, path, wd = path, pattern = "fastq\\.gz$",
+  function(x, path, wd = path,
+    pattern = if (is.null(x@params$pattern_fq)) "fastq\\.gz$" else x@params$pattern_fq,
     tmpdir = "/data/hlc/tmp", map_local = "qiime_local", remote = "remote")
   {
-    files <- pbapply::pbsapply(object(x)$Run, simplify = F,
-      function(id) {
-        files <- system(paste0("ssh ", x@params$remote, " 'find ", path, "/", id, "'"), intern = T)
-        files[ grepl(pattern, files) ]
-      })
+    ## must be here
+    x@params$remote <- remote
+    files <- list.remote(paste0(path, "/", object(x)$Run), pattern)
     metadata <- try_fqs_meta(object(x), files, filter = T)
     print(metadata)
     object(x) <- metadata
@@ -379,8 +378,26 @@ setMethod("set_remote", signature = c(x = "job_qiime"),
       x[1] <- gs(x[1], "^qiime", "~/miniconda3/bin/conda run -n qiime2 qiime")
       x
     }
-    x@params$remote <- remote
     x@params$wd <- wd
     x@params$tmpdir <- tmpdir
     return(x)
   })
+
+try_fqs_meta <- function(metadata, filepath, filter = F) {
+  fun <- function(lst, n) {
+    vapply(lst,
+      function(vec) {
+        vec <- sort(vec)
+        if (length(vec) >= n)
+          vec[n]
+        else
+          character(1)
+      }, character(1))
+  }
+  metadata[[ "forward-absolute-filepath" ]] <- fun(filepath, 1)
+  metadata[[ "reverse-absolute-filepath" ]] <- fun(filepath, 2)
+  if (filter) {
+    metadata <- filter(metadata, `forward-absolute-filepath` != "")
+  }
+  metadata
+}

@@ -365,8 +365,10 @@ e <- function(expr, text = NULL, internal = T, n = NULL) {
   }
   if (internal)
     names <- stringr::str_extract(deparse(expr), "[a-zA-Z0-9_.]*:::?[^\\(]*")
-  else
-    names <- stringr::str_extract(deparse(expr), "(?<=cdRun\\(\")[^ ]+ [^ ]+ [^ ^\"]+")
+  else {
+    names <- gs(deparse(expr), "^.*cdRun\\(([^ ]+ [^ ]+ [^ ^\"]+).*$", "\\1")
+    names <- gs(names, "\"|,", "")
+  }
   names <- names[ !is.na(names) ]
   if (!length(names))
     name <- "FUNCTION"
@@ -554,3 +556,15 @@ remoteRun <- function(..., path, run_after_cd = NULL,
   writeLines(crayon::yellow(paste0("The script file for remote is: ", script)))
   system(paste0("ssh ", remote, " < ", script))
 }
+
+setGeneric("is.remote", 
+  function(x, ...) standardGeneric("is.remote"))
+
+setMethod("is.remote", signature = c(x = "job"),
+  function(x){
+    if (!is.null(x@params$set_remote)) T
+    else F
+  })
+
+setGeneric("is_workflow_object_exists", 
+  function(object, ...) standardGeneric("is_workflow_object_exists"))
