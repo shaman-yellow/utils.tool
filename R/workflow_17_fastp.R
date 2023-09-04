@@ -11,7 +11,7 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("...")
+    info = c("https://github.com/OpenGene/fastp")
     ))
 
 job_fastp <- function(path)

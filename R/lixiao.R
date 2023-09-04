@@ -64,7 +64,7 @@ cdRun <- function(..., path = ".", sinkFile = NULL)
   expr <- paste0(unlist(list(...)), collapse = "")
   script <- tempfile("Script_", fileext = ".sh")
   writeLines(expr, script)
-  writeLines(crayon::yellow(paste0("The script file is: ", script)))
+  writeLines(crayon::yellow(paste0("\nThe script file is: ", script)))
   if (is.null(sinkFile)) {
     tryCatch(system(expr), finally = setwd(owd))
   } else {
