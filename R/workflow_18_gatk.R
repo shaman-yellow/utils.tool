@@ -72,13 +72,13 @@ setMethod("step1", signature = c(x = "job_gatk"),
   })
 
 setMethod("step2", signature = c(x = "job_gatk"),
-  function(x, workers = 9, use.sambamba = T){
+  function(x, workers = 9, only.bwa = T, use.sambamba = T){
     step_message("Alignment to reference gnome.
       Then remote duplicated.
       "
     )
-    if (!is_workflow_object_exists("elprep")) {
-      WorkflowGatk.bwa_mem(x)
+    WorkflowGatk.bwa_mem(x)
+    if (!only.bwa) {
       if (!use.sambamba) {
         WorkflowGatk.samtools_sort(x)
         WorkflowGatk.picard_MarkDuplicates(x)
@@ -91,15 +91,24 @@ setMethod("step2", signature = c(x = "job_gatk"),
   })
 
 setMethod("step3", signature = c(x = "job_gatk"),
-  function(x, elprep = "conda run -n base elprep", mem = 28, workers = 9){
-    step_message("Use elprep for Recalibration Base Quality Score,
-      and Variant calling.
-      "
-    )
+  function(x, elprep = "conda run -n base elprep",
+    bcftools = "conda run -n base bcftools",
+    batch = F, mem = 28, workers = 9)
+  {
+    step_message("Use elprep for do almost everything.")
     if (!is.null(elprep)) {
       x@params$elprep <- elprep
       x <- WorkflowGatk.elprep_prepare(x)
-      WorkflowGatk.elprep_bqsr_haplotypecaller(x, workers)
+      if (batch) {
+        x <- WorkflowGatk.elprep_bqsr_haplotypecaller_batch(x, workers)
+      } else {
+        x@params$bcftools <- bcftools
+        WorkflowGatk.elprep_bqsr_haplotypecaller(x, workers)
+        x <- WorkflowGatk.bcftools_merge(x, workers)
+      }
+      x@params$use.elprep <- T
+    } else {
+      stop("...")
     }
     return(x)
   })
@@ -107,67 +116,59 @@ setMethod("step3", signature = c(x = "job_gatk"),
 setMethod("step4", signature = c(x = "job_gatk"),
   function(x){
     step_message("GATK VQSR")
-    if (is.null(x@params$vcf)) {
-      x@params$vcf <- "all.vcf.gz"
+    if (is.null(x@params$use.elprep)) {
+      if (is.null(x@params$vcf)) {
+        x@params$vcf <- "all.vcf.gz"
+      }
+      x <- WorkflowGatk.gatk_prepare_refVcf(x)
+      WorkflowGatk.gatk_VariantRecalibrator_snps(x)
+      WorkflowGatk.gatk_VariantRecalibrator_indels(x)
     }
-    x <- WorkflowGatk.gatk_prepare_refVcf(x)
-    resources <- x@params$vqsr_resource
-    snp_res <- resources[ grepl("\\.snps\\.", resources) ]
-    snp_res <- paste0(
-      " -resource:", get_realname(snp_res), ",",
-      "known=false,training=true,truth=true,prior=",
-      13 - 1:length(snp_res),
-      " ", snp_res, " "
-    )
-    if (!is_workflow_object_exists("all.snp.tranches")) {
-      cdRun(x@params$gatk, " VariantRecalibrator",
-        " -R ", x@params$ref,
-        " -V ", x@params$vcf,
-        paste0(snp_res, collapse = " "),
-        " -an DP -an QD -an FS -an SOR -an ReadPosRankSum -an MQRankSum",
-        " -mode SNP",
-        " -O all.snp.recal ",
-        " --tranches-file all.snp.tranches ",
-        " --rscript-file all.snp.plots.R")
-    }
-    if (!is_workflow_object_exists("all.snps.VQSR.vcf.gz")) {
-      cdRun(x@params$gatk, " ApplyVQSR",
-        " -R ", x@params$ref,
-        " -V ", x@params$vcf,
-        " --ts-filter-level 99.0 --tranches-file all.snp.tranches ",
-        " --recal-file all.snp.recal ",
-        " -mode SNP",
-        " -O all.snps.VQSR.vcf.gz"
+    return(x)
+  })
+
+setMethod("step5", signature = c(x = "job_gatk"),
+  function(x, annovar = "~/operation/annovar/annotate_variation.pl", ref = "hg38",
+    ref_used = c("refGene", "cytoBand", "exac03", "avsnp147", "dbnsfp30a")[1],
+    ref_operation = c("gx", "r", "f", "f", "f")[1])
+  {
+    step_message("Use annovar for annotation of vcf.")
+    path_annovar <- get_path(annovar)
+    ref_path <- paste0(path_annovar, "/humandb")
+    ref_pattern <- paste0("^", ref)
+    if (length(list.files(ref_path, ref_pattern)) < length(ref_used)) {
+      pbapply::pblapply(ref_used,
+        function(name) {
+          if (!file.exists(paste0(ref_path, "/", ref, "_", name, ".txt"))) {
+            cdRun(annovar, " -buildver ", ref, " -downdb",
+              ifelse(name == "cytoBand", NULL, " -webfrom annovar "),
+              " ", name, " humandb",
+              path = path_annovar)
+          }
+        }
       )
     }
-    indel_res <- resources[ grepl("\\.indels\\.", resources) ]
-    indel_res <- paste0(
-      " -resource:", get_realname(indel_res), ",",
-      "known=true,training=true,truth=true,prior=",
-      13 - 1:length(indel_res),
-      " ", indel_res, " "
-    )
-    if (!is_workflow_object_exists("all.indel.tranches")) {
-      cdRun(x@params$gatk, " VariantRecalibrator",
-        " -R ", x@params$ref,
-        " -V ", "all.snps.VQSR.vcf.gz",
-        paste0(indel_res, collapse = " "),
-        " -an DP -an QD -an FS -an SOR -an ReadPosRankSum -an MQRankSum",
-        " -mode INDEL", " --max-gaussians 6",
-        " -O all.indel.recal ",
-        " --tranches-file all.indel.tranches ",
-        " --rscript-file all.indel.plots.R")
+    if (is.null(x@params$vcf_for_anno)) {
+      x@params$vcf_for_anno <- "all.vcf.gz"
     }
-    if (!is_workflow_object_exists("all.snps.indels.VQSR.vcf.gz")) {
-      cdRun(x@params$gatk, " ApplyVQSR",
-        " -R ", x@params$ref,
-        " -V ", "all.snps.VQSR.vcf.gz",
-        " --ts-filter-level 99.0 --tranches-file all.indel.tranches ",
-        " --recal-file all.indel.recal ",
-        " -mode INDEL",
-        " -O all.snps.indels.VQSR.vcf.gz"
+    vcf <- x@params$vcf_for_anno
+    output <- gs(vcf, "\\.vcf[^/]*$", ".input")
+    if (!is_workflow_object_exists(output)) {
+      cdRun(paste0(path_annovar, "/", "convert2annovar.pl"),
+        " -format vcf4 -allsample -withfreq ", vcf,
+        " > ", output,
+        path = x@params$wd
       )
     }
+    inputfile <- output
+    cdRun(paste0(path_annovar, "/", "table_annovar.pl"),
+      " ", inputfile, " ",
+      ref_path, " ", " -buildver ", ref,
+      " --outfile res_", get_realname(inputfile),
+      " -remove -protocol ", paste0(ref_used, collapse = ","),
+      " -operation ", paste0(ref_operation, collapse = ","),
+      path = x@params$wd)
+    x@params$vcf <- vcf
     return(x)
   })
 
@@ -316,18 +317,47 @@ WorkflowGatk.elprep_prepare <- function(x) {
 }
 
 WorkflowGatk.elprep_bqsr_haplotypecaller <- function(x, workers) {
+  cli::cli_alert_info("elprep sfm")
+  pbapply::pbapply(object(x), 1,
+    function(vec) {
+      vec <- as.list(vec)
+      output <- paste0(vec$SampleName, ".vcf.gz")
+      if (!is_workflow_object_exists(output)) {
+        cdRun(x@params$elprep,
+          " sfm", " ", vec$SampleName, ".bam", " ",
+          " ", vec$SampleName, ".elprep.bam",
+          " --nr-of-threads ", workers,
+          " --tmp-path ", x@params$tmpdir,
+          " --mark-duplicates",
+          " --mark-optical-duplicates ", vec$SampleName, ".metrics",
+          " --sorting-order coordinate",
+          " --bqsr ", vec$SampleName, ".recal",
+          " --known-sites ", paste0(x@params$elsites, collapse = ","),
+          " --reference ", x@params$ref_elfasta,
+          " --haplotypecaller ", output,
+          path = x@params$wd
+        )
+      }
+    })
+}
+
+WorkflowGatk.elprep_bqsr_haplotypecaller_batch <- function(x, workers) {
   output <- paste0("all.vcf.gz")
   if (!is_workflow_object_exists("elprep")) {
     cdRun("mkdir elprep", path = x@params$wd)
-    cdRun("mv ", paste0(object(x)$SampleName, ".markdup.bam", collapse = " "),
+    cdRun("mv ", paste0(object(x)$SampleName, ".bam", collapse = " "),
       " -t elprep ", path = x@params$wd)
   }
   cli::cli_alert_info("elprep sfm")
   if (!is_workflow_object_exists(output)) {
     cdRun(x@params$elprep,
-      " sfm", " elprep ", "all.elprep_bqsr.bam",
+      " sfm", " elprep ",
+      " all.elprep.bam",
       " --nr-of-threads ", workers,
       " --tmp-path ", x@params$tmpdir,
+      " --mark-duplicates",
+      " --mark-optical-duplicates ", "all.metrics",
+      " --sorting-order coordinate",
       " --bqsr all.recal",
       " --known-sites ", paste0(x@params$elsites, collapse = ","),
       " --reference ", x@params$ref_elfasta,
@@ -335,6 +365,8 @@ WorkflowGatk.elprep_bqsr_haplotypecaller <- function(x, workers) {
       path = x@params$wd
     )
   }
+  x@params$vcf <- "all.vcf.gz"
+  return(x)
 }
 
 WorkflowGatk.gatk_prepare_refVcf <- function(x) {
@@ -351,5 +383,105 @@ WorkflowGatk.gatk_prepare_refVcf <- function(x) {
       }
     })
   x@params$vqsr_resource %<>% normalizePath()
+  return(x)
+}
+
+create_gatk_vcf_index <- function(vcf, x) {
+  if (!is_workflow_object_exists(paste0(vcf, ".tbi"))) {
+    cdRun(x@params$gatk, " IndexFeatureFile",
+      " -I ", vcf, path = x@params$wd)
+  }
+}
+
+WorkflowGatk.gatk_VariantRecalibrator_snps <- function(x) {
+  resources <- x@params$vqsr_resource
+  snp_res <- resources[ grepl("\\.snps\\.", resources) ]
+  snp_res <- paste0(
+    " -resource:", get_realname(snp_res), ",",
+    "known=false,training=true,truth=true,prior=",
+    13 - 1:length(snp_res),
+    " ", snp_res, " "
+  )
+  create_gatk_vcf_index(x@params$vcf, x)
+  if (!is_workflow_object_exists("tmp_snp.tranches")) {
+    E(cdRun(x@params$gatk, " VariantRecalibrator",
+        " -R ", x@params$ref,
+        " -V ", x@params$vcf,
+        paste0(snp_res, collapse = " "),
+        " -an QD -an FS -an SOR -an ReadPosRankSum -an MQRankSum",
+        " -mode SNP",
+        " -O tmp_snp.recal ",
+        " --tranches-file tmp_snp.tranches ",
+        " --rscript-file tmp_snp.plots.R",
+        path = x@params$wd
+        ))
+  }
+  if (!is_workflow_object_exists("all_snps.VQSR.vcf.gz")) {
+    E(cdRun(x@params$gatk, " ApplyVQSR",
+        " -R ", x@params$ref,
+        " -V ", x@params$vcf,
+        " --ts-filter-level 99.0 --tranches-file tmp_snp.tranches ",
+        " --recal-file tmp_snp.recal ",
+        " -mode SNP",
+        " -O all_snps.VQSR.vcf.gz",
+        path = x@params$wd
+        ))
+  }
+}
+
+WorkflowGatk.gatk_VariantRecalibrator_indels <- function(x) {
+  resources <- x@params$vqsr_resource
+  indel_res <- resources[ grepl("\\.indels\\.", resources) ]
+  indel_res <- paste0(
+    " -resource:", get_realname(indel_res), ",",
+    "known=true,training=true,truth=true,prior=",
+    13 - 1:length(indel_res),
+    " ", indel_res, " "
+  )
+  vcf <- "all_snps.VQSR.vcf.gz"
+  create_gatk_vcf_index(vcf, x)
+  if (!is_workflow_object_exists("tmp_indel.tranches")) {
+    E(cdRun(x@params$gatk, " VariantRecalibrator",
+        " -R ", x@params$ref,
+        " -V ", vcf,
+        paste0(indel_res, collapse = " "),
+        " -an QD -an FS -an SOR -an ReadPosRankSum -an MQRankSum",
+        " -mode INDEL", " --max-gaussians 6",
+        " -O tmp_indel.recal ",
+        " --tranches-file tmp_indel.tranches ",
+        " --rscript-file tmp_indel.plots.R",
+        path = x@params$wd
+        ))
+  }
+  if (!is_workflow_object_exists("all_snps_indels.VQSR.vcf.gz")) {
+    E(cdRun(x@params$gatk, " ApplyVQSR",
+        " -R ", x@params$ref,
+        " -V ", vcf,
+        " --ts-filter-level 99.0 --tranches-file tmp_indel.tranches ",
+        " --recal-file tmp_indel.recal ",
+        " -mode INDEL",
+        " -O all_snps_indels.VQSR.vcf.gz",
+        path = x@params$wd
+        ))
+  }
+}
+
+WorkflowGatk.bcftools_merge <- function(x) {
+  pbapply::pblapply(object(x),
+    function(vec) {
+      vec <- as.list(vec)
+      output <- paste0(vec$SampleName, ".vcf.gz.csi")
+      if (!is_workflow_object_exists(output)) { 
+        cdRun(x@params$bcftools,
+          " index ", vec$SampleName, ".vcf.gz",
+          path = x@params$wd)
+      }
+    })
+  vcfs <- paste0(paste0(object(x)$SampleName, ".vcf.gz"), collapse = " ")
+  output <- "all.vcf.gz"
+  if (!is_workflow_object_exists(output)) {
+    cdRun(x@params$bcftools, " merge ", vcfs, " -O z -o ", output)
+  }
+  x@params$vcf <- output
   return(x)
 }
