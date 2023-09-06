@@ -128,15 +128,17 @@ setMethod("step4", signature = c(x = "job_gatk"),
   })
 
 setMethod("step5", signature = c(x = "job_gatk"),
-  function(x, annovar = "~/operation/annovar/annotate_variation.pl", ref = "hg38",
-    ref_used = c("refGene", "cytoBand", "exac03", "avsnp147", "dbnsfp30a")[1],
-    ref_operation = c("gx", "r", "f", "f", "f")[1])
+  function(x, annovar = "~/operation/annovar/annotate_variation.pl",
+    use.ref = 1:2, ref = "hg38",
+    ref_used = c("refGene", "cytoBand", "exac03", "avsnp147", "dbnsfp30a")[use.ref],
+    ref_operation = c("g", "r", "f", "f", "f")[use.ref])
   {
     step_message("Use annovar for annotation of vcf.")
     path_annovar <- get_path(annovar)
     ref_path <- paste0(path_annovar, "/humandb")
     ref_pattern <- paste0("^", ref)
     if (length(list.files(ref_path, ref_pattern)) < length(ref_used)) {
+      cli:cli_alert_info("annovar download")
       pbapply::pblapply(ref_used,
         function(name) {
           if (!file.exists(paste0(ref_path, "/", ref, "_", name, ".txt"))) {
@@ -154,21 +156,61 @@ setMethod("step5", signature = c(x = "job_gatk"),
     vcf <- x@params$vcf_for_anno
     output <- gs(vcf, "\\.vcf[^/]*$", ".input")
     if (!is_workflow_object_exists(output)) {
-      cdRun(paste0(path_annovar, "/", "convert2annovar.pl"),
-        " -format vcf4 -allsample -withfreq ", vcf,
-        " > ", output,
-        path = x@params$wd
-      )
+      E(cdRun(paste0(path_annovar, "/", "convert2annovar.pl"),
+          " -format vcf4 -allsample -withfreq ", vcf,
+          " > ", output,
+          path = x@params$wd
+          ))
     }
     inputfile <- output
-    cdRun(paste0(path_annovar, "/", "table_annovar.pl"),
-      " ", inputfile, " ",
-      ref_path, " ", " -buildver ", ref,
-      " --outfile res_", get_realname(inputfile),
-      " -remove -protocol ", paste0(ref_used, collapse = ","),
-      " -operation ", paste0(ref_operation, collapse = ","),
-      path = x@params$wd)
+    E(cdRun(paste0(path_annovar, "/", "table_annovar.pl"),
+        " ", inputfile, " ",
+        ref_path, " ", " -buildver ", ref,
+        " --outfile res_", get_realname(inputfile),
+        " -protocol ", paste0(ref_used, collapse = ","),
+        " -operation ", paste0(ref_operation, collapse = ","),
+        path = x@params$wd))
+    inputfile <- paste0("res_", get_realname(inputfile), ".refGene.exonic_variant_function")
+    if (is_workflow_object_exists(inputfile)) {
+      E(cdRun(paste0(path_annovar, "/", "coding_change.pl"),
+          " ", inputfile,
+          " ", ref_path, "/", ref, "_refGene.txt",
+          " ", ref_path, "/", ref, "_refGeneMrna.fa",
+          " > coding_change.fa ",
+          path = x@params$wd))
+      coding_change <- readLines(paste0(x@params$wd, "/coding_change.fa"))
+      coding_chang <- extract_coding_change(coding_change)
+    }
+    x@tables[[ 5 ]] <- namel(coding_chang)
     x@params$vcf <- vcf
+    return(x)
+  })
+
+setMethod("step6", signature = c(x = "job_gatk"),
+  function(x, ref = "hg38",
+    file_multianno = paste0("res_", get_realname(x@params$vcf_for_anno), ".", ref, "_multianno.txt"))
+  {
+    data <- data.table::fread(paste0(x@params$wd, "/", file_multianno))
+    data <- filter(data, Gene.refGene != "")
+    refGene <- mutate(data,
+      hgnc_symbol = stringr::str_extract(Gene.refGene, "^[^;]*"),
+      dna_coding = stringr::str_extract(AAChange.refGene, "c\\.[^,]*"),
+      protein_coding = stringr::str_extract(AAChange.refGene, "p\\.[^,]*")
+    )
+    exonic <- filter(refGene, ExonicFunc.refGene != "")
+    exonic_caused <- filter(exonic,
+      !ExonicFunc.refGene %in% c("unknown", "synonymous SNV"),
+      !grepl("nonframeshift", ExonicFunc.refGene)
+    )
+    if (is.null(x@params$mart)) {
+      mart <- new_biomart()
+      x@params$mart <- mart
+    } else {
+      mart <- x@params$mart
+    }
+    exonic_caused_anno <- filter_biomart(mart, general_attrs(),
+      "hgnc_symbol", unique(exonic_caused$hgnc_symbol))
+    x@tables[[ 6 ]] <- namel(refGene, exonic, exonic_caused, exonic_caused_anno)
     return(x)
   })
 
@@ -484,4 +526,15 @@ WorkflowGatk.bcftools_merge <- function(x) {
   }
   x@params$vcf <- output
   return(x)
+}
+
+extract_coding_change <- function(lines) {
+  lines <- lines[ grepl("^>", lines) ]
+  lines <- lines[ !grepl("WILDTYPE", lines) ]
+  lines <- gs(lines, "\\(.*\\)", "")
+  res <- tibble::tibble(refseq = stringr::str_extract(lines, "NM_[^ ]*"),
+    dna_coding = stringr::str_extract(lines, "c\\.[^ ]*"),
+    protein_coding = stringr::str_extract(lines, "p\\.[^ ]*")
+  )
+  res
 }

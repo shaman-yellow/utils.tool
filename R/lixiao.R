@@ -602,6 +602,7 @@ general_attrs <- function(pdb = F) {
     "ensembl_transcript_id",
     "entrezgene_id",
     "hgnc_symbol",
+    "refseq_mrna",
     "chromosome_name",
     "start_position",
     "end_position",
@@ -883,6 +884,7 @@ multi_enrichKEGG <- function(lst.entrez_id)
     function(ids) {
       res.kegg <- clusterProfiler::enrichKEGG(ids)
       res.path <- tibble::as_tibble(res.kegg@result)
+      res.path <- mutate(res.path, geneID_list = lapply(strsplit(geneID, "/"), as.integer))
       res.path
     })
   res

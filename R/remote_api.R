@@ -16,6 +16,14 @@ rem_list.files <- function(path, pattern, ...) {
   }
 }
 
+rem_readLines <- function(...) {
+  if (!check_remote()) {
+    readLines(...)
+  } else {
+    stop("...")
+  }
+}
+
 rem_file.copy <- function(...) {
   if (!check_remote()) {
     file.copy(...)
