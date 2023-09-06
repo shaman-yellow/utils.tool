@@ -115,8 +115,8 @@ setMethod("step3", signature = c(x = "job_gatk"),
 
 setMethod("step4", signature = c(x = "job_gatk"),
   function(x){
-    step_message("GATK VQSR")
     if (is.null(x@params$use.elprep)) {
+      step_message("GATK VQSR")
       if (is.null(x@params$vcf)) {
         x@params$vcf <- "all.vcf.gz"
       }
