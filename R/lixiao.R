@@ -579,7 +579,12 @@ writeDatas <- function(lst, dir, ..., fun = data.table::fwrite, postfix = ".csv"
 # biomart
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-new_biomart <- function(dataset = c("hsapiens_gene_ensembl"))
+list_datasets <- function() {
+  ensembl <- e(biomaRt::useEnsembl("genes"))
+  e(biomaRt::listDatasets(ensembl))
+}
+
+new_biomart <- function(dataset = c("hsapiens_gene_ensembl", "sscrofa_gene_ensembl"))
 {
   ensembl <- e(biomaRt::useEnsembl(biomart = "ensembl", dataset = match.arg(dataset)))
   ensembl
@@ -878,11 +883,11 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   p
 } 
 
-multi_enrichKEGG <- function(lst.entrez_id) 
+multi_enrichKEGG <- function(lst.entrez_id, organism = 'hsa')
 {
   res <- pbapply::pblapply(lst.entrez_id,
     function(ids) {
-      res.kegg <- clusterProfiler::enrichKEGG(ids)
+      res.kegg <- clusterProfiler::enrichKEGG(ids, organism = organism)
       res.path <- tibble::as_tibble(res.kegg@result)
       res.path <- mutate(res.path, geneID_list = lapply(strsplit(geneID, "/"), as.integer))
       res.path
@@ -2776,7 +2781,7 @@ plot_roc <- function(roc) {
 setMethod("show", signature = c(object = "upset_data"),
   function(object){
     data <- suppressWarnings(data.frame(as_tibble(object)))
-    colnames(data) %<>% stringr::str_trunc(30)
+    colnames(data) %<>% stringr::str_trunc(30, "left")
     data <- dplyr::select(data, -members)
     maxnum <- max(apply(data, 2, sum))
     upset <- UpSetR::upset(data, sets = colnames(data),

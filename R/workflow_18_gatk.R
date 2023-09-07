@@ -41,7 +41,7 @@ setMethod("step0", signature = c(x = "job_gatk"),
   })
 
 setMethod("step1", signature = c(x = "job_gatk"),
-  function(x, ref = "../hg38.fa",
+  function(x, geneRef_file = "../hg38.fa",
     knownSites = c("../resources_broad_hg38_v0_1000G_phase1.snps.high_confidence.hg38.vcf",
       "../resources_broad_hg38_v0_Mills_and_1000G_gold_standard.indels.hg38.vcf"),
     vqsr_resource = knownSites,
@@ -51,8 +51,8 @@ setMethod("step1", signature = c(x = "job_gatk"),
     tmpdir = "~/disk_sdb1") 
   {
     step_message("Prepare reference data (human) for mapping.")
-    path <- get_path(ref)
-    if (!file.exists(ref)) {
+    path <- get_path(geneRef_file)
+    if (!file.exists(geneRef_file)) {
       cdRun("wget https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/latest/hg38.fa.gz",
         path = path)
       cdRun("gunzip hg38.fa.gz", path = path)
@@ -64,7 +64,7 @@ setMethod("step1", signature = c(x = "job_gatk"),
     }
     x@params$knownSites <- knownSites
     x@params$java <- java
-    x@params$ref <- normalizePath(ref)
+    x@params$geneRef_file <- normalizePath(geneRef_file)
     x@params$picard <- picard
     x@params$gatk <- gatk
     x@params$tmpdir <- tmpdir
@@ -105,6 +105,7 @@ setMethod("step3", signature = c(x = "job_gatk"),
         x@params$bcftools <- bcftools
         WorkflowGatk.elprep_bqsr_haplotypecaller(x, workers)
         x <- WorkflowGatk.bcftools_merge(x, workers)
+        x <- WorkflowGatk.bcftools_viewFilter(x)
       }
       x@params$use.elprep <- T
     } else {
@@ -123,94 +124,108 @@ setMethod("step4", signature = c(x = "job_gatk"),
       x <- WorkflowGatk.gatk_prepare_refVcf(x)
       WorkflowGatk.gatk_VariantRecalibrator_snps(x)
       WorkflowGatk.gatk_VariantRecalibrator_indels(x)
+    } else {
+      step_message("Empty step. Do nothing but add step number.")
     }
     return(x)
   })
 
 setMethod("step5", signature = c(x = "job_gatk"),
-  function(x, annovar = "~/operation/annovar/annotate_variation.pl",
-    use.ref = 1:2, ref = "hg38",
-    ref_used = c("refGene", "cytoBand", "exac03", "avsnp147", "dbnsfp30a")[use.ref],
-    ref_operation = c("g", "r", "f", "f", "f")[use.ref])
+  function(x, annovar_path = "~/operation/annovar",
+    use_db = 1:2, ref = get_realname(x@params$geneRef_file),
+    db_used = c("refGene", "cytoBand", "exac03", "avsnp147", "dbnsfp30a")[use_db],
+    db_operation = c("g", "r", "f", "f", "f")[use_db])
   {
     step_message("Use annovar for annotation of vcf.")
-    path_annovar <- get_path(annovar)
-    ref_path <- paste0(path_annovar, "/humandb")
-    ref_pattern <- paste0("^", ref)
-    if (length(list.files(ref_path, ref_pattern)) < length(ref_used)) {
-      cli:cli_alert_info("annovar download")
-      pbapply::pblapply(ref_used,
-        function(name) {
-          if (!file.exists(paste0(ref_path, "/", ref, "_", name, ".txt"))) {
-            cdRun(annovar, " -buildver ", ref, " -downdb",
-              ifelse(name == "cytoBand", NULL, " -webfrom annovar "),
-              " ", name, " humandb",
-              path = path_annovar)
-          }
-        }
-      )
-    }
+    x@params$db_used <- db_used
+    x@params$db_operation <- db_operation
+    x@params$annovar_path <- annovar_path
+    x@params$annovar_db <- paste0(x@params$annovar_path, "/humandb")
+    x@params$annovar_refPattern <- paste0("^", ref)
+    x@params$ref <- ref
+    x <- WorkflowGatk.annovar_prepare_download(x)
     if (is.null(x@params$vcf_for_anno)) {
       x@params$vcf_for_anno <- "all.vcf.gz"
     }
     vcf <- x@params$vcf_for_anno
-    output <- gs(vcf, "\\.vcf[^/]*$", ".input")
-    if (!is_workflow_object_exists(output)) {
-      E(cdRun(paste0(path_annovar, "/", "convert2annovar.pl"),
-          " -format vcf4 -allsample -withfreq ", vcf,
-          " > ", output,
-          path = x@params$wd
-          ))
+    WorkflowGatk.convert2annovar(x)
+    WorkflowGatk.table_annovar(x)
+    if (F) {
+      WorkflowGatk.coding_change(x)
     }
-    inputfile <- output
-    E(cdRun(paste0(path_annovar, "/", "table_annovar.pl"),
-        " ", inputfile, " ",
-        ref_path, " ", " -buildver ", ref,
-        " --outfile res_", get_realname(inputfile),
-        " -protocol ", paste0(ref_used, collapse = ","),
-        " -operation ", paste0(ref_operation, collapse = ","),
-        path = x@params$wd))
-    inputfile <- paste0("res_", get_realname(inputfile), ".refGene.exonic_variant_function")
-    if (is_workflow_object_exists(inputfile)) {
-      E(cdRun(paste0(path_annovar, "/", "coding_change.pl"),
-          " ", inputfile,
-          " ", ref_path, "/", ref, "_refGene.txt",
-          " ", ref_path, "/", ref, "_refGeneMrna.fa",
-          " > coding_change.fa ",
-          path = x@params$wd))
-      coding_change <- readLines(paste0(x@params$wd, "/coding_change.fa"))
-      coding_chang <- extract_coding_change(coding_change)
-    }
-    x@tables[[ 5 ]] <- namel(coding_chang)
     x@params$vcf <- vcf
     return(x)
   })
 
 setMethod("step6", signature = c(x = "job_gatk"),
-  function(x, ref = "hg38",
-    file_multianno = paste0("res_", get_realname(x@params$vcf_for_anno), ".", ref, "_multianno.txt"))
-  {
-    data <- data.table::fread(paste0(x@params$wd, "/", file_multianno))
-    data <- filter(data, Gene.refGene != "")
-    refGene <- mutate(data,
-      hgnc_symbol = stringr::str_extract(Gene.refGene, "^[^;]*"),
-      dna_coding = stringr::str_extract(AAChange.refGene, "c\\.[^,]*"),
-      protein_coding = stringr::str_extract(AAChange.refGene, "p\\.[^,]*")
-    )
-    exonic <- filter(refGene, ExonicFunc.refGene != "")
-    exonic_caused <- filter(exonic,
-      !ExonicFunc.refGene %in% c("unknown", "synonymous SNV"),
-      !grepl("nonframeshift", ExonicFunc.refGene)
-    )
+  function(x) {
+    step_message("Collate annovar results as table.")
+    path_multianno <- "annovar_res"
+    files <- list.files(paste0(x@params$wd, "/", path_multianno),
+      paste0(x@params$ref, "_multianno\\.txt$"), full.names = T)
+    x@params$annovar_mutiannos <- files
+    refGene <- lapply(files,
+      function(file) {
+        data <- data.table::fread(file)
+        data <- filter(data, Gene.refGene != "")
+        refGene <- mutate(data,
+          hgnc_symbol = stringr::str_extract(Gene.refGene, "^[^;]*"),
+          dna_coding = stringr::str_extract(AAChange.refGene, "c\\.[^,]*"),
+          protein_coding = stringr::str_extract(AAChange.refGene, "p\\.[^,]*")
+        )
+        refGene
+      })
+    names(refGene) <- make.names(get_realname(files))
+    exonic <- lapply(refGene,
+      function(data) {
+        filter(data, ExonicFunc.refGene != "")
+      })
+    exonic_caused <- lapply(exonic,
+      function(data) {
+        filter(data, !ExonicFunc.refGene %in% c("unknown", "synonymous SNV"),
+          !grepl("nonframeshift", ExonicFunc.refGene)
+        )
+      })
     if (is.null(x@params$mart)) {
       mart <- new_biomart()
       x@params$mart <- mart
     } else {
       mart <- x@params$mart
     }
-    exonic_caused_anno <- filter_biomart(mart, general_attrs(),
-      "hgnc_symbol", unique(exonic_caused$hgnc_symbol))
+    values <- unique(unlist(lapply(exonic_caused, function(data) data$hgnc_symbol)))
+    exonic_caused_anno <- filter_biomart(mart, general_attrs(), "hgnc_symbol", values)
     x@tables[[ 6 ]] <- namel(refGene, exonic, exonic_caused, exonic_caused_anno)
+    return(x)
+  })
+
+setMethod("step7", signature = c(x = "job_gatk"),
+  function(x, annovar_data = x@params$annovar_mutiannos){
+    step_message("Use `maftools` to global visualization.")
+    data <- e(maftools::annovarToMaf(annovar_data, refBuild = x@params$ref))
+    data <- e(maftools::read.maf(data))
+    e(maftools::plotmafSummary(data, addStat = 'median', titvRaw = T))
+    p.summary <- wrap(recordPlot())
+    e(maftools::titv(data))
+    p.snp_class <- wrap(recordPlot())
+    x@plots[[ 7 ]] <- namel(p.summary, p.snp_class)
+    x@params$maf <- data
+    return(x)
+  })
+
+setMethod("step8", signature = c(x = "job_gatk"),
+  function(x, genes){
+    data <- x@params$maf
+    res <- try(e(maftools::somaticInteractions(data, genes = genes)), T)
+    if (!inherits(res, "try-error")) {
+      p.somatic <- wrap(recordPlot())
+      plots <- namel(p.somatic)
+    } else {
+      plots <- list()
+    }
+    e(maftools::oncoplot(data, top = 25, genes = genes))
+    p.oncoplot <- wrap(recordPlot())
+    x@plots[[ 8 ]] <- c(plots, namel(p.oncoplot))
+    # maftools::lollipopPlot(data, gene = 'DNMT3A', AACol = 'AAChange.refGene')
     return(x)
   })
 
@@ -242,7 +257,7 @@ WorkflowGatk.bwa_mem <- function(x) {
           cdRun("bwa mem",
             " -t ", workers, " -M -Y ",
             " -R '@RG\\tID:", vec$SampleName, "\\tSM:", vec$SampleName, "\\tLB:WES\\tPL:Illumina'",
-            " ", x@params$ref, 
+            " ", x@params$geneRef_file, 
             " ", vec[[ "forward-absolute-filepath" ]],
             " ", vec[[ "reverse-absolute-filepath" ]],
             " | samtools view -Sb - > ", output,
@@ -329,11 +344,11 @@ WorkflowGatk.picard_BuildBamIndex <- function(x) {
 WorkflowGatk.elprep_prepare <- function(x) {
   cli::cli_alert_info("elprep fasta-to-eflasta")
   if (is.null(x@params$ref_elfasta)) {
-    ref <- get_filename(x@params$ref)
-    ref_elfasta <- paste0(get_realname(ref), ".elfasta")
-    path <- get_path(x@params$ref)
+    geneRef_file <- get_filename(x@params$geneRef_file)
+    ref_elfasta <- paste0(get_realname(geneRef_file), ".elfasta")
+    path <- get_path(x@params$geneRef_file)
     if (!is_workflow_object_exists(ref_elfasta, path = path)) {
-      cdRun(x@params$elprep, " fasta-to-elfasta", " ", ref, " ", ref_elfasta,
+      cdRun(x@params$elprep, " fasta-to-elfasta", " ", geneRef_file, " ", ref_elfasta,
         path = path)
     }
     x@params$ref_elfasta <- normalizePath(paste0(path, "/", ref_elfasta))
@@ -447,7 +462,7 @@ WorkflowGatk.gatk_VariantRecalibrator_snps <- function(x) {
   create_gatk_vcf_index(x@params$vcf, x)
   if (!is_workflow_object_exists("tmp_snp.tranches")) {
     E(cdRun(x@params$gatk, " VariantRecalibrator",
-        " -R ", x@params$ref,
+        " -R ", x@params$geneRef_file,
         " -V ", x@params$vcf,
         paste0(snp_res, collapse = " "),
         " -an QD -an FS -an SOR -an ReadPosRankSum -an MQRankSum",
@@ -460,7 +475,7 @@ WorkflowGatk.gatk_VariantRecalibrator_snps <- function(x) {
   }
   if (!is_workflow_object_exists("all_snps.VQSR.vcf.gz")) {
     E(cdRun(x@params$gatk, " ApplyVQSR",
-        " -R ", x@params$ref,
+        " -R ", x@params$geneRef_file,
         " -V ", x@params$vcf,
         " --ts-filter-level 99.0 --tranches-file tmp_snp.tranches ",
         " --recal-file tmp_snp.recal ",
@@ -484,7 +499,7 @@ WorkflowGatk.gatk_VariantRecalibrator_indels <- function(x) {
   create_gatk_vcf_index(vcf, x)
   if (!is_workflow_object_exists("tmp_indel.tranches")) {
     E(cdRun(x@params$gatk, " VariantRecalibrator",
-        " -R ", x@params$ref,
+        " -R ", x@params$geneRef_file,
         " -V ", vcf,
         paste0(indel_res, collapse = " "),
         " -an QD -an FS -an SOR -an ReadPosRankSum -an MQRankSum",
@@ -497,7 +512,7 @@ WorkflowGatk.gatk_VariantRecalibrator_indels <- function(x) {
   }
   if (!is_workflow_object_exists("all_snps_indels.VQSR.vcf.gz")) {
     E(cdRun(x@params$gatk, " ApplyVQSR",
-        " -R ", x@params$ref,
+        " -R ", x@params$geneRef_file,
         " -V ", vcf,
         " --ts-filter-level 99.0 --tranches-file tmp_indel.tranches ",
         " --recal-file tmp_indel.recal ",
@@ -528,6 +543,17 @@ WorkflowGatk.bcftools_merge <- function(x) {
   return(x)
 }
 
+WorkflowGatk.bcftools_viewFilter <- function(x) {
+  output <- "filtered_all.vcf.gz"
+  if (!is_workflow_object_exists(output)) {
+    cdRun(x@params$bcftools, " view -i ",
+      " 'QUAL>10 && GQ>10 && FORMAT/DP>10 && INFO/DP>", nrow(object(x)), "'",
+      " ", x@params$vcf, " -Oz -o ", output)
+    x@params$vcf <- output
+  }
+  return(x)
+}
+
 extract_coding_change <- function(lines) {
   lines <- lines[ grepl("^>", lines) ]
   lines <- lines[ !grepl("WILDTYPE", lines) ]
@@ -537,4 +563,68 @@ extract_coding_change <- function(lines) {
     protein_coding = stringr::str_extract(lines, "p\\.[^ ]*")
   )
   res
+}
+
+WorkflowGatk.annovar_prepare_download <- function(x) {
+  db_used <- x@params$db_used
+  if (length(list.files(x@params$annovar_db, x@params$annovar_refPattern)) < length(db_used)) {
+    cli:cli_alert_info("annovar download")
+    pbapply::pblapply(db_used,
+      function(name) {
+        if (!file.exists(paste0(x@params$annovar_db, "/", x@params$ref, "_", name, ".txt"))) {
+          cdRun(paste0(x@params$annovar_path, "/annotate_variation.pl"),
+            " -buildver ", x@params$ref, " -downdb",
+            ifelse(name == "cytoBand", NULL, " -webfrom annovar "),
+            " ", name, " humandb",
+            path = x@params$annovar_path)
+        }
+      })
+  }
+  return(x)
+}
+
+WorkflowGatk.convert2annovar <- function(x) {
+  output <- "annovar_input"
+  if (!is_workflow_object_exists(output)) {
+    dir.create(paste0(x@params$wd, "/", output))
+    E(cdRun(paste0(x@params$annovar_path, "/", "convert2annovar.pl"),
+        " -format vcf4 -allsample ", vcf,
+        " --outfile ", output, "/sample",
+        path = x@params$wd
+        ))
+  }
+}
+
+WorkflowGatk.table_annovar <- function(x) {
+  files <- list.files(paste0(x@params$wd, "/annovar_input"))
+  output <- "annovar_res"
+  cli::cli_alert_info("table_annovar.pl")
+  if (!is_workflow_object_exists(output)) {
+    dir.create(paste0(x@params$wd, "/", output))
+    pbapply::pblapply(files,
+      function(inputfile) {
+        cdRun(paste0(x@params$annovar_path, "/", "table_annovar.pl"),
+          " annovar_input/", inputfile, " ",
+          x@params$annovar_db, " ", " -buildver ", x@params$ref,
+          " --outfile ", output, "/", gs(inputfile, "^sample\\.|\\.avinput$", ""),
+          " -remove -protocol ", paste0(x@params$db_used, collapse = ","),
+          " -operation ", paste0(x@params$db_operation, collapse = ","),
+          path = x@params$wd)
+      })
+  }
+}
+
+WorkflowGatk.coding_change <- function(x) {
+  inputfile <- paste0("res_", get_realname(inputfile), ".refGene.exonic_variant_function")
+  if (is_workflow_object_exists(inputfile)) {
+    E(cdRun(paste0(x@params$annovar_path, "/", "coding_change.pl"),
+        " ", inputfile,
+        " ", x@params$annovar_db, "/", x@params$ref, "_refGene.txt",
+        " ", x@params$annovar_db, "/", x@params$ref, "_refGeneMrna.fa",
+        " > coding_change.fa ",
+        path = x@params$wd))
+    coding_change <- readLines(paste0(x@params$wd, "/coding_change.fa"))
+    coding_chang <- extract_coding_change(coding_change)
+  }
+  x@tables[[ 5 ]] <- namel(coding_chang)
 }

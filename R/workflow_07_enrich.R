@@ -39,12 +39,12 @@ setMethod("step0", signature = c(x = "job_enrich"),
 
 # Biological Process, Molecular Function, and Cellular Component groups
 setMethod("step1", signature = c(x = "job_enrich"),
-  function(x, orgDb = 'org.Hs.eg.db', cl = 4, maxShow = 10){
+  function(x, organism = 'hsa', orgDb = 'org.Hs.eg.db', cl = 4, maxShow = 10){
     step_message("Use clusterProfiler for enrichment.
       "
     )
     cli::cli_alert_info("clusterProfiler::enrichKEGG")
-    res.kegg <- multi_enrichKEGG(object(x))
+    res.kegg <- multi_enrichKEGG(object(x), organism = organism)
     p.kegg <- vis_enrich.kegg(res.kegg, maxShow = maxShow)
     p.kegg <- lapply(p.kegg, function(x) wrap(x, 8, 4 * (maxShow / 10)))
     fun <- function(sets) {
