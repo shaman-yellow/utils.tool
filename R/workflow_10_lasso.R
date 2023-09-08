@@ -18,15 +18,19 @@ setGeneric("asjob_lasso",
   function(x, ...) standardGeneric("asjob_lasso"))
 
 setMethod("asjob_lasso", signature = c(x = "job_limma"),
-  function(x, use.filter, use = "gene_name"){
+  function(x, use.filter = NULL, use = "gene_name"){
     step_message("The default, 'job_limma' from 'job_tcga' were adapted to
       convertion.
       "
     )
-    if (!is(object(x), 'EList'))
-      stop("is(object(x), 'EList') == F")
-    pos <- object(x)$genes[[use]] %in% use.filter
-    object <- e(limma::`[.EList`(object(x), pos, ))
+    if (!is(x@params$normed_data, 'EList'))
+      stop("is(x@params$normed_data, 'EList') == F")
+    if (!is.null(use.filter)) {
+      pos <- x@params$normed_data$genes[[use]] %in% use.filter
+      object <- e(limma::`[.EList`(x@params$normed_data, pos, ))
+    } else {
+      object <- x@params$normed_data
+    }
     mtx <- t(object$E)
     colnames(mtx) <- object$genes[[ use ]]
     x <- .job_lasso(object = mtx)

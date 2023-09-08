@@ -2833,7 +2833,7 @@ new_pie <- function(x, title = NULL) {
 }
 
 plot_median_expr_line <- function(data) {
-  lst <- pbapply::pblapply(split(as_tibble(data_norm), ~ .id),
+  lst <- pbapply::pblapply(split(as_tibble(data), ~ .id),
     function(data) {
       data <- lapply(split(data, ~ sample),
         function(x) {
@@ -2860,4 +2860,8 @@ plot_median_expr_line <- function(data) {
   dev.off()
   attr(p, "data") <- lst
   p
+}
+
+fix.html.str <- function(x) {
+  gs(x, " ", "%20")
 }

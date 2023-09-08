@@ -54,7 +54,7 @@ setMethod("step1", signature = c(x = "job_limma"),
   })
 
 setMethod("step2", signature = c(x = "job_limma"),
-  function(x, ..., block = NULL, use = "adj.P.Val", use.cut = .05, cut.fc = .3)
+  function(x, ..., block = NULL, use = "adj.P.Val", use.cut = .05, cut.fc = .3, label = "hgnc_symbol")
   {
     if (length(alist(...)) == 0) {
       contr <- NULL
@@ -66,7 +66,7 @@ setMethod("step2", signature = c(x = "job_limma"),
     if (!is.null(contr)) {
       tops <- extract_tops(object(x), use = use, use.cut = use.cut, cut.fc = cut.fc)
     }
-    p.valcano <- lapply(tops, plot_valcano, use = use, fc = cut.fc)
+    p.valcano <- lapply(tops, plot_valcano, label = label, use = use, fc = cut.fc)
     p.valcano <- lapply(p.valcano, function(p) wrap(p, 5, 4))
     x@tables[[ 2 ]] <- namel(tops)
     x@plots[[ 2 ]] <- namel(p.valcano)
@@ -82,8 +82,8 @@ setMethod("clear", signature = c(x = "job_limma"),
     return(x)
   })
 
-plot_valcano <- function(top_table, use = "adj.P.Val", fc = .3) {
-  data <- select(top_table, hgnc_symbol, logFC, P.Value, adj.P.Val)
+plot_valcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val", fc = .3) {
+  data <- select(top_table, !!rlang::sym(label), logFC, P.Value, adj.P.Val)
   data <- mutate(data,
     change = ifelse(logFC > abs(fc), "up",
       ifelse(logFC < -abs(fc), "down", "stable"))
@@ -99,7 +99,7 @@ plot_valcano <- function(top_table, use = "adj.P.Val", fc = .3) {
         slice_min(data, !!rlang::sym(use), n = 10),
         slice_max(data, abs(logFC), n = 20)
         )), 
-      aes(label = hgnc_symbol), size = 3) +
+      aes(label = !!rlang::sym(label)), size = 3) +
     geom_blank()
   p
 }
