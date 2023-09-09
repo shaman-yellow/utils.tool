@@ -14,7 +14,9 @@
     step = "integer",
     info = "ANY"
     ),
-  prototype = prototype(step = 0L))
+  prototype = prototype(step = 0L,
+    params = list(wd = ".", remote = "remote")
+    ))
 
 .marker_list <- setClass("marker_list", 
   contains = c(),
@@ -568,3 +570,25 @@ setMethod("is.remote", signature = c(x = "job"),
 
 setGeneric("is_workflow_object_exists", 
   function(object, ...) standardGeneric("is_workflow_object_exists"))
+
+setMethod("[[", signature = c(x = "job"),
+  function(x, i, ...){
+    x@params[[ i ]]
+  })
+
+setMethod("[[<-", signature = c(x = "job"),
+  function(x, i, ..., value){
+    x@params[[ i ]] <- value
+    return(x)
+  })
+
+setMethod("$", signature = c(x = "job"),
+  function(x, name){
+    x[[ name ]]
+  })
+
+setMethod("$<-", signature = c(x = "job"),
+  function(x, name, value){
+    x[[ name ]] <- value
+    return(x)
+  })

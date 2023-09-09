@@ -363,7 +363,7 @@ setMethod("set_remote", signature = c(x = "job_qiime"),
   {
     ## must be here
     x@params$remote <- remote
-    files <- list.remote(paste0(path, "/", object(x)$Run), pattern)
+    files <- list.remote_rf(paste0(path, "/", object(x)$Run), pattern)
     metadata <- try_fqs_meta(object(x), files, filter = T)
     print(metadata)
     object(x) <- metadata

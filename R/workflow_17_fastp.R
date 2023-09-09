@@ -31,14 +31,14 @@ setMethod("step1", signature = c(x = "job_fastp"),
     step_message("Quality control (QC).
       "
     )
-    if (!is.null(x@params$set_remote)) {
-      fqs <- list.remote(object(x), paste0(suffix, "$"), x@params$remote)
+    if (is.remote(x)) {
+      fqs <- list.remote_rf(object(x), paste0(suffix, "$"), x@params$remote)
     } else {
       fqs <- list.files(object(x), paste0(suffix, "$"), full.names = T, recursive = T)
     }
     fqs_path <- unique(get_path(fqs))
     fqs_path <- fqs_path[!grepl("fastp_qc$", fqs_path)]
-    if (!is.null(x@params$set_remote)) {
+    if (is.remote(x)) {
       pbapply::pblapply(fqs_path, fastp_pair.remote,
         f1_r2 = f1_r2, suffix = suffix, workers = workers, x = x)
     } else {
@@ -53,7 +53,7 @@ setMethod("step2", signature = c(x = "job_fastp"),
   function(x, pattern_report = "html", pattern_fq = "QC.fastq.gz$"){
     step_message("Collate results which succeed with report as metadata.")
     if (is.remote(x)) {
-      reports <- list.remote(object(x), pattern_report)
+      reports <- list.remote_rf(object(x), pattern_report)
     } else {
       reports <- list.files(object(x), pattern_report, full.names = T, recursive = T)
     }
@@ -62,7 +62,7 @@ setMethod("step2", signature = c(x = "job_fastp"),
       dirs = dirs, reports = reports)
     metadata <- mutate(metadata, Run = SampleName)
     if (is.remote(x)) {
-      filepath <- list.remote(dirs, pattern_fq)
+      filepath <- list.remote_rf(dirs, pattern_fq)
     } else {
       filepath <- lapply(dirs,
         function(dir) {
@@ -117,24 +117,55 @@ cp.remote <- function(from, to, remote = "remote") {
     })
 }
 
-list.remote <- function(path, pattern, remote = "remote") {
+list.remote_rf <- function(path, pattern, remote) {
   if (missing(remote)) {
     x <- get("x", envir = parent.frame(1))
     remote <- x@params$remote
   }
+  list.remote(path, pattern, remote, recursive = T, full.names = T)
+}
+
+list.remote <- function(path, pattern, remote = "remote",
+  all.files = F, full.names = F, recursive = F)
+{
+  if (missing(remote)) {
+    x <- get("x", envir = parent.frame(1))
+    remote <- x@params$remote
+  }
+  options <- " -mindepth 1 "
+  if (!recursive) {
+    options <- paste0(options, " -maxdepth 1 ")
+  }
+  if (!all.files) {
+    options <- paste0(options, " -not -name \".*\" ")
+  }
+  before <- paste0("cd ", x@params$wd, ";")
   if (length(path) == 1) {
-    files <- system(paste0("ssh ", remote, " 'find ", path, "'"), intern = T)
-    files[ grepl(pattern, files) ]
-  } else if (length(path) > 1) {
-    files <- system(paste0("ssh ", remote, " ",
-        "'for i in ", paste0(path, collapse = " "),
-        "; do find $i; echo -----; done'"),
+    if (!full.names) {
+      before <- paste0("cd ", path, ";")
+      path <- "."
+    }
+    files <- system(paste0("ssh ", remote, " '", before,
+        " find ", path, " ", options, "'"),
       intern = T)
+    files[ grepl(pattern, get_filename(files)) ]
+  } else if (length(path) > 1) {
+    if (!full.names) {
+      files <- system(paste0("ssh ", remote, " ",
+          "'", before, " for i in ", paste0(path, collapse = " "),
+          "; do cd $i; find . ", options, "; echo -----; done'"),
+        intern = T)
+    } else {
+      files <- system(paste0("ssh ", remote, " ",
+          "'", before, " for i in ", paste0(path, collapse = " "),
+          "; do find $i ", options, "; echo -----; done'"),
+        intern = T)
+    }
     files <- sep_list(files, "^-----$")
     files <- lapply(files,
       function(files) {
         files <- files[ -length(files) ]
-        files[ grepl(pattern, files) ]
+        files[ grepl(pattern, get_filename(files)) ]
       })
     names(files) <- path
     files
@@ -178,7 +209,7 @@ fastp_pair <- function(path, suffix = ".fastq.gz", pattern = paste0("[1-2]", suf
 fastp_pair.remote <- function(path, suffix = ".fastq.gz", pattern = paste0(".[1-2]", suffix, "$"),
   f1_r2 = c("R1", "R2"), workers = 4, copy_report = T, cdRun = get_fun("cdRun"), x)
 {
-  names <- unique(gs(list.remote(path, pattern), pattern, ""))
+  names <- unique(gs(list.remote_rf(path, pattern), pattern, ""))
   expr <- paste0("mkdir fastp_qc fastp_report;")
   lapply(names,
     function(name) {
