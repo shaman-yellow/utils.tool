@@ -48,21 +48,33 @@ rem_ftibble <- function(file, ...) {
   }
 }
 
-rem_file.copy <- function(...) {
+rem_file.copy <- function(from, to, recursive = F, ...) {
   if (!check_remote()) {
-    file.copy(...)
+    file.copy(from, to, recursive = recursive, ...)
   } else {
     x <- get("x", envir = parent.frame(1))
-    stop("...")
+    if (recursive) {
+      options <- "-r"
+    } else {
+      options <- ""
+    }
+    cdRun("ssh ", x$remote, " '",
+      "cd ", x$wd, "; ",
+      "if [ -d ", to, " ]; then arg=-t; fi;",
+      "cp ", options, " ", from, " $arg ", to,
+      "'")
   }
 }
 
-rem_file.rename <- function(...) {
+rem_file.rename <- function(from, to) {
   if (!check_remote()) {
-    file.rename(...)
+    file.rename(from, to)
   } else {
     x <- get("x", envir = parent.frame(1))
-    stop("...")
+    cdRun("ssh ", x$remote, " '",
+      "cd ", x$wd, "; ",
+      "mv ", from, " $arg ", to,
+      "'")
   }
 }
 
@@ -71,16 +83,24 @@ rem_file.remove <- function(...) {
     file.remove(...)
   } else {
     x <- get("x", envir = parent.frame(1))
-    stop("...")
+    cdRun("ssh ", x$remote, " '",
+      "cd ", x$wd, "; ",
+      "rm ", paste0(unlist(list(...)), collapse = " "),
+      "'")
   }
 }
 
-rem_file.exists <- function(...) {
+rem_file.exists <- function(file) {
   if (!check_remote()) {
-    file.exists(...)
+    file.exists(file)
   } else {
     x <- get("x", envir = parent.frame(1))
-    stop("...")
+    res <- system(paste0("ssh ", remote, " '",
+        "cd ", x$wd, "; ",
+        expr_sys.file.exists(file), "'"),
+      intern = T)
+    if (res == "T") T
+    else F
   }
 }
 
@@ -89,7 +109,10 @@ rem_normalizePath <- function(...) {
     normalizePath(...)
   } else {
     x <- get("x", envir = parent.frame(1))
-    stop("...")
+    system(paste0("ssh ", x$remote, " '",
+        "cd ", x$wd, "; ",
+        "readlink -f ", paste0(unlist(list(...)), collapse = " "),
+        "'"), intern = T)
   }
 }
 
@@ -102,21 +125,15 @@ rem_unlink <- function(...) {
   }
 }
 
-rem_list.files <- function(...) {
+rem_dir.create <- function(path, ...) {
   if (!check_remote()) {
-    list.files(...)
+    dir.create(path, ...)
   } else {
     x <- get("x", envir = parent.frame(1))
-    stop("...")
-  }
-}
-
-rem_dir.create <- function(...) {
-  if (!check_remote()) {
-    dir.create(...)
-  } else {
-    x <- get("x", envir = parent.frame(1))
-    stop("...")
+    cdRun("ssh ", x$remote, " '",
+      "cd ", x$wd, "; ",
+      "mkdir ", path,
+      "'")
   }
 }
 
