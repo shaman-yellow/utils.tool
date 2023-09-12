@@ -590,11 +590,12 @@ new_biomart <- function(dataset = c("hsapiens_gene_ensembl", "sscrofa_gene_ensem
   ensembl
 }
 
-filter_biomart <- function(mart, attrs, filters = "", values = "") {
+filter_biomart <- function(mart, attrs, filters = "", values = "", distinct = T) {
   anno <- e(biomaRt::getBM(attributes = attrs, filters = filters,
     values = values, mart = mart))
   anno <- relocate(anno, !!rlang::sym(filters))
-  anno <- distinct(anno, !!rlang::sym(filters), .keep_all = T)
+  if (distinct)
+    anno <- distinct(anno, !!rlang::sym(filters), .keep_all = T)
   tibble::as_tibble(anno)
 }
 
@@ -644,6 +645,10 @@ ftibble <- function(files, ...) {
   } else {
     tibble::as_tibble(data.table::fread(files, ...))
   }
+}
+
+fxlsx <- function(file, ...) {
+  as_tibble(openxlsx::read.xlsx(file, ...))
 }
 
 get_nci60_data <- function(comAct = "../comAct_nci60/DTP_NCI60_ZSCORE.xlsx",

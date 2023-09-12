@@ -16,7 +16,7 @@ rem_list.files <- function(path, pattern,
     x <- get("x", envir = parent.frame(1))
     list.remote(path, pattern, all.files = all.files,
       full.names = full.names, recursive = recursive,
-      remote = x@params$remote, wd = x@params$wd
+      remote = x@params$remote
     )
   }
 }
@@ -137,7 +137,7 @@ rem_dir.create <- function(path, ...) {
   }
 }
 
-check_remote <- function(n = 1) {
+check_remote <- function(n = 2) {
   remote <- F
   if (exists("x", envir = parent.frame(n))) {
     x <- get("x", envir = parent.frame(n))

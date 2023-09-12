@@ -54,8 +54,9 @@ setMethod("step1", signature = c(x = "job_limma"),
   })
 
 setMethod("step2", signature = c(x = "job_limma"),
-  function(x, ..., block = NULL, use = "adj.P.Val", use.cut = .05, cut.fc = .3, label = "hgnc_symbol")
+  function(x, ..., block = NULL, use = c("adj.P.Val", "P.Value"), use.cut = .05, cut.fc = .3, label = "hgnc_symbol")
   {
+    use = match.arg(use)
     if (length(alist(...)) == 0) {
       contr <- NULL
     } else {

@@ -41,6 +41,6 @@ setMethod("step1", signature = c(x = "job_geo"),
 setMethod("step2", signature = c(x = "job_geo"),
   function(x, filter_regex = NULL){
     step_message("Download geo datasets.")
-    e(GEOquery::getGEOSuppFiles(gse, filter_regex))
+    e(GEOquery::getGEOSuppFiles(object(x), filter_regex = filter_regex))
     return(x)
   })
