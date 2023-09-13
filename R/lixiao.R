@@ -79,8 +79,8 @@ cdRun <- function(..., path = ".", sinkFile = NULL)
 # autodock vina
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-vina_limit <- function(lig, recep, timeLimit = 120, ...) {
-  try(vina(lig, recep, ..., timeLimit = timeLimit), T)
+vina_limit <- function(lig, recep, timeLimit = 120, dir = "vina_space", ...) {
+  try(vina(lig, recep, ..., timeLimit = timeLimit, dir = dir), T)
 }
 
 vina <- function(lig, recep, dir = "vina_space",
@@ -91,21 +91,23 @@ vina <- function(lig, recep, dir = "vina_space",
   } 
   subdir <- paste0(reals <- get_realname(c(lig, recep)), collapse = "_into_")
   wd <- paste0(dir, "/", subdir)
-  dir.create(wd, F)
-  file.copy(c(recep, lig), wd)
-  .message_info("Generating affinity maps", subdir)
-  .cdRun <- function(...) cdRun(..., path = wd)
-  files <- get_filename(c(lig, recep))
-  .cdRun("prepare_gpf.py -l ", files[1], " -r ", files[2], " -y")
-  .cdRun("autogrid4 -p ", reals[2], ".gpf ", " -l ", reals[2], ".glg")
-  cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = T)
-  try(.cdRun("timeout ", timeLimit, 
-      " vina  --ligand ", files[1],
-      " --maps ", reals[2],
-      " --scoring ", scoreing,
-      " --exhaustiveness ", exhaustiveness,
-      " --out ", subdir, "_out.pdbqt",
-      " >> ", stout), T)
+  if (!file.exists(paste0(wd, "/", subdir, "_out.pdbqt"))) {
+    dir.create(wd, F)
+    file.copy(c(recep, lig), wd)
+    .message_info("Generating affinity maps", subdir)
+    .cdRun <- function(...) cdRun(..., path = wd)
+    files <- get_filename(c(lig, recep))
+    .cdRun("prepare_gpf.py -l ", files[1], " -r ", files[2], " -y")
+    .cdRun("autogrid4 -p ", reals[2], ".gpf ", " -l ", reals[2], ".glg")
+    cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = T)
+    try(.cdRun("timeout ", timeLimit, 
+        " vina  --ligand ", files[1],
+        " --maps ", reals[2],
+        " --scoring ", scoreing,
+        " --exhaustiveness ", exhaustiveness,
+        " --out ", subdir, "_out.pdbqt",
+        " >> ", stout), T)
+  }
 }
 
 vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
