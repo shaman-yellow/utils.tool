@@ -32,7 +32,7 @@ setMethod("step1", signature = c(x = "job_fastp"),
       "
     )
     if (is.remote(x)) {
-      fqs <- list.remote_rf(object(x), paste0(suffix, "$"), x@params$remote)
+      fqs <- list.remote_rf(object(x), paste0(suffix, "$"))
     } else {
       fqs <- list.files(object(x), paste0(suffix, "$"), full.names = T, recursive = T)
     }
@@ -88,17 +88,21 @@ setMethod("step2", signature = c(x = "job_fastp"),
   })
 
 set_remote.default <- function(x, tmpdir, map_local, remote) {
-  x@params$remote <- remote
-  x@params$set_remote <- T
-  x@params$map_local <- map_local
-  x@params$tmpdir <- tmpdir
+  if (is.null(x$remote))
+    x$remote <- remote
+  if (is.null(x$set_remote))
+    x$set_remote <- T
+  if (is.null(x$map_local))
+    x$map_local <- map_local
+  if (is.null(x$tmpdir))
+    x$tmpdir <- tmpdir
   return(x)
 }
 
 setMethod("set_remote", signature = c(x = "job_fastp"),
   function(x, tmpdir = "/data/hlc/tmp", map_local = "fastp_local", remote = "remote")
   {
-    set_remote.default(x, tmpdir, map_local, remote)
+    set_remotejdefault(x, tmpdir, map_local, remote)
     x@params$postfix <- function(x) {
       x[1] <- gs(x[1], "^fastp", "~/miniconda3/bin/conda run -n base fastp")
       x
@@ -126,10 +130,11 @@ list.remote_rf <- function(path, pattern, remote) {
 }
 
 list.remote <- function(path, pattern, remote = "remote",
-  all.files = F, full.names = F, recursive = F)
+  all.files = F, full.names = F, recursive = F, x)
 {
-  if (missing(remote)) {
+  if (missing(x))
     x <- get("x", envir = parent.frame(1))
+  if (missing(remote)) {
     remote <- x@params$remote
   }
   options <- " -mindepth 1 "

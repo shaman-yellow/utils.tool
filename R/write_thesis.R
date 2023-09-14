@@ -346,12 +346,13 @@ insert_tocCont.tex <- function(lines, pos, name, style = "section") {
 # insert text
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-ftext <- officer::ftext
-fp_text <- officer::fp_text
-fpar <- officer::fpar
-fp_par <- officer::fp_par
-
-st.index <- fp_text(font.size = 14, font.family = "SimHei")
+if (requireNamespace("officer", quietly = T)) {
+  ftext <- officer::ftext
+  fp_text <- officer::fp_text
+  fpar <- officer::fpar
+  fp_par <- officer::fp_par
+  st.index <- fp_text(font.size = 14, font.family = "SimHei")
+}
 
 # ==========================================================================
 # custom render
@@ -954,11 +955,13 @@ show_allTok <- function(xml){
   c(all[ grep("Tok$", all) ])
 }
 
-.xmlFont <- XML::xmlNode("rFonts",
-  attrs = c(ascii = "Times New Roman",
-    hAnsi = "Times New Roman",
-    eastAsia = "SimSun",
-    cs = "Nimbus Roman"), namespace = "w")
+if (requireNamespace("XML", quietly = T)) {
+  .xmlFont <- XML::xmlNode("rFonts",
+    attrs = c(ascii = "Times New Roman",
+      hAnsi = "Times New Roman",
+      eastAsia = "SimSun",
+      cs = "Nimbus Roman"), namespace = "w")
+}
 
 all_tableStyle <- function(xml){
   lst <- lapply(1:length(xml),

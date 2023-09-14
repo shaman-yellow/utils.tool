@@ -4,7 +4,7 @@
 \alias{as_grob}
 \title{convert 'ggplot' object to 'grobs'}
 \usage{
-as_grob(x)
+as_grob(x, ...)
 }
 \description{
 ...

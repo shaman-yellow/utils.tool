@@ -2,6 +2,18 @@
 # for remote files operation
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+rem_run <- function(...) {
+  x <- get("x", envir = parent.frame(1))
+  if (!check_remote()) {
+    cdRun(..., path = x$wd)
+  } else {
+    remoteRun(..., path = x$wd, tmpdir = x$tmpdir,
+      remote = x$remote, postfix = x$postfix,
+      run_after_cd = x$run_after_cd, x = x
+    )
+  }
+}
+
 rem_list.files <- function(path, pattern,
   all.files = F, full.names = F, recursive = F)
 {

@@ -123,6 +123,25 @@ setReplaceMethod("others", signature = c(x = "job"),
   })
 
 # ==========================================================================
+# remote or local 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+setGeneric("set_remote", 
+  function(x, ...) {
+    x <- standardGeneric("set_remote")
+    set_remote.default(x, tmpdir = "/data/hlc/tmp",
+      map_local = paste0(gs(class(x), "^job_", ""), "_local"),
+      remote = "remote"
+    )
+  })
+
+setMethod("set_remote", signature = c(x = "job"),
+  function(x, wd){
+    x$wd <- wd
+    return(x)
+  })
+
+# ==========================================================================
 # methods of step series
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -592,3 +611,5 @@ setMethod("$<-", signature = c(x = "job"),
     x[[ name ]] <- value
     return(x)
   })
+
+

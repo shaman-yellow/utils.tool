@@ -35,3 +35,10 @@ setMethod("step1", signature = c(x = "job_seurat"),
     return(x)
   })
 
+setMethod("set_remote", signature = c(x = "job_seurat"),
+  function(x, wd, postfix, run_after_cd){
+    x$postfix
+    x$run_after_cd
+    x$wd
+    return(x)
+  })

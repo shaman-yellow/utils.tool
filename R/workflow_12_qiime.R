@@ -353,9 +353,6 @@ activate_qiime <- function(env_pattern = "qiime", env_path = "~/miniconda3/envs/
   e(reticulate::import("platform"))
 }
 
-setGeneric("set_remote", 
-  function(x, ...) standardGeneric("set_remote"))
-
 setMethod("set_remote", signature = c(x = "job_qiime"),
   function(x, path, wd = path,
     pattern = if (is.null(x@params$pattern_fq)) "fastq\\.gz$" else x@params$pattern_fq,

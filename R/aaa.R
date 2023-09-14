@@ -237,7 +237,9 @@ repSuffix <-
 .onLoad <- function(libname, pkgname) {
   .expath()
   .expathsvg()
-  .check_external_svg()
+  if (requireNamespace("rsvg", quietly = T)) {
+    .check_external_svg()
+  }
 }
 
 #' @export agroup
