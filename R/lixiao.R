@@ -229,17 +229,25 @@ sdf_as_pdbqts <- function(sdf_file, mkdir.pdbqt = "pdbqt", check = F) {
   return(lst)
 }
 
-get_pdb <- function(ids, cl = 3, mkdir.pdb = "protein_pdb") {
+get_pdb <- function(ids, cl = 3, mkdir.pdb = "protein_pdb", run = "get_pdb.sh") {
+  cli::cli_alert_info(run)
   dir.create(mkdir.pdb, F)
   ids <- tolower(ids)
-  ids <- grouping_vec2list(ids, round(length(ids) / cl), T)
-  pbapply::pblapply(ids, cl = cl,
-    function(ids) {
-      tmp <- tempfile(fileext = ".txt")
-      cat(ids, sep = ", ", file = tmp)
-      system(paste0("get_pdb.sh -f ", tmp, " -p -o ", mkdir.pdb))
-    })
-  lapply(list.files(mkdir.pdb, ".*\\.gz$", full.names = T), R.utils::gunzip)
+  if (length(ids) == 0) {
+    stop("length(ids) == 0")
+  }
+  exists <- gs(list.files(mkdir.pdb, ".*\\.pdb$"), "\\.pdb$", "")
+  ids <- ids[ !ids %in% exists ]
+  if (length(ids) > 0) {
+    ids <- grouping_vec2list(ids, round(length(ids) / cl), T)
+    pbapply::pblapply(ids, cl = cl,
+      function(ids) {
+        tmp <- tempfile(fileext = ".txt")
+        cat(ids, sep = ", ", file = tmp)
+        system(paste0(run, " -f ", tmp, " -p -o ", mkdir.pdb))
+      })
+    lapply(list.files(mkdir.pdb, ".*\\.gz$", full.names = T), R.utils::gunzip)
+  }
   files <- list.files(mkdir.pdb, ".*\\.pdb$", full.names = T)
   files <- nl(gsub(".*?([^/]{1,})\\.pdb$", "\\1", files), files)
   files

@@ -12,7 +12,8 @@
     tables = "ANY",
     others = "ANY",
     step = "integer",
-    info = "ANY"
+    info = "ANY",
+    pg = "character"
     ),
   prototype = prototype(step = 0L,
     params = list(wd = ".", remote = "remote")
@@ -49,6 +50,9 @@ setGeneric("others",
 setGeneric("object", 
   function(x, ...) standardGeneric("object"))
 
+setGeneric("pg", 
+  function(x, ...) standardGeneric("pg"))
+
 setGeneric("object<-", 
   function(x, value) standardGeneric("object<-"))
 setGeneric("plots<-", 
@@ -62,6 +66,18 @@ setGeneric("others<-",
 setGeneric("ids", 
   function(x, ...) standardGeneric("ids"))
 
+
+setMethod("pg", signature = c(x = "job"),
+  function(x, recode = getOption("pg_remote_recode", pg_remote_recode())){
+    if (is.remote(x)) {
+      recode <- recode[[ x@pg ]]
+      if (is.null(recode))
+        stop("No program running command obtained.")
+      recode
+    } else {
+      x@pg
+    }
+  })
 
 setMethod("object", signature = c(x = "job"),
   function(x){
@@ -612,4 +628,12 @@ setMethod("$<-", signature = c(x = "job"),
     return(x)
   })
 
-
+pg_remote_recode <- function() {
+  list(
+    qiime = "~/miniconda3/bin/conda run -n qiime2 qiime",
+    fastp = "conda run -n base fastp",
+    bcftools = "conda run -n base bcftools",
+    elprep = "conda run -n base elprep",
+    biobakery_workflows = "conda run -n biobakery biobakery_workflows"
+  )
+}
