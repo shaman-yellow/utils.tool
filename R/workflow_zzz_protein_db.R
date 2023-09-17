@@ -18,6 +18,8 @@
   representation = representation(),
   prototype = NULL)
 
+#' @export new_pdb
+#' @export new_query_pdb
 new_pdb <- new_query_pdb <- function(wd = "protein_pdb") {
   x <- .query_pdb()
   # x$mart <- new_biomart()
@@ -32,6 +34,7 @@ new_pdb <- new_query_pdb <- function(wd = "protein_pdb") {
 setGeneric("via_symbol", 
   function(x, ...) standardGeneric("via_symbol"))
 
+#' @exportMethod via_symbol
 setMethod("via_symbol", signature = c(x = "query_pdb"),
   function(x, symbol, max_pdb = 3, organism_id = "9606", cl = 1, run = "get_pdb.sh")
   {
@@ -52,6 +55,7 @@ setMethod("via_symbol", signature = c(x = "query_pdb"),
     return(x)
   })
 
+#' @exportMethod show
 setMethod("show", signature = c(object = "query_pdb"),
   function(object){
     if (!is.null(object$pdb_ids)) {
@@ -62,6 +66,7 @@ setMethod("show", signature = c(object = "query_pdb"),
     }
   })
 
+#' @export touch_uniprotkb
 touch_uniprotkb <- function(ids) {
   pbapply::pblapply(ids,
     function(id) {

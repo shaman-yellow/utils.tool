@@ -2,6 +2,7 @@
 # for wrap various of analysis workflow contains many steps
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+#' @exportClass job
 .job <- setClass("job", 
   contains = c(),
   representation = representation(
@@ -30,6 +31,7 @@ setMethod("show",
     .show(object)
   })
 
+#' @exportMethod show
 setMethod("show", 
   signature = c(object = "job"),
   function(object){
@@ -67,6 +69,7 @@ setGeneric("ids",
   function(x, ...) standardGeneric("ids"))
 
 
+#' @exportMethod pg
 setMethod("pg", signature = c(x = "job"),
   function(x, recode = getOption("pg_remote_recode", pg_remote_recode())){
     if (is.remote(x)) {
@@ -79,6 +82,7 @@ setMethod("pg", signature = c(x = "job"),
     }
   })
 
+#' @exportMethod object
 setMethod("object", signature = c(x = "job"),
   function(x){
     x@object
@@ -88,27 +92,36 @@ setReplaceMethod("object", signature = c(x = "job"),
     initialize(x, object = value)
   })
 
+#' @exportMethod plots
 setMethod("plots", signature = c(x = "job"),
   function(x){
     x@plots[[ x@step ]]
   })
+
+#' @exportMethod plots
 setMethod("plots", signature = c(x = "job", step = "numeric"),
   function(x, step){
     x@plots[[ step ]]
   })
+
 setReplaceMethod("plots", signature = c(x = "job"),
   function(x, value){
     initialize(x, object = value)
   })
 
+#' @exportMethod tables
 setMethod("tables", signature = c(x = "job"),
   function(x){
     x@tables[[ x@step ]]
   })
+
+#' @exportMethod tables
 setMethod("tables", signature = c(x = "job", step = "double"),
   function(x, step){
     x@tables[[ step ]]
   })
+
+#' @exportMethod tables
 setMethod("tables", signature = c(x = "job", step = "double"),
   function(x, step){
     x@tables[[ step ]]
@@ -119,6 +132,7 @@ setReplaceMethod("tables", signature = c(x = "job"),
   })
 
 
+#' @exportMethod params
 setMethod("params", signature = c(x = "job"),
   function(x){
     x@params
@@ -129,6 +143,7 @@ setReplaceMethod("params", signature = c(x = "job"),
   })
 
 
+#' @exportMethod others
 setMethod("others", signature = c(x = "job"),
   function(x){
     x@others[[ x@step ]]
