@@ -244,6 +244,8 @@ get_pdb <- function(ids, cl = 3, mkdir.pdb = "protein_pdb", run = "get_pdb.sh") 
       function(ids) {
         tmp <- tempfile(fileext = ".txt")
         cat(ids, sep = ", ", file = tmp)
+        ## https://files.rcsb.org/download/5P21.pdb
+        # curlPerform
         system(paste0(run, " -f ", tmp, " -p -o ", mkdir.pdb))
       })
     lapply(list.files(mkdir.pdb, ".*\\.gz$", full.names = T), R.utils::gunzip)
