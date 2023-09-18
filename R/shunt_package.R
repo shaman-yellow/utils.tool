@@ -76,10 +76,9 @@ match_function <- function(txt){
 .new_package_fields <- function() {
   author <- c(person(given = "LiChuang", family = "Huang",
       email = "shaman.yellow@foxmail.com",
-      role = c("aut"),
-      comment = c(ORCID = "0000-0002-5445-1988")),
-    person(given = "Gang", family = "Cao",
-      role = c("cre")))
+      role = c("aut", "cre"),
+      comment = c(ORCID = "0000-0002-5445-1988"))
+  )
   list(`Authors@R` = author, Author = author,
     Maintainer = "LiChuang Huang <shaman.yellow@foxmail.com>"
   )

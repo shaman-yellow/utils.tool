@@ -11,7 +11,3 @@ read_dic <- function(file) {
   db.i <- stringr::str_extract(db, "^[a-z]*")
   tibble::tibble(n = 1:length(db), i = db.i, db = db)
 }
-
-gs <- function(x, pattern, replace, ...) {
-  gsub(pattern, replace, x, ...)
-}

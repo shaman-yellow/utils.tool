@@ -131,33 +131,6 @@ op <- function(file) {
     grImport2::grobify(grImport2::readPicture(path))
   }
 
-#' @export .as_dic
-#' @aliases .as_dic
-#' @description \code{.as_dic}: ...
-#' @rdname utilites
-.as_dic <- 
-  function(vec, names, default,
-           fill = T, as.list = T, na.rm = F){
-    if (is.null(names(vec)))
-      names(vec) <- names[1:length(vec)]
-    if (fill) {
-      if (any(!names %in% names(vec))) {
-        ex.names <- names[!names %in% names(vec)]
-        ex <- rep(default, length(ex.names))
-        names(ex) <- ex.names
-        vec <- c(vec, ex)
-      }
-    }
-    if (as.list) {
-      if (!is.list(vec))
-        vec <- as.list(vec)
-    }
-    if (na.rm) {
-      vec <- vec[!is.na(names(vec))]
-    }
-    vec
-  }
-
 #' @export fill_list
 #' @aliases fill_list
 #' @description \code{fill_list}: ...

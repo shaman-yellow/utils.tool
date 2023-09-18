@@ -534,6 +534,15 @@ setMethod("clear", signature = c(x = "job"),
     return(x)
   })
 
+setGeneric("via_symbol", 
+  function(x, ...) standardGeneric("via_symbol"))
+
+setGeneric("vis", 
+  function(x, ...) standardGeneric("vis"))
+
+setGeneric("anno", 
+  function(x, ...) standardGeneric("anno"))
+
 setGeneric("map", 
   function(x, ref, ...) standardGeneric("map"))
 
@@ -542,11 +551,6 @@ setGeneric("getsub",
 
 setGeneric("active", 
   function(x, ...) standardGeneric("active"))
-
-setMethod("as_grob", signature = c(x = "expression"),
-  function(x, envir = parent.frame(1)){
-    ggplotify::base2grob(x, envir)
-  })
 
 ins <- function(..., lst = NULL) {
   if (is.null(lst)) {

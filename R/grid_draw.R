@@ -1215,3 +1215,8 @@ nebulae_as_grob <- function(x) {
   vis <- frame_col(list(vis = 4, legendG = 1), namel(vis, legendG))
   vis
 }
+
+setMethod("as_grob", signature = c(x = "expression"),
+  function(x, envir = parent.frame(1)){
+    ggplotify::base2grob(x, envir)
+  })

@@ -156,10 +156,6 @@ summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$")
   dplyr::select(res_dock, PubChem_id, PDB_ID, Affinity, dir, file, Combn)
 }
 
-nl <- function(names, values, as.list = T, ...) {
-  .as_dic(values, names, as.list = as.list, ...)
-}
-
 smiles_as_sdfs.obabel <- function(smiles) {
   lst.sdf <- pbapply::pbsapply(smiles, simplify = F,
     function(smi) {
@@ -227,32 +223,6 @@ sdf_as_pdbqts <- function(sdf_file, mkdir.pdbqt = "pdbqt", check = F) {
   lst$pdbqt.num <- length(lst$pdbqt)
   lst$pdbqt.cid <- stringr::str_extract(lst$pdbqt, "(?<=/|^)[0-9]{1,}")
   return(lst)
-}
-
-get_pdb <- function(ids, cl = 3, mkdir.pdb = "protein_pdb", run = "get_pdb.sh") {
-  cli::cli_alert_info(run)
-  dir.create(mkdir.pdb, F)
-  ids <- tolower(ids)
-  if (length(ids) == 0) {
-    stop("length(ids) == 0")
-  }
-  exists <- gs(list.files(mkdir.pdb, ".*\\.pdb$"), "\\.pdb$", "")
-  ids <- ids[ !ids %in% exists ]
-  if (length(ids) > 0) {
-    ids <- grouping_vec2list(ids, round(length(ids) / cl), T)
-    pbapply::pblapply(ids, cl = cl,
-      function(ids) {
-        tmp <- tempfile(fileext = ".txt")
-        cat(ids, sep = ", ", file = tmp)
-        ## https://files.rcsb.org/download/5P21.pdb
-        # curlPerform
-        system(paste0(run, " -f ", tmp, " -p -o ", mkdir.pdb))
-      })
-    lapply(list.files(mkdir.pdb, ".*\\.gz$", full.names = T), R.utils::gunzip)
-  }
-  files <- list.files(mkdir.pdb, ".*\\.pdb$", full.names = T)
-  files <- nl(gsub(".*?([^/]{1,})\\.pdb$", "\\1", files), files)
-  files
 }
 
 select_files_by_grep <- function(files, pattern){
@@ -2155,6 +2125,20 @@ wrap <- function(data, width = 10, height = 8) {
   representation = representation(data = "ANY", width = "ANY", height = "ANY"),
   prototype = NULL)
 
+setGeneric("zoom", 
+  function(x, s.w, s.h, ...) standardGeneric("zoom"))
+
+setMethod("zoom", signature = c(x = "wrap"),
+  function(x, s.w, s.h){
+    x@width <- x@width * s.w
+    x@height <- x@height * s.h
+    return(x)
+  })
+
+z7 <- function(x, s.w = .7, s.h = .7) {
+  zoom(x, s.w, s.h)
+}
+
 setMethod("show", 
   signature = c(object = "wrap"),
   function(object){
@@ -2803,7 +2787,8 @@ setMethod("show", signature = c(object = "upset_data"),
     maxnum <- max(apply(data, 2, sum))
     upset <- UpSetR::upset(data, sets = colnames(data),
       sets.bar.color = "lightblue", order.by = "freq",
-      set_size.show = T, set_size.scale_max = 1.5 * maxnum
+      set_size.show = T, set_size.scale_max = 1.5 * maxnum,
+      text.scale = c(1.4, 1, 1.4, 1.2, 1, 1.2)
     )
     show(wrap(upset, ncol(data) * 1.4, ncol(data) * 1.3))
   })

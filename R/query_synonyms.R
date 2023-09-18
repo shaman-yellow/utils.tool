@@ -91,32 +91,6 @@ pubchem_get_synonyms <- function(cid, dir, ...)
   write_tsv(text, filename = file)
 }
 
-#' @export grouping_vec2list
-#' @aliases grouping_vec2list
-#' @description \code{grouping_vec2list}: ...
-#' @rdname query_synonyms
-grouping_vec2list <- function(vector, group_number, byrow = F){
-  if(length(vector) < group_number){
-    attr(vector, "name") <- "G1"
-    return(list(vector))
-  }
-  rest <- length(vector) %% group_number
-  group <- matrix(vector[1:(length(vector) - rest)],
-    ncol = group_number,
-    byrow = byrow)
-  group <- apply(group, 1, c, simplify = F)
-  group <- c(group, list(tail(vector, n = rest)))
-  group <- lapply(1:length(group),
-    function(n) {
-      vec <- group[[n]]
-      attr(vec, "name") <- paste0("G", n)
-      vec
-    })
-  if(rest == 0)
-    group <- group[1:(length(group) - 1)]
-  return(group)
-}
-
 #' @export extract_rdata_list
 #' @aliases extract_rdata_list
 #' @description \code{extract_rdata_list}: extract results from .rdata
