@@ -18,23 +18,40 @@ setGeneric("asjob_lasso",
   function(x, ...) standardGeneric("asjob_lasso"))
 
 setMethod("asjob_lasso", signature = c(x = "job_limma"),
-  function(x, use.filter = NULL, use = "gene_name"){
+  function(x, use.filter = NULL, use = "gene_name", from_normed = T, fun_scale = function(x) scale(x + 1)){
     step_message("The default, 'job_limma' from 'job_tcga' were adapted to
       convertion.
       "
     )
-    if (!is(x@params$normed_data, 'EList'))
-      stop("is(x@params$normed_data, 'EList') == F")
-    if (!is.null(use.filter)) {
-      pos <- x@params$normed_data$genes[[use]] %in% use.filter
-      object <- e(limma::`[.EList`(x@params$normed_data, pos, ))
+    if (from_normed) {
+      message("Ignore param `fun_scale`")
+      if (!is(x@params$normed_data, 'EList'))
+        stop("is(x@params$normed_data, 'EList') == F")
+      if (!is.null(use.filter)) {
+        pos <- x@params$normed_data$genes[[use]] %in% use.filter
+        object <- e(limma::`[.EList`(x@params$normed_data, pos, ))
+      } else {
+        object <- x@params$normed_data
+      }
+      mtx <- t(object$E)
+      colnames(mtx) <- object$genes[[ use ]]
+      x <- .job_lasso(object = mtx)
+      x@params$metadata <- as_tibble(object$targets)
     } else {
-      object <- x@params$normed_data
+      message("Ignore param `use.filter`")
+      if (x@step != 0L) {
+        stop("x@step != 0L")
+      }
+      mtx <- object(x)$counts
+      if (!is.null(fun_scale)) {
+        mtx <- fun_scale(mtx)
+      }
+      mtx <- t(mtx)
+      colnames(mtx) <- object(x)$genes[[ use ]]
+      metadata <- as_tibble(object(x)$samples)
+      x <- .job_lasso(object = mtx)
+      x@params$metadata <- metadata
     }
-    mtx <- t(object$E)
-    colnames(mtx) <- object$genes[[ use ]]
-    x <- .job_lasso(object = mtx)
-    x@params$metadata <- as_tibble(object$targets)
     return(x)
   })
 
@@ -75,6 +92,7 @@ setMethod("step2", signature = c(x = "job_lasso"),
     target <- ifelse(target == x@params$levels[1], 0L, 1L)
     data <- data.frame(cbind(x@params$train, target))
     efs <- e(EFS::ensemble_fs(data, ncol(data), runs = 10))
+    colnames(efs) <- colnames(object(x))
     p.efs <- plot_colStack.efs(efs, top = top)
     tops <- attr(p.efs, "tops")
     x@params$tops <- tops
@@ -144,7 +162,8 @@ plot_sig <- function(data, x = colnames(data)[1], y = colnames(data)[2],
   wrap(p, 6, 3 + nrow(data) * .2)
 }
 
-plot_colStack.efs <- function(raw, top = 30, lab_x = "Variable", lab_y = "Importance", lab_fill = "Method")
+plot_colStack.efs <- function(raw, top = 30,
+  lab_x = "Variable", lab_y = "Importance", lab_fill = "Method")
 {
   data <- as_tibble(raw)
   data <- rename(data, group = rownames)
@@ -152,13 +171,26 @@ plot_colStack.efs <- function(raw, top = 30, lab_x = "Variable", lab_y = "Import
   tops <- sort(vapply(split(data$value, data$var), sum, double(1)), decreasing = T)
   tops <- head(names(tops), top)
   data <- filter(data, var %in% dplyr::all_of(tops))
+  if (top > 50) {
+    data_tops <- data.frame(var = tops, .rank = 1:length(tops))
+    groups <- grouping_vec2list(data_tops$.rank, 50, T)
+    groups <- rep(paste0("Rank ", 1:length(groups)), lengths(groups))
+    data_tops$.groups <- groups
+    data <- tbmerge(data, data_tops, by = "var", all.x = T)
+    data <- mutate(data, var = stringr::str_trunc(var, 30))
+  }
   p <- ggplot(data, aes(x = reorder(var, value), y = value)) +
     geom_col(aes(fill = group), position = "stack", width = .6) +
     coord_flip() +
     scale_fill_manual(values = ggsci::pal_npg()(8)) +
     labs(x = lab_x, y = lab_y, fill = lab_fill)+
     theme_minimal()
-  p <- wrap(p, 6, 3 + length(tops) * .2)
+  if (top > 50) {
+    p <- p + facet_wrap(~ .groups, scales = "free")
+    p <- wrap(p, 2 + length(unique(data$.groups)) * 5.5, 9.5)
+  } else {
+    p <- wrap(p, 6, 3 + length(tops) * .2)
+  }
   attr(p, "tops") <- tops
   p
 }

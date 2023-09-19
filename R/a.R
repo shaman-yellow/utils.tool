@@ -7,6 +7,14 @@ nl <- function(names, values, as.list = T, ...) {
   .as_dic(values, names, as.list = as.list, ...)
 }
 
+#' @export obj.size
+#' @aliases obj.size
+#' @description \code{obj.size}: ...
+#' @rdname utilites
+obj.size <- function(x, ...) {
+  format(object.size(x), units = "MB", ...)
+}
+
 #' @export .as_dic
 #' @aliases .as_dic
 #' @description \code{.as_dic}: ...

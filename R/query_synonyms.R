@@ -21,6 +21,9 @@ NULL
 query_synonyms <- function(cid, dir, rdata.name = "synonyms.rdata", curl_cl = NULL,
   gather_as_rdata = T, group_number = 50, ...)
 {
+  if (!dir.exists(dir)) {
+    dir.create(dir)
+  }
   rdata <- paste0(dir, "/", rdata.name)
   cid_set <- extract_rdata_list(rdata)
   if (!is.null(cid_set)) {

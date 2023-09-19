@@ -204,3 +204,47 @@ setMethod("step4", signature = c(x = "job_mp"),
     x@tables[[ 4 ]] <- namel(top_table)
     return(x)
   })
+
+setMethod("step5", signature = c(x = "job_mp"),
+  function(x, use = c("pvalue", "fdr"), cutoff = .05, classes = c("Species", "Genus", "Family"),
+    db = "../Gut Microbe and Metabolite-human.txt")
+  {
+    step_message("From Microbiota to metabolites.")
+    ## prepare patterns to match
+    use <- match.arg(use)
+    mic_tops <- filter(mp@tables$step4$top_table, !!rlang::sym(use) < cutoff,
+      nodeClass %in% dplyr::all_of(classes))
+    mt.pattern <- .create_mt_pattern(mic_tops$label)
+    ## download database
+    if (!file.exists(db)) {
+      data <- e(RCurl::getURL("http://bio-annotation.cn/gutmgene/public/res/Gut%20Microbe%20and%20Metabolite-human.txt"))
+      write_tsv(data, db)
+      db_data <- data.table::fread(text = data)
+    } else {
+      db_data <- ftibble(db)
+    }
+    db_data <- dplyr::rename_all(db_data, make.names)
+    ## find related metabolites in database
+    matched <- matchThat(db_data[[1]], mt.pattern)
+    db_data_matched <- filter(db_data,
+      Gut.Microbiota %in% dplyr::all_of(unique(unlist(matched))),
+      Substrate != "")
+    x$matched <- matched
+    x@tables[[ 5 ]] <- namel(db_data, db_data_matched)
+    return(x)
+  })
+
+.create_mt_pattern <- function(strings) {
+  mt.pattern <- stringr::str_extract_all(strings, "(?<=__|^).*?(?=__|$)")
+  mt.pattern <- unique(unlist(mt.pattern))
+  mt.pattern <- mt.pattern[nchar(mt.pattern) > 1]
+  mt.pattern <- mt.pattern[ mt.pattern != "bacterium" ]
+  mt.pattern
+}
+
+matchThat <- function(x, patterns) {
+  matched <- .find_and_sort_strings(unique(x), patterns)
+  matched <- nl(patterns, matched)
+  matched <- lst_clear0(matched)
+  matched
+}

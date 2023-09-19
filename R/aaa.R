@@ -378,14 +378,6 @@ molconvert_structure <-
     rsvg::rsvg_svg(path, path)
   }
 
-#' @export obj.size
-#' @aliases obj.size
-#' @description \code{obj.size}: ...
-#' @rdname utilites
-obj.size <- function(x, ...) {
-  format(object.size(x), units = "MB", ...)
-}
-
 clearMatch <- function(strs)
 {
   strs <- unlist(strs)

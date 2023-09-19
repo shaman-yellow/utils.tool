@@ -29,11 +29,11 @@ setMethod("step0", signature = c(x = "job_limma"),
   })
 
 setMethod("step1", signature = c(x = "job_limma"),
-  function(x, group = x@object$samples$group, design = mx(~ 0 + group)){
+  function(x, group = x@object$samples$group, design = mx(~ 0 + group), min.count = 10){
     step_message("Preprocess expression data.
       "
     )
-    object(x) <- filter_low.dge(object(x), group)
+    object(x) <- filter_low.dge(object(x), group, min.count = min.count)
     p.filter <- wrap(attr(object(x), "p"), 8, 3)
     object(x) <- norm_genes.dge(object(x), design)
     if (length(x@object$targets$sample) < 50) {
