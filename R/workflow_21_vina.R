@@ -128,7 +128,7 @@ setMethod("step4", signature = c(x = "job_vina"),
   })
 
 setMethod("step5", signature = c(x = "job_vina"),
-  function(x){
+  function(x, compounds, by.y, facet = "Ingredient_name"){
     step_message("Summary and visualization for results.")
     x$summary_vina <- summary_vina(x$savedir)
     res_dock <- dplyr::mutate(x$summary_vina, PubChem_id = as.integer(PubChem_id))
@@ -138,7 +138,8 @@ setMethod("step5", signature = c(x = "job_vina"),
       res_dock <- tbmerge(res_dock, x$compounds, by = "PubChem_id", all.x = T)
       facet <- "Ingredient_name"
     } else {
-      facet <- "PubChem_id"
+      res_dock <- tbmerge(res_dock, compounds,
+        by.x = "PubChem_id", by.y = by.y, all.x = T)
     }
     res_dock <- dplyr::arrange(res_dock, Affinity)
     data <- dplyr::distinct(res_dock, PubChem_id, hgnc_symbol, .keep_all = T)
@@ -146,7 +147,8 @@ setMethod("step5", signature = c(x = "job_vina"),
       geom_col(aes(x = hgnc_symbol, y = Affinity, fill = Affinity), width = .7) +
       labs(x = "", y = "Affinity (kcal/mol)") +
       coord_flip() +
-      facet_wrap(as.formula(paste0("~ Hmisc::capitalize(", facet, ")")), ncol = 1, scales = "free_y") +
+      facet_wrap(as.formula(paste0("~ Hmisc::capitalize(paste0(", facet, "))")),
+        ncol = 1, scales = "free_y") +
       theme()
     x@tables[[ 5 ]] <- namel(res_dock, unique_tops = data)
     x@plots[[ 5 ]] <- namel(p.res_vina)

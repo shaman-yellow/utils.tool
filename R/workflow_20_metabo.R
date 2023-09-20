@@ -27,13 +27,86 @@ setMethod("step0", signature = c(x = "job_metabo"),
   })
 
 setMethod("step1", signature = c(x = "job_metabo"),
-  function(x){
-    step_message("Quality control (QC).
-      This do:
-      "
-    )
+  function(x, cpds, libname = "kegg_pathway"){
+    step_message("Enrichment analysis.")
+    require(MetaboAnalystR)
+    mSet <- InitDataObjects("conc", "msetora", FALSE)
+    mSet <- Setup.MapData(mSet, cpds)
+    mSet <- CrossReferencing(mSet, "name")
+    mSet <- CreateMappingResultTable(mSet)
+    mSet <- SetMetabolomeFilter(mSet, F)
+    mSet <- SetCurrentMsetLib(mSet, libname, 2)
+    mSet <- CalculateHyperScore(mSet)
+    mtfig <- .mtb_file("metabolites_ORA_dot_", libname)
+    mSet <- PlotEnrichDotPlot(mSet, "ora", mtfig$pn, "pdf", width = NA)
+    ## plots
+    x@plots[[ 1 ]] <- c(mtfig$file_fig)
+    ## tables
+    mapped <- dplyr::as_tibble(mSet$dataSet$map.table)
+    mapped <- dplyr::filter(mapped, KEGG != "NA")
+    table <- as_tibble(mSet$analSet$ora.mat)
+    x@tables[[ 1 ]] <- c(n.l(mtfig$name, table), namel(mapped))
+    ## params
+    hits <- n.l(mtfig$name, mSet$analSet$ora.hits)
+    x$hits <- hits
+    x$mSet <- mSet
     return(x)
   })
+
+setMethod("step2", signature = c(x = "job_metabo"),
+  function(x, query){
+    step_message("Get KEGG infomation to Genes.")
+    mapped <- filter(x@tables$step1$mapped, Query %in% dplyr::all_of(query))
+    x$db_cpd <- e(KEGGREST::keggGet(mapped$KEGG), text = "compounds")
+    x$db_module <- e(lapply(x$db_cpd,
+      function(db) {
+        KEGGREST::keggGet(names(db$MODULE))
+      }), text = "modules")
+    extract <- stringr::str_extract_all
+    db_genes.kegg <- e(lapply(x$db_module,
+        function(db) {
+          lapply(db,
+            function(sub) {
+              qr <- extract(names(sub$ORTHOLOGY), "K[0-9]+")
+              qr <- unique(unlist(qr))
+              if (T) {
+                res <- lapply(grouping_vec2list(qr, 10, T),
+                  function(x) KEGGREST::keggGet(x))
+                res <- unlist(res, recursive = F)
+                lapply(res, function(x) {
+                  .plist(data = x$symbol)
+                  })
+              } else {
+                qr
+              }
+            })
+        }), text = "genes")
+    x$db_genes.kegg <- unlist(db_genes.kegg, use.names = F)
+    extract <- stringr::str_extract
+    pblapply <- pbapply::pblapply
+    db_genes <- e(pblapply(x$db_genes.kegg,
+      function(obj) {
+        extract(obj@data)
+      }))
+    return(x)
+  })
+
+.plist <- setClass("plist", 
+  contains = c(),
+  representation = representation(data = "ANY"),
+  prototype = NULL)
+
+file_fig <- function(name, file) {
+  nl(name, list(.file_fig(file)))
+}
+
+.mtb_file <- function(..., postfix = "dpi72.pdf") {
+  name <- paste0(unlist(list(...)), collapse = "")
+  pn <- paste0(get_savedir("figs"), "/", name, "_")
+  file <- paste0(pn, postfix)
+  file_fig <- file_fig(name, file)
+  namel(pn, file, name, file_fig)
+}
 
 meta_metabo_pathway <- function(
   export = NA, mz_rt = NA, p_col = NA, extra_entity = NA,

@@ -3,6 +3,12 @@ gs <- function(x, pattern, replace, ...) {
   gsub(pattern, replace, x, ...)
 }
 
+n.l <- function(name, object) {
+  object <- list(object)
+  names(object) <- name
+  return(object)
+}
+
 nl <- function(names, values, as.list = T, ...) {
   .as_dic(values, names, as.list = as.list, ...)
 }

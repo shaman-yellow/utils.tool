@@ -20,8 +20,7 @@ NULL
 #' @description \code{init_fella}: ...
 #' @seealso [FELLA::buildDataFromGraph()], [FELLA::buildGraphFromKEGGREST()]
 #' @rdname pathway_enrichment
-init_fella <- 
-  function(dir, org = c("hsa", "mmu", "rno"), seed = 1, rebuild = F) {
+init_fella <- function(dir, org = c("hsa", "mmu", "rno"), seed = 1, rebuild = F) {
     if (!file.exists(dir))
       stop("file.exists(dir) == F")
     dir <- paste0(dir, "/fella_pathway")
@@ -34,14 +33,14 @@ init_fella <-
       graph.file <- paste0(dir, "/", org, ".graph.Rdata")
       unlink(db.dir, T)
       set.seed(seed)
-      graph <- FELLA::buildGraphFromKEGGREST(organism = org)
+      graph <- e(FELLA::buildGraphFromKEGGREST(organism = org))
       save(graph, file = graph.file)
-      FELLA::buildDataFromGraph(
+      e(FELLA::buildDataFromGraph(
         keggdata.graph = graph,
         databaseDir = db.dir, internalDir = FALSE,
         matrices = c("hypergeom", "diffusion", "pagerank"),
         normality = c("diffusion", "pagerank"),
-        dampingFactor = 0.85, niter = 100)
+        dampingFactor = 0.85, niter = 100))
     }
     return(db.dir)
   }
@@ -54,10 +53,10 @@ load_fella <- function(dir) {
   if(!file.exists(dir)){
     stop("file.exists(dir) == F")
   }
-  FELLA::loadKEGGdata(
+  e(FELLA::loadKEGGdata(
     databaseDir = dir, internalDir = FALSE, 
     loadMatrix = c("hypergeom", "diffusion", "pagerank")
-  )
+  ))
 }
 
 #' @export enrich_fella
@@ -68,7 +67,7 @@ enrich_fella <- function(id.lst, data) {
   if (!is.list(id.lst)) {
     id.lst <- list(id.lst)
   }
-  lapply(1:length(id.lst),
+  e(lapply(1:length(id.lst),
     function(n) {
       message("\n=========", "Enrichment:", n, "=========")
       id <- id.lst[[n]]
@@ -83,7 +82,7 @@ enrich_fella <- function(id.lst, data) {
         return(NULL)
       else
         res
-    })
+    }))
 }
 
 #' @export graph_fella
@@ -94,8 +93,7 @@ graph_fella <- function( obj.lst, data, method = c("pagerank", "diffusion", "hyp
   threshold = .1)
 {
   method <- match.arg(method)
-  graph.lst <-
-    lapply(obj.lst,
+  graph.lst <- e(lapply(obj.lst,
       function(obj) {
         if (is.null(obj))
           return()
@@ -124,7 +122,7 @@ graph_fella <- function( obj.lst, data, method = c("pagerank", "diffusion", "hyp
                 C = "Compound",
                 R = "Reaction")
             }))
-      })
+      }))
 }
 
 #' @import ggraph
@@ -186,15 +184,14 @@ plotGraph_fella <- function(
 #' @aliases cid.to.kegg
 #' @description \code{cid.to.kegg}: ...
 #' @rdname pathway_enrichment
-cid.to.kegg <- 
-  function(cids){
+cid.to.kegg <- function(cids, from = "pubchem"){
     if (!requireNamespace("MetaboAnalystR", quietly = T)) {
       stop("package 'MetaboAnalystR' not available.",
         "See <https://github.com/xia-lab/MetaboAnalystR> for installation.")
     }
     obj <- MetaboAnalystR::InitDataObjects("conc", "msetora", F)
     obj <- MetaboAnalystR::Setup.MapData(obj, cids)
-    obj <- MetaboAnalystR::CrossReferencing(obj, "pubchem")
+    obj <- MetaboAnalystR::CrossReferencing(obj, from)
     obj <- MetaboAnalystR::CreateMappingResultTable(obj)
     obj <- dplyr::as_tibble(obj$dataSet$map.table)
     dplyr::filter(obj, KEGG != "NA")

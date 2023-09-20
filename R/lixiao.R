@@ -10,6 +10,20 @@ files <- setClass("files",
   representation = representation(),
   prototype = NULL)
 
+.file_fig <- setClass("file_fig", 
+  contains = c("files"),
+  representation = representation(),
+  prototype = NULL)
+
+setMethod("show", signature = c(object = "files"),
+  function(object){
+    if (length(object) > 1) {
+      lapply(object, function(x) browseURL(as.character(x)))
+    } else {
+      browseURL(as.character(object))
+    }
+  })
+
 fig <- setClass("fig", 
   contains = c("files"),
   representation = representation(),
@@ -999,10 +1013,12 @@ vis_enrich.go <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
 
 get_savedir <- function(target = NULL) {
   res <- getOption("savedir")
-  if (is.null(res$figs))
+  if (is.null(res$figs)) {
     res$figs <- "figs"
-  if (is.null(res$tabs))
+  }
+  if (is.null(res$tabs)) {
     res$tabs <- "tabs"
+  }
   if (!is.null(target)) {
     res <- res[[ target ]]
     if (!dir.exists(res))
@@ -1514,6 +1530,11 @@ get_prod.geo <- function(lst) {
   representation = 
     representation(),
   prototype = NULL)
+
+new_lich <- function(lst) {
+  lst <- lapply(lst, paste0, collapse = ", ")
+  .lich(lst)
+}
 
 setMethod("show", signature = c(object = "lich"),
   function(object){
@@ -2360,6 +2381,10 @@ autosv <- function(x, name, ...) {
       file <- select_savefun(x)(x, name, ...)
     else if (file.exists(x)) {
       file <- as.character(x)
+      if (is(x, "file_fig")) {
+        file.copy(file, dir <- get_savedir("figs"), T)
+        file <- paste0(dir, "/", get_filename(file))
+      }
     } else {
       stop("file.exists(x) == F")
     }
@@ -2808,14 +2833,18 @@ new_upset <- function(..., lst = NULL) {
   .upset(data)
 }
 
-new_venn <- function(..., lst = NULL) {
+new_venn <- function(..., lst = NULL, wrap = F) {
   if (is.null(lst)) {
     lst <- list(...)
   }
   lst <- lapply(lst, unique)
   p <- ggVennDiagram::ggVennDiagram(lst) +
     scale_fill_gradient(low = "grey90", high = "lightblue")
-  p
+  if (wrap) {
+    wrap(p, 4, 2.5)
+  } else {
+    p
+  }
 }
 
 setdev <- function(width, height) {
