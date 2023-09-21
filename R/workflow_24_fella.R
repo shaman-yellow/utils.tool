@@ -55,4 +55,8 @@ setMethod("step1", signature = c(x = "job_fella"),
     return(x)
   })
 
-
+setMethod("clear", signature = c(x = "job_fella"),
+  function(x, ...){
+    x@params$db <- NULL
+    callNextMethod(x, ..., name = "fl")
+  })

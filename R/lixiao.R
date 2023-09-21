@@ -3,15 +3,21 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # asNamespace("base")
 
-setClassUnion("can_not_be_draw", c("recordedplot"))
+setClass("aplot")
+setClassUnion("can_not_be_draw", c("recordedplot", "aplot"))
 
 files <- setClass("files", 
   contains = c("character"),
   representation = representation(),
   prototype = NULL)
 
-.file_fig <- setClass("file_fig", 
+fig <- setClass("fig", 
   contains = c("files"),
+  representation = representation(),
+  prototype = NULL)
+
+.file_fig <- setClass("file_fig", 
+  contains = c("fig"),
   representation = representation(),
   prototype = NULL)
 
@@ -23,11 +29,6 @@ setMethod("show", signature = c(object = "files"),
       browseURL(as.character(object))
     }
   })
-
-fig <- setClass("fig", 
-  contains = c("files"),
-  representation = representation(),
-  prototype = NULL)
 
 setClassUnion("figs", c("gg.obj", "fig"))
 # setClassUnion("data.frame_or_matrix", c("data.frame", "matrix"))
@@ -98,7 +99,7 @@ vina_limit <- function(lig, recep, timeLimit = 120, dir = "vina_space", ...) {
 }
 
 vina <- function(lig, recep, dir = "vina_space",
-  exhaustiveness = 32, scoreing = "ad4", stout = "/tmp/res.log", timeLimit = 60)
+  exhaustiveness = 32, scoring = "ad4", stout = "/tmp/res.log", timeLimit = 60)
 {
   if (!file.exists(dir)) {
     dir.create(dir, F)
@@ -117,7 +118,7 @@ vina <- function(lig, recep, dir = "vina_space",
     try(.cdRun("timeout ", timeLimit, 
         " vina  --ligand ", files[1],
         " --maps ", reals[2],
-        " --scoring ", scoreing,
+        " --scoring ", scoring,
         " --exhaustiveness ", exhaustiveness,
         " --out ", subdir, "_out.pdbqt",
         " >> ", stout), T)
@@ -2740,13 +2741,17 @@ lapply(c("mutate", "filter", "arrange", "distinct",
     setGeneric(name, function(DF_object, ...) DF_object)
     setMethod(name, signature = c(DF_object = "df"),
       function(DF_object, ..., fun_name = name){
+        fun <- get_fun(fun_name, asNamespace("dplyr"))
         if (!is(DF_object, "tbl_df")) {
           DF_object <- tibble::as_tibble(DF_object)
         }
-        fun <- get_fun(fun_name, asNamespace("dplyr"))
-        fun(DF_object, ...)
+        object <- fun(DF_object, ...)
+        if (!is(object, "tbl_df")) {
+          object <- tibble::as_tibble(object)
+        }
+        object
       })
-})
+  })
 
 setGeneric("as_tibble", 
   function(x) standardGeneric("as_tibble"))

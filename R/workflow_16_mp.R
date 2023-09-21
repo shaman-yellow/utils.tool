@@ -163,7 +163,7 @@ setMethod("step3", signature = c(x = "job_mp"),
             orientation = "y", pwidth = 3
           )
           p <- p + guides(fill = guide_legend(ncol = 1))
-          wrap(p, 12, nrow(object(x)@colData) * .13 + 2)
+          wrap(as_grob(p), 12, nrow(object(x)@colData) * .13 + 2)
         }))
     x@plots[[ 3 ]] <- namel(p.sample_dist, p.group_test, p.pcoa, p.hier)
     return(x)
@@ -193,6 +193,8 @@ setMethod("step4", signature = c(x = "job_mp"),
     p.tree <- p.tree + 
       MicrobiotaProcess::scale_fill_diff_cladogram(values = ggsci::pal_npg()(10)) +
       scale_size_continuous(range = c(1, 4))
+    print(p.tree)
+    p.tree <- recordPlot()
     x@plots[[ 4 ]] <- namel(p.box, p.tree)
     ## extract results
     tree <- e(MicrobiotaProcess::mp_extract_tree(object(x), type = "taxatree"))
@@ -206,7 +208,8 @@ setMethod("step4", signature = c(x = "job_mp"),
   })
 
 setMethod("step5", signature = c(x = "job_mp"),
-  function(x, use = c("pvalue", "fdr"), cutoff = .05, classes = c("Species", "Genus", "Family"),
+  function(x, match,
+    use = c("pvalue", "fdr"), cutoff = .05, classes = c("Species", "Genus", "Family"),
     db = "../Gut Microbe and Metabolite-human.txt")
   {
     step_message("From Microbiota to metabolites.")
@@ -229,8 +232,35 @@ setMethod("step5", signature = c(x = "job_mp"),
     db_data_matched <- filter(db_data,
       Gut.Microbiota %in% dplyr::all_of(unique(unlist(matched))),
       Substrate != "")
+    require(ggalluvial)
+    axes <- c("Gut.Microbiota", "Substrate", "Metabolite")
+    data <- dplyr::select(db_data_matched, dplyr::all_of(axes))
+    data <- dplyr::mutate(data,
+      match = ifelse(Substrate %in% !!match | Metabolite %in% !!match, T, F),
+      Match = ifelse(match, "Sig.", "unSig."),
+    )
+    data <- to_lodes_form(data, key = "Types", axes = 1:3)
+    freq <- table(data$stratum)
+    label.notshow <- names(freq)[ as.integer(freq) <= fivenum(as.integer(freq))[4] ]
+    fun <- function(x) {
+      ifelse(x %in% label.notshow, "", as.character(x))
+    }
+    data <- dplyr::mutate(data, label = fun(stratum),
+      label = ifelse(match, as.character(stratum), label)
+    )
+    aes <- aes(x = Types, y = 1, label = label,
+      stratum = stratum, alluvium = alluvium)
+    p.alluvial <- ggplot(data, aes) +
+      geom_alluvium(aes(fill = Match)) +
+      geom_stratum(fill = "lightyellow") +
+      geom_text(stat = "stratum") +
+      labs(fill = "Metabolites", y = "") +
+      scale_fill_manual(values = ggsci::pal_npg()(2)) +
+      theme_minimal() +
+      theme(axis.text.y = element_blank())
     x$matched <- matched
     x@tables[[ 5 ]] <- namel(db_data, db_data_matched)
+    x@plots[[ 5 ]] <- namel(p.alluvial)
     return(x)
   })
 

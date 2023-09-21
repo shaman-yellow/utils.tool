@@ -527,9 +527,9 @@ setGeneric("clear",
   function(x, ...) standardGeneric("clear"))
 
 setMethod("clear", signature = c(x = "job"),
-  function(x, save = T, suffix = NULL){
+  function(x, save = T, suffix = NULL, name = substitute(x, parent.frame(1))){
     if (save)
-      saveRDS(x, paste0(substitute(x, parent.frame(1)), x@step, suffix, ".rds"))
+      saveRDS(x, paste0(name, x@step, suffix, ".rds"))
     object(x) <- NULL
     return(x)
   })
@@ -656,3 +656,10 @@ pg_remote_recode <- function() {
     biobakery_workflows = "conda run -n biobakery biobakery_workflows"
   )
 }
+
+setMethod("map", signature = c(x = "df"),
+  function(x, ref, y, y.ref, y.get, rename = T){
+    x[[ ref ]] <- y[[ y.get ]][match(x[[ ref ]], y[[ y.ref ]])]
+    colnames(x)[ colnames(x) == ref ] <- y.get
+    x
+  })

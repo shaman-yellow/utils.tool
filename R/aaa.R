@@ -488,7 +488,17 @@ slots_mapply <- function(x, fun, ...){
     return(res)
   }
 
-
+space <- function(env = .GlobalEnv, all.names = T) {
+  names <- ls(envir = env, all.names = all.names)
+  info <- vapply(names, FUN.VALUE = character(1),
+    function(name) {
+      obj.size(get(name, envir = env))
+    })
+  info <- tibble::tibble(name = names(info), size = unname(info))
+  info <- mutate(info, value = as.double(stringr::str_extract(size, "^[0-9.]+")))
+  info <- arrange(info, dplyr::desc(value))
+  info
+}
 
 # ==========================================================================
 # colors
@@ -586,6 +596,24 @@ color_set <- function() {
     "#197EC0FF", "#F05C3BFF", "#46732EFF", "#71D0F5FF", "#370335FF", "#075149FF",
     "#C80813FF", "#91331FFF", "#1A9993FF", "#FD8CC1FF", "#FF0000FF", "#FF9900FF",
     "#FFCC00FF", "#00FF00FF", "#6699FFFF", "#CC33FFFF")
+}
+
+draw_smile <- function(smile, file, pdf = T) {
+  file <- .smiles_to_cairosvg(smile, file, pdf)
+  .file_fig(file)
+}
+
+#' @importFrom ChemmineOB convertToImage
+#' @importFrom rsvg rsvg_svg
+.smiles_to_cairosvg <- function(smile, path, pdf = F){
+  ChemmineOB::convertToImage("SMI", "SVG", source = smile, toFile = path)
+  if (pdf) {
+    rsvg::rsvg_pdf(path, file <- gs(path, "\\.svg$", ".pdf"))
+    return(file)
+  } else {
+    rsvg::rsvg_svg(path, path)
+    return(path)
+  }
 }
 
 

@@ -344,7 +344,11 @@ expr_sys.file.exists <- function(file) {
   paste0("if [ -e ", file, " ]; then echo T; else echo F; fi")
 }
 
-activate_qiime <- function(env_pattern = "qiime", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda")
+activate_qiime <- function(env_pattern = "qiime", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda") {
+  activate_base(env_pattern, env_path, conda)
+}
+
+activate_base <- function(env_pattern = "base", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda")
 {
   conda_env <- e(filter(reticulate::conda_list(), grepl(env_pattern, name))$name[1])
   e(base::Sys.setenv(RETICULATE_PYTHON = paste0(env_path, "/", conda_env, "/bin/python")))

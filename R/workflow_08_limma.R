@@ -83,6 +83,21 @@ setMethod("clear", signature = c(x = "job_limma"),
     return(x)
   })
 
+setMethod("map", signature = c(x = "job_limma"),
+  function(x, ref, ref.use = "hgnc_symbol", group = NULL, pvalue = T){
+    object <- x@params$normed_data
+    rownames(object) <- object$genes[[ ref.use ]]
+    object <- object[rownames(object) %in% ref, ]
+    if (!is.null(group)) {
+      object <- object[, object$targets$group %in% group]
+    }
+    data <- tibble::as_tibble(t(object$E))
+    data$group <- object$targets$group
+    data <- tidyr::gather(data, var, value, -group)
+    p <- .map_boxplot(data, pvalue)
+    p
+  })
+
 plot_valcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val", fc = .3) {
   data <- select(top_table, !!rlang::sym(label), logFC, P.Value, adj.P.Val)
   data <- mutate(data,
