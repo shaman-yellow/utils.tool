@@ -54,15 +54,22 @@ setMethod("step1", signature = c(x = "job_limma"),
   })
 
 setMethod("step2", signature = c(x = "job_limma"),
-  function(x, ..., block = NULL, use = c("adj.P.Val", "P.Value"), use.cut = .05, cut.fc = .3, label = "hgnc_symbol")
+  function(x, ..., contrasts = NULL, block = NULL, use = c("adj.P.Val", "P.Value"),
+    use.cut = .05, cut.fc = .3, label = "hgnc_symbol")
   {
-    use <- match.arg(use)
-    if (length(alist(...)) == 0) {
-      contr <- NULL
-    } else {
-      contr <- limma::makeContrasts(..., levels = x@params$design)
-    }
     step_message("Difference test.")
+    use <- match.arg(use)
+    if (is.null(contrasts)) {
+      if (length(alist(...)) == 0) {
+        contr <- NULL
+      } else {
+        contr <- limma::makeContrasts(..., levels = x@params$design)
+      }
+    } else {
+      contr <- limma::makeContrasts(contrasts = contrasts, levels = x@params$design)
+    }
+    ## here, remove batch effect
+    ## limma::removeBatchEffect
     object(x) <- diff_test(object(x), x@params$design, contr, block)
     if (!is.null(contr)) {
       tops <- extract_tops(object(x), use = use, use.cut = use.cut, cut.fc = cut.fc)

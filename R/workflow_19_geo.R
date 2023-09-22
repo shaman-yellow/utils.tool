@@ -35,6 +35,10 @@ setMethod("step1", signature = c(x = "job_geo"),
     x@params$about <- about
     x@params$metas <- metas
     x@params$prods <- prods
+    guess <- metas$res[[1]]
+    guess <- dplyr::rename_all(guess, make.names)
+    guess <- select(guess, 1, dplyr::ends_with(".ch1"))
+    x@params$guess <- guess
     return(x)
   })
 

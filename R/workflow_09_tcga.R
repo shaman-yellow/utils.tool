@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://www.bioconductor.org/packages/release/bioc/html/TCGAbiolinks.html")
+    info = paste0("Tutorial: https://www.bioconductor.org/packages/release/bioc/html/TCGAbiolinks.html",
+      "\nhttps://portal.gdc.cancer.gov/")
     ))
 
 job_tcga <- function(project)
@@ -103,7 +104,7 @@ setMethod("step3", signature = c(x = "job_tcga"),
     query <- lst_clear0(query)[[1]]
     x@params$queries <- object(x)
     object(x) <- e(TCGAbiolinks::GDCprepare(query = query))
-    p.vital <- new_pie(colData(object(x))$vital_status)
+    p.vital <- new_pie(SummarizedExperiment::colData(object(x))$vital_status)
     x@plots[[ 3 ]] <- namel(p.vital)
     return(x)
   })

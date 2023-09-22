@@ -2806,24 +2806,25 @@ plot_roc <- function(roc) {
 
 .upset <- setClass("upset_data", 
   contains = c("can_not_be_draw", "tbl_df"),
-  representation = representation(),
+  representation = representation(params = "list"),
   prototype = NULL)
 
 setMethod("show", signature = c(object = "upset_data"),
   function(object){
     data <- suppressWarnings(data.frame(as_tibble(object)))
-    colnames(data) %<>% stringr::str_trunc(30, "left")
+    if (!is.null(object@params$trunc))
+      colnames(data) %<>% stringr::str_trunc(object@params$width, object@params$trunc)
     data <- dplyr::select(data, -members)
     maxnum <- max(apply(data, 2, sum))
     upset <- UpSetR::upset(data, sets = colnames(data),
       sets.bar.color = "lightblue", order.by = "freq",
       set_size.show = T, set_size.scale_max = 1.5 * maxnum,
-      text.scale = c(1.4, 1, 1.4, 1.2, 1, 1.2)
+      text.scale = c(1.4, 1, 1.4, 1.1, 1, 1.1)
     )
     show(wrap(upset, ncol(data) * 1.4, ncol(data) * 1.3))
   })
 
-new_upset <- function(..., lst = NULL) {
+new_upset <- function(..., lst = NULL, trunc = "left", width = 30) {
   if (is.null(lst)) {
     lst <- list(...)
   }
@@ -2835,7 +2836,7 @@ new_upset <- function(..., lst = NULL) {
       ifelse(data$members %in% set, 1L, 0L)
     })
   data <- do.call(mutate, c(list(data), lst))
-  .upset(data)
+  .upset(data, params = namel(trunc, width))
 }
 
 new_venn <- function(..., lst = NULL, wrap = F) {
