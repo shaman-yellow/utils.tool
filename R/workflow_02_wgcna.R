@@ -124,8 +124,13 @@ setMethod("step5", signature = c(x = "job_wgcna"),
       "tables in `x@tables[[ 5 ]]`"
     )
     if (!is.null(traits)) {
+      .check_columns(traits, c("sample"))
+      traits <- traits[match(rownames(x@params$datExpr), traits$sample), ]
+      rownames <- traits$sample
+      traits <- dplyr::select_if(traits, is.numeric)
       traits <- data.frame(traits)
-      x@params$allTraits <- traits
+      rownames(traits) <- traits$sample
+      x@params$allTraits <- .wgcTrait(traits)
     }
     if (is.null(params(x)$allTraits))
       stop("is.null(params(x)$allTraits) == T")
@@ -139,7 +144,7 @@ setMethod("step5", signature = c(x = "job_wgcna"),
   })
 
 setMethod("step6", signature = c(x = "job_wgcna"),
-  function(x){
+  function(x, use.trait = NULL){
     step_message("Calculate gene significance (GS) and module membership (MM).",
       "This do:",
       "Generate `x@params$mm`, `x@params$gs`; ",
@@ -151,6 +156,9 @@ setMethod("step6", signature = c(x = "job_wgcna"),
     gs <- cal_corp(params(x)$datExpr, params(x)$allTraits, "gene", "trait")
     gs.s <- dplyr::mutate(tibble::as_tibble(gs), p.adjust = p.adjust(pvalue, "BH"))
     gs.s <- dplyr::filter(gs.s, pvalue < .05)
+    if (!is.null(use.trait)) {
+      gs.s <- dplyr::filter(gs.s, trait %in% dplyr::all_of(use.trait))
+    }
     p.mm_gs <- new_upset(gs = gs.s$gene, mm = mm.s$gene)
     show(p.mm_gs)
     p.mm_gs <- wrap(recordPlot(), 3, 3)

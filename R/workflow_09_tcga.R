@@ -113,7 +113,9 @@ setGeneric("asjob_limma",
   function(x, ...) standardGeneric("asjob_limma"))
 
 setMethod("asjob_limma", signature = c(x = "job_tcga"),
-  function(x, col_id = "sample", row_id = "gene_id", group = "vital_status")
+  function(x, col_id = "sample", row_id = "gene_id", group = "vital_status",
+    get_treatment = T, treatment_type = "Pharm",
+    treatment_attr = "treatment_or_therapy")
   {
     step_message("Use `object(x)@assays@data$unstranded` converted as job_limma.")
     metadata <- data.frame(object(x)@colData)
@@ -125,5 +127,30 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     colnames(counts) <- metadata[[ col_id ]]
     rownames(counts) <- genes[[ row_id ]]
     object <- e(edgeR::DGEList(counts, samples = metadata, genes = genes))
-    job_limma(object)
+    x <- job_limma(object)
+    if (get_treatment) {
+      x <- .get_treatment.lm.tc(x, treatment_type, treatment_attr)
+    }
+    return(x)
   })
+
+.get_treatment.lm.tc <- function(x,
+  type = c("Pharmaceutical Therapy, NOS", "Radiation Therapy, NOS"),
+  attr = c("treatment_or_therapy"), add_into = T)
+{
+  type <- match.arg(type)
+  treats <- select(x@object$samples, dplyr::contains("treat"))
+  data <- lapply(treats$treatments,
+    function(data) {
+      data <- filter(data, treatment_type == !!type)
+      data <- select(data, treatment_type, dplyr::all_of(attr))
+      data
+    })
+  data <- do.call(dplyr::bind_rows, data)
+  if (!add_into)
+    return(data)
+  x@object$samples <- dplyr::bind_cols(x@object$samples, data)
+  return(x)
+}
+
+

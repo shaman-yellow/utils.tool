@@ -529,7 +529,7 @@ setGeneric("clear",
 setMethod("clear", signature = c(x = "job"),
   function(x, save = T, suffix = NULL, name = substitute(x, parent.frame(1))){
     if (save)
-      saveRDS(x, paste0(name, x@step, suffix, ".rds"))
+      saveRDS(x, paste0(name, ".", x@step, suffix, ".rds"))
     object(x) <- NULL
     return(x)
   })
@@ -662,4 +662,12 @@ setMethod("map", signature = c(x = "df"),
     x[[ ref ]] <- y[[ y.get ]][match(x[[ ref ]], y[[ y.ref ]])]
     colnames(x)[ colnames(x) == ref ] <- y.get
     x
+  })
+
+setMethod("map", signature = c(x = "list"),
+  function(x, y, y.ref, y.get){
+    lapply(x,
+      function(x) {
+        y[[ y.get ]][match(x, y[[ y.ref ]])]
+      })
   })

@@ -128,10 +128,11 @@ plot_valcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val", fc
 }
 
 setMethod("asjob_wgcna", signature = c(x = "job_limma"),
-  function(x, filter_genes = lm@tables$step2$tops[[1]][[1]]){
+  function(x, filter_genes = NULL, use = "hgnc_symbol"){
     step_message("Use `x@params$normed_data` converted as job_wgcna.")
     if (is.null(object <- x@params$normed_data))
       stop("is.null(x@params$normed_data)")
+    rownames(object) <- object$genes[[ use ]]
     log_counts <- as_tibble(object$E)
     gene_annotation <- select(as_tibble(object$genes), -1)
     log_counts[[1]] <- gene_annotation[[1]]
@@ -141,4 +142,3 @@ setMethod("asjob_wgcna", signature = c(x = "job_limma"),
     job_wgcna(select(object$targets, sample, group),
       log_counts, gene_annotation)
   })
-
