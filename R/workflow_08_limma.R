@@ -142,3 +142,14 @@ setMethod("asjob_wgcna", signature = c(x = "job_limma"),
     job_wgcna(select(object$targets, sample, group),
       log_counts, gene_annotation)
   })
+
+setMethod("meta", signature = c(x = "job_limma"),
+  function(x, use = "group"){
+    if (x@step < 1) {
+      metadata <- object(x)$samples
+    } else {
+      metadata <- x$normed_data$targets
+    }
+    x@params$p.meta <- new_pie(metadata[[ use ]])
+    return(x)
+  })

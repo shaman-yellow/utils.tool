@@ -94,7 +94,7 @@ setMethod("step2", signature = c(x = "job_tcga"),
   })
 
 setMethod("step3", signature = c(x = "job_tcga"),
-  function(x){
+  function(x, use = "vital_status"){
     step_message("Prepare 'Transcriptome Profiling' data (red{{only one query}}).")
     query <- lapply(object(x),
       function(query) {
@@ -104,7 +104,7 @@ setMethod("step3", signature = c(x = "job_tcga"),
     query <- lst_clear0(query)[[1]]
     x@params$queries <- object(x)
     object(x) <- e(TCGAbiolinks::GDCprepare(query = query))
-    p.vital <- new_pie(SummarizedExperiment::colData(object(x))$vital_status)
+    p.vital <- new_pie(SummarizedExperiment::colData(object(x))[[ use ]])
     x@plots[[ 3 ]] <- namel(p.vital)
     return(x)
   })
@@ -131,6 +131,7 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     if (get_treatment) {
       x <- .get_treatment.lm.tc(x, treatment_type, treatment_attr)
     }
+    x <- meta(x, group)
     return(x)
   })
 

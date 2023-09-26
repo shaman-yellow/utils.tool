@@ -144,18 +144,19 @@ setMethod("step5", signature = c(x = "job_wgcna"),
   })
 
 setMethod("step6", signature = c(x = "job_wgcna"),
-  function(x, use.trait = NULL){
+  function(x, use.trait = NULL, use = c("adj.pvalue", "pvalue")){
     step_message("Calculate gene significance (GS) and module membership (MM).",
       "This do:",
       "Generate `x@params$mm`, `x@params$gs`; ",
       "tables (filter by pvalue < 0.05) `x@tables[[ 6 ]]`"
     )
+    use <- match.arg(use)
     mm <- cal_corp(params(x)$datExpr, params(x)$MEs, "gene", "module")
-    mm.s <- mutate(as_tibble(mm), p.adjust = p.adjust(pvalue, "BH"))
-    mm.s <- dplyr::filter(mm.s, pvalue < .05)
+    mm.s <- mutate(as_tibble(mm), adj.pvalue = p.adjust(pvalue, "BH"))
+    mm.s <- dplyr::filter(mm.s, !!rlang::sym(use) < .05)
     gs <- cal_corp(params(x)$datExpr, params(x)$allTraits, "gene", "trait")
-    gs.s <- dplyr::mutate(tibble::as_tibble(gs), p.adjust = p.adjust(pvalue, "BH"))
-    gs.s <- dplyr::filter(gs.s, pvalue < .05)
+    gs.s <- dplyr::mutate(tibble::as_tibble(gs), adj.pvalue = p.adjust(pvalue, "BH"))
+    gs.s <- dplyr::filter(gs.s, !!rlang::sym(use) < .05)
     if (!is.null(use.trait)) {
       gs.s <- dplyr::filter(gs.s, trait %in% dplyr::all_of(use.trait))
     }

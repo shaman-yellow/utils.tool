@@ -2446,6 +2446,8 @@ setMethod("autor", signature = c(x = "can_be_draw", name = "character"),
 ## autor for data.frame
 setMethod("autor", signature = c(x = "df", name = "character"),
   function(x, name, ..., asis = T){
+    x <- dplyr::select_if(x,
+      function(x) is.character(x) | is.numeric(x) | is.logical(x) | is.factor(x))
     file <- autosv(x, name, ...)
     if (asis)
       abstract(x, name = name, ...)
@@ -2824,7 +2826,7 @@ setMethod("show", signature = c(object = "upset_data"),
     show(wrap(upset, ncol(data) * 1.4, ncol(data) * 1.3))
   })
 
-new_upset <- function(..., lst = NULL, trunc = "left", width = 30) {
+new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T) {
   if (is.null(lst)) {
     lst <- list(...)
   }
@@ -2836,16 +2838,22 @@ new_upset <- function(..., lst = NULL, trunc = "left", width = 30) {
       ifelse(data$members %in% set, 1L, 0L)
     })
   data <- do.call(mutate, c(list(data), lst))
-  .upset(data, params = namel(trunc, width))
+  data <- .upset(data, params = namel(trunc, width))
+  if (convert) {
+    show(data)
+    recordPlot()
+  } else {
+    data
+  }
 }
 
-new_venn <- function(..., lst = NULL, wrap = F) {
+new_venn <- function(..., lst = NULL, wrap = T, color.high = "lightyellow") {
   if (is.null(lst)) {
     lst <- list(...)
   }
   lst <- lapply(lst, unique)
   p <- ggVennDiagram::ggVennDiagram(lst) +
-    scale_fill_gradient(low = "grey90", high = "lightblue")
+    scale_fill_gradient(low = "grey90", high = color.high)
   if (wrap) {
     wrap(p, 4, 2.5)
   } else {
@@ -2859,14 +2867,55 @@ setdev <- function(width, height) {
     dev.new(width = width, height = height)
 }
 
-new_pie <- function(x, title = NULL) {
+new_col <- function(..., lst = NULL, fun = function(x) x[ !is.na(x) & x != ""]) {
+  if (is.null(lst)) {
+    lst <- list(...)
+  }
+  lst <- vapply(lst, function(x) length(fun(unique(x))), double(1))
+  data <- data.frame(var = names(lst), value = unname(lst))
+  p <- ggplot(data, aes(x = var, y = value, fill = value)) +
+    geom_col(width = .5) +
+    geom_text(aes(x = var, y = value + max(value) * .01, label = value), hjust = 0, size = 3) +
+    ylim(c(0, max(data$value) * 1.2)) +
+    coord_flip() +
+    labs(x = "", y = "") +
+    theme(legend.position = "")
+  wrap(p, 7, nrow(data) * .5 + .5)
+}
+
+new_pie <- function(x, title = NULL, use.ggplot = T) {
   x <- split(x, x)
   x <- vapply(x, length, integer(1))
-  grob <- ggplotify::base2grob(expression({
-    par(mar = rep(1, 4))
-    pie(x, main = title)
-  }))
-  wrap(grob, 5, 4)
+  if (use.ggplot) {
+    data <- data.frame(var = names(x), value = unname(x))
+    data <- dplyr::arrange(data, dplyr::desc(var))
+    data <- dplyr::mutate(data,
+      label = paste0("(", round(value / sum(value) * 100, 1), "%)"),
+      label = paste0(var, " ", label), lab.x = .2,
+      lab.y = value / 2 + c(0, cumsum(value)[ -length(value) ])
+    )
+    palette <- if (length(x) > 10) color_set() 
+      else ggsci::pal_npg()(10)
+    p <- ggplot(data, aes(x = 0L, y = value, fill = var)) +
+      geom_bar(stat = 'identity', position = 'stack', width = 1) +
+      geom_text(aes(x = lab.x, y = lab.y, label = label)) +
+      scale_fill_manual(values = palette) +
+      labs(x = '', y = '', title = '') +
+      coord_polar(theta = 'y') +
+      theme_minimal() +
+      theme(legend.position = "none",
+        axis.text = element_blank(),
+        plot.margin = margin(-.1, -.1, -.1, -.1, "npc"),
+        panel.grid = element_blank()) +
+      geom_blank()
+    wrap(as_grob(p), 5, 4)
+  } else {
+    grob <- ggplotify::base2grob(expression({
+      par(mar = rep(1, 4))
+      pie(x, main = title)
+    }))
+    wrap(grob, 5, 4)
+  }
 }
 
 plot_median_expr_line <- function(data) {

@@ -23,6 +23,9 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
   {
     if (x@step < 1)
       stop("x@step < 1")
+    if (x@step > 1) {
+      object(x) <- x@params$normed_data
+    }
     i.pos <- object(x)$genes[[ use ]] %in% use.filter
     j.pos <- !is.na(object(x)$targets[[ status ]])
     object(x) <- e(limma::`[.EList`(object(x), i.pos, j.pos))

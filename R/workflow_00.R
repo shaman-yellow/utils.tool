@@ -540,6 +540,9 @@ setGeneric("via_symbol",
 setGeneric("vis", 
   function(x, ...) standardGeneric("vis"))
 
+setGeneric("meta", 
+  function(x, ...) standardGeneric("meta"))
+
 setGeneric("anno", 
   function(x, ...) standardGeneric("anno"))
 

@@ -62,10 +62,44 @@ setMethod("step1", signature = c(x = "job_enrich"),
     x@tables[[ 1 ]] <- namel(res.kegg, res.go)
     x@plots[[ 1 ]] <- namel(p.kegg, p.go)
     x@params$check_go <- check_enrichGO(res.go)
+    x$organism <- organism
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_enrich"),
-  function(x){
-
+  function(x, pathways, which.lst = 1, species = x$organism,
+    name = paste0("pathview", gs(Sys.time(), " |:", "_")))
+  {
+    step_message("Use pathview to visualize reults pathway.")
+    require(pathview)
+    data <- x@tables$step1$res.kegg[[ which.lst ]]
+    if (is.null(x$pathview_dir)) {
+      x$pathview_dir <- name
+    } else {
+      name <- x$pathview_dir
+    }
+    dir.create(name, F)
+    setwd(name)
+    cli::cli_alert_info("pathview::pathview")
+    tryCatch({
+      res.pathviews <- lapply(pathways,
+        function(pathway) {
+          data <- dplyr::filter(data, ID == !!pathway)
+          pathway <- gs(data$ID, "^[a-zA-Z]*", "")
+          genes <- as.character(unlist(data$geneID_list))
+          res.pathview <- pathview::pathview(gene.data = genes,
+            pathway.id = pathway, species = species,
+            keys.align = "y", kegg.native = T,
+            key.pos = "topright", limit = list(gene = 1, cpd = 1),
+            bins = list(gene = 1, cpd = 1),
+            na.col = "grey90", discrete = list(gene = T))
+          return(res.pathview)
+        })
+    }, finally = {setwd("../")})
+    x@tables[[ 2 ]] <- namel(res.pathviews)
+    figs <- list.files(name, "pathview", full.names = T)
+    p.pathviews <- lapply(figs, function(x) .file_fig(x))
+    names(p.pathviews) <- get_realname(figs)
+    x@plots[[ 2 ]] <- namel(p.pathviews)
+    return(x)
   })

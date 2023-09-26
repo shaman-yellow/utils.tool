@@ -12,8 +12,7 @@
 NULL
 #> NULL
 
-reCallMethod <- 
-  function(funName, args, ...){
+reCallMethod <- function(funName, args, ...){
     arg.order <- unname(getGeneric(funName)@signature)
     args.missing <- !arg.order %in% names(args)
     if (any(args.missing)) {
