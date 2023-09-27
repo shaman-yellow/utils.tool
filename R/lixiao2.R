@@ -230,7 +230,14 @@ setMethod("show", signature = c(object = "figs_frame"),
 new_fig_frame <- function(file) {
   if (!file.exists(file))
     stop("file.exists(file) == F")
-  info <- pdftools::pdf_pagesize(file)
+  if (grepl("pdf$", file))
+    info <- pdftools::pdf_pagesize(file)
+  else if (grepl("png$", file)) {
+    png <- png::readPNG(file)
+    info <- data.frame(width = dim(png)[2], height = dim(png)[1])
+  } else {
+    stop("don't no how to parse the file.")
+  }
   if (nrow(info) > 1)
     stop("Only one page pdf file supported.")
   .fig_frame(file = file, width = 1, height = info$height / info$width)

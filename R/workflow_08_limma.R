@@ -91,12 +91,12 @@ setMethod("clear", signature = c(x = "job_limma"),
   })
 
 setMethod("map", signature = c(x = "job_limma"),
-  function(x, ref, ref.use = "hgnc_symbol", group = NULL, pvalue = T){
+  function(x, ref, ref.use = "hgnc_symbol", group = NULL, group.use = "group", pvalue = T){
     object <- x@params$normed_data
     rownames(object) <- object$genes[[ ref.use ]]
     object <- object[rownames(object) %in% ref, ]
     if (!is.null(group)) {
-      object <- object[, object$targets$group %in% group]
+      object <- object[, object$targets[[ group.use ]] %in% group]
     }
     data <- tibble::as_tibble(t(object$E))
     data$group <- object$targets$group
