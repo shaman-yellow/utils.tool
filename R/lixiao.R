@@ -1251,7 +1251,7 @@ show_multi <- function(layers, col, symbol = "Progein"){
 # map_from <- function(lst, db_names, db_values){}
 
 .jour_bioinf <- c("Nature Genetics", "Genome Biology", "Genome Research", "Nucleic Acids Res",
-  "Briefings in Bioinformatics", "BMC genomics")
+  "Briefings in Bioinformatics", "BMC genomics", "Nature Methods", "Nature Biotechnology")
 
 esearch.mj <- function(key, jour = .jour_bioinf, rbind = T)
 {

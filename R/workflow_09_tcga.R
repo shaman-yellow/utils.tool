@@ -63,8 +63,8 @@ setMethod("step1", signature = c(x = "job_tcga"),
     data_id <- lapply(res_query,
       function(data) {
         n <<- n + 1
-        data <- select(data, .id = cases)
-        data <- mutate(data, .id = stringr::str_extract(.id, "[^\\-]*-[^\\-]*-[^\\-]*"))
+        data <- dplyr::select(data, .id = cases)
+        data <- dplyr::mutate(data, .id = stringr::str_extract(.id, "[^\\-]*-[^\\-]*-[^\\-]*"))
         data[[ paste0(".row", "_", n) ]] <- 1:nrow(data)
         data
       })
