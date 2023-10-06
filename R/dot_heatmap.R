@@ -160,18 +160,22 @@ dot_heatmap <- function(data, x = "sample", y = ".features_id",
 tile_heatmap <- function(data, x = "sample", y = ".features_id", fill = "value",
   lab_x = "Sample", lab_y = "Feature ID", lab_fill = "log2 (Feature level)", ...)
 {
-  scale_fill <- if ( 0L > min(data[[ fill ]]) & 0L < max(data[[ fill ]])) {
-    scale_fill_gradient2(
-      low = "#3182BDFF", high = "#A73030FF",
-      limits = c(min(data[[ fill ]]), max(data[[ fill ]]))) 
+  if ( 0L < min(data[[ fill ]], na.rm = T) ) {
+    scale_fill <- scale_fill_gradient(
+      high = "black", low = "#A73030FF",
+      limits = c(min(data[[ fill ]]), max(data[[ fill ]])))
+    color <- "black"
+    size <- .7
   } else {
-    scale_fill_gradientn(
+    scale_fill <-  scale_fill_gradientn(
       colors = c("#3182BDFF", "white", "#A73030FF"),
       limits = c(min(data[[ fill ]]), max(data[[ fill ]])))
+    color <- "white"
+    size <- .2
   }
   p <- ggplot(data, aes(x = !!rlang::sym(x), y = !!rlang::sym(y))) +
     geom_tile(aes(fill = !!rlang::sym(fill)),
-      color = "white", height = 1, width = 1, size = 0.2) +
+      color = color, height = 1, width = 1, size = size) +
     theme_minimal() +
     scale_fill +
     labs(x = lab_x, y = lab_y, fill = lab_fill) +

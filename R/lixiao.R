@@ -955,8 +955,7 @@ vis_enrich.kegg <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
         guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
         coord_flip() +
         ylim(zoRange(data$GeneRatio, 1.3)) +
-        theme_minimal() +
-        theme(axis.title.x = element_blank())
+        theme_minimal()
       p
     })
 }
@@ -2951,3 +2950,9 @@ plot_median_expr_line <- function(data) {
 fix.html.str <- function(x) {
   gs(x, " ", "%20")
 }
+
+rm.no <- function(x) {
+  x[ !is.na(x) & x != "" ]
+}
+
+

@@ -81,6 +81,30 @@ setMethod("step2", signature = c(x = "job_limma"),
     return(x)
   })
 
+setMethod("step3", signature = c(x = "job_limma"),
+  function(x, names = NULL, use = "all", use.gene = "hgnc_symbol", fun_filter = rm.no){
+    step_message("Sets intersection.")
+    tops <- x@tables$step2$tops
+    if (use != "all") {
+      tops <- tops[ use ]
+    }
+    if (!is.null(names)) {
+      names(tops) <- names
+    }
+    tops <- lapply(tops,
+      function(data){
+        up <- dplyr::filter(data, logFC > 0)[[ use.gene ]]
+        down <- dplyr::filter(data, logFC < 0)[[ use.gene ]]
+        lst <- list(up = up, down = down)
+        lapply(lst, fun_filter)
+      })
+    tops <- unlist(tops, recursive = F)
+    x$sets_intersection <- tops
+    p.sets_intersection <- new_upset(lst = tops)
+    x@plots[[ 3 ]] <- namel(p.sets_intersection)
+    return(x)
+  })
+
 setMethod("clear", signature = c(x = "job_limma"),
   function(x, save = T, suffix = NULL){
     if (save)
