@@ -144,7 +144,7 @@ setMethod("step5", signature = c(x = "job_vina"),
     res_dock <- dplyr::arrange(res_dock, Affinity)
     data <- dplyr::distinct(res_dock, PubChem_id, hgnc_symbol, .keep_all = T)
     p.res_vina <- ggplot(data) + 
-      geom_col(aes(x = hgnc_symbol, y = Affinity, fill = Affinity), width = .7) +
+      geom_col(aes(x = reorder(hgnc_symbol, Affinity, decreasing = T), y = Affinity, fill = Affinity), width = .7) +
       labs(x = "", y = "Affinity (kcal/mol)") +
       coord_flip() +
       facet_wrap(as.formula(paste0("~ Hmisc::capitalize(paste0(", facet, "))")),

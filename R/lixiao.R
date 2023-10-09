@@ -140,6 +140,7 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
       " pymol ", out, " ", recep,
       " -g ", res), T)
   if (is.character(backup)) {
+    dir.create(backup, F)
     file.copy(paste0(wd, "/", res), backup, T)
   }
 }
@@ -2864,6 +2865,26 @@ setdev <- function(width, height) {
   name <- names(dev.cur())
   if (name == "null device")
     dev.new(width = width, height = height)
+}
+
+new_allu <- function(data, col.fill = 1, axes = 1:2) {
+  require(ggalluvial)
+  fill <- colnames(data)[col.fill]
+  data <- dplyr::mutate(data, fill = !!rlang::sym(fill))
+  data <- to_lodes_form(data, key = "Types", axes = axes)
+  aes <- aes(x = Types, y = 1, label = stratum, stratum = stratum, alluvium = alluvium)
+  p.alluvial <- ggplot(data, aes) +
+    geom_alluvium(aes(fill = fill)) +
+    geom_stratum(fill = "lightyellow") +
+    geom_text(stat = "stratum") +
+    labs(fill = "", y = "") +
+    scale_fill_manual(values = ggsci::pal_npg()(10)) +
+    theme_minimal() +
+    theme(axis.text.y = element_blank(),
+      axis.title = element_blank(),
+      legend.position = "none") +
+    geom_blank()
+  p.alluvial
 }
 
 new_col <- function(..., lst = NULL, fun = function(x) x[ !is.na(x) & x != ""]) {
