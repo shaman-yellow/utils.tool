@@ -3,7 +3,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 .job_seuratSp <- setClass("job_seuratSp", 
-  contains = c("job"),
+  contains = c("job_seurat"),
   representation = representation(
     object = "ANY",
     params = "list",
@@ -11,12 +11,14 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://satijalab.org/seurat/articles/spatial_vignette.html")
+    info = paste0("Tutorial: https://satijalab.org/seurat/articles/spatial_vignette.html",
+      "\nAdditional: https://ludvigla.github.io/STUtility_web_site/index.html")
     ))
 
-job_seuratSp <- function()
+job_seuratSp <- function(dir)
 {
-  .job_seuratSp()
+  obj <- e(Seurat::Load10X_Spatial(dir))
+  .job_seuratSp(object = obj)
 }
 
 setMethod("step0", signature = c(x = "job_seuratSp"),
@@ -28,9 +30,76 @@ setMethod("step0", signature = c(x = "job_seuratSp"),
 
 setMethod("step1", signature = c(x = "job_seuratSp"),
   function(x){
-    step_message("Quality control (QC).
-      This do:
-      "
-    )
+    step_message("Quality control (QC).")
+    x <- callNextMethod(x)
+    p.nCount_spatial <- e(Seurat::SpatialFeaturePlot(object(x), features = "nCount_Spatial")) +
+      theme(legend.position = "right")
+    p.nCount_spatial <- wrap(as_grob(p.nCount_spatial), 5.5, 4)
+    x@plots[[ 1 ]] <- c(x@plots[[ 1 ]], namel(p.nCount_spatial))
     return(x)
   })
+
+setMethod("step2", signature = c(x = "job_seuratSp"),
+  function(x, min.features, max.features, max.percent.mt = 5, nfeatures = 2000,
+    use = "nFeature_Spatial")
+  {
+    x <- callNextMethod(x, min.features, max.features, max.percent.mt, nfeatures, use)
+    return(x)
+  })
+
+setMethod("step3", signature = c(x = "job_seuratSp"),
+  function(x, dims, resolution){
+    x <- callNextMethod(x, dims, resolution)
+    palette <- .setPaletteForSpatialJob(x)
+    p.spatial_cluster <- e(Seurat::SpatialDimPlot(object(x), label = TRUE, label.size = 3, cols = palette)) +
+      guides(fill = guide_legend(override.aes = list(size = 3)))
+    p.spatial_cluster <- wrap(x@plots[[ 3 ]]$p.umap@data + p.spatial_cluster, 13, 5.5)
+    x@plots[[ 3 ]] <- namel(p.spatial_cluster)
+    return(x)
+  })
+
+setMethod("step4", signature = c(x = "job_seuratSp"),
+  function(x, ref = celldex::HumanPrimaryCellAtlasData()){
+    x <- callNextMethod(x, ref)
+    return(x)
+  })
+
+setMethod("step5", signature = c(x = "job_seuratSp"),
+  function(x, workers = 3){
+    x <- callNextMethod(x, workers)
+    object(x) <- e(Seurat::FindSpatiallyVariableFeatures(object(x),
+        assay = "SCT", selection.method = "moransi",
+        features = Seurat::VariableFeatures(object(x)), verbose = T))
+    moI.top_features <- SpatiallyVariableFeatures_workaround(object(x))
+    x@params$moI.top_features <- moI.top_features
+    return(x)
+  })
+
+.setPaletteForSpatialJob <- function(x) {
+  levels <- levels(x@object@meta.data$seurat_clusters)
+  nl(levels, color_set()[1:length(levels)], F)
+}
+
+SpatiallyVariableFeatures_workaround <- function(object, assay = "SCT", selection.method = "moransi") {
+  #' This is work around function to replace SeuratObject::SpatiallyVariableFeatures function.
+  #' return ranked list of Spatially Variable Features
+  # Check if object is a Seurat object
+  if (!inherits(object, "Seurat")) {
+    stop("object must be a Seurat object")
+  }
+  # Check if assay is a valid assay
+  if (!assay %in% names(object@assays)) {
+    stop("assay must be a valid assay")
+  }
+  # Extract meta.features from the specified object and assay
+  data <- object@assays[[assay]]@meta.features
+  # Select columns starting with the provided col_prefix
+  moransi_cols <- grep(paste0("^", selection.method), colnames(data), value = TRUE)
+  # Filter rows where "moransi.spatially.variable" is TRUE
+  filtered_data <- data[data[[paste0(selection.method, ".spatially.variable")]], moransi_cols]
+  # Sort filtered data by "moransi.spatially.variable.rank" column in ascending order
+  sorted_data <- filtered_data[order(filtered_data[[paste0(selection.method, ".spatially.variable.rank")]]), ]
+  # Return row names of the sorted data frame
+  rownames(sorted_data)
+}
+

@@ -48,13 +48,15 @@ setMethod("step1", signature = c(x = "job_seurat"),
     object(x)[[ "percent.mt" ]] <- e(Seurat::PercentageFeatureSet(
       object(x), pattern = "^MT-"
     ))
-    p.qc <- plot_qc.seurat(object(x))
+    p.qc <- plot_qc.seurat(x)
     x@plots[[ 1 ]] <- list(p.qc = p.qc)
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_seurat"),
-  function(x, min.features, max.features, max.percent.mt = 5, nfeatures = 2000){
+  function(x, min.features, max.features, max.percent.mt = 5, nfeatures = 2000,
+    use = "nFeature_RNA")
+  {
     step_message("This contains several execution: Subset the data,
       Normalization, Feature selection, Scale the data, Linear dimensional
       reduction, Select dimensionality.
@@ -68,11 +70,12 @@ setMethod("step2", signature = c(x = "job_seurat"),
     if (missing(min.features) | missing(max.features))
       stop("missing(min.features) | missing(max.features)")
     object(x) <- e(SeuratObject:::subset.Seurat(
-        object(x), subset = nFeature_RNA > min.features &
-          nFeature_RNA < max.features & percent.mt < max.percent.mt
+        object(x), subset = !!rlang::sym(use) > min.features &
+          !!rlang::sym(use) < max.features & percent.mt < max.percent.mt
         ))
     object(x) <- e(Seurat::SCTransform(
         object(x), method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = T,
+        assay = SeuratObject::DefaultAssay(object(x))
         ))
     object(x) <- e(Seurat::RunPCA(
         object(x), features = SeuratObject::VariableFeatures(object(x))
@@ -112,13 +115,19 @@ setMethod("step3", signature = c(x = "job_seurat"),
   })
 
 setMethod("step4", signature = c(x = "job_seurat"),
-  function(x, ref = celldex::HumanPrimaryCellAtlasData()){
-    step_message("Use `SingleR` and `celldex` to annotate cell types.
-      By default, red{{`celldex::HumanPrimaryCellAtlasData`}} was used
-      as red{{`ref`}} dataset. This annotation would generate red{{'SingleR_cell'}}
-      column in `object(x)@meta.data`. Plots were generated in `x@plots[[ 4 ]]`;
-      tables in `x@tables[[ 4 ]]`.
-      ")
+  function(x, use = "SingleR", ref = celldex::HumanPrimaryCellAtlasData())
+  {
+    if (use == "scAnno") {
+      ## PMID: 37183449
+      ## https://github.com/liuhong-jia/scAnno
+    } else if (use == "SingleR") {
+      step_message("Use `SingleR` and `celldex` to annotate cell types.
+        By default, red{{`celldex::HumanPrimaryCellAtlasData`}} was used
+        as red{{`ref`}} dataset. This annotation would generate red{{'SingleR_cell'}}
+        column in `object(x)@meta.data`. Plots were generated in `x@plots[[ 4 ]]`;
+        tables in `x@tables[[ 4 ]]`.
+        "
+      )
       ref <- e(celldex::HumanPrimaryCellAtlasData())
       clusters <- object(x)@meta.data$seurat_clusters
       anno_SingleR <- e(SingleR::SingleR(object(x)@assays$SCT@scale.data,
@@ -139,15 +148,16 @@ setMethod("step4", signature = c(x = "job_seurat"),
         anno_SingleR$SingleR_cell[match(clusters,
           anno_SingleR$seurat_clusters)]
       p.map_SingleR <- e(Seurat::DimPlot(
-          object(x), reduction = "umap", label = TRUE, pt.size = 0.5,
+          object(x), reduction = "umap", label = F, pt.size = .7,
           group.by = "SingleR_cell", cols = color_set()
           ))
-      p.map_SingleR <- p.map_SingleR + theme(legend.position = "none")
+      p.map_SingleR <- p.map_SingleR
       p.map_SingleR <- wrap(p.map_SingleR, 10, 7)
       x@tables[[ 4 ]] <- namel(anno_SingleR)
       x@plots[[ 4 ]] <- namel(p.score_SingleR, p.map_SingleR)
       x@params$group.by <- "SingleR_cell"
-      return(x)
+    }
+    return(x)
   })
 
 setMethod("step5", signature = c(x = "job_seurat"),
@@ -318,16 +328,24 @@ setMethod("active", signature = c(x = "job_seurat"),
 
 plot_qc.seurat <- function(x) {
   require(patchwork)
-  p.feature_count_mt <- e(Seurat::VlnPlot(x, features = c("nFeature_RNA", "nCount_RNA",
+  if (is(x, "job_seuratSp")) {
+    nFeature <- "nFeature_Spatial"
+    nCount <- "nCount_Spatial"
+  } else if (is(x, "job_seuratSp")) {
+    nFeature <- "nFeature_RNA"
+    nCount <- "nCount_RNA"
+  }
+  x <- object(x)
+  p.feature_count_mt <- e(Seurat::VlnPlot(x, features = c(nFeature, nCount,
         "percent.mt"), ncol = 3, pt.size = 0, alpha = .3, cols = c("lightyellow")))
   p.qcv1 <- e(Seurat::FeatureScatter(
-      x, feature1 = "nCount_RNA", feature2 = "percent.mt",
+      x, feature1 = nCount, feature2 = "percent.mt",
       cols = c("lightblue")))
   p.qcv2 <- e(Seurat::FeatureScatter(
-      x, feature1 = "nCount_RNA", feature2 = "nFeature_RNA",
+      x, feature1 = nCount, feature2 = nFeature,
       cols = c("lightblue")))
   p.qc <- p.feature_count_mt / (p.qcv1 + p.qcv2)
-  p.qc <- wrap(p.qc, 14, 12)
+  p.qc <- wrap(p.qc, 13, 10)
   p.qc
 }
 
