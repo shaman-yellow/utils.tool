@@ -115,11 +115,13 @@ setMethod("step3", signature = c(x = "job_seurat"),
   })
 
 setMethod("step4", signature = c(x = "job_seurat"),
-  function(x, use = "SingleR", ref = celldex::HumanPrimaryCellAtlasData())
+  function(x, use = "SingleR", use.level = c("label.main", "label.fine"),
+    ref = celldex::HumanPrimaryCellAtlasData())
   {
     if (use == "scAnno") {
       ## PMID: 37183449
       ## https://github.com/liuhong-jia/scAnno
+      stop("Deprecated. Too many bugs in that package.")
     } else if (use == "SingleR") {
       step_message("Use `SingleR` and `celldex` to annotate cell types.
         By default, red{{`celldex::HumanPrimaryCellAtlasData`}} was used
@@ -130,8 +132,9 @@ setMethod("step4", signature = c(x = "job_seurat"),
       )
       ref <- e(celldex::HumanPrimaryCellAtlasData())
       clusters <- object(x)@meta.data$seurat_clusters
+      use.level <- match.arg(use.level)
       anno_SingleR <- e(SingleR::SingleR(object(x)@assays$SCT@scale.data,
-          ref = ref, labels = ref$label.fine, clusters = clusters
+          ref = ref, labels = ref[[ use.level ]], clusters = clusters
           ))
       score <- as.matrix(anno_SingleR$scores)
       rownames(score) <- rownames(anno_SingleR)
@@ -174,16 +177,58 @@ setMethod("step5", signature = c(x = "job_seurat"),
     } else {
       markers <- fun(x)
     }
+    all_markers_no_filter <- markers
     markers <- dplyr::filter(markers, p_val_adj < .05)
     tops <- slice_max(group_by(markers, cluster), avg_log2FC, n = 10)
     p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = T))
     p.toph <- wrap(p.toph, 14, 12)
-    x@tables[[ 5 ]] <- list(all_markers = markers)
+    x@tables[[ 5 ]] <- list(all_markers = markers, all_markers_no_filter = all_markers_no_filter)
     x@plots[[ 5 ]] <- namel(p.toph)
     return(x)
   })
 
 setMethod("step6", signature = c(x = "job_seurat"),
+  function(x, tissue, filter.p = 0.01, filter.fc = .5,
+    cmd = "python3 ~/SCSA/SCSA.py", db = "~/SCSA/whole_v2.db")
+  {
+    step_message("Use SCSA to annotate cell types (<https://github.com/bioinfo-ibms-pumc/SCSA>).")
+    marker_file <- tempfile("marker_file", fileext = ".csv")
+    result_file <- tempfile("result_file")
+    all_markers <- dplyr::rename(x@tables$step5$all_markers_no_filter, avg_logFC = avg_log2FC)
+    all_markers <- dplyr::select(all_markers, -rownames)
+    all_markers <- dplyr::mutate(all_markers, gene = gs(gene, "\\.[0-9]*", ""))
+    data.table::fwrite(all_markers, marker_file)
+    cli::cli_alert_info(cmd)
+    cdRun(cmd,
+      " -s seurat", " -i ", marker_file,
+      " -k ", tissue, " -d ", db,
+      " -p ", filter.p, " -f ", filter.fc,
+      " -E -g Human -m txt",
+      " -o ", result_file
+    )
+    x@params$marker_file <- marker_file
+    x@params$scsa_res_file <- result_file
+    scsa_res <- dplyr::rename_all(ftibble(result_file), make.names)
+    scsa_res <- dplyr::arrange(scsa_res, Cluster, dplyr::desc(Z.score))
+    x@tables[[ 6 ]] <- namel(scsa_res)
+    ## add into seurat object
+    scsa_res <- dplyr::distinct(scsa_res, Cluster, .keep_all = T)
+    clusters <- object(x)@meta.data$seurat_clusters
+    cell_types <- scsa_res$Cell.Type[match(clusters, scsa_res$Cluster)]
+    cell_types <- ifelse(is.na(cell_types), "Unknown", cell_types)
+    object(x)@meta.data$scsa_cell <- factor(cell_types,
+      levels = c(unique(scsa_res$Cell.Type), "Unknown"))
+    x@params$group.by <- "scsa_cell"
+    ## plot
+    p.map_scsa <- e(Seurat::DimPlot(
+        object(x), reduction = "umap", label = F, pt.size = .7,
+        group.by = "scsa_cell", cols = color_set()
+        ))
+    x@plots[[ 6 ]] <- list(p.map_scsa = wrap(as_grob(p.map_scsa), 7, 4))
+    return(x)
+  })
+
+setMethod("step7", signature = c(x = "job_seurat"),
   function(x, classifier, db = org.Hs.eg.db::org.Hs.eg.db){
     step_message("
       Use `garnett::classify_cells` to anntate cells.
@@ -227,7 +272,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "marker_list"),
       })
     map_prop <- data.table::rbindlist(stats, fill = T, idcol = T)
     map_prop <- rename(map_prop, cluster = .id)
-    sr@tables$map_prop <- map_prop
+    x@tables$map_prop <- map_prop
     map_prop <- mutate(map_prop, unique_level = as.integer(unique_level))
     map_prop <- arrange(map_prop, dplyr::desc(prop))
     if (use_all) {
