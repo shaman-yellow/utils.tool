@@ -549,6 +549,9 @@ setGeneric("anno",
 setGeneric("map", 
   function(x, ref, ...) standardGeneric("map"))
 
+setGeneric("infer", 
+  function(x, ...) standardGeneric("infer"))
+
 setGeneric("getsub", 
   function(x, ...) standardGeneric("getsub"))
 

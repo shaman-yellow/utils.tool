@@ -103,3 +103,28 @@ setMethod("step2", signature = c(x = "job_enrich"),
     x@plots[[ 2 ]] <- namel(p.pathviews)
     return(x)
   })
+
+setGeneric("asjob_enrich", 
+  function(x, ...) standardGeneric("asjob_enrich"))
+
+setMethod("asjob_enrich", signature = c(x = "job_seurat"),
+  function(x, exclude.pattern = "macroph", exclude.use = "scsa_cell", ignore.case = T){
+    if (x@step < 5) {
+      stop("x@step < 5")
+    }
+    data <- x@tables$step5$all_markers
+    data <- dplyr::mutate(data, gene = gs(gene, "\\.[0-9]*$", ""))
+    mart <- new_biomart()
+    anno <- filter_biomart(mart, general_attrs(), "hgnc_symbol", unique(data$gene))
+    data <- dplyr::filter(data, gene %in% anno$hgnc_symbol)
+    if (!is.null(exclude.pattern)) {
+      exclude.cluster <- dplyr::filter(object(x)@meta.data,
+        grepl(!!exclude.pattern, !!rlang::sym(exclude.use), ignore.case))$seurat_clusters
+      exclude.cluster <- unique(exclude.cluster)
+      message("Exclude clasters:\n  ", paste0(exclude.cluster, collapse = ", "))
+      data <- dplyr::filter(data, !cluster %in% exclude.cluster)
+    }
+    ids <- split(data$gene, data$cluster)
+    ids <- lst_clear0(ids)
+    job_enrich(ids, anno)
+  })

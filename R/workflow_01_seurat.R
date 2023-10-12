@@ -188,10 +188,20 @@ setMethod("step5", signature = c(x = "job_seurat"),
   })
 
 setMethod("step6", signature = c(x = "job_seurat"),
-  function(x, tissue, filter.p = 0.01, filter.fc = .5,
+  function(x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = .5,
     cmd = "python3 ~/SCSA/SCSA.py", db = "~/SCSA/whole_v2.db")
   {
     step_message("Use SCSA to annotate cell types (<https://github.com/bioinfo-ibms-pumc/SCSA>).")
+    if (!is.null(ref.markers)) {
+      .check_columns(ref.markers, c("cell", "markers"))
+      ref.markers <- dplyr::relocate(ref.markers, cell, markers)
+      ref.markers_file <- tempfile("ref.markers_file", fileext = ".tsv")
+      write_tsv(ref.markers, ref.markers_file, col.names = F)
+      x@params$ref.markers_file <- ref.markers_file
+      ref.markers.cmd <- paste0(" -M ", ref.markers_file)
+    } else {
+      ref.markers.cmd <- ""
+    }
     marker_file <- tempfile("marker_file", fileext = ".csv")
     result_file <- tempfile("result_file")
     all_markers <- dplyr::rename(x@tables$step5$all_markers_no_filter, avg_logFC = avg_log2FC)
@@ -201,13 +211,14 @@ setMethod("step6", signature = c(x = "job_seurat"),
     cli::cli_alert_info(cmd)
     cdRun(cmd,
       " -s seurat", " -i ", marker_file,
-      " -k ", tissue, " -d ", db,
+      " -k ", tissue, " -d ", db, " ", ref.markers.cmd,
       " -p ", filter.p, " -f ", filter.fc,
       " -E -g Human -m txt",
-      " -o ", result_file
+      " -o ", result_file, " > /tmp/log_scsa.txt"
     )
     x@params$marker_file <- marker_file
     x@params$scsa_res_file <- result_file
+    x@params$scsa_log <- readLines("/tmp/log_scsa.txt")
     scsa_res <- dplyr::rename_all(ftibble(result_file), make.names)
     scsa_res <- dplyr::arrange(scsa_res, Cluster, dplyr::desc(Z.score))
     x@tables[[ 6 ]] <- namel(scsa_res)

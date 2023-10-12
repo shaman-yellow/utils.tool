@@ -962,36 +962,40 @@ vis_enrich.kegg <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
 }
 
 vis_enrich.go <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
+  fun <- function(data) {
+    data <- lapply(data,
+      function(data) {
+        if (is.character(data)) return(NULL)
+        data <- dplyr::filter(data, p.adjust < cutoff_p.adjust)
+        data <- dplyr::arrange(data, p.adjust)
+        data <- head(data, n = maxShow)
+        data
+      })
+    data <- data.table::rbindlist(data, idcol = T)
+    data <- dplyr::mutate(
+      data, GeneRatio = as_double.ratioCh(GeneRatio),
+      stringr::str_wrap(Description, width = 30)
+    )
+    p <- ggplot(data) +
+      geom_point(aes(x = reorder(Description, GeneRatio),
+          y = GeneRatio, size = Count, fill = p.adjust),
+        shape = 21, stroke = 0, color = "transparent") +
+      scale_fill_gradient(high = "yellow", low = "red") +
+      scale_size(range = c(4, 6)) +
+      guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
+      coord_flip() +
+      facet_grid(.id ~ ., scales = "free") +
+      theme_minimal() +
+      theme(axis.title.y = element_blank(),
+        strip.background = element_rect(fill = "grey90", color = "grey70")) +
+      geom_blank()
+    p
+  }
   res <- lapply(lst,
-    function(data) {
-      data <- lapply(data,
-        function(data) {
-          if (is.character(data)) return(NULL)
-          data <- dplyr::filter(data, p.adjust < cutoff_p.adjust)
-          data <- dplyr::arrange(data, p.adjust)
-          data <- head(data, n = maxShow)
-          data
-        })
-      data <- data.table::rbindlist(data, idcol = T)
-      data <- dplyr::mutate(
-        data, GeneRatio = as_double.ratioCh(GeneRatio),
-        stringr::str_wrap(Description, width = 30)
-      )
-      p <- ggplot(data) +
-        geom_point(aes(x = reorder(Description, GeneRatio),
-            y = GeneRatio, size = Count, fill = p.adjust),
-          shape = 21, stroke = 0, color = "transparent") +
-        scale_fill_gradient(high = "yellow", low = "red") +
-        scale_size(range = c(4, 6)) +
-        guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
-        coord_flip() +
-        facet_grid(.id ~ ., scales = "free") +
-        theme_minimal() +
-        theme(axis.title.y = element_blank(),
-          strip.background = element_rect(fill = "grey90", color = "grey70")) +
-        geom_blank()
-      p
+    function(x) {
+      try(fun(x), silent = T)
     })
+  res
 }
 
 .element_textbox <- 

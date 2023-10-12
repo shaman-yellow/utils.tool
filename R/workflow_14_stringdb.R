@@ -75,9 +75,6 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     return(x)
   })
 
-setGeneric("asjob_enrich", 
-  function(x, ...) standardGeneric("asjob_enrich"))
-
 setMethod("asjob_enrich", signature = c(x = "job_stringdb"),
   function(x, tops = x@params$tops){
     ids <- head(x@tables$step1$hub_genes$hgnc_symbol, tops)
