@@ -118,6 +118,7 @@ setMethod("step4", signature = c(x = "job_seurat"),
   function(x, use = "SingleR", use.level = c("label.main", "label.fine"),
     ref = celldex::HumanPrimaryCellAtlasData())
   {
+    use <- "SingleR"
     if (use == "scAnno") {
       ## PMID: 37183449
       ## https://github.com/liuhong-jia/scAnno
@@ -405,4 +406,10 @@ plot_qc.seurat <- function(x) {
   p.qc
 }
 
-
+setMethod("vis", signature = c(x = "job_seurat"),
+  function(x, group.by = x@params$group.by, pt.size = .7){
+    e(Seurat::DimPlot(
+        object(x), reduction = "umap", label = F, pt.size = pt.size,
+        group.by = group.by, cols = color_set()
+        ))
+  })

@@ -18,7 +18,7 @@ setGeneric("asjob_monocle",
   function(x, ...) standardGeneric("asjob_monocle"))
 
 setMethod("asjob_monocle", signature = c(x = "job_seurat"),
-  function(x, group.by = x@params$group.by, ...){
+  function(x, group.by = x@params$group.by, ..., use = names(x@object@assays)[[1]]){
     step_message("
       Other parameters would be passed to `SeuratWrappers::as.cell_data_set`.
       <http://htmlpreview.github.io/?https://github.com/satijalab/seurat-wrappers/blob/master/docs/monocle3.html>
@@ -49,7 +49,7 @@ setMethod("asjob_monocle", signature = c(x = "job_seurat"),
           however, the 'UMAP' data were inherits from 'Seurat' object, so the plots were consistent.
           "
           ))
-      object(x)@active.assay <- 'RNA'
+      object(x)@active.assay <- use
     }
     object <- e(SeuratWrappers::as.cell_data_set(object(x), group.by = group.by, ...))
     mn <- .job_monocle(object = object)
@@ -71,12 +71,13 @@ setMethod("step0", signature = c(x = "job_monocle"),
   })
 
 setMethod("step1", signature = c(x = "job_monocle"),
-  function(x, groups = x@params$group.by){
+  function(x, groups = x@params$group.by, pt.size = .7){
     step_message("Constructing single-cell trajectories.
       red{{`groups`}} would passed to `monocle3::plot_cells` for
       annotation in plot. Mutilple group could be given.
       "
     )
+    x$pt.size <- pt.size
     if (!all(groups %in% colnames(object(x)@colData)))
       stop("Some of `groups` not found in `colData` of `object(x)`")
     object(x) <- e(monocle3::cluster_cells(object(x)))
@@ -85,14 +86,16 @@ setMethod("step1", signature = c(x = "job_monocle"),
         function(group) {
           p <- monocle3::plot_cells(object(x), color_cells_by = group,
             label_cell_groups = T, label_branch_points = T,
-            group_label_size = 4, graph_label_size = 2
+            group_label_size = 4, graph_label_size = 2,
+            cell_size = x$pt.size, cell_stroke = 0, alpha = .7
           )
           p + scale_color_manual(values = color_set())
         }))
     p.prin <- monocle3::plot_cells(
       object(x), color_cells_by = groups[1],
       label_cell_groups = F, label_principal_points = T,
-      graph_label_size = 3
+      graph_label_size = 3, cell_size = x$pt.size, cell_stroke = 0,
+      alpha = .7
     )
     p.prin <- p.prin + scale_color_manual(values = color_set())
     p.prin <- wrap(p.prin, 10, 7)
@@ -119,7 +122,7 @@ setMethod("step2", signature = c(x = "job_monocle"),
         object(x), color_cells_by = "pseudotime",
         label_cell_groups = FALSE, label_leaves = FALSE,
         label_branch_points = FALSE, graph_label_size = 3,
-        cell_size = .5
+        cell_size = x$pt.size, cell_stroke = 0, alpha = .7
         ))
     p.pseu <- wrap(p.pseu, 6, 5)
     x@plots[[ 2 ]] <- namel(p.pseu)

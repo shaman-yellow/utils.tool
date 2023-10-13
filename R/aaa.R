@@ -616,3 +616,11 @@ draw_smile <- function(smile, file, pdf = T) {
 }
 
 
+.get_legend <- function(p){
+    p <- ggplot2:::ggplot_build.ggplot(p)$plot
+    theme <- ggplot2:::plot_theme(p)
+    position <- theme$legend.position
+    ggplot2:::build_guides(p$scales, p$layers, p$mapping,
+                           position, theme, p$guides, p$labels)
+  }
+

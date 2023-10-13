@@ -50,12 +50,25 @@ setMethod("step2", signature = c(x = "job_seuratSp"),
 setMethod("step3", signature = c(x = "job_seuratSp"),
   function(x, dims, resolution){
     x <- callNextMethod(x, dims, resolution)
-    palette <- .setPaletteForSpatialJob(x)
+    palette <- .setPaletteForSpatialJob(x, "seurat_clusters")
     p.spatial_cluster <- e(Seurat::SpatialDimPlot(object(x), label = TRUE, label.size = 3, cols = palette)) +
       guides(fill = guide_legend(override.aes = list(size = 3)))
     p.spatial_cluster <- wrap(x@plots[[ 3 ]]$p.umap@data + p.spatial_cluster, 13, 5.5)
     x@plots[[ 3 ]] <- namel(p.spatial_cluster)
     return(x)
+  })
+
+setMethod("vis", signature = c(x = "job_seuratSp"),
+  function(x, group.by = x@params$group.by, pt.size = .7){
+    p.umap <- e(Seurat::DimPlot(
+        object(x), reduction = "umap", label = F, pt.size = pt.size,
+        group.by = group.by, cols = color_set()
+        ))
+    palette <- .setPaletteForSpatialJob(x, group.by)
+    p.spatial <- e(Seurat::SpatialDimPlot(object(x),
+        group.by = group.by, label = F, label.size = 3, cols = palette)) +
+      guides(fill = guide_legend(override.aes = list(size = 3)))
+    wrap(p.umap + p.spatial, 13, 5.5)
   })
 
 setMethod("step4", signature = c(x = "job_seuratSp"),
@@ -75,8 +88,13 @@ setMethod("step5", signature = c(x = "job_seuratSp"),
     return(x)
   })
 
-.setPaletteForSpatialJob <- function(x) {
-  levels <- levels(x@object@meta.data$seurat_clusters)
+.setPaletteForSpatialJob <- function(x, group.by = x@params$group.by) {
+  groups <- x@object@meta.data[[ group.by ]]
+  if (is.factor(groups)) {
+    levels <- levels(groups)
+  } else {
+    levels <- unique(groups)
+  }
   nl(levels, color_set()[1:length(levels)], F)
 }
 
