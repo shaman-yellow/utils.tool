@@ -93,7 +93,7 @@ setMethod("step5", signature = c(x = "job_seuratSp"),
   if (is.factor(groups)) {
     levels <- levels(groups)
   } else {
-    levels <- unique(groups)
+    levels <- sort(unique(groups))
   }
   nl(levels, color_set()[1:length(levels)], F)
 }

@@ -208,6 +208,7 @@ setMethod("step3", signature = c(x = "job_monocle"),
     } else {
       x@tables[[ 3 ]] <- namel(graph_test, graph_test.sig, gene_module)
     }
+    x$cellClass_tree.gene_module <- hclust(dist(t(gene_module$graph_test.sig$aggregate)))
     return(x)
   })
 
@@ -236,6 +237,32 @@ setMethod("step4", signature = c(x = "job_monocle"),
         }))
     names(genes_in_pseudotime) <- paste0("pseudo", 1:length(genes_in_pseudotime))
     x@plots[[ 4 ]] <- namel(genes_in_pseudotime)
+    return(x)
+  })
+
+
+setMethod("regroup", signature = c(x = "job_seurat", ref = "hclust"),
+  function(x, ref, k, by.name = F, rename = NULL){
+    ref <- cutree(ref, k)
+    x$cutree <- ref
+    regroup(x, ref, k, by.name, rename)
+  })
+
+setMethod("regroup", signature = c(x = "job_seurat", ref = "integer"),
+  function(x, ref, k, by.name = F, rename = NULL){
+    if (!is.null(rename)) {
+      ref[] <- dplyr::recode(ref, !!!(rename),
+        .default = as.character(unname(ref)))
+    }
+    idents <- SeuratObject::Idents(object(x))
+    if (by.name) {
+      re.idents <- nl(names(idents), dplyr::recode(names(idents), !!!ref), F)
+    } else {
+      re.idents <- nl(names(idents), dplyr::recode(unname(idents), !!!ref), F)
+    }
+    re.idents <- factor(re.idents, levels = sort(as.character(unique(re.idents))))
+    e(SeuratObject::Idents(object(x)) <- re.idents)
+    object(x)@meta.data$regroup.hclust <- unname(re.idents)
     return(x)
   })
 

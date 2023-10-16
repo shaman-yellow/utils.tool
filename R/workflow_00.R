@@ -20,6 +20,9 @@
     params = list(wd = ".", remote = "remote")
     ))
 
+setClass("hclust")
+## cutree, the tree higher, the sort number lower
+
 .marker_list <- setClass("marker_list", 
   contains = c(),
   representation = representation(level = "numeric", marker = "list"),
@@ -548,6 +551,12 @@ setGeneric("anno",
 
 setGeneric("map", 
   function(x, ref, ...) standardGeneric("map"))
+
+setGeneric("regroup", 
+  function(x, ref, ...) standardGeneric("regroup"))
+
+setGeneric("diff", 
+  function(x, ...) standardGeneric("diff"))
 
 setGeneric("infer", 
   function(x, ...) standardGeneric("infer"))

@@ -31,6 +31,7 @@ setMethod("step0", signature = c(x = "job_kat"),
 setMethod("step1", signature = c(x = "job_kat"),
   function(x, workers = 5, path = "copykat", test = F){
     step_message("Run copyKAT.")
+    x$savepath <- path
     if (is.null(x$res_copykat)) {
       wd <- getwd()
       dir.create(path, F)
@@ -70,11 +71,30 @@ setMethod("step2", signature = c(x = "job_kat"),
     return(x)
   })
 
+setMethod("regroup", signature = c(x = "job_seurat", ref = "job_kat"),
+  function(x, ref, k){
+    if (ref@step < 2) {
+      stop("ref@step < 2")
+    }
+    ka.tree <- readRDS(paste0(ref$savepath, "/_copykat_clustering_results.rds"))
+    ka.tree$labels <- gs(ka.tree$labels, "\\.", "-")
+    x <- regroup(x, ka.tree, k, T)
+    return(x)
+  })
+
 setMethod("map", signature = c(x = "job_seurat", ref = "job_kat"),
-  function(x, ref){
+  function(x, ref, merge = x@params$group.by){
     ref <- ref@tables$step2$res_copykat
     object(x)@meta.data$copykat_cell <-
       ref$copykat_cell[match(rownames(object(x)@meta.data), ref$cell.names)]
+    if (!is.null(object(x)@meta.data[[ merge ]])) {
+      anno_name <- paste0(gs(merge, "_cell$", "_"), "copykat")
+      object(x)@meta.data[[ anno_name ]] <- as.factor(ifelse(
+        object(x)@meta.data$copykat_cell == "Cancer cell",
+        object(x)@meta.data$copykat_cell,
+        as.character(object(x)@meta.data$scsa_cell))
+      )
+    }
     return(x)
   })
 

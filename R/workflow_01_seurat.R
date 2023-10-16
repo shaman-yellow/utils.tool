@@ -256,6 +256,46 @@ setMethod("step7", signature = c(x = "job_seurat"),
     return(x)
   })
 
+setMethod("diff", signature = c(x = "job_seurat"),
+  function(x, group.by, contrasts){
+    if (is.data.frame(contrasts)) {
+      contrasts <- apply(contrasts, 1, c, simplify = F)
+    }
+    res <- e(lapply(contrasts,
+      function(con) {
+        data <- Seurat::FindMarkers(object(x),
+          ident.1 = con[1], ident.2 = con[2],
+          group.by = group.by)
+        data$gene <- rownames(data)
+        data
+      }))
+    names(res) <- vapply(contrasts, function(x) paste0(x[1], "_vs_", x[2]), character(1))
+    res <- dplyr::as_tibble(data.table::rbindlist(res, idcol = T))
+    res <- dplyr::rename(res, contrast = .id)
+    res <- dplyr::filter(res, p_val_adj < .05)
+    x@params$contrasts <- res
+    return(x)
+  })
+
+diff_group <- function(x, group.by, patterns) {
+  group <- combn(as.character(ids(x, group.by)), 2, simplify = F)
+  try_contrast(group, patterns)
+}
+
+try_contrast <- function(combn, patterns) {
+  lapply(combn,
+    function(x) {
+      res <- lapply(patterns,
+        function(pattern) {
+          matched <- grepl(pattern, x)
+          if (any(matched))
+            c(x[matched], x[!matched])
+        })
+      res <- lst_clear0(res)
+      res[[1]]
+    })
+}
+
 setMethod("map", signature = c(x = "job_seurat", ref = "marker_list"),
   function(x, ref, p.adjust = .05, log2fc = 1, use_all = T, prop = .6, print = T){
     if (x@step < 5L)
@@ -321,6 +361,7 @@ setMethod("ids", signature = c(x = "job_seurat"),
       ids <- unique(ids)
     ids
   })
+
 plot_var2000 <- function(x) {
   top20 <- head(SeuratObject::VariableFeatures(x), 20)
   p.var2000 <- e(Seurat::VariableFeaturePlot(x))
@@ -412,4 +453,26 @@ setMethod("vis", signature = c(x = "job_seurat"),
         object(x), reduction = "umap", label = F, pt.size = pt.size,
         group.by = group.by, cols = color_set()
         ))
+  })
+
+setMethod("map", signature = c(x = "job_seurat", ref = "job_seurat"),
+  function(x, ref, use.x, use.ref, name = "cell_mapped", asIdents = T){
+    matched <- match(rownames(object(x)@meta.data), rownames(object(ref)@meta.data))
+    object(x)@meta.data[[name]] <- as.character(object(ref)@meta.data[[use.ref]])[matched]
+    object(x)@meta.data[[name]] <- ifelse(
+      is.na(object(x)@meta.data[[name]]),
+      as.character(object(x)@meta.data[[use.x]]),
+      object(x)@meta.data[[name]]
+    )
+    object(x)@meta.data[[name]] <- factor(object(x)@meta.data[[name]],
+      levels = sort(unique(object(x)@meta.data[[name]]))
+    )
+    if (asIdents) {
+      if (identical(names(object(x)@active.ident), rownames(object(x)@meta.data))) {
+        SeuratObject::Idents(object(x)) <- nl(rownames(object(x)@meta.data), object(x)@meta.data[[name]], F)
+      } else {
+        stop("identical(names(object(x)@active.ident), rownames(object(x)@meta.data)) == F")
+      }
+    }
+    return(x)
   })
