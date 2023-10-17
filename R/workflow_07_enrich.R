@@ -18,8 +18,10 @@ job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_i
 {
   if (is.null(names(ids)))
     stop("is.null(names(ids))")
-  if (missing(annotation))
-    stop("missing(annotation)")
+  if (missing(annotation)) {
+    mart <- new_biomart()
+    annotation <- filter_biomart(mart, general_attrs(), from, unique(unlist(ids)))
+  }
   maps <- lapply(ids,
     function(id) {
       unique(filter(annotation, !!rlang::sym(from) %in% !!id)[[ to ]])

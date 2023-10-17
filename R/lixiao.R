@@ -546,6 +546,12 @@ get_c2_data <- function(pattern = NULL, path = "../human_c2_v5p2.rdata",
   return(db)
 }
 
+writeWraps <- function(lst, dir, width = 7, height = 7, ..., postfix = ".pdf") 
+{
+  fun <- function(p, file) write_graphics(p, file, mkdir = dir)
+  writeDatas(lst, dir, fun = fun, postfix = postfix)
+}
+
 writePlots <- function(lst, dir, width = 7, height = 7, ..., postfix = ".pdf") 
 {
   fun <- function(p, file) ggsave(file, p, width = width, height = height)
@@ -2573,6 +2579,9 @@ setMethod("select_savefun", signature = c(x = "list"),
     } else if (all(fun(x, "gg.obj"))) {
       function(lst, name, ...)
         get_fun("writePlots")(lst, get_realname(name))
+    } else if (all(fun(x, "wrap"))) {
+      function(lst, name, ...)
+        get_fun("writeWraps")(lst, get_realname(name))
     } else {
       stop("None function found for save")
     }

@@ -1098,6 +1098,7 @@ fast_layout <- function(edges, layout = "fr", nodes = NULL, ...){
     graph <- edges
   }
   graph <- tidygraph::as_tbl_graph(graph)
+  graph <- dplyr::mutate(graph, centrality_degree = tidygraph::centrality_degree(mode = 'all'))
   ggraph::create_layout(graph, layout, ...)
 }
 

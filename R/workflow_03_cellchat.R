@@ -158,7 +158,9 @@ setMethod("step2", signature = c(x = "job_cellchat"),
         }))
     res <- try(lr_role_heatmap <- e(sapply(c("outgoing", "incoming", "all"), simplify = F,
           function(name) {
-            p <- CellChat::netAnalysis_signalingRole_heatmap(object(x), pattern = name)
+            p <- CellChat::netAnalysis_signalingRole_heatmap(object(x), pattern = name,
+              height = 1 + length(object(x)@netP$pathways) * .35
+            )
             grid::grid.grabExpr(print(p))
           })))
     if (inherits(res, "try-error")) {
@@ -242,11 +244,64 @@ cal_panelScale <- function(num) {
   c(nrow, ncol)
 }
 
+setMethod("map", signature = c(x = "job_cellchat", ref = "character"),
+  function(x, ref, ref2, width = 20, height = 5, cap = 5, layout = "sugiyama"){
+    data <- select_pathway(x, ref, "lps")
+    data <- dplyr::filter(data, grepl(ref2, source) | grepl(ref2, target))
+    p <- plot_lps_interaction(data, cap, layout)
+    p <- wrap(p, width, height)
+    namel(p, data)
+  })
+
+plot_lps_interaction <- function(edges, cap = 5, layout = "sugiyama") {
+  nodes1 <- dplyr::select(edges, name = ligand, belong = source)
+  nodes1 <- dplyr::mutate(nodes1, role = "ligand")
+  nodes2 <- dplyr::select(edges, name = receptor, belong = target)
+  nodes2 <- dplyr::mutate(nodes2, role = "receptor")
+  nodes <- dplyr::bind_rows(nodes1, nodes2)
+  nodes <- dplyr::distinct(nodes, name, role)
+  nodes <- split_lapply_rbind(nodes, ~ name,
+    function(data) {
+      if (nrow(data) == 2) {
+        dplyr::mutate(data[1, ], role = "ligand_or_receptor")
+      } else {
+        data
+      }
+    })
+  edges <- dplyr::relocate(edges, ligand, receptor)
+  graph <- fast_layout(edges, layout, nodes)
+  plot_sc_interaction <- function(graph, sc = cap, ec = cap, arr.len = 1)
+  {
+    p <- ggraph(graph) +
+      geom_edge_arc0(aes(x = x, y = y, width = -log2(pval + .001), color = source),
+        start_cap = circle(sc, 'mm'),
+        end_cap = circle(ec, 'mm'),
+        arrow = arrow(length = unit(arr.len, 'mm')), alpha = .5) +
+      geom_node_point(
+        aes(x = x, y = y, shape = role,
+          size = centrality_degree, fill = centrality_degree),
+        stroke = .3) +
+      ggrepel::geom_text_repel(aes(x = x, y = y, label = name), angle = 90, size = 2) +
+      guides(size = "none", shape = guide_legend(override.aes = list(size = 4))) +
+      scale_edge_width(range = c(.5, 1)) +
+      scale_size(range = c(3, 6)) +
+      scale_shape_manual(values = 21:25) +
+      scale_fill_gradient2(low = "blue", high = "red") +
+      scale_color_manual(values = color_set()) +
+      theme_void() +
+      theme(legend.position = "right")
+    p
+  }
+  p <- plot_sc_interaction(graph)
+  p
+}
+
 setGeneric("select_pathway", 
   function(x, ...) standardGeneric("select_pathway"))
 
 setMethod("select_pathway", signature = c(x = "job_cellchat"),
-  function(x, pattern){
+  function(x, pattern, get = c("pathways", "lps", "intersect")){
+    get <- match.arg(get)
     if (x@step < 1) {
       stop("x@step != 1")
     }
@@ -254,9 +309,22 @@ setMethod("select_pathway", signature = c(x = "job_cellchat"),
       grepl(pattern, source) | grepl(pattern, target),
       pval < .05
     )
+    if (get == "pathways") {
+      return(pathways)
+    }
     lps <- filter(x@tables$step1$lp_net,
       grepl(pattern, source) | grepl(pattern, target),
       pval < .05
     )
-    intersect(unique(pathways$pathway_name), unique(lps$pathway_name))
+    if (get == "lps") {
+      return(lps)
+    }
+    ints <- intersect(unique(pathways$pathway_name), unique(lps$pathway_name))
+    if (get == "intersect") {
+      return(ints)
+    }
   })
+
+unique.lps <- function(x) {
+  unique(unlist(stringr::str_extract_all(x, "[^_]+")))
+}

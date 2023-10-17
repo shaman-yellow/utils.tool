@@ -233,6 +233,11 @@ setMethod("step4", signature = c(x = "job_monocle"),
             color_cells_by = x@params$group.by,
             min_expr = 0.5
           )
+          ttt <<- .get_data.plot_genes_in_pseudotime(cds,
+            label_by_short_name = F,
+            color_cells_by = x@params$group.by,
+            min_expr = 0.5
+          )
           wrap(p, 6, length(genes) * 1.6)
         }))
     names(genes_in_pseudotime) <- paste0("pseudo", 1:length(genes_in_pseudotime))
@@ -275,6 +280,22 @@ setMethod("ids", signature = c(x = "job_monocle"),
       ids
   })
 
+setMethod("map", signature = c(x = "job_monocle", ref = "job_seurat"),
+  function(x, ref, use.x, use.ref, name = "cell_mapped"){
+    matched <- match(rownames(object(x)@colData), rownames(object(ref)@meta.data))
+    object(x)@colData[[name]] <- as.character(object(ref)@meta.data[[use.ref]])[matched]
+    object(x)@colData[[name]] <- ifelse(
+      is.na(object(x)@colData[[name]]),
+      as.character(object(x)@colData[[use.x]]),
+      object(x)@colData[[name]]
+    )
+    object(x)@colData[[name]] <- factor(object(x)@colData[[name]],
+      levels = sort(unique(object(x)@colData[[name]]))
+    )
+    x$group.by <- name
+    return(x)
+  })
+
 get_principal_nodes <- function(cds, col, target) {
   cell_ids <- which(SummarizedExperiment::colData(cds)[, col] == target)
   closest_vertex <- cds@principal_graph_aux[[ "UMAP" ]]$pr_graph_cell_proj_closest_vertex
@@ -306,4 +327,50 @@ cal_modules.cds <- function(cds, gene_sigs, cell_group) {
       }
       namel(module, aggregate)
     }))
+}
+
+.get_data.plot_genes_in_pseudotime <- function (cds_subset, min_expr = NULL, cell_size = 0.75, nrow = NULL, 
+  ncol = 1, panel_order = NULL, color_cells_by = "pseudotime", 
+  trend_formula = "~ splines::ns(pseudotime, df=3)", label_by_short_name = TRUE, 
+  vertical_jitter = NULL, horizontal_jitter = NULL) 
+{
+  colData <- SummarizedExperiment::colData
+  rowData <- SummarizedExperiment::rowData
+  fit_models <- monocle3::fit_models
+  colData(cds_subset)$pseudotime <- monocle3::pseudotime(cds_subset)
+  f_id <- NA
+  Cell <- NA
+  cds_subset = cds_subset[, is.finite(colData(cds_subset)$pseudotime)]
+  cds_exprs <- SingleCellExperiment::counts(cds_subset)
+  cds_exprs <- Matrix::t(Matrix::t(cds_exprs)/size_factors(cds_subset))
+  cds_exprs <- reshape2::melt(round(as.matrix(cds_exprs)))
+  if (is.null(min_expr)) {
+    min_expr <- 0
+  }
+  colnames(cds_exprs) <- c("f_id", "Cell", "expression")
+  cds_colData <- colData(cds_subset)
+  cds_rowData <- rowData(cds_subset)
+  cds_exprs <- merge(cds_exprs, cds_rowData, by.x = "f_id", 
+    by.y = "row.names")
+  cds_exprs <- merge(cds_exprs, cds_colData, by.x = "Cell", 
+    by.y = "row.names")
+  cds_exprs$adjusted_expression <- cds_exprs$expression
+  if (label_by_short_name) {
+    if (!is.null(cds_exprs$gene_short_name)) {
+      cds_exprs$feature_label <- as.character(cds_exprs$gene_short_name)
+      cds_exprs$feature_label[is.na(cds_exprs$feature_label)] <- cds_exprs$f_id
+    }
+    else {
+      cds_exprs$feature_label <- cds_exprs$f_id
+    }
+  }
+  else {
+    cds_exprs$feature_label <- cds_exprs$f_id
+  }
+  cds_exprs$f_id <- as.character(cds_exprs$f_id)
+  cds_exprs$feature_label <- factor(cds_exprs$feature_label)
+  new_data <- as.data.frame(colData(cds_subset))
+  new_data$Size_Factor <- 1
+  model_tbl <- fit_models(cds_subset, model_formula_str = trend_formula)
+  model_tbl
 }

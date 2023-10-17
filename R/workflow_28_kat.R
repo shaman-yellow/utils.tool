@@ -160,11 +160,11 @@ plot_heatmap.copyKAT <- function(copykat.obj) {
 }
 
 setMethod("clear", signature = c(x = "job_kat"),
-  function(x){
+  function(x, name = "copykat_heatmap"){
     x@params$res_copykat <- NULL
     x@object <- NULL
     file <- select_savefun(x@plots$step2$p.copykat)(x@plots$step2$p.copykat,
-      name = "copykat_heatmap")
+      name = name)
     newfile <- gs(file, "\\.pdf$", ".png")
     pdf_convert(file, filenames = newfile, dpi = 300)
     x@plots$step2$p.copykat <- .file_fig(newfile)

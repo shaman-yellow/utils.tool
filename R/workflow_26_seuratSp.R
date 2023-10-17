@@ -78,13 +78,15 @@ setMethod("step4", signature = c(x = "job_seuratSp"),
   })
 
 setMethod("step5", signature = c(x = "job_seuratSp"),
-  function(x, workers = 3){
+  function(x, workers = 3, spatial = F){
     x <- callNextMethod(x, workers)
-    object(x) <- e(Seurat::FindSpatiallyVariableFeatures(object(x),
-        assay = "SCT", selection.method = "moransi",
-        features = Seurat::VariableFeatures(object(x)), verbose = T))
-    moI.top_features <- SpatiallyVariableFeatures_workaround(object(x))
-    x@params$moI.top_features <- moI.top_features
+    if (spatial) {
+      object(x) <- e(Seurat::FindSpatiallyVariableFeatures(object(x),
+          assay = "SCT", selection.method = "moransi",
+          features = Seurat::VariableFeatures(object(x)), verbose = T))
+      moI.top_features <- SpatiallyVariableFeatures_workaround(object(x))
+      x@params$moI.top_features <- moI.top_features
+    }
     return(x)
   })
 
