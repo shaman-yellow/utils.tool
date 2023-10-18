@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("...")
+    info = c("..."),
+    cite = "[@HerbAHighThFang2021]"
     ))
 
 job_herb <- function(herbs, db = get_herb_data())

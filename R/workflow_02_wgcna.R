@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/index.html")
+    info = c("Tutorial: https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/index.html"),
+    cite = "[@WgcnaAnRPacLangfe2008]"
     ))
 
 setGeneric("asjob_wgcna", 

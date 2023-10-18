@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("...")
+    info = c("..."),
+    cite = "[@FellaAnRPacPicart2018]"
     ))
 
 setGeneric("asjob_fella", 

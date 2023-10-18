@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://satijalab.org/seurat/articles/pbmc3k_tutorial.html")
+    info = c("Tutorial: https://satijalab.org/seurat/articles/pbmc3k_tutorial.html"),
+    cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]"
     ))
 
 job_seurat <- function(dir, project = get_filename(sub("/$", "", dir)),
@@ -429,7 +430,7 @@ plot_qc.seurat <- function(x) {
   if (is(x, "job_seuratSp")) {
     nFeature <- "nFeature_Spatial"
     nCount <- "nCount_Spatial"
-  } else if (is(x, "job_seuratSp")) {
+  } else if (is(x, "job_seurat")) {
     nFeature <- "nFeature_RNA"
     nCount <- "nCount_RNA"
   }

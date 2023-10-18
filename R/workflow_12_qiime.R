@@ -15,8 +15,8 @@
       "https://docs.qiime.org/2023.7/tutorials/moving-pictures-usage/",
       "https://docs.qiime.org/2023.7/tutorials/importing/#sequence-data-with-sequence-quality-information-i-e-fastq",
       "https://docs.qiime.org/2023.7/data-resources/",
-      collapse = "\n"
-    )
+      collapse = "\n"),
+    cite = "[@ReproducibleIBolyen2019; @TheBiologicalMcdona2012; @Dada2HighResCallah2016; @ErrorCorrectinHamday2008; @MicrobialCommuHamday2009]"
     ))
 
 .qzv <- setClass("qzv", 

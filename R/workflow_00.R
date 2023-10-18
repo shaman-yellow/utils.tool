@@ -14,7 +14,8 @@
     others = "ANY",
     step = "integer",
     info = "ANY",
-    pg = "character"
+    pg = "character",
+    cite = "character"
     ),
   prototype = prototype(step = 0L,
     params = list(wd = ".", remote = "remote")

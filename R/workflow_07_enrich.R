@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("...")
+    info = c("..."),
+    cite = "[@ClusterprofilerWuTi2021]"
     ))
 
 job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_id")
@@ -24,7 +25,8 @@ job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_i
   }
   maps <- lapply(ids,
     function(id) {
-      unique(filter(annotation, !!rlang::sym(from) %in% !!id)[[ to ]])
+      res <- unique(filter(annotation, !!rlang::sym(from) %in% !!id)[[ to ]])
+      res[!is.na(res)]
     })
   en <- .job_enrich(object = maps)
   en@params$raw <- ids

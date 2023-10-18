@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://cole-trapnell-lab.github.io/monocle3/docs/getting_started/")
+    info = c("Tutorial: https://cole-trapnell-lab.github.io/monocle3/docs/getting_started/"),
+    cite = "[@ReversedGraphQiuX2017; @TheDynamicsAnTrapne2014]"
     ))
 
 setGeneric("asjob_monocle", 

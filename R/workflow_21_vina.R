@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorials: https://autodock-vina.readthedocs.io/en/latest/docking_basic.html")
+    info = c("Tutorials: https://autodock-vina.readthedocs.io/en/latest/docking_basic.html"),
+    cite = "[@AutodockVina1Eberha2021]"
     ))
 
 job_vina <- function(cids, hgnc_symbols)

@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://www.bioconductor.org/packages/release/bioc/html/STRINGdb.html")
+    info = c("Tutorial: https://www.bioconductor.org/packages/release/bioc/html/STRINGdb.html"),
+    cite = "[@TheStringDataSzklar2021]"
     ))
 
 job_stringdb <- function(data)

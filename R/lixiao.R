@@ -426,13 +426,13 @@ moveToDir_herbs <- function(ids,
 
 moveToDir <- function(ids,
   file.pattern, index.pfun = file_seq.by_time,
-  from, to, suffix)
+  from, to, suffix, ...)
 {
   files <- list.files(from, file.pattern, full.names = T)
   index <- index.pfun(files)
   files <- files[order(index)][1:length(ids)]
   files <- rev(files)
-  dir.create(to, F)
+  dir.create(to, F, T)
   files <- lapply(1:length(ids),
     function(n) {
       file.copy(files[ n ], file <- paste0(to, "/", ids[n], suffix), T)
@@ -607,9 +607,8 @@ list_attrs <- function(mart) {
   tibble::as_tibble(biomaRt::listAttributes(mart))
 }
 
-general_attrs <- function(pdb = F) {
+general_attrs <- function(pdb = F, ensembl_transcript_id = F) {
   attrs <- c("ensembl_gene_id",
-    "ensembl_transcript_id",
     "entrezgene_id",
     "hgnc_symbol",
     "refseq_mrna",
@@ -619,6 +618,9 @@ general_attrs <- function(pdb = F) {
     "description")
   if (pdb) {
     attrs <- c(attrs, "pdb")
+  }
+  if (ensembl_transcript_id) {
+    attrs <- c(attrs, "ensembl_transcript_id")
   }
   attrs
 }

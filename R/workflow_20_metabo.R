@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://www.metaboanalyst.ca")
+    info = c("Tutorial: https://www.metaboanalyst.ca"),
+    cite = "[@Metaboanalyst4Chong2018]"
     ))
 
 job_metabo <- function()

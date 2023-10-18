@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://github.com/satijalab/annova/wiki")
+    info = c("Tutorial: https://github.com/satijalab/annova/wiki"),
+    cite = "[@AnnovarFunctiWang2010]"
     ))
 
 setGeneric("asjob_annova", 

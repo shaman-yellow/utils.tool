@@ -10,7 +10,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://htmlpreview.github.io/?https://github.com/sqjin/CellChat/blob/master/tutorial/CellChat-vignette.html")
+    info = c("Tutorial: https://htmlpreview.github.io/?https://github.com/sqjin/CellChat/blob/master/tutorial/CellChat-vignette.html"),
+    cite = "[@InferenceAndAJinS2021]"
     ))
 
 setGeneric("asjob_cellchat", 

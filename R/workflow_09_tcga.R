@@ -12,7 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = paste0("Tutorial: https://www.bioconductor.org/packages/release/bioc/html/TCGAbiolinks.html",
-      "\nhttps://portal.gdc.cancer.gov/")
+      "\nhttps://portal.gdc.cancer.gov/"),
+    cite = "[@TcgabiolinksAColapr2015]"
     ))
 
 job_tcga <- function(project)

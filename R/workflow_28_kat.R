@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://github.com/navinlabcode/copykat")
+    info = c("Tutorial: https://github.com/navinlabcode/copykat"),
+    cite = "[@DelineatingCopGaoR2021]"
     ))
 
 job_kat <- function(x, use = names(x@object@assays)[[1]])

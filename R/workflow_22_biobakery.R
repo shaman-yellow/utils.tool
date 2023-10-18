@@ -13,7 +13,8 @@
   prototype = prototype(
     pg = "biobakery_workflows",
     info = paste0("http://huttenhower.sph.harvard.edu/biobakery_workflows",
-      "\nhttps://github.com/biobakery/biobakery/wiki/biobakery_workflows#2-metagenome-profiling")
+      "\nhttps://github.com/biobakery/biobakery/wiki/biobakery_workflows#2-metagenome-profiling"),
+    cite = "[@BiobakeryAMeMciver2017]"
     ))
 
 setGeneric("asjob_biobakery", 
