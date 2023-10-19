@@ -30,8 +30,9 @@ setMethod("step0", signature = c(x = "job_limma"),
   })
 
 setMethod("step1", signature = c(x = "job_limma"),
-  function(x, group = x@object$samples$group, design = mx(~ 0 + group), min.count = 10,
-    no.filter = F, no.norm = F)
+  function(x, group = x@object$samples$group, batch = x@object$samples$batch,
+    design = if (is.null(batch)) mx(~ 0 + group) else mx(~ 0 + group + batch),
+    min.count = 10, no.filter = F, no.norm = F)
   {
     step_message("Preprocess expression data.
       "
@@ -65,7 +66,7 @@ setMethod("step1", signature = c(x = "job_limma"),
 
 setMethod("step2", signature = c(x = "job_limma"),
   function(x, ..., contrasts = NULL, block = NULL, use = c("adj.P.Val", "P.Value"),
-    use.cut = .05, cut.fc = .3, label = "hgnc_symbol")
+    use.cut = .05, cut.fc = .3, label = "hgnc_symbol", batch = F)
   {
     step_message("Difference test.")
     use <- match.arg(use)
@@ -80,6 +81,11 @@ setMethod("step2", signature = c(x = "job_limma"),
     }
     ## here, remove batch effect
     ## limma::removeBatchEffect
+    if (batch) {
+      object(x) <- e(limma::removeBatchEffect(object(x),
+          batch = object(x)$targets$batch, design = x@params$design, group = x$targets$group
+          ))
+    }
     object(x) <- diff_test(object(x), x@params$design, contr, block)
     if (!is.null(contr)) {
       tops <- extract_tops(object(x), use = use, use.cut = use.cut, cut.fc = cut.fc)
@@ -186,4 +192,12 @@ setMethod("meta", signature = c(x = "job_limma"),
     }
     x@params$p.meta <- new_pie(metadata[[ use ]])
     return(x)
+  })
+
+setMethod("tops", signature = c(x = "job_limma"),
+  function(x, key = 1L, col = "hgnc_symbol"){
+    features <- x@tables$step2$tops[[key]][[col]]
+    features <- features[!is.na(features) & features != ""]
+    features <- unlist(strsplit(features, " /// "), use.names = F)
+    gs(features, "\\.[0-9]*$", "")
   })

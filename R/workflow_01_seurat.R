@@ -456,6 +456,18 @@ setMethod("vis", signature = c(x = "job_seurat"),
         ))
   })
 
+setMethod("focus", signature = c(x = "job_seurat"),
+  function(x, features, group.by = x@params$group.by){
+    p.vln <- e(Seurat::VlnPlot(
+        object(x), features = features, group.by = group.by,
+        pt.size = 0, alpha = .3, cols = color_set()
+        ))
+    p.dim <- e(Seurat::FeaturePlot(
+        object(x), features = features
+        ))
+    namel(p.vln, p.dim)
+  })
+
 setMethod("map", signature = c(x = "job_seurat", ref = "job_seurat"),
   function(x, ref, use.x, use.ref, name = "cell_mapped", asIdents = T){
     matched <- match(rownames(object(x)@meta.data), rownames(object(ref)@meta.data))

@@ -563,6 +563,12 @@ writeDatas <- function(lst, dir, ..., fun = data.table::fwrite, postfix = ".csv"
   if (is.null(names(lst))) {
     stop("is.null(names(lst)) == T")
   }
+  if (postfix %in% c(".pdf", ".png", ".jpg")) {
+    super.dir <- get_savedir("figs")
+  } else {
+    super.dir <- get_savedir("tabs")
+  }
+  dir <- paste0(super.dir, "/", dir)
   dir.create(dir, F)
   n <- 1
   lapply(names(lst),
@@ -855,19 +861,21 @@ output_graph <- function(igraph, file, format = "graphml", toCyDir = T) {
 
 plot_network.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   label.size = 4, sc = 5, ec = 5, 
-  arr.len = 2, edge.color = 'lightblue', edge.width = 1)
+  arr.len = 2, edge.color = 'grey70', edge.width = .4, label = F)
 {
+  if (label) {
+    layer.nodes <- geom_node_label(aes(label = preferred_name), size = label.size)
+  } else {
+    layer.nodes <- geom_node_point(aes(x = x, y = y, color = centrality_degree))
+  }
   p <- ggraph(graph) +
     geom_edge_fan(aes(x = x, y = y),
-      start_cap = circle(sc, 'mm'),
-      end_cap = circle(ec, 'mm'),
-      arrow = arrow(length = unit(arr.len, 'mm')),
       color = edge.color, width = edge.width) +
-    # geom_node_point(aes(x = x, y = y), shape = 21, stroke = .3, fill = "grey70") +
-    geom_node_label(aes(label = preferred_name), size = label.size) +
+    layer.nodes +
     scale_x_continuous(limits = zoRange(graph$x, scale.x)) +
     scale_y_continuous(limits = zoRange(graph$y, scale.y)) +
-    theme_void()
+    theme_minimal() +
+    theme(axis.text = element_blank(), axis.title = element_blank())
   p
 } 
 
@@ -882,12 +890,13 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
       end_cap = circle(ec, 'mm'),
       # arrow = arrow(length = unit(arr.len, 'mm')),
       color = edge.color, width = edge.width) +
-    geom_node_point(aes(x = x, y = y, fill = MCC_score),
+    geom_node_point(aes(x = x, y = y, fill = ifelse(is.na(MCC_score), 0, MCC_score)),
       size = node.size, shape = 21, stroke = .3) +
     geom_node_text(aes(label = !!rlang::sym(label)), size = label.size) +
     scale_fill_gradient(low = "lightyellow", high = "red") +
     scale_x_continuous(limits = zoRange(graph$x, scale.x)) +
     scale_y_continuous(limits = zoRange(graph$y, scale.y)) +
+    labs(fill = "MCC score") +
     theme_void() +
     theme(plot.margin = margin(r = .05, unit = "npc")) +
     geom_blank()
@@ -1496,13 +1505,13 @@ setMethod("plot_andata", signature = c(x = "andata_opls"),
   })
 
 get_metadata.geo <- function(lst,
-  select = rlang::quos(title, ),
+  select = rlang::quos(rownames, title),
   pattern = c("diagnosis", "Sex", "^age", "^time point", "data_processing"),
   abbrev = c("data_processing"))
 {
   res <- lapply(lst,
     function(eset){
-      tibble::as_tibble(eset@phenoData@data)
+      as_tibble(eset@phenoData@data)
     })
   if (!is.null(select)) {
     main <- lapply(res,
@@ -1694,7 +1703,8 @@ filter_low.dge <- function(dge, group., min.count = 10, prior.count = 2) {
 
 mx <- function(...){
   design <- model.matrix(...)
-  colnames(design) %<>% gsub("group\\.?", "", .)
+  colnames(design) %<>% gsub(".*?group\\.?", "", .)
+  colnames(design) %<>% gsub(".*?batch\\.?", "batch.", .)
   design
 }
 
@@ -2908,7 +2918,7 @@ new_col <- function(..., lst = NULL, fun = function(x) x[ !is.na(x) & x != ""]) 
   }
   lst <- vapply(lst, function(x) length(fun(unique(x))), double(1))
   data <- data.frame(var = names(lst), value = unname(lst))
-  p <- ggplot(data, aes(x = var, y = value, fill = value)) +
+  p <- ggplot(data, aes(x = reorder(var, value), y = value, fill = value)) +
     geom_col(width = .5) +
     geom_text(aes(x = var, y = value + max(value) * .01, label = value), hjust = 0, size = 3) +
     ylim(c(0, max(data$value) * 1.2)) +

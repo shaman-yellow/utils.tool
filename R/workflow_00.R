@@ -541,8 +541,11 @@ setMethod("clear", signature = c(x = "job"),
 setGeneric("via_symbol", 
   function(x, ...) standardGeneric("via_symbol"))
 
-setGeneric("vis", 
+setGeneric("vis",
   function(x, ...) standardGeneric("vis"))
+
+setGeneric("focus", 
+  function(x, ...) standardGeneric("focus"))
 
 setGeneric("meta", 
   function(x, ...) standardGeneric("meta"))
@@ -552,6 +555,9 @@ setGeneric("anno",
 
 setGeneric("map", 
   function(x, ref, ...) standardGeneric("map"))
+
+setGeneric("tops", 
+  function(x, ...) standardGeneric("tops"))
 
 setGeneric("regroup", 
   function(x, ref, ...) standardGeneric("regroup"))
@@ -687,3 +693,5 @@ setMethod("map", signature = c(x = "list"),
         y[[ y.get ]][match(x, y[[ y.ref ]])]
       })
   })
+
+

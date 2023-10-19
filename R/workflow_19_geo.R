@@ -37,7 +37,7 @@ setMethod("step1", signature = c(x = "job_geo"),
     x@params$prods <- prods
     guess <- metas$res[[1]]
     guess <- dplyr::rename_all(guess, make.names)
-    guess <- dplyr::select(guess, 1, dplyr::ends_with(".ch1"))
+    guess <- dplyr::select(guess, 1:2, dplyr::ends_with(".ch1"))
     x@params$guess <- guess
     return(x)
   })
@@ -47,4 +47,19 @@ setMethod("step2", signature = c(x = "job_geo"),
     step_message("Download geo datasets.")
     e(GEOquery::getGEOSuppFiles(object(x), filter_regex = filter_regex))
     return(x)
+  })
+
+setMethod("meta", signature = c(x = "job_geo"),
+  function(x, use = 1L){
+    counts <- as_tibble(x@params$about[[ use ]]@assayData$exprs)
+    genes <- as_tibble(x@params$about[[ use ]]@featureData@data)
+    namel(counts, genes)
+  })
+
+setMethod("asjob_limma", signature = c(x = "job_geo"),
+  function(x, metadata, use = 1L){
+    counts <- as_tibble(x@params$about[[ use ]]@assayData$exprs)
+    genes <- as_tibble(x@params$about[[ use ]]@featureData@data)
+    genes <- dplyr::relocate(genes, rownames, hgnc_symbol = `Gene Symbol`)
+    job_limma(new_dge(metadata, counts, genes))
   })

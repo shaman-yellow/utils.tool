@@ -43,6 +43,9 @@ setMethod("step1", signature = c(x = "job_herb"),
       download_herbCompounds(link, params(x)$herbs_info$Herb_),
       finally = end_drive()
     )
+    if (file.exists("herbs_ingredient")) {
+      unlink("herbs_ingredient", T, T)
+    }
     herbs_compounds <- moveToDir_herbs(params(x)$herbs_info$Herb_)
     x@tables[[ 1 ]] <- namel(herbs_compounds)
     return(x)
@@ -103,6 +106,8 @@ setMethod("step3", signature = c(x = "job_herb"),
       allow.cartesian = T
     )
     x@params$herbs_targets <- herbs_targets
+    easyRead <- map(x@params$herbs_targets, "herb_id", object(x)$herb, "Herb_", "Herb_pinyin_name")
+    x@params$easyRead <- easyRead
     ## plot upset of herbs targets
     sets <- distinct(herbs_targets, herb_id, Target.name)
     sets <- split(sets$Target.name, sets$herb_id)
@@ -132,7 +137,7 @@ setMethod("step3", signature = c(x = "job_herb"),
     }
     x@plots[[ 3 ]] <- plots
     x@tables[[ 3 ]] <- tables
-    x@params$ppi_used <- filter(
+    x@params$ppi_used <- dplyr::filter(
       targets_annotation,
       hgnc_symbol %in% dplyr::all_of(disease_targets_annotation$hgnc_symbol)
     )

@@ -28,6 +28,12 @@ setMethod("asjob_stringdb", signature = c(x = "job_herb"),
     job_stringdb(data = x@params$ppi_used)
   })
 
+setMethod("asjob_stringdb", signature = c(x = "character"),
+  function(x){
+    message("`x` should be gene Symbols.")
+    job_stringdb(data.frame(hgnc_symbol = x))
+  })
+
 setMethod("step0", signature = c(x = "job_stringdb"),
   function(x){
     step_message("Prepare your data with function `job_stringdb`.
@@ -36,8 +42,8 @@ setMethod("step0", signature = c(x = "job_stringdb"),
   })
 
 setMethod("step1", signature = c(x = "job_stringdb"),
-  function(x, tops = 30, mcc_layout = "circle", layout = "fr", species = 9606,
-    network_type = "phy", input_directory = "../", version = "11.5")
+  function(x, tops = 30, mcc_layout = "circle", layout = "kk", species = 9606,
+    network_type = "phy", input_directory = "../", version = "11.5", label = F)
   {
     step_message("Create PPI network.
       "
@@ -62,7 +68,7 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     } else {
       graph <- x@params$graph 
     }
-    p.ppi <- plot_network.str(graph)
+    p.ppi <- plot_network.str(graph, label = label)
     ## hub genes
     hub_genes <- cal_mcc.str(res.str, "hgnc_symbol", F)
     graph_mcc <- get_subgraph.mcc(res.str$graph, hub_genes, top = tops)
@@ -81,3 +87,5 @@ setMethod("asjob_enrich", signature = c(x = "job_stringdb"),
     ids <- head(x@tables$step1$hub_genes$hgnc_symbol, tops)
     job_enrich(list(hub_genes = ids), x@tables$step1$hub_genes)
   })
+
+
