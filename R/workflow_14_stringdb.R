@@ -12,7 +12,7 @@
     others = "ANY"),
   prototype = prototype(
     info = c("Tutorial: https://www.bioconductor.org/packages/release/bioc/html/STRINGdb.html"),
-    cite = "[@TheStringDataSzklar2021]"
+    cite = "[@TheStringDataSzklar2021; @CytohubbaIdenChin2014]"
     ))
 
 job_stringdb <- function(data)

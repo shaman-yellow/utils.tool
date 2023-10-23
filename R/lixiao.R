@@ -2843,7 +2843,7 @@ setMethod("show", signature = c(object = "upset_data"),
       colnames(data) %<>% stringr::str_trunc(object@params$width, object@params$trunc)
     data <- dplyr::select(data, -members)
     maxnum <- max(apply(data, 2, sum))
-    upset <- UpSetR::upset(data, sets = colnames(data),
+    upset <- UpSetR::upset(data, sets = colnames(data), nintersects = NA,
       sets.bar.color = "lightblue", order.by = "freq",
       set_size.show = T, set_size.scale_max = 1.5 * maxnum,
       text.scale = c(1.4, 1, 1.4, 1.1, 1, 1.1)
@@ -2892,12 +2892,25 @@ setdev <- function(width, height) {
     dev.new(width = width, height = height)
 }
 
-new_allu <- function(data, col.fill = 1, axes = 1:2) {
+new_allu <- function(data, col.fill = 1, axes = 1:2, label.auto = F, label.freq = NULL) {
   require(ggalluvial)
   fill <- colnames(data)[col.fill]
   data <- dplyr::mutate(data, fill = !!rlang::sym(fill))
   data <- to_lodes_form(data, key = "Types", axes = axes)
-  aes <- aes(x = Types, y = 1, label = stratum, stratum = stratum, alluvium = alluvium)
+  if (label.auto) {
+    freq <- table(data$stratum)
+    if (is.null(label.freq))
+      label.notshow <- names(freq)[ as.integer(freq) <= fivenum(as.integer(freq))[4] ]
+    else
+      label.notshow <- names(freq)[ as.integer(freq) <= label.freq ]
+    fun <- function(x) {
+      ifelse(x %in% label.notshow, "", as.character(x))
+    }
+    data <- dplyr::mutate(data, label = fun(stratum))
+  } else {
+    data <- dplyr::mutate(data, label = stratum)
+  }
+  aes <- aes(x = Types, y = 1, label = label, stratum = stratum, alluvium = alluvium)
   p.alluvial <- ggplot(data, aes) +
     geom_alluvium(aes(fill = fill)) +
     geom_stratum(fill = "lightyellow") +
@@ -2998,7 +3011,7 @@ fix.html.str <- function(x) {
 }
 
 rm.no <- function(x) {
-  x[ !is.na(x) & x != "" ]
+  unique(x[ !is.na(x) & x != "" ])
 }
 
 
