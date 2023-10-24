@@ -3014,4 +3014,6 @@ rm.no <- function(x) {
   unique(x[ !is.na(x) & x != "" ])
 }
 
-
+get_fe_data <- function(path = "../ferroptosis_2023-10-24.rds") {
+  readRDS(path)
+}

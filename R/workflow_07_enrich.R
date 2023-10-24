@@ -72,7 +72,9 @@ setMethod("step1", signature = c(x = "job_enrich"),
 
 setMethod("step2", signature = c(x = "job_enrich"),
   function(x, pathways, which.lst = 1, species = x$organism,
-    name = paste0("pathview", gs(Sys.time(), " |:", "_")))
+    name = paste0("pathview", gs(Sys.time(), " |:", "_")),
+    search = "pathview",
+    external = F)
   {
     step_message("Use pathview to visualize reults pathway.")
     require(pathview)
@@ -88,20 +90,30 @@ setMethod("step2", signature = c(x = "job_enrich"),
     tryCatch({
       res.pathviews <- lapply(pathways,
         function(pathway) {
-          data <- dplyr::filter(data, ID == !!pathway)
-          pathway <- gs(data$ID, "^[a-zA-Z]*", "")
-          genes <- as.character(unlist(data$geneID_list))
-          res.pathview <- pathview::pathview(gene.data = genes,
-            pathway.id = pathway, species = species,
-            keys.align = "y", kegg.native = T,
-            key.pos = "topright", limit = list(gene = 1, cpd = 1),
-            bins = list(gene = 1, cpd = 1),
-            na.col = "grey90", discrete = list(gene = T))
+          if (!external) {
+            data <- dplyr::filter(data, ID == !!pathway)
+            pathway <- gs(data$ID, "^[a-zA-Z]*", "")
+            genes <- as.character(unlist(data$geneID_list))
+          } else {
+            pathway <- gs(pathway, "^[a-zA-Z]*", "")
+            genes <- x@object$ids
+          }
+          res.pathview <- try(
+            pathview::pathview(gene.data = genes,
+              pathway.id = pathway, species = species,
+              keys.align = "y", kegg.native = T,
+              key.pos = "topright", limit = list(gene = 1, cpd = 1),
+              bins = list(gene = 1, cpd = 1),
+              na.col = "grey90", discrete = list(gene = T))
+          )
+          if (inherits(res.pathview, "try-error")) {
+            try(dev.off(), silent = T)
+          }
           return(res.pathview)
         })
     }, finally = {setwd("../")})
     x@tables[[ 2 ]] <- namel(res.pathviews)
-    figs <- list.files(name, "pathview", full.names = T)
+    figs <- list.files(name, search, full.names = T)
     p.pathviews <- lapply(figs, function(x) .file_fig(x))
     names(p.pathviews) <- get_realname(figs)
     x@plots[[ 2 ]] <- namel(p.pathviews)

@@ -15,6 +15,12 @@
     cite = "[@FellaAnRPacPicart2018]"
     ))
 
+job_fella <- function(kegg) {
+  x <- .job_fella()
+  x$ids.lst <- list(ids = kegg)
+  x
+}
+
 setGeneric("asjob_fella", 
   function(x, ...) standardGeneric("asjob_fella"))
 

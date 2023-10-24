@@ -70,7 +70,7 @@ setMethod("step2", signature = c(x = "job_metabo"),
             function(sub) {
               qr <- extract(names(sub$ORTHOLOGY), "K[0-9]+")
               qr <- unique(unlist(qr))
-              if (T) {
+              if (F) {
                 res <- lapply(grouping_vec2list(qr, 10, T),
                   function(x) KEGGREST::keggGet(x))
                 res <- unlist(res, recursive = F)
@@ -83,12 +83,12 @@ setMethod("step2", signature = c(x = "job_metabo"),
             })
         }), text = "genes")
     x$db_genes.kegg <- unlist(db_genes.kegg, use.names = F)
-    extract <- stringr::str_extract
-    pblapply <- pbapply::pblapply
-    db_genes <- e(pblapply(x$db_genes.kegg,
-      function(obj) {
-        extract(obj@data)
-      }))
+    # extract <- stringr::str_extract
+    # pblapply <- pbapply::pblapply
+    # db_genes <- e(pblapply(x$db_genes.kegg,
+    #   function(obj) {
+    #     extract(obj@data)
+    # }))
     return(x)
   })
 
