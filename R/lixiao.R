@@ -909,7 +909,7 @@ multi_enrichKEGG <- function(lst.entrez_id, organism = 'hsa')
     function(ids) {
       res.kegg <- clusterProfiler::enrichKEGG(ids, organism = organism)
       res.path <- tibble::as_tibble(res.kegg@result)
-      res.path <- mutate(res.path, geneID_list = lapply(strsplit(geneID, "/"), as.integer))
+      res.path <- dplyr::mutate(res.path, geneID_list = lapply(strsplit(geneID, "/"), as.integer))
       res.path
     })
   res
@@ -3014,6 +3014,36 @@ rm.no <- function(x) {
   unique(x[ !is.na(x) & x != "" ])
 }
 
-get_fe_data <- function(path = "../ferroptosis_2023-10-24.rds") {
-  readRDS(path)
+get_fe_data <- function(use.symbol = T, for_gsea = F,
+  path = "../ferroptosis_2023-10-24.rds")
+{
+  if (F) {
+    fe_db <- list(marker = "~/Downloads/ferroptosis_marker.csv",
+      driver = "~/Downloads/ferroptosis_driver.csv",
+      suppressor = "~/Downloads/ferroptosis_suppressor.csv",
+      unclassifier = "~/Downloads/ferroptosis_unclassified.csv",
+      inducer = "~/Downloads/ferroptosis_inducer.csv",
+      inhibitor = "~/Downloads/ferroptosis_inhibitor.csv",
+      disease = "~/Downloads/ferroptosis_disease.csv"
+    )
+    fe_db <- lapply(fe_db, ftibble)
+    saveRDS(fe_db, "../ferroptosis_2023-10-24.rds")
+  }
+  data <- readRDS(path)
+  if (use.symbol) {
+    data <- lapply(data,
+      function(x) {
+        if (any(colnames(x) == "symbol")) {
+          return(x)
+        }
+      })
+    data <- lst_clear0(data)
+  }
+  if (for_gsea) {
+    gsea <- data.table::rbindlist(data, idcol = T, fill = T)
+    gsea <- dplyr::mutate(gsea, term = paste0("Ferroptosis_", .id))
+    gsea <- as_tibble(dplyr::relocate(gsea, term, symbol))
+    return(gsea)
+  }
+  data
 }

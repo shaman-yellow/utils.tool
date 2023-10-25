@@ -22,6 +22,14 @@ job_kat <- function(x, use = names(x@object@assays)[[1]])
   .job_kat(object = object)
 }
 
+setGeneric("asjob_kat", 
+  function(x, ...) standardGeneric("asjob_kat"))
+
+setMethod("asjob_kat", signature = c(x = "job_seurat"),
+  function(x, use = names(x@object@assays)[[1]]){
+    job_kat(x, use)
+  })
+
 setMethod("step0", signature = c(x = "job_kat"),
   function(x){
     step_message("Prepare your data with function `job_kat`.
