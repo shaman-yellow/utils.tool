@@ -450,10 +450,10 @@ plot_qc.seurat <- function(x) {
 
 setMethod("vis", signature = c(x = "job_seurat"),
   function(x, group.by = x@params$group.by, pt.size = .7){
-    e(Seurat::DimPlot(
+    wrap(e(Seurat::DimPlot(
         object(x), reduction = "umap", label = F, pt.size = pt.size,
         group.by = group.by, cols = color_set()
-        ))
+        )), 7, 4)
   })
 
 setMethod("focus", signature = c(x = "job_seurat"),
@@ -489,3 +489,40 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_seurat"),
     }
     return(x)
   })
+
+prepare_10x <- function(file) {
+  path <- get_path(file)
+  name <- get_realname(file)
+  dir <- paste0(path, "/", name)
+  if (file.exists(dir)) {
+    unlink(dir, T, T)
+  }
+  data <- ftibble(file)
+  data[[ 1 ]] <- gs(data[[ 1 ]], "\\.[0-9]*$", "")
+  data <- dplyr::distinct(data, !!rlang::sym(colnames(data)[1]), .keep_all = T)
+  ## as Matrix
+  features <- data[[ 1 ]]
+  data <- as.matrix(data[, -1])
+  rownames(data) <- features
+  require(Matrix)
+  mtx <- as(data, "Matrix")
+  DropletUtils::write10xCounts(dir, mtx)
+  return(dir)
+  if (F) {
+    ## barcodes
+    barcodes <- colnames(data)[-1]
+    writeLines(barcodes, bfile <- paste0(dir, "/barcodes.tsv"))
+    R.utils::gzip(bfile)
+    ## features
+    features <- data[[ 1 ]]
+    writeLines(features, ffile <- paste0(dir, "/features.tsv"))
+    R.utils::gzip(ffile)
+    ## matrix
+    data <- as.matrix(data[, -1])
+    colnames(data) <- NULL
+    require(Matrix)
+    mtx <- as(data, "Matrix")
+    Matrix::writeMM(mtx, mfile <- paste0(dir, "/matrix.mtx"))
+    R.utils::gzip(mfile)
+  }
+}

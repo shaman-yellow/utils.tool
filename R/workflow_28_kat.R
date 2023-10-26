@@ -88,27 +88,57 @@ setMethod("regroup", signature = c(x = "job_seurat", ref = "job_kat"),
     ka.tree <- readRDS(paste0(ref$savepath, "/_copykat_clustering_results.rds"))
     ka.tree$labels <- gs(ka.tree$labels, "\\.", "-")
     x <- regroup(x, ka.tree, k, T)
+    x$ka.tree <- ka.tree
     return(x)
   })
 
 setMethod("map", signature = c(x = "job_seurat", ref = "job_kat"),
-  function(x, ref, merge = x@params$group.by){
+  function(x, ref, merge = x@params$group.by, cutree = NULL, pt.size = 1.5)
+  {
     ref <- ref@tables$step2$res_copykat
     object(x)@meta.data$copykat_cell <-
       ref$copykat_cell[match(rownames(object(x)@meta.data), ref$cell.names)]
     if (!is.null(object(x)@meta.data[[ merge ]])) {
       anno_name <- paste0(gs(merge, "_cell$", "_"), "copykat")
       object(x)@meta.data[[ anno_name ]] <- as.factor(ifelse(
-        object(x)@meta.data$copykat_cell == "Cancer cell",
-        object(x)@meta.data$copykat_cell,
-        as.character(object(x)@meta.data$scsa_cell))
+          object(x)@meta.data$copykat_cell == "Cancer cell",
+          object(x)@meta.data$copykat_cell,
+          as.character(object(x)@meta.data$scsa_cell))
       )
+    }
+    if (!is.null(cutree)) {
+      if (is.logical(cutree)) {
+        cutree <- seq(3, 36, 3)
+      }
+      ## visualize the marked cells in ...
+      if (length(cutree) == 1) {
+        obj <- regroup(x, kat, cutree)
+        cells <- rownames(obj@object@meta.data)
+        tree <- obj$ka.tree
+        data <- tibble::tibble(name = tree$labels, value = order(tree$order), var = "Position")
+        data <- dplyr::filter(data, name %in% dplyr::all_of(cells))
+        data <- dplyr::mutate(data, group = obj@object@meta.data$regroup.hclust[match(name, cells)])
+        levels <- names(sort(vapply(split(data$value, data$group), mean, double(1))))
+        data <- dplyr::mutate(data, x = factor(group, levels = !!levels))
+        p <- .map_boxplot2(data, F, x = "x") +
+          vis(obj, "regroup.hclust", pt.size)@data
+        return(wrap(p, 12, 5))
+      }
+      p.list <- lapply(cutree,
+        function(k) {
+          obj <- regroup(x, kat, k)
+          vis(obj, "regroup.hclust", pt.size)@data
+        })
+      p <- do.call(patchwork::wrap_plots, p.list)
+      message("`k` for `cutree` set as ", paste0(cutree, collapse = ", "))
+      return(wrap(p, 16, 12))
     }
     return(x)
   })
 
 plot_heatmap.copyKAT <- function(copykat.obj) {
   require(copykat)
+  ## the following code was wrriten by author of copykat, so terrible.
   my_palette <- colorRampPalette(rev(RColorBrewer::brewer.pal(n = 3, name = "RdBu")))(n = 999)
   col_breaks = c(seq(-1, -0.4, length = 50), seq(-0.4, -0.2, length = 150),
     seq(-0.2, 0.2, length = 600), seq(0.2, 0.4, length = 150),
@@ -122,7 +152,12 @@ plot_heatmap.copyKAT <- function(copykat.obj) {
   chr1 <- cbind(CHR, CHR)
   rbPal5 <- colorRampPalette(pal_group <- RColorBrewer::brewer.pal(n = 8, name = "Dark2")[1:2])
   com.preN <- pred.data$copykat.pred
-  pred <- rbPal5(2)[as.numeric(factor(com.preN))]
+  if (com.preN[1] == "diploid") {
+    rbPal5 <- rev(rbPal5(2))
+  } else {
+    rbPal5 <- rbPal5(2)
+  }
+  pred <- rbPal5[as.numeric(factor(com.preN))]
   cells <- rbind(pred, pred)
   heatmap.3(t(CNA.data[, 4:ncol(CNA.data)]), dendrogram = "r",
     distfun = function(x) parallelDist::parDist(x, threads = 4, method = "euclidean"),

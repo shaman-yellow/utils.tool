@@ -3047,3 +3047,11 @@ get_fe_data <- function(use.symbol = T, for_gsea = F,
   }
   data
 }
+
+grp <- function(x, pattern, ...) {
+  grep(pattern, x, ...)
+}
+
+grpl <- function(x, pattern, ...) {
+  grepl(pattern, x, ...)
+}

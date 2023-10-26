@@ -223,13 +223,14 @@ setMethod("map", signature = c(x = "job_lasso"),
   p
 }
 
-.map_boxplot2 <- function(data, pvalue) {
-  p <- ggplot(data, aes(x = group, y = value, color = group)) +
+.map_boxplot2 <- function(data, pvalue, x = "group") {
+  p <- ggplot(data, aes(x = !!rlang::sym(x), y = value, color = group)) +
     geom_boxplot(outlier.shape = NA, fill = "transparent") +
-    geom_jitter(aes(x = group, y = value, fill = group),
+    geom_jitter(aes(x = !!rlang::sym(x), y = value, fill = group),
       stroke = 0, shape = 21, width = .1, color = "transparent") +
     facet_wrap(~ var) +
-    ggsci::scale_color_npg() +
+    scale_fill_manual(values = color_set()) +
+    scale_color_manual(values = color_set()) +
     labs(x = "Group", y = "Value") +
     theme(legend.position = "none",
       axis.text.x = element_text(angle = 45, hjust = 1)) +

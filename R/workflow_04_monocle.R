@@ -72,7 +72,7 @@ setMethod("step0", signature = c(x = "job_monocle"),
   })
 
 setMethod("step1", signature = c(x = "job_monocle"),
-  function(x, groups = x@params$group.by, pt.size = .7){
+  function(x, groups = x@params$group.by, pt.size = 1.5){
     step_message("Constructing single-cell trajectories.
       red{{`groups`}} would passed to `monocle3::plot_cells` for
       annotation in plot. Mutilple group could be given.

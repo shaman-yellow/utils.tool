@@ -11,7 +11,7 @@ output:
     # ]
     keep_tex: true
     toc: true
-    toc_depth: 3
+    toc_depth: 4
     latex_engine: xelatex
 header-includes:
   \usepackage{caption}
