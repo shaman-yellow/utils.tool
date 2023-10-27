@@ -14,10 +14,7 @@
     info = c("Tutorial: ...")
     ))
 
-setGeneric("dual_monocle", 
-  function(x, ref, ...) standardGeneric("dual_monocle"))
-
-setMethod("dual_monocle", signature = c(x = "job_seurat", ref = "job_kat"),
+setMethod("do_monocle", signature = c(x = "job_seurat", ref = "job_kat"),
   function(x, ref, dims = 1:15, resolution = 1.2){
     x <- getsub(x, cells = grp(x@object@meta.data$scsa_copykat, "Cancer"))
     x@step <- 2L
@@ -55,9 +52,6 @@ setMethod("vis", signature = c(x = "job_mn2kat"),
   function(x, group.by = "seurat_clusters"){
     vis(x$sr_cancer, "seurat_clusters")
   })
-
-setGeneric("asjob_seurat", 
-  function(x, ...) standardGeneric("asjob_seurat"))
 
 setMethod("asjob_seurat", signature = c(x = "job_mn2kat"),
   function(x, k, rename = NULL){

@@ -574,6 +574,9 @@ setGeneric("getsub",
 setGeneric("active", 
   function(x, ...) standardGeneric("active"))
 
+setGeneric("skel", 
+  function(x, ...) standardGeneric("skel"))
+
 ins <- function(..., lst = NULL) {
   if (is.null(lst)) {
     lst <- list(...)

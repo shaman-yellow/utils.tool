@@ -51,6 +51,7 @@ setMethod("step1", signature = c(x = "job_seurat"),
     ))
     p.qc <- plot_qc.seurat(x)
     x@plots[[ 1 ]] <- list(p.qc = p.qc)
+    message("Dim: ", paste0(dim(object(x)), collapse = ", "))
     return(x)
   })
 
@@ -82,11 +83,12 @@ setMethod("step2", signature = c(x = "job_seurat"),
         object(x), features = SeuratObject::VariableFeatures(object(x))
         ))
     x@plots[[ 2 ]] <- plot_pca.seurat(object(x))
+    message("Dim: ", paste0(dim(object(x)), collapse = ", "))
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_seurat"),
-  function(x, dims, resolution){
+  function(x, dims, resolution, force = F){
     step_message("This contains several execution: Cluster the cells, UMAP
       reduction, Cluster biomarker (Differential analysis). Object were
       performed with:
@@ -102,9 +104,11 @@ setMethod("step3", signature = c(x = "job_seurat"),
     )
     if (missing(dims) | missing(resolution))
       stop("missing(dims) | missing(resolution)")
-    if (ncol(object(x)) > 3000 & resolution < 1.2) {
-      stop("ncol(object(x)) > 3000 but resolution < 1.2. ",
-        "Please consider higher `resolution`. ")
+    if (!force) {
+      if (ncol(object(x)) > 3000 & resolution < 1.2) {
+        stop("ncol(object(x)) > 3000 but resolution < 1.2. ",
+          "Please consider higher `resolution`. ")
+      }
     }
     object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims))
     object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution))
@@ -490,39 +494,56 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_seurat"),
     return(x)
   })
 
-prepare_10x <- function(file) {
-  path <- get_path(file)
-  name <- get_realname(file)
-  dir <- paste0(path, "/", name)
-  if (file.exists(dir)) {
-    unlink(dir, T, T)
-  }
-  data <- ftibble(file)
-  data[[ 1 ]] <- gs(data[[ 1 ]], "\\.[0-9]*$", "")
-  data <- dplyr::distinct(data, !!rlang::sym(colnames(data)[1]), .keep_all = T)
-  ## as Matrix
-  features <- data[[ 1 ]]
-  data <- as.matrix(data[, -1])
-  rownames(data) <- features
-  require(Matrix)
-  mtx <- as(data, "Matrix")
-  DropletUtils::write10xCounts(dir, mtx)
-  return(dir)
-  if (F) {
-    ## barcodes
-    barcodes <- colnames(data)[-1]
-    writeLines(barcodes, bfile <- paste0(dir, "/barcodes.tsv"))
-    R.utils::gzip(bfile)
-    ## features
+prepare_10x <- function(target, pattern, single = F) {
+  if (!single) {
+    files <- list.files(target, "\\.gz$", full.names = T)
+    files <- files[ grepl(pattern, files) ]
+    dir <- paste0(target, "/", get_realname(files)[1])
+    dir.create(dir, F)
+    lapply(files,
+      function(x)
+        file.rename(x, paste0(dir, "/", gs(get_filename(x), ".*_", "")))
+    )
+    dir
+  } else {
+    path <- get_path(target)
+    name <- get_realname(target)
+    dir <- paste0(path, "/", name)
+    if (file.exists(dir)) {
+      unlink(dir, T, T)
+    }
+    data <- ftibble(target)
+    data[[ 1 ]] <- gs(data[[ 1 ]], "\\.[0-9]*$", "")
+    data <- dplyr::distinct(data, !!rlang::sym(colnames(data)[1]), .keep_all = T)
+    ## as Matrix
     features <- data[[ 1 ]]
-    writeLines(features, ffile <- paste0(dir, "/features.tsv"))
-    R.utils::gzip(ffile)
-    ## matrix
     data <- as.matrix(data[, -1])
-    colnames(data) <- NULL
+    rownames(data) <- features
     require(Matrix)
     mtx <- as(data, "Matrix")
-    Matrix::writeMM(mtx, mfile <- paste0(dir, "/matrix.mtx"))
-    R.utils::gzip(mfile)
+    DropletUtils::write10xCounts(dir, mtx)
+    return(dir)
   }
 }
+
+setMethod("skel", signature = c(x = "job_seurat"),
+  function(x, sig = "sr"){
+    code <- c('',
+      'sr <- job_seurat("")',
+      'sr <- step1(sr)',
+      'sr@plots$step1$p.qc',
+      'sr <- step2(sr, 0, 7500, 35)',
+      'sr@plots$step2$p.pca_rank',
+      'sr <- step3(sr, 1:15, 1.2)',
+      'sr@step <- 4L',
+      'sr@plots$step3$p.umap',
+      'sr <- step5(sr, 5)',
+      'sr <- step6(sr, "Kidney")',
+      'sr@plots$step6$p.map_scsa'
+    )
+    code <- gs(code, "\\bsr\\b", sig)
+    writeLines(code)
+  })
+
+setGeneric("asjob_seurat", 
+  function(x, ...) standardGeneric("asjob_seurat"))

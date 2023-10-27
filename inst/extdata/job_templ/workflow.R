@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://github.com/satijalab/seurat/wiki")
+    info = c("Tutorial: https://github.com/satijalab/seurat/wiki"),
+    cite = ""
     ))
 
 job_seurat <- function()

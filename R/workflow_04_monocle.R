@@ -15,6 +15,20 @@
     cite = "[@ReversedGraphQiuX2017; @TheDynamicsAnTrapne2014]"
     ))
 
+setGeneric("do_monocle", 
+  function(x, ref, ...) standardGeneric("do_monocle"))
+
+setMethod("do_monocle", signature = c(x = "job_seurat", ref = "character"),
+  function(x, ref, dims = 1:15, resolution = 1.2, group.by = x@params$group.by)
+  {
+    x <- getsub(x, cells = grp(x@object@meta.data[[group.by]], ref))
+    x@step <- 2L
+    sr_sub <- step3(x, dims, resolution)
+    x <- asjob_monocle(sr_sub, "seurat_clusters")
+    x$sr_sub <- sr_sub
+    return(x)
+  })
+
 setGeneric("asjob_monocle", 
   function(x, ...) standardGeneric("asjob_monocle"))
 
@@ -257,8 +271,12 @@ setMethod("regroup", signature = c(x = "job_seurat", ref = "hclust"),
 setMethod("regroup", signature = c(x = "job_seurat", ref = "integer"),
   function(x, ref, k, by.name = F, rename = NULL){
     if (!is.null(rename)) {
-      ref[] <- dplyr::recode(ref, !!!(rename),
-        .default = as.character(unname(ref)))
+      if (is.character(rename)) {
+        ref[] <- paste0(rename, "_", ref[])
+      } else {
+        ref[] <- dplyr::recode(ref, !!!(rename),
+          .default = as.character(unname(ref)))
+      }
     }
     idents <- SeuratObject::Idents(object(x))
     if (by.name) {
@@ -375,3 +393,43 @@ cal_modules.cds <- function(cds, gene_sigs, cell_group) {
   model_tbl <- fit_models(cds_subset, model_formula_str = trend_formula)
   model_tbl
 }
+
+
+setMethod("asjob_seurat", signature = c(x = "job_monocle"),
+  function(x, k, rename = NULL){
+    x <- regroup(x$sr_sub, x$cellClass_tree.gene_module, k, rename = rename)
+    show(vis(x, "regroup.hclust", 1.5))
+    return(x)
+  })
+
+setMethod("skel", signature = c(x = "job_monocle"),
+  function(x, suffix, pattern, sig.mn = paste0("mn.", suffix),
+    sig.sr = paste0("sr.", suffix),
+    sig.sr_sub = paste0("sr_sub.", suffix))
+  {
+    code <- c('',
+      paste0('mn <- do_monocle(sr, "', pattern, '")'),
+      '',
+      'mn <- step1(mn)',
+      'mn@plots$step1$p.prin',
+      'mn <- step2(mn, "Y_2")',
+      'mn@plots$step2$p.pseu',
+      'mn <- step3(mn)',
+      'mn@plots$step3$gene_module_heatdata$graph_test.sig',
+      '',
+      paste0('sr_sub <- asjob_seurat(mn, 5, rename = "', pattern, "_", suffix, '")'),
+      'vis(sr_sub, "regroup.hclust")',
+      '',
+      'mn <- clear(mn)',
+      '',
+      'sr <- map(sr, sr_sub, "scsa_cell", "regroup.hclust")',
+      'vis(sr, "cell_mapped")',
+      'vis(sr, "scsa_cell")',
+      '',
+      'sr <- clear(sr)'
+    )
+    code <- gs(code, "\\bsr\\b", sig.sr)
+    code <- gs(code, "\\bsr_sub\\b", sig.sr_sub)
+    code <- gs(code, "\\bmn\\b", sig.mn)
+    writeLines(code)
+  })

@@ -2851,6 +2851,16 @@ setMethod("show", signature = c(object = "upset_data"),
     show(wrap(upset, ncol(data) * 1.4, ncol(data) * 1.3))
   })
 
+new_upset2 <- function(..., lst = NULL, trunc = "left", width = 30, convert = T) {
+  p <- new_upset(..., lst = lst, trunc = trunc, width = width, convert = convert)
+  if (is.null(lst)) {
+    ins <- ins(...)
+  } else {
+    ins <- ins(lst = lst)
+  }
+  namel(p, ins)
+}
+
 new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T) {
   if (is.null(lst)) {
     lst <- list(...)
