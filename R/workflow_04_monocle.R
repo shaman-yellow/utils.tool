@@ -93,6 +93,10 @@ setMethod("step1", signature = c(x = "job_monocle"),
       "
     )
     x$pt.size <- pt.size
+    palette <- x$palette
+    if (is.null(palette)) {
+      palette <- color_set()
+    }
     if (!all(groups %in% colnames(object(x)@colData)))
       stop("Some of `groups` not found in `colData` of `object(x)`")
     object(x) <- e(monocle3::cluster_cells(object(x)))
@@ -104,7 +108,7 @@ setMethod("step1", signature = c(x = "job_monocle"),
             group_label_size = 4, graph_label_size = 2,
             cell_size = x$pt.size, cell_stroke = 0, alpha = .7
           )
-          p + scale_color_manual(values = color_set())
+          p + scale_color_manual(values = palette)
         }))
     p.prin <- monocle3::plot_cells(
       object(x), color_cells_by = groups[1],
@@ -112,7 +116,7 @@ setMethod("step1", signature = c(x = "job_monocle"),
       graph_label_size = 3, cell_size = x$pt.size, cell_stroke = 0,
       alpha = .7
     )
-    p.prin <- p.prin + scale_color_manual(values = color_set())
+    p.prin <- p.prin + scale_color_manual(values = palette)
     p.prin <- wrap(p.prin, 10, 7)
     x@plots[[ 1 ]] <- namel(p.traj, p.prin)
     return(x)
