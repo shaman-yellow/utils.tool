@@ -66,6 +66,7 @@ setMethod("asjob_monocle", signature = c(x = "job_seurat"),
           ))
       object(x)@active.assay <- use
     }
+    palette <- x$palette
     object <- e(SeuratWrappers::as.cell_data_set(object(x), group.by = group.by, ...))
     mn <- .job_monocle(object = object)
     object(mn) <- e(monocle3::estimate_size_factors(object(mn)))
@@ -74,6 +75,7 @@ setMethod("asjob_monocle", signature = c(x = "job_seurat"),
     if (is.null(object(mn)@reduce_dim_aux[['PCA']][['model']][['svd_sdev']]))
       object(mn)@reduce_dim_aux[['PCA']][['model']][['svd_sdev']] <- object(x)@reductions$pca@stdev
     mn@params$group.by <- group.by
+    mn@params$palette <- palette
     mn 
   })
 
@@ -203,6 +205,9 @@ setMethod("step3", signature = c(x = "job_monocle"),
     } else {
       gene_sigs <- list(graph_test.sig = graph_test.sig$gene_id)
     }
+    if (!is.factor(object(x)@colData[[ x$group.by ]])) {
+      object(x)@colData[[ x$group.by ]] %<>% as.factor()
+    }
     cell_group <- tibble::tibble(
       cell = row.names(SummarizedExperiment::colData(object(x))), 
       group = SummarizedExperiment::colData(object(x))[[ x@params$group.by ]]
@@ -227,7 +232,7 @@ setMethod("step3", signature = c(x = "job_monocle"),
     } else {
       x@tables[[ 3 ]] <- namel(graph_test, graph_test.sig, gene_module)
     }
-    x$cellClass_tree.gene_module <- hclust(dist(t(gene_module$graph_test.sig$aggregate)))
+    x$cellClass_tree.gene_module <- try(hclust(dist(t(gene_module$graph_test.sig$aggregate))), silent = T)
     return(x)
   })
 
@@ -248,11 +253,6 @@ setMethod("step4", signature = c(x = "job_monocle"),
             colData(cds)[[ x@params$group.by ]] %in% groups
           )
           p <- monocle3::plot_genes_in_pseudotime(cds,
-            label_by_short_name = F,
-            color_cells_by = x@params$group.by,
-            min_expr = 0.5
-          )
-          ttt <<- .get_data.plot_genes_in_pseudotime(cds,
             label_by_short_name = F,
             color_cells_by = x@params$group.by,
             min_expr = 0.5

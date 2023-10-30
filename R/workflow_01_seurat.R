@@ -266,19 +266,38 @@ setMethod("diff", signature = c(x = "job_seurat"),
     if (is.data.frame(contrasts)) {
       contrasts <- apply(contrasts, 1, c, simplify = F)
     }
-    res <- e(lapply(contrasts,
-      function(con) {
-        data <- Seurat::FindMarkers(object(x),
-          ident.1 = con[1], ident.2 = con[2],
-          group.by = group.by)
-        data$gene <- rownames(data)
-        data
-      }))
-    names(res) <- vapply(contrasts, function(x) paste0(x[1], "_vs_", x[2]), character(1))
-    res <- dplyr::as_tibble(data.table::rbindlist(res, idcol = T))
-    res <- dplyr::rename(res, contrast = .id)
-    res <- dplyr::filter(res, p_val_adj < .05)
-    x@params$contrasts <- res
+    if (is.null(x@params$contrasts)) {
+      res <- e(lapply(contrasts,
+          function(con) {
+            data <- Seurat::FindMarkers(object(x),
+              ident.1 = con[1], ident.2 = con[2],
+              group.by = group.by)
+            data$gene <- rownames(data)
+            data
+          }))
+      names(res) <- vapply(contrasts, function(x) paste0(x[1], "_vs_", x[2]), character(1))
+      res <- dplyr::as_tibble(data.table::rbindlist(res, idcol = T))
+      res <- dplyr::rename(res, contrast = .id)
+      res <- dplyr::filter(res, p_val_adj < .05)
+      x@params$contrasts <- res
+    } else {
+      res <- x@params$contrasts
+    }
+    ## contrast intersection
+    tops <- split(res, ~ contrast)
+    use.gene <- "gene"
+    fun_filter <- function(x) rm.no(x)
+    tops <- lapply(tops,
+      function(data){
+        up <- dplyr::filter(data, avg_log2FC > 0)[[ use.gene ]]
+        down <- dplyr::filter(data, avg_log2FC < 0)[[ use.gene ]]
+        lst <- list(up = up, down = down)
+        lapply(lst, fun_filter)
+      })
+    tops <- unlist(tops, recursive = F)
+    x$diff_sets_intersection <- tops
+    p.sets_intersection <- new_upset(lst = tops)
+    x$p.diff_sets_intersection <- p.sets_intersection
     return(x)
   })
 
@@ -453,10 +472,13 @@ plot_qc.seurat <- function(x) {
 }
 
 setMethod("vis", signature = c(x = "job_seurat"),
-  function(x, group.by = x@params$group.by, pt.size = .7){
+  function(x, group.by = x@params$group.by, pt.size = .7, palette = x$palette){
+    if (is.null(palette)) {
+      palette <- color_set()
+    }
     wrap(e(Seurat::DimPlot(
         object(x), reduction = "umap", label = F, pt.size = pt.size,
-        group.by = group.by, cols = color_set()
+        group.by = group.by, cols = palette
         )), 7, 4)
   })
 
@@ -547,3 +569,9 @@ setMethod("skel", signature = c(x = "job_seurat"),
 
 setGeneric("asjob_seurat", 
   function(x, ...) standardGeneric("asjob_seurat"))
+
+setMethod("mutate", signature = c(DF_object = "job_seurat"),
+  function(DF_object, ...){
+    object(DF_object)@meta.data <- dplyr::mutate(object(DF_object)@meta.data, ...)
+    return(DF_object)
+  })

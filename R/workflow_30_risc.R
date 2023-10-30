@@ -39,9 +39,12 @@ setMethod("asjob_risc", signature = c(x = "list"),
           return(x)
         })
     }
+    message(crayon::red("Make sure all Gene names in the same ID levels. eg, all as hgnc_symbol."))
     x <- e(lapply(x,
         function(x) {
           counts <- object(x)@assays[[ "RNA" ]]@counts
+          rownames(counts) <- gs(rownames(counts), "\\.[0-9]*", "")
+          counts <- counts[!duplicated(rownames(counts)), ]
           genes <- data.frame(index = 1:nrow(counts))
           rownames(genes) <- rownames(counts)
           cells <- object(x)@meta.data
@@ -112,6 +115,7 @@ setMethod("step2", signature = c(x = "job_risc"),
         stop("length(ref.which) > 1")
       }
       object(x)[c(1, ref.which)] <- object(x)[c(ref.which, 1)]
+      set.seed(seed)
       object(x) <- e(RISC::scMultiIntegrate(object(x),
           ncore = x$workers, add.Id = names(object(x)),
           var.gene = x$genes.ins))
@@ -207,22 +211,58 @@ pgc <- pattern_gradientColor <- function(pattern, names,
   unlist(palette)
 }
 
-setMethod("asjob_monocle", signature = c(x = "job_risc"),
-  function(x, group.by = x@params$group.by){
-    if (x@step < 3L) {
-      stop("x@step < 3L")
-    }
-    group.by <- group.by
+setMethod("asjob_seurat", signature = c(x = "job_risc"),
+  function(x, name = "integrated"){
+    group.by <- x$group.by
     palette <- x$palette
-    counts <- do.call(cbind, object(x)@assay$logcount)
-    gene_metadata <- object(x)@rowdata
-    gene_metadata$gene_short_name <- rownames(gene_metadata)
-    object <- e(monocle3::new_cell_data_set(counts,
-        cell_metadata = object(x)@coldata, gene_metadata = gene_metadata))
-    object <- e(monocle3::preprocess_cds(object, norm_method = "none"))
-    object <- e(monocle3::reduce_dimension(object))
-    x <- .job_monocle(object = object)
+    data <- do.call(cbind, object(x)@assay$logcount)
+    data <- e(SeuratObject::CreateAssayObject(data = data))
+    meta.data <- object(x)@coldata
+    object <- e(SeuratObject::CreateSeuratObject(data, name, meta.data = meta.data))
+    em.pca <- object(x)@DimReduction$cell.pls
+    em.umap <- object(x)@DimReduction$cell.umap
+    fun <- function(x, prefix) {
+      colnames(x) <- gs(colnames(x), "^[a-zA-Z]*", prefix)
+      return(x)
+    }
+    em.pca <- fun(em.pca, "PC_")
+    em.umap <- fun(em.umap, "UMAP_")
+    reduc.pca <- e(SeuratObject::CreateDimReducObject(em.pca, assay = name, key = "PC"))
+    reduc.umap <- e(SeuratObject::CreateDimReducObject(em.umap, assay = name, key = "UMAP"))
+    object@reductions$pca <- reduc.pca
+    object@reductions$umap <- reduc.umap
+    object@active.assay <- name
+    x <- .job_seurat(object = object)
     x$group.by <- group.by
     x$palette <- palette
     return(x)
   })
+
+setMethod("asjob_monocle", signature = c(x = "job_risc"),
+  function(x){
+    x <- asjob_seurat(x)
+    x@step <- 3L
+    x <- asjob_monocle(x)
+    return(x)
+  })
+
+# setMethod("asjob_monocle", signature = c(x = "job_risc"),
+  # function(x, group.by = x@params$group.by, dims = 50){
+  #   if (x@step < 3L) {
+  #     stop("x@step < 3L")
+  #   }
+  #   group.by <- group.by
+  #   palette <- x$palette
+  #   counts <- do.call(cbind, object(x)@assay$logcount)
+  #   gene_metadata <- object(x)@rowdata
+  #   gene_metadata$gene_short_name <- rownames(gene_metadata)
+  #   metadata <- object(x)@coldata
+  #   object <- e(monocle3::new_cell_data_set(counts,
+  #       cell_metadata = metadata, gene_metadata = gene_metadata))
+  #   object <- e(monocle3::preprocess_cds(object, norm_method = "none", num_dim = dims))
+  #   object <- e(monocle3::reduce_dimension(object))
+  #   x <- .job_monocle(object = object)
+  #   x$group.by <- group.by
+  #   x$palette <- palette
+  #   return(x)
+  # })

@@ -2761,6 +2761,18 @@ text_roundrect <- function(str, collapse = "\n") {
 # wrapper for dplyr tools
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+# mutate <- dplyr::mutate
+# filter <- dplyr::filter
+# arrange <- dplyr::arrange
+# distinct <- dplyr::distinct
+# select <- dplyr::select
+# rename <- dplyr::rename
+# relocate <- dplyr::relocate
+# slice <- dplyr::slice
+# slice_max <- dplyr::slice_max
+# slice_min <- dplyr::slice_min
+# group_by <- dplyr::group_by
+
 lapply(c("mutate", "filter", "arrange", "distinct",
     "select", "rename", "relocate", "slice", "slice_max",
     "slice_min", "group_by"),
@@ -2773,9 +2785,6 @@ lapply(c("mutate", "filter", "arrange", "distinct",
           DF_object <- tibble::as_tibble(DF_object)
         }
         object <- fun(DF_object, ...)
-        if (!is(object, "tbl_df")) {
-          object <- tibble::as_tibble(object)
-        }
         object
       })
   })
