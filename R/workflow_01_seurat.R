@@ -110,6 +110,9 @@ setMethod("step3", signature = c(x = "job_seurat"),
           "Please consider higher `resolution`. ")
       }
     }
+    if (isNamespaceLoaded("future")) {
+      e(pkgload::unload("future"))
+    }
     object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims))
     object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution))
     object(x) <- e(Seurat::RunUMAP(object(x), dims = dims))
@@ -459,13 +462,13 @@ plot_qc.seurat <- function(x) {
   }
   x <- object(x)
   p.feature_count_mt <- e(Seurat::VlnPlot(x, features = c(nFeature, nCount,
-        "percent.mt"), ncol = 3, pt.size = 0, alpha = .3, cols = c("lightyellow")))
+        "percent.mt"), ncol = 3, pt.size = 0, alpha = .3, cols = color_set()))
   p.qcv1 <- e(Seurat::FeatureScatter(
       x, feature1 = nCount, feature2 = "percent.mt",
-      cols = c("lightblue")))
+      cols = color_set()))
   p.qcv2 <- e(Seurat::FeatureScatter(
       x, feature1 = nCount, feature2 = nFeature,
-      cols = c("lightblue")))
+      cols = color_set()))
   p.qc <- p.feature_count_mt / (p.qcv1 + p.qcv2)
   p.qc <- wrap(p.qc, 13, 10)
   p.qc
@@ -561,7 +564,8 @@ setMethod("skel", signature = c(x = "job_seurat"),
       'sr@plots$step3$p.umap',
       'sr <- step5(sr, 5)',
       'sr <- step6(sr, "Kidney")',
-      'sr@plots$step6$p.map_scsa'
+      'sr@plots$step6$p.map_scsa',
+      "clear(sr)"
     )
     code <- gs(code, "\\bsr\\b", sig)
     writeLines(code)

@@ -43,8 +43,12 @@ setMethod("step1", signature = c(x = "job_kat"),
     x$savepath <- path
     if (is.null(x$res_copykat)) {
       wd <- getwd()
+      if (dir.exists(path)) {
+        path <- paste0("copykat", gs(Sys.time(), " |:", "_"))
+      }
       dir.create(path, F)
       setwd(path)
+      x@params$wd <- path
       if (isNamespaceLoaded("copykat") & !test) {
         pkgload::unload("copykat")
       }
@@ -190,7 +194,7 @@ plot_heatmap.copyKAT <- function(copykat.obj) {
     rbPal6 <- colorRampPalette(RColorBrewer::brewer.pal(n = 8, name = "Dark2")[3:4])
     subpop <- rbPal6(2)[as.numeric(factor(hc.umap))]
     cells <- rbind(subpop, subpop)
-    heatmap.3(t(tumor.mat),dendrogram = "r", distfun = function(x)
+    heatmap.3(t(tumor.mat), dendrogram = "r", distfun = function(x)
       parallelDist::parDist(x, threads = 4, method = "euclidean"), hclustfun =
         function(x) hclust(x, method = "ward.D2"),
       ColSideColors = chr1, RowSideColors = cells, Colv = NA, Rowv = TRUE, 
@@ -204,13 +208,16 @@ plot_heatmap.copyKAT <- function(copykat.obj) {
 }
 
 setMethod("clear", signature = c(x = "job_kat"),
-  function(x, name = "copykat_heatmap"){
-    x@params$res_copykat <- NULL
-    x@object <- NULL
-    file <- select_savefun(x@plots$step2$p.copykat)(x@plots$step2$p.copykat,
-      name = name)
-    newfile <- gs(file, "\\.pdf$", ".png")
-    pdf_convert(file, filenames = newfile, dpi = 300)
-    x@plots$step2$p.copykat <- .file_fig(newfile)
+  function(x, name = x@params$wd){
+    if (!is.null(x@params$res_copykat)) {
+      x@params$res_copykat <- NULL
+      x@object <- NULL
+      file <- select_savefun(x@plots$step2$p.copykat)(x@plots$step2$p.copykat,
+        name = name)
+      newfile <- gs(file, "\\.pdf$", ".png")
+      pdf_convert(file, filenames = newfile, dpi = 300)
+      x@plots$step2$p.copykat <- .file_fig(newfile)
+    }
+    callNextMethod(x, name = name)
     return(x)
   })

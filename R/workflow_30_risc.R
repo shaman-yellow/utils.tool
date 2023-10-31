@@ -246,6 +246,23 @@ setMethod("asjob_monocle", signature = c(x = "job_risc"),
     return(x)
   })
 
+setMethod("mutate", signature = c(DF_object = "job_risc"),
+  function(DF_object, ...){
+    object(DF_object)@coldata <- dplyr::mutate(object(DF_object)@coldata, ...)
+    return(DF_object)
+  })
+
+setMethod("asjob_gsea", signature = c(x = "job_risc"),
+  function(x, contrast.pattern = NULL, marker.list = x@tables$step4$contrasts)
+  {
+    if (!is.null(contrast.pattern)) {
+      topTable <- dplyr::filter(marker.list, grpl(contrast, !!contrast.pattern))
+    } else {
+      topTable <- marker.list
+    }
+    job_gsea(dplyr::relocate(topTable, hgnc_symbol = Symbol, logFC = log2FC))
+  })
+
 # setMethod("asjob_monocle", signature = c(x = "job_risc"),
   # function(x, group.by = x@params$group.by, dims = 50){
   #   if (x@step < 3L) {

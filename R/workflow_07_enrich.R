@@ -132,6 +132,13 @@ setMethod("asjob_enrich", signature = c(x = "job_seurat"),
         stop("x@step < 5")
       }
       data <- x@tables$step5[[ "all_markers" ]]
+      if (!is.null(exclude.pattern)) {
+        exclude.cluster <- dplyr::filter(object(x)@meta.data,
+          grepl(!!exclude.pattern, !!rlang::sym(exclude.use), ignore.case))$seurat_clusters
+        exclude.cluster <- unique(exclude.cluster)
+        message("Exclude clasters:\n  ", paste0(exclude.cluster, collapse = ", "))
+        data <- dplyr::filter(data, !cluster %in% exclude.cluster)
+      }
     } else {
       data <- marker.list
     }
@@ -139,13 +146,6 @@ setMethod("asjob_enrich", signature = c(x = "job_seurat"),
     mart <- new_biomart()
     anno <- filter_biomart(mart, general_attrs(), "hgnc_symbol", unique(data$gene))
     data <- dplyr::filter(data, gene %in% anno$hgnc_symbol)
-    if (!is.null(exclude.pattern)) {
-      exclude.cluster <- dplyr::filter(object(x)@meta.data,
-        grepl(!!exclude.pattern, !!rlang::sym(exclude.use), ignore.case))$seurat_clusters
-      exclude.cluster <- unique(exclude.cluster)
-      message("Exclude clasters:\n  ", paste0(exclude.cluster, collapse = ", "))
-      data <- dplyr::filter(data, !cluster %in% exclude.cluster)
-    }
     if (is.null(data$contrast)) {
       ids <- split(data$gene, data$cluster)
     } else {

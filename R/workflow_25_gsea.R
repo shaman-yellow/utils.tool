@@ -29,6 +29,17 @@ setMethod("asjob_gsea", signature = c(x = "job_limma"),
     job_gsea(data, annotation)
   })
 
+setMethod("asjob_gsea", signature = c(x = "job_seurat"),
+  function(x, contrast.pattern = NULL, marker.list = x@params$contrasts)
+  {
+    if (!is.null(contrast.pattern)) {
+      topTable <- dplyr::filter(marker.list, grpl(contrast, !!contrast.pattern))
+    } else {
+      topTable <- marker.list
+    }
+    job_gsea(dplyr::relocate(topTable, hgnc_symbol = gene, logFC = avg_log2FC))
+  })
+
 job_gsea <- function(topTable, annotation)
 {
   .check_columns(topTable, c("hgnc_symbol", "logFC"))
@@ -37,6 +48,10 @@ job_gsea <- function(topTable, annotation)
   topTable <- dplyr::arrange(topTable, dplyr::desc(logFC))
   topTable <- dplyr::distinct(topTable, hgnc_symbol, .keep_all = T)
   used.hgnc_symbol <- nl(topTable$hgnc_symbol, topTable$logFC, F)
+  if (missing(annotation)) {
+    mart <- new_biomart()
+    annotation <- filter_biomart(mart, general_attrs(), "hgnc_symbol", topTable$hgnc_symbol)
+  }
   topTable <- map(topTable, "hgnc_symbol", annotation, "hgnc_symbol", "entrezgene_id")
   used.entrezgene_id <- nl(topTable$entrezgene_id, topTable$logFC, F)
   object <- list(hgnc_symbol = used.hgnc_symbol, entrezgene_id = used.entrezgene_id)
@@ -80,7 +95,7 @@ setMethod("step1", signature = c(x = "job_gsea"),
     }
     table_go <- dplyr::mutate(res.go@result,
       geneName_list = strsplit(core_enrichment, "/"),
-      GeneRatio = stringr::str_extract(leading_edge, "[0-9]+"),
+      GeneRatio = as.double(stringr::str_extract(leading_edge, "[0-9]+")),
       Count = lengths(geneName_list)
     )
     table_go <- dplyr::arrange(table_go, p.adjust)
@@ -89,7 +104,7 @@ setMethod("step1", signature = c(x = "job_gsea"),
       Description = stringr::str_trunc(Description, 50)
     )
     p.go <- ggplot(data) +
-      geom_point(aes(x = reorder(Description, p.adjust, decreasing = T),
+      geom_point(aes(x = reorder(Description, GeneRatio),
           y = GeneRatio, size = Count, fill = p.adjust),
         shape = 21, stroke = 0, color = "transparent") +
       scale_fill_gradient(high = "yellow", low = "red") +
@@ -118,6 +133,50 @@ setMethod("step2", signature = c(x = "job_gsea"),
   })
 
 setMethod("step3", signature = c(x = "job_gsea"),
+  function(x, pathways, species = "hsa",
+    name = paste0("pathview", gs(Sys.time(), " |:", "_")),
+    search = "pathview")
+  {
+    step_message("Use pathview to visualize reults pathway.")
+    require(pathview)
+    data <- x@tables$step1$table_kegg
+    if (is.null(x$pathview_dir)) {
+      x$pathview_dir <- name
+    } else {
+      name <- x$pathview_dir
+    }
+    dir.create(name, F)
+    setwd(name)
+    cli::cli_alert_info("pathview::pathview")
+    tryCatch({
+      res.pathviews <- lapply(pathways,
+        function(pathway) {
+          data <- dplyr::filter(data, ID == !!pathway)
+          pathway <- gs(data$ID, "^[a-zA-Z]*", "")
+          genes <- as.character(unlist(data$geneID_list))
+          genes.all <- x@object$entrezgene_id
+          genes <- genes.all[ match(genes, names(genes.all)) ]
+          res.pathview <- try(
+            pathview::pathview(gene.data = genes,
+              pathway.id = pathway, species = species,
+              keys.align = "y", kegg.native = T,
+              key.pos = "topright", na.col = "grey90")
+          )
+          if (inherits(res.pathview, "try-error")) {
+            try(dev.off(), silent = T)
+          }
+          return(res.pathview)
+        })
+    }, finally = {setwd("../")})
+    x@tables[[ 3 ]] <- namel(res.pathviews)
+    figs <- list.files(name, search, full.names = T)
+    p.pathviews <- lapply(figs, function(x) .file_fig(x))
+    names(p.pathviews) <- get_realname(figs)
+    x@plots[[ 3 ]] <- namel(p.pathviews)
+    return(x)
+  })
+
+setMethod("step4", signature = c(x = "job_gsea"),
   function(x, db, cutoff = .05, map = NULL){
     step_message("Custom database for GSEA enrichment.")
     ## general analysis

@@ -964,7 +964,7 @@ vis_enrich.kegg <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
       data <- head(data, n = maxShow)
       data <- dplyr::mutate(data, GeneRatio = as_double.ratioCh(GeneRatio))
       p <- ggplot(data) +
-        geom_point(aes(x = reorder(Description, p.adjust, decreasing = T),
+        geom_point(aes(x = reorder(Description, GeneRatio),
             y = GeneRatio, size = Count, fill = p.adjust),
           shape = 21, stroke = 0, color = "transparent") +
         scale_fill_gradient(high = "yellow", low = "red") +
@@ -994,7 +994,7 @@ vis_enrich.go <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
       stringr::str_wrap(Description, width = 30)
     )
     p <- ggplot(data) +
-      geom_point(aes(x = reorder(Description, p.adjust, decreasing = T),
+      geom_point(aes(x = reorder(Description, GeneRatio),
           y = GeneRatio, size = Count, fill = p.adjust),
         shape = 21, stroke = 0, color = "transparent") +
       scale_fill_gradient(high = "yellow", low = "red") +

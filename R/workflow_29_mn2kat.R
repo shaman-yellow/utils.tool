@@ -45,7 +45,7 @@ setMethod("step1", signature = c(x = "job_mn2kat"),
 
 setMethod("map", signature = c(x = "job_mn2kat"),
   function(x, cutree){
-    map(x$sr_cancer, x$kat, cutree = 30)
+    map(x$sr_cancer, x$kat, cutree = cutree)
   })
 
 setMethod("vis", signature = c(x = "job_mn2kat"),
