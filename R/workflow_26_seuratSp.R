@@ -12,7 +12,9 @@
     others = "ANY"),
   prototype = prototype(
     info = paste0("Tutorial: https://satijalab.org/seurat/articles/spatial_vignette.html",
-      "\nAdditional: https://ludvigla.github.io/STUtility_web_site/index.html")
+      "\nAdditional: https://ludvigla.github.io/STUtility_web_site/index.html"),
+    cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]",
+    method = "Seurat used for spatial scRNA-seq analysis"
     ))
 
 job_seuratSp <- function(dir)

@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://cole-trapnell-lab.github.io/garnett/docs/#1b-train-your-own-classifier")
+    info = c("Tutorial: https://cole-trapnell-lab.github.io/garnett/docs/#1b-train-your-own-classifier"),
+    method = "Garnett used for cell types annotation"
     ))
 
 setGeneric("asjob_garnett", 

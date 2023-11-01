@@ -11,6 +11,7 @@ autor_preset()
 ## please install the package `utils.tool` and other related packages (run
 ## install.R)
 options(savedir = list(figs = "Figure+Table", tabs = "Figure+Table"))
+deparse_mail()
 ```
 
 ```{r eval = T, echo = F, results = "asis"}
@@ -37,6 +38,18 @@ p.route
 ```
 
 # 材料和方法 {#methods}
+
+## 材料
+
+```{r eval = T, echo = F, results = "asis"}
+auto_material()
+```
+
+## 方法
+
+```{r eval = T, echo = F, results = "asis"}
+auto_method()
+```
 
 # 分析结果 {#results}
 

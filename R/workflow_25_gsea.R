@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("http://www.gsea-msigdb.org/gsea/downloads.jsp")
+    info = c("http://www.gsea-msigdb.org/gsea/downloads.jsp"),
+    method = "ClusterProfiler used for GSEA enrichment"
     ))
 
 setGeneric("asjob_gsea", 

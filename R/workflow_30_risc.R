@@ -12,7 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("Tutorial: https://github.com/bioinfoDZ/RISC"),
-    cite = "[@RobustIntegratLiuY2021]"
+    cite = "[@RobustIntegratLiuY2021]",
+    method = "RISC used for scRNA-seq data integration"
     ))
 
 setGeneric("asjob_risc", 

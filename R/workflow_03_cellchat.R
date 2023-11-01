@@ -11,7 +11,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("Tutorial: https://htmlpreview.github.io/?https://github.com/sqjin/CellChat/blob/master/tutorial/CellChat-vignette.html"),
-    cite = "[@InferenceAndAJinS2021]"
+    cite = "[@InferenceAndAJinS2021]",
+    method = "CellChat used for cell communication analysis"
     ))
 
 setGeneric("asjob_cellchat", 

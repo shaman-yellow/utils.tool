@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("https://bioconductor.org/packages/release/bioc/html/infercnv.html")
+    info = c("https://bioconductor.org/packages/release/bioc/html/infercnv.html"),
+    method = "Package inferCNV used for CNV anlysis and cancer cell prediction"
     ))
 
 setGeneric("asjob_infercnv", 

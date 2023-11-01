@@ -12,7 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("..."),
-    cite = "[@LimmaPowersDiRitchi2015]"
+    cite = "[@LimmaPowersDiRitchi2015; @EdgerDifferenChen]",
+    method = "Limma and edgeR used for differential expression analysis"
     ))
 
 job_limma <- function(DGEList)

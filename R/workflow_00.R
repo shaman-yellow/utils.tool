@@ -15,7 +15,8 @@
     step = "integer",
     info = "ANY",
     pg = "character",
-    cite = "character"
+    cite = "character",
+    method = "character"
     ),
   prototype = prototype(step = 0L,
     params = list(wd = ".", remote = "remote")

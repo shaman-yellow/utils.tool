@@ -14,7 +14,8 @@
     pg = "biobakery_workflows",
     info = paste0("http://huttenhower.sph.harvard.edu/biobakery_workflows",
       "\nhttps://github.com/biobakery/biobakery/wiki/biobakery_workflows#2-metagenome-profiling"),
-    cite = "[@BiobakeryAMeMciver2017]"
+    cite = "[@BiobakeryAMeMciver2017]",
+    method = "Biobakery used for metagenome preprocessing"
     ))
 
 setGeneric("asjob_biobakery", 

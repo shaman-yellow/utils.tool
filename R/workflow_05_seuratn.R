@@ -12,7 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("Tutorial: https://github.com/satijalab/seurat/wiki"),
-    cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]"
+    cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]",
+    method = "Seurat used for multiple dataset integration"
     ))
 
 job_seuratn <- function(dirs)

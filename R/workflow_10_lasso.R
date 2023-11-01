@@ -11,7 +11,9 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("...")
+    info = c("..."),
+    cite = "[@EfsAnEnsemblNeuman2017]",
+    method = "Package glmnet used for LASSO analysis and EFS used for feature selection"
     ))
 
 setGeneric("asjob_lasso", 

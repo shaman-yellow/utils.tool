@@ -12,7 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("Tutorial: https://cole-trapnell-lab.github.io/monocle3/docs/getting_started/"),
-    cite = "[@ReversedGraphQiuX2017; @TheDynamicsAnTrapne2014]"
+    cite = "[@ReversedGraphQiuX2017; @TheDynamicsAnTrapne2014]",
+    method = "Monocle3 used for cell pseudotime analysis"
     ))
 
 setGeneric("do_monocle", 

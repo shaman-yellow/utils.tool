@@ -12,7 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("Tutorial: https://github.com/satijalab/annova/wiki"),
-    cite = "[@AnnovarFunctiWang2010]"
+    cite = "[@AnnovarFunctiWang2010]",
+    method = "Annova used for mutation annotation"
     ))
 
 setGeneric("asjob_annova", 

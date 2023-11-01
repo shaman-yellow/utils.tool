@@ -16,7 +16,8 @@
       "https://docs.qiime.org/2023.7/tutorials/importing/#sequence-data-with-sequence-quality-information-i-e-fastq",
       "https://docs.qiime.org/2023.7/data-resources/",
       collapse = "\n"),
-    cite = "[@ReproducibleIBolyen2019; @TheBiologicalMcdona2012; @Dada2HighResCallah2016; @ErrorCorrectinHamday2008; @MicrobialCommuHamday2009]"
+    cite = "[@ReproducibleIBolyen2019; @TheBiologicalMcdona2012; @Dada2HighResCallah2016; @ErrorCorrectinHamday2008; @MicrobialCommuHamday2009]",
+    method = "Qiime2 used for gut microbiome 16s rRNA analysis"
     ))
 
 .qzv <- setClass("qzv", 

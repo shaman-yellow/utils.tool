@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("...")
+    info = c("..."),
+    method = "GEO <https://www.ncbi.nlm.nih.gov/geo/> used for expression dataset aquisition"
     ))
 
 job_geo <- function(id)

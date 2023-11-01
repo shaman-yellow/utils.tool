@@ -12,7 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("Tutorial: https://satijalab.org/seurat/articles/pbmc3k_tutorial.html"),
-    cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]"
+    cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]",
+    method = "Seurat used for scRNA-seq processing"
     ))
 
 job_seurat <- function(dir, project = get_filename(sub("/$", "", dir)),

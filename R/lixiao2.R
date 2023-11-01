@@ -381,6 +381,7 @@ get_detail_chunk <- function(body) {
   pos <- grep(pattern, body)
   sig <- pos[1]
   i.pre <- pos[1]
+  sig.end <- -1L
   for (i in pos[-1]) {
     if (i == i.pre + 1) {
       i.pre <- i
@@ -392,6 +393,10 @@ get_detail_chunk <- function(body) {
       sig.end <- i
       break
     }
+  }
+  if (sig.end == -1L) {
+    message("No information found in this mail.")
+    return()
   }
   other_lines <- body[sig.end:length(body)]
   other_lines <- head(other_lines, grep("^17-项目负责人", other_lines)[1])

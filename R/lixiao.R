@@ -2372,8 +2372,134 @@ setMethod("clip_data", signature = c(x = "elist", by = "wgcData"),
   })
 
 # ==========================================================================
-# autor: save object, summarise object, show object
+# Fast display the content
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+deparse_mail <- function(dir = "mail",
+  savedir = "mailparsed", attsdir = "order_material",
+  force = F)
+{
+  if (!dir.exists(dir)) {
+    message("No mail directory found.")
+    return()
+  }
+  if (!dir.exists(savedir)) {
+    dir.create(savedir)
+  }
+  if (!force & file.exists(sig <- paste0(savedir, "/", ".parsed.md"))) {
+    return()
+  }
+  testfile <- list.files(dir, full.names = T, recursive = T)[1]
+  fewLines <- readLines(testfile, n = 100)
+  if (!any(grpl(fewLines, "Content-Transfer-Encoding: base64"))) {
+    message("Maybe this mail is not the raw file.")
+    return()
+  }
+  ## import python package
+  bt <- e(reticulate::import_builtins())
+  m <- e(reticulate::import("mailbox"))
+  ## load mail
+  mdir <- m$Maildir(dir)
+  obj <- mdir$get_message(mdir$keys()[1])
+  contents <- obj$get_payload()
+  isMulti <- vapply(contents, function(x) x$is_multipart(), logical(1))
+  ## all attachments
+  atts <- contents[ !isMulti ]
+  if (!dir.exists(attsdir)) {
+    dir.create(attsdir)
+  }
+  if (length(atts) == 0) {
+    writeLines("", paste0(attsdir, "empty.txt"))
+  } else {
+    lapply(atts,
+      function(att) {
+        bins <- att$get_payload(decode = T)
+        filename <- att$get_filename()
+        if (grpl(filename, "^=\\?UTF-8")) {
+          path <- paste0(savedir, "/", filename)
+        } else {
+          path <- paste0(attsdir, "/", filename)
+        }
+        fp <- bt$open(path, "wb")
+        fp$write(bins)
+        fp$close()
+      })
+  }
+  ## multipart
+  main <- contents[ isMulti ][[1]]
+  main <- main$get_payload()
+  n <- 0L
+  files_multipart <- lapply(main,
+    function(part) {
+      n <<- n + 1L
+      bin <- part$get_payload(decode = T)
+      if (part$get_content_type() == "text/plain") {
+        filename <- paste0("part_", n, ".md")
+      } else if (part$get_content_type() == "text/html") {
+        filename <- paste0("part_", n, ".html")
+      } else {
+        return()
+      }
+      fp <- bt$open(file <- paste0(savedir, "/", filename), "wb")
+      fp$write(bin)
+      fp$close()
+      return(file)
+    })
+  files_multipart <- lst_clear0(files_multipart)
+  writeLines("", sig)
+}
+
+auto_material <- function(class = "job_geo", envir = .GlobalEnv) {
+  names <- ls(envir = envir, all.names = all.names)
+  info <- lapply(names,
+    function(name) {
+      obj <- get(name, envir = envir)
+      if (is(obj, class)) {
+        list(gse = object(obj),
+          design = obj@params$about[[1]]@experimentData@other$overall_design)
+      } else NULL
+    })
+  info <- lst_clear0(info)
+  info <- lapply(info,
+    function(x) {
+      c(paste0("- **", x$gse, "**: ", stringr::str_trunc(x$design, 200)), "")
+    }
+  )
+  info <- unlist(info)
+  info <- c("All used GEO expression data and their design: ", "", info)
+  writeLines(info)
+}
+
+auto_method <- function(class = "job", envir = .GlobalEnv) {
+  names <- ls(envir = envir, all.names = all.names)
+  info <- lapply(names,
+    function(name) {
+      obj <- get(name, envir = envir)
+      if (is(obj, class)) {
+        res <- try(list(cite = obj@cite, method = obj@method), T)
+        if (inherits(res, "try-error")) {
+          NULL
+        } else {
+          res
+        }
+      } else NULL
+    })
+  info <- lst_clear0(info)
+  methods <- lapply(info,
+    function(lst) {
+      if (!is.null(lst$method)) {
+        meth <- paste("-", lst$method)
+        if (!is.null(lst$cite)) {
+          meth <- paste(meth, lst$cite)
+        }
+        paste0(meth, ".")
+      }
+    })
+  methods <- unique(unlist(methods))
+  methods <- c("Mainly used method:", "", methods,
+  "- Other R packages used for statistic analysis or data visualization.")
+  writeLines(methods)
+}
 
 set_index <- function() {
   if (knitr::is_latex_output()) {
@@ -2393,6 +2519,10 @@ autor_preset <- function(...) {
   }
   knitr::opts_hooks$set(fig.cap = fun_fig.cap)
 }
+
+# ==========================================================================
+# autor: save object, summarise object, show object
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 ## orinal function, for save file, and return file name
 autosv <- function(x, name, ...) {

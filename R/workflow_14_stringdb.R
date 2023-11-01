@@ -12,7 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("Tutorial: https://www.bioconductor.org/packages/release/bioc/html/STRINGdb.html"),
-    cite = "[@TheStringDataSzklar2021; @CytohubbaIdenChin2014]"
+    cite = "[@TheStringDataSzklar2021; @CytohubbaIdenChin2014]",
+    method = "STEINGdb used for PPI network construction"
     ))
 
 job_stringdb <- function(data)

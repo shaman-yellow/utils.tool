@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("...")
+    info = c("..."),
+    method = "Package survival and survminer used for survival analysis"
     ))
 
 setGeneric("asjob_survival", 
