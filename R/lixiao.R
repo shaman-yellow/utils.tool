@@ -1271,10 +1271,12 @@ show_multi <- function(layers, col, symbol = "Progein"){
 
 # map_from <- function(lst, db_names, db_values){}
 
-.jour_bioinf <- c("Nature Genetics", "Genome Biology", "Genome Research", "Nucleic Acids Res",
-  "Briefings in Bioinformatics", "BMC genomics", "Nature Methods", "Nature Biotechnology")
+.jour_bioinf <- function() {
+  c("Nature Genetics", "Genome Biology", "Genome Research", "Nucleic Acids Res",
+    "Briefings in Bioinformatics", "BMC genomics", "Nature Methods", "Nature Biotechnology")
+}
 
-esearch.mj <- function(key, jour = .jour_bioinf, rbind = T)
+esearch.mj <- function(key, jour = .jour_bioinf(), rbind = T)
 {
   query <- paste(jour, "[JOUR] AND", key)
   sear <- pbapply::pblapply(query, esearch)
@@ -2411,6 +2413,7 @@ deparse_mail <- function(dir = "mail",
   if (length(atts) == 0) {
     writeLines("", paste0(attsdir, "empty.txt"))
   } else {
+    n <- 0L
     lapply(atts,
       function(att) {
         bins <- att$get_payload(decode = T)
@@ -2418,7 +2421,12 @@ deparse_mail <- function(dir = "mail",
         if (grpl(filename, "^=\\?UTF-8")) {
           path <- paste0(savedir, "/", filename)
         } else {
-          path <- paste0(attsdir, "/", filename)
+          n <<- n + 1L
+          suffix <- stringr::str_extract(filename, "\\.[a-zA-Z0-9]*$")
+          if (is.na(suffix)) {
+            suffix <- ""
+          }
+          path <- paste0(attsdir, "/", "file_", n, suffix)
         }
         fp <- bt$open(path, "wb")
         fp$write(bins)
@@ -2812,7 +2820,7 @@ setMethod("abstract", signature = c(x = "df", name = "character", latex = "logic
 ## abstract for figure of file
 setMethod("abstract", signature = c(x = "fig", name = "character", latex = "logical"),
   function(x, name, latex, ..., abs = NULL){
-    cat("Figure \\@ref(fig:", name, ")",
+    cat("Figure \\@ref(fig:", name, ")", " (下方图) ",
       "为图", gsub("-", " ", name), "概览。\n", sep = "")
     if (!is.null(abs))
       cat(abs, "\n")
