@@ -22,9 +22,8 @@ setMethod("asjob_gsea", signature = c(x = "job_limma"),
   function(x, key = 1L, annotation = x@params$normed_data$genes,
     filter = NULL)
   {
-    if (is.null(filter)) {
-      data <- x@tables$step2$tops[[ key ]]
-    } else {
+    data <- x@tables$step2$tops[[ key ]]
+    if (!is.null(filter)) {
       data <- dplyr::filter(data, hgnc_symbol %in% dplyr::all_of(filter))
     }
     job_gsea(data, annotation)
@@ -79,14 +78,19 @@ setMethod("step1", signature = c(x = "job_gsea"),
           to_names[ match(set, from_ids) ]
         })
     }
-    table_kegg <- dplyr::mutate(res.kegg@result,
-      geneID_list = strsplit(core_enrichment, "/"),
-      geneName_list = fun(geneID_list),
-      GeneRatio = stringr::str_extract(leading_edge, "[0-9]+"),
-      Count = lengths(geneName_list)
-    )
-    table_kegg <- dplyr::as_tibble(table_kegg)
-    p.kegg <- e(enrichplot::dotplot(res.kegg))
+    table_kegg <- try(dplyr::mutate(res.kegg@result,
+        geneID_list = strsplit(core_enrichment, "/"),
+        geneName_list = fun(geneID_list),
+        GeneRatio = stringr::str_extract(leading_edge, "[0-9]+"),
+        Count = lengths(geneName_list)
+        ), T)
+    if (!inherits(table_kegg, "try-error")) {
+      table_kegg <- dplyr::as_tibble(table_kegg)
+      p.kegg <- e(enrichplot::dotplot(res.kegg))
+    } else {
+      table_kegg <- NULL
+      p.kegg <- NULL
+    }
     ## go
     if (is.null(x$res.go)) {
       res.go <- e(clusterProfiler::gseGO(object(x)$hgnc_symbol, ont = "ALL", OrgDb = OrgDb,
@@ -178,7 +182,7 @@ setMethod("step3", signature = c(x = "job_gsea"),
   })
 
 setMethod("step4", signature = c(x = "job_gsea"),
-  function(x, db, cutoff = .05, map = NULL){
+  function(x, db, cutoff = .05, map = NULL, pvalue = F){
     step_message("Custom database for GSEA enrichment.")
     ## general analysis
     insDb <- lapply(split(db, ~ term),
@@ -192,7 +196,7 @@ setMethod("step4", signature = c(x = "job_gsea"),
     if (!is.null(map)) {
       alls <- table_gsea$ID
       map <- alls[ grepl(map, alls) ]
-      p.code <- wrap(e(enrichplot::gseaplot2(res.gsea, map)), 7.5, 6)
+      p.code <- wrap(e(enrichplot::gseaplot2(res.gsea, map, pvalue_table = pvalue)), 7.5, 6)
     } else {
       p.code <- NULL
     }
@@ -203,7 +207,7 @@ setMethod("step4", signature = c(x = "job_gsea"),
     )
     x@params$res.gsea <- res.gsea
     x@params$db.gsea <- db
-    x@tables[[ 3 ]] <- namel(table_gsea, table_insDb)
-    x@plots[[ 3 ]] <- namel(p.code, p.pie_insDb)
+    x@tables[[ 4 ]] <- namel(table_gsea, table_insDb)
+    x@plots[[ 4 ]] <- namel(p.code, p.pie_insDb)
     return(x)
   })

@@ -2807,7 +2807,7 @@ setMethod("abstract", signature = c(x = "ANY", name = "character", latex = "miss
 setMethod("abstract", signature = c(x = "df", name = "character", latex = "logical"),
   function(x, name, latex, ..., key = 1, abs = NULL, summary = T, sum.ex = NULL){
     x <- tibble::as_tibble(x)
-    cat("Table \\@ref(tab:", name, ")",
+    cat("Table \\@ref(tab:", name, ")", " (下方表格) ",
       "为表格", gsub("-", " ", name), "概览。\n", sep = "")
     if (!is.null(abs))
       cat(abs, "\n")

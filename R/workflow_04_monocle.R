@@ -366,7 +366,7 @@ cal_modules.cds <- function(cds, gene_sigs, cell_group) {
   Cell <- NA
   cds_subset = cds_subset[, is.finite(colData(cds_subset)$pseudotime)]
   cds_exprs <- SingleCellExperiment::counts(cds_subset)
-  cds_exprs <- Matrix::t(Matrix::t(cds_exprs)/size_factors(cds_subset))
+  cds_exprs <- Matrix::t(Matrix::t(cds_exprs) / size_factors(cds_subset))
   cds_exprs <- reshape2::melt(round(as.matrix(cds_exprs)))
   if (is.null(min_expr)) {
     min_expr <- 0
