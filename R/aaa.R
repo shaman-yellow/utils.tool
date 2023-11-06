@@ -499,6 +499,12 @@ space <- function(env = .GlobalEnv, all.names = T) {
   info
 }
 
+save_small <- function(cutoff = 50, file = "small.rdata") {
+  space <- space()
+  space <- dplyr::filter(space, value < !!cutoff)
+  save(list = space$name, file = file, envir = .GlobalEnv)
+}
+
 # ==========================================================================
 # colors
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

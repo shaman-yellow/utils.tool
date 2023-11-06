@@ -122,6 +122,11 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     metadata <- data.frame(object(x)@colData)
     metadata <- dplyr::relocate(metadata, !!rlang::sym(col_id))
     metadata <- dplyr::mutate(metadata, group = vital_status)
+    # tumor, 01~09; normal, 10~19
+    metadata <- dplyr::mutate(metadata, isTumor = ifelse(
+        as.numeric(substr(rownames(metadata), 14, 15)) < 10,
+        'tumor', 'normal'))
+    p.isTumor <- new_pie(metadata$isTumor)
     genes <- data.frame(object(x)@rowRanges)
     genes <- dplyr::relocate(genes, !!rlang::sym(row_id))
     counts <- object(x)@assays@data$unstranded
@@ -134,6 +139,8 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
       x <- .get_treatment.lm.tc(x, "R", name_suffix = ".radiation")
     }
     x <- meta(x, group)
+    x$p.isTumor <- p.isTumor
+    x$isTcga <- T
     return(x)
   })
 

@@ -67,7 +67,8 @@ setMethod("step1", signature = c(x = "job_limma"),
 
 setMethod("step2", signature = c(x = "job_limma"),
   function(x, ..., contrasts = NULL, block = NULL, use = c("adj.P.Val", "P.Value"),
-    use.cut = .05, cut.fc = .3, label = "hgnc_symbol", batch = F)
+    use.cut = .05, cut.fc = .3,
+    label = if (x$isTcga) "gene_name" else "hgnc_symbol", batch = F)
   {
     step_message("Difference test.")
     use <- match.arg(use)

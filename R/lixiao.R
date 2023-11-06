@@ -1718,18 +1718,23 @@ norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ...)
   dge <- e(edgeR::calcNormFactors(dge, method = "TMM"))
   pro_dge <- dge <- fun(dge, design, ...)
   ## data long
-  data <- list(Raw = as_data_long(raw_dge), Normalized = as_data_long(pro_dge))
-  data <- data.table::rbindlist(data, idcol = T, fill = T)
-  data <- dplyr::select(data, .id, sample, value)
-  if (length(unique(data$sample)) < 50) {
-    p <- ggplot(data) +
-      geom_boxplot(aes(x = sample, y = value),
-        outlier.color = "grey60", outlier.size = .5) +
-      coord_flip() +
-      facet_wrap(~ factor(.id, c("Raw", "Normalized"))) +
-      labs(x = "Sample", y = "Log2-cpm")
+  if (F) {
+    cli::cli_alert_info("as_data_long")
+    data <- list(Raw = as_data_long(raw_dge), Normalized = as_data_long(pro_dge))
+    data <- data.table::rbindlist(data, idcol = T, fill = T)
+    data <- dplyr::select(data, .id, sample, value)
+    if (length(unique(data$sample)) < 50) {
+      p <- ggplot(data) +
+        geom_boxplot(aes(x = sample, y = value),
+          outlier.color = "grey60", outlier.size = .5) +
+        coord_flip() +
+        facet_wrap(~ factor(.id, c("Raw", "Normalized"))) +
+        labs(x = "Sample", y = "Log2-cpm")
+    } else {
+      p <- plot_median_expr_line(data)
+    }
   } else {
-    p <- plot_median_expr_line(data)
+    p <- NULL
   }
   attr(dge, "p") <- p
   dge
@@ -2215,7 +2220,24 @@ setGeneric("cal_corp",
   function(x, y, ...) standardGeneric("cal_corp"))
 
 setMethod("cal_corp", signature = c(x = "df", y = "df"),
-  function(x, y, row_var = "row_var", col_var = "col_var"){
+  function(x, y, row_var = "row_var", col_var = "col_var", trans = F){
+    x <- data.frame(x)
+    y <- data.frame(y)
+    if (is.character(x[[1]])) {
+      rownames(x) <- x[[1]]
+      x <- x[, -1]
+      message("Set rolnames of x as the first columns.")
+    }
+    if (is.character(y[[1]])) {
+      rownames(y) <- y[[1]]
+      y <- y[, -1]
+      message("Set rolnames of y as the first columns.")
+    }
+    if (trans) {
+      x <- t(x)
+      y <- t(y)
+      tt <<- x
+    }
     cor <- agricolae::correlation(x, y)
     data <- as_data_long(cor$correlation, cor$pvalue, row_var, col_var, "cor", "pvalue")
     .corp(add_anno(.corp(data)))
@@ -2273,8 +2295,9 @@ setGeneric("add_anno",
 
 setMethod("add_anno", signature = c(x = "corp"),
   function(x){
+    min <- min(x$pvalue[x$pvalue != 0])
     dplyr::mutate(tibble::as_tibble(data.frame(x)),
-      `-log2(P.value)` = -log2(pvalue),
+      `-log2(P.value)` = -log2(ifelse(pvalue == 0, min / 10, pvalue)),
       significant = ifelse(pvalue > .05, "> 0.05",
         ifelse(pvalue > .001, "< 0.05", "< 0.001")),
       sign = ifelse(pvalue > .05, "-",
@@ -3146,16 +3169,16 @@ plot_median_expr_line <- function(data) {
       rename(data, sample = .id)
     })
   seq <- 1:nrow(lst[[1]])
-  spiralize::spiral_initialize(range(seq))
-  spiralize::spiral_track(range(lst[[1]]$v3))
-  spiralize::spiral_lines(seq, max(lst[[1]]$v3), type = "h", gp = gpar(col = "grey70"))
+  e(spiralize::spiral_initialize(range(seq)))
+  e(spiralize::spiral_track(range(lst[[1]]$v3)))
+  e(spiralize::spiral_lines(seq, max(lst[[1]]$v3), type = "h", gp = gpar(col = "grey70")))
   spiralize::spiral_lines(seq, lst[[1]]$v3, gp = gpar(col = "red"))
   spiralize::spiral_lines(seq, lst[[2]]$v3, gp = gpar(col = "blue"))
   grid.text("Median Expression line", y = .97, gp = gpar(cex = 2))
-  lgd <- ComplexHeatmap::packLegend(
+  lgd <- e(ComplexHeatmap::packLegend(
     ComplexHeatmap::Legend(title = "From", type = "lines", legend_gp = gpar(col = c("blue", "red"), lwd = 2),
       at = c("Raw", "Normalized"))
-  )
+  ))
   ComplexHeatmap::draw(lgd)
   p <- recordPlot()
   dev.off()

@@ -69,6 +69,10 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     } else {
       graph <- x@params$graph 
     }
+    edges <- as_tibble(igraph::as_data_frame(res.str$graph))
+    edges <- map(edges, "from", res.str$mapped, "STRING_id", "hgnc_symbol", rename = F)
+    edges <- map(edges, "to", res.str$mapped, "STRING_id", "hgnc_symbol", rename = F)
+    x$edges <- edges
     p.ppi <- plot_network.str(graph, label = label)
     ## hub genes
     hub_genes <- cal_mcc.str(res.str, "hgnc_symbol", F)

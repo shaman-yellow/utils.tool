@@ -557,6 +557,9 @@ setGeneric("anno",
 setGeneric("map", 
   function(x, ref, ...) standardGeneric("map"))
 
+setGeneric("gname", 
+  function(x, ...) standardGeneric("gname"))
+
 setGeneric("tops", 
   function(x, ...) standardGeneric("tops"))
 
@@ -686,7 +689,8 @@ pg_remote_recode <- function() {
 setMethod("map", signature = c(x = "df"),
   function(x, ref, y, y.ref, y.get, rename = T){
     x[[ ref ]] <- y[[ y.get ]][match(x[[ ref ]], y[[ y.ref ]])]
-    colnames(x)[ colnames(x) == ref ] <- y.get
+    if (rename)
+      colnames(x)[ colnames(x) == ref ] <- y.get
     x
   })
 
@@ -698,4 +702,7 @@ setMethod("map", signature = c(x = "list"),
       })
   })
 
-
+setMethod("gname", signature = c(x = "character"),
+  function(x){
+    gs(x, "\\.[0-9]", "")
+  })
