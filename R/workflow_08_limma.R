@@ -203,3 +203,30 @@ setMethod("tops", signature = c(x = "job_limma"),
     features <- unlist(strsplit(features, " /// "), use.names = F)
     gs(features, "\\.[0-9]*$", "")
   })
+
+setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
+  function(x, y, from, to, names = NULL, use = if (x$isTcga) "gene_name" else "hgnc_symbol")
+  {
+    data <- as_tibble(x@params$normed_data$E)
+    anno <- x@params$normed_data$genes
+    data$rownames <- anno[[ use ]]
+    colnames(data)[1] <- "hgnc_symbol"
+    data <- dplyr::mutate(data, hgnc_symbol = gname(hgnc_symbol))
+    lst <- lapply(list(from, to),
+      function(set) {
+        set <- gname(set)
+        data <- dplyr::filter(data, hgnc_symbol %in% dplyr::all_of(set))
+        dplyr::distinct(data, hgnc_symbol, .keep_all = T)
+      })
+    if (is.null(names)) {
+      corp <- cal_corp(lst[[1]], lst[[2]], "From", "To", trans = T)
+    } else {
+      corp <- cal_corp(lst[[1]], lst[[2]], names[[1]], names[[2]], trans = T)
+    }
+    sig.corp <- filter(corp, sign != "-")
+    hp <- new_heatdata(corp)
+    hp <- callheatmap(hp)
+    namel(corp, sig.corp, hp)
+  })
+
+

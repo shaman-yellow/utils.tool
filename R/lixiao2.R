@@ -98,9 +98,8 @@ setGeneric("write",
   function(x, ...) standardGeneric("write"))
 
 setMethod("write", signature = c(x = "fasta"),
-  function(x, max = 500){
+  function(x, name, max = 500){
     dir.create("fasta", F)
-    name <- paste0("fasta/", as.character(substitute(x, parent.frame(1))))
     n <- 0
     lapply(group(x),
       function(x) {
