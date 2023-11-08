@@ -29,10 +29,7 @@ setMethod("step0", signature = c(x = "job_seurat"),
 
 setMethod("step1", signature = c(x = "job_seurat"),
   function(x){
-    step_message("Quality control (QC).
-      This do:
-      "
-    )
+    step_message("Quality control (QC).")
     return(x)
   })
 

@@ -351,9 +351,11 @@ activate_qiime <- function(env_pattern = "qiime", env_path = "~/miniconda3/envs/
 
 activate_base <- function(env_pattern = "base", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda")
 {
-  conda_env <- e(filter(reticulate::conda_list(), grepl(env_pattern, name))$name[1])
-  e(base::Sys.setenv(RETICULATE_PYTHON = paste0(env_path, "/", conda_env, "/bin/python")))
-  e(reticulate::py_config())
+  meta <- dplyr::filter(e(reticulate::conda_list()), grepl(env_pattern, name))
+  conda_env <- meta$name[1]
+  python <- meta$python[1]
+  e(base::Sys.setenv(RETICULATE_PYTHON = python))
+  ## e(reticulate::py_config())
   e(reticulate::use_condaenv(conda_env, conda, required = TRUE))
   e(reticulate::import("platform"))
 }
@@ -386,6 +388,12 @@ setMethod("set_remote", signature = c(x = "job_qiime"),
   })
 
 try_fqs_meta <- function(metadata, filepath, filter = F) {
+  if (any(duplicated(metadata[[ "dirs" ]]))) {
+    filepath <- mapply(get_realname(metadata$reports), filepath, SIMPLIFY = F,
+      FUN = function(name, files) {
+        files[ grpl(files, name, fixed = T) ]
+      })
+  }
   fun <- function(lst, n) {
     vapply(lst,
       function(vec) {

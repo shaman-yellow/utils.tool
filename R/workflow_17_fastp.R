@@ -181,7 +181,7 @@ list.remote <- function(path, pattern, remote = "remote",
   }
 }
 
-fastp_pair <- function(path, suffix = ".fastq.gz", pattern = paste0("[1-2]", suffix, "$"),
+fastp_pair <- function(path, suffix = ".fastq.gz", pattern = paste0(".[1-2]", suffix, "$"),
   f1_r2 = c("R1", "R2"),
   names = unique(gs(list.files(path, pattern), pattern, "")), workers = 4,
   copy_report = T, cdRun = get_fun("cdRun"))
@@ -191,7 +191,7 @@ fastp_pair <- function(path, suffix = ".fastq.gz", pattern = paste0("[1-2]", suf
   pbapply::pblapply(names,
     function(name) {
       i1 <- paste0(name, f1_r2[1], suffix)
-      i2 <- paste0(name, f2_r2[2], suffix)
+      i2 <- paste0(name, f1_r2[2], suffix)
       o1 <- paste0("fastp_qc/", name, "1.QC.fastq.gz")
       o2 <- paste0("fastp_qc/", name, "2.QC.fastq.gz")
       report <- paste0("fastp_report/", name, ".html")

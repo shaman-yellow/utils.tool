@@ -594,9 +594,17 @@ list_datasets <- function() {
   e(biomaRt::listDatasets(ensembl))
 }
 
-new_biomart <- function(dataset = c("hsapiens_gene_ensembl", "sscrofa_gene_ensembl"))
+new_biomart <- function(dataset = c("hsapiens_gene_ensembl", "sscrofa_gene_ensembl", "mmusculus_gene_ensembl"))
 {
-  ensembl <- e(biomaRt::useEnsembl(biomart = "ensembl", dataset = match.arg(dataset)))
+  if (missing(dataset)) {
+    message("Missing `dataset`, try get from global options.")
+    arg <- getOption("mart_dataset", "hsapiens_gene_ensembl")
+    dataset <- match.arg(arg, dataset)
+    message("Use ", dataset)
+  } else {
+    dataset <- match.arg(dataset)
+  }
+  ensembl <- e(biomaRt::useEnsembl(biomart = "ensembl", dataset = dataset))
   ensembl
 }
 
@@ -2441,6 +2449,9 @@ deparse_mail <- function(dir = "mail",
       function(att) {
         bins <- att$get_payload(decode = T)
         filename <- att$get_filename()
+        if (length(filename) == 0) {
+          return()
+        }
         if (grpl(filename, "^=\\?UTF-8")) {
           path <- paste0(savedir, "/", filename)
         } else {
@@ -2457,7 +2468,12 @@ deparse_mail <- function(dir = "mail",
       })
   }
   ## multipart
-  main <- contents[ isMulti ][[1]]
+  main <- contents[ isMulti ]
+  if (length(main) == 0) {
+    return()
+  } else {
+    main <- main[[1]]
+  }
   main <- main$get_payload()
   n <- 0L
   files_multipart <- lapply(main,
