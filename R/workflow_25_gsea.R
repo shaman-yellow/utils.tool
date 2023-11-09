@@ -20,13 +20,16 @@ setGeneric("asjob_gsea",
 
 setMethod("asjob_gsea", signature = c(x = "job_limma"),
   function(x, key = 1L, annotation = x@params$normed_data$genes,
-    filter = NULL)
+    filter = NULL, from = colnames(annotation)[ grp(colnames(annotation), "_symbol")[1] ])
   {
     data <- x@tables$step2$tops[[ key ]]
     if (!is.null(filter)) {
-      data <- dplyr::filter(data, hgnc_symbol %in% dplyr::all_of(filter))
+      data <- dplyr::filter(data, !!rlang::sym(from) %in% dplyr::all_of(filter))
     }
-    job_gsea(data, annotation)
+    data <- dplyr::rename(data, symbol = !!rlang::sym(from))
+    annotation <- dplyr::rename(annotation, symbol = !!rlang::sym(from))
+    x$from <- from
+    job_gsea(data, annotation, use = "symbol")
   })
 
 setMethod("asjob_gsea", signature = c(x = "job_seurat"),
@@ -37,24 +40,40 @@ setMethod("asjob_gsea", signature = c(x = "job_seurat"),
     } else {
       topTable <- marker.list
     }
-    job_gsea(dplyr::relocate(topTable, hgnc_symbol = gene, logFC = avg_log2FC))
+    job_gsea(dplyr::relocate(topTable, symbol = gene, logFC = avg_log2FC), use = "symbol")
   })
 
-job_gsea <- function(topTable, annotation)
+job_gsea <- function(topTable, annotation, use)
 {
-  .check_columns(topTable, c("hgnc_symbol", "logFC"))
-  topTable <- dplyr::select(topTable, hgnc_symbol, logFC)
-  topTable <- dplyr::filter(topTable, !is.na(hgnc_symbol) & hgnc_symbol != "")
+  .check_columns(topTable, c("logFC"))
+  rename <- T
+  if (missing(use)) {
+    if (any(colnames(topTable) == "symbol")) {
+      message("Use column `symbol` as gene input.")
+      rename <- F
+    } else if (length(whichs <- grp(colnames(topTable), "_symbol")) >= 1) {
+      use <- colnames(topTable)[ whichs[1] ]
+      message("Use column `", use, "` as gene input.")
+    }
+  } else if (use == "symbol") {
+    rename <- F
+  }
+  if (rename) {
+    topTable <- dplyr::rename(topTable, symbol = !!rlang::sym(use))
+    annotation <- dplyr::rename(annotation, symbol = !!rlang::sym(use))
+  }
+  topTable <- dplyr::select(topTable, symbol, logFC)
+  topTable <- dplyr::filter(topTable, !is.na(symbol) & symbol != "")
   topTable <- dplyr::arrange(topTable, dplyr::desc(logFC))
-  topTable <- dplyr::distinct(topTable, hgnc_symbol, .keep_all = T)
-  used.hgnc_symbol <- nl(topTable$hgnc_symbol, topTable$logFC, F)
+  topTable <- dplyr::distinct(topTable, symbol, .keep_all = T)
+  used.symbol <- nl(topTable$symbol, topTable$logFC, F)
   if (missing(annotation)) {
     mart <- new_biomart()
-    annotation <- filter_biomart(mart, general_attrs(), "hgnc_symbol", topTable$hgnc_symbol)
+    annotation <- filter_biomart(mart, c(use, "entrezgene_id"), use, topTable$symbol)
   }
-  topTable <- map(topTable, "hgnc_symbol", annotation, "hgnc_symbol", "entrezgene_id")
+  topTable <- map(topTable, "symbol", annotation, use, "entrezgene_id")
   used.entrezgene_id <- nl(topTable$entrezgene_id, topTable$logFC, F)
-  object <- list(hgnc_symbol = used.hgnc_symbol, entrezgene_id = used.entrezgene_id)
+  object <- list(symbol = used.symbol, entrezgene_id = used.entrezgene_id)
   x <- .job_gsea(object = object)
   x$annotation <- annotation
   return(x)
@@ -68,13 +87,16 @@ setMethod("step0", signature = c(x = "job_gsea"),
 setMethod("step1", signature = c(x = "job_gsea"),
   function(x, OrgDb = org.Hs.eg.db::org.Hs.eg.db, org = "hsa"){
     step_message("GSEA enrichment.")
+    isNa <- is.na(names(object(x)$entrezgene_id))
+    object(x)$entrezgene_id <- object(x)$entrezgene_id[!isNa]
+    object(x)$symbol <- object(x)$symbol[!isNa]
     ## kegg
     res.kegg <- e(clusterProfiler::gseKEGG(object(x)$entrezgene_id, organism = org))
     fun <- function(sets) {
       lapply(sets,
         function(set) {
           from_ids <- x$annotation$entrezgene_id
-          to_names <- x$annotation$hgnc_symbol
+          to_names <- x$annotation$symbol
           to_names[ match(set, from_ids) ]
         })
     }
@@ -93,38 +115,45 @@ setMethod("step1", signature = c(x = "job_gsea"),
     }
     ## go
     if (is.null(x$res.go)) {
-      res.go <- e(clusterProfiler::gseGO(object(x)$hgnc_symbol, ont = "ALL", OrgDb = OrgDb,
+      res.go <- e(clusterProfiler::gseGO(object(x)$symbol, ont = "ALL", OrgDb = OrgDb,
           keyType = "SYMBOL"))
     } else {
       res.go <- x$res.go
     }
-    table_go <- dplyr::mutate(res.go@result,
-      geneName_list = strsplit(core_enrichment, "/"),
-      GeneRatio = as.double(stringr::str_extract(leading_edge, "[0-9]+")),
-      Count = lengths(geneName_list)
-    )
-    table_go <- dplyr::arrange(table_go, p.adjust)
-    table_go <- as_tibble(table_go)
-    data <- dplyr::mutate(split_lapply_rbind(table_go, ~ ONTOLOGY, head, n = 10),
-      Description = stringr::str_trunc(Description, 50)
-    )
-    p.go <- ggplot(data) +
-      geom_point(aes(x = reorder(Description, GeneRatio),
-          y = GeneRatio, size = Count, fill = p.adjust),
-        shape = 21, stroke = 0, color = "transparent") +
-      scale_fill_gradient(high = "yellow", low = "red") +
-      scale_size(range = c(4, 6)) +
-      guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
-      coord_flip() +
-      facet_grid(ONTOLOGY ~ ., scales = "free") +
-      theme_minimal() +
-      theme(axis.title.y = element_blank(),
-        strip.background = element_rect(fill = "grey90", color = "grey70")) +
-      geom_blank()
+    if (nrow(res.go@result) == 0) {
+      message("No enrichment available for GO.")
+      table_go <- NULL
+      p.go <- NULL
+    } else {
+      table_go <- dplyr::mutate(res.go@result,
+        geneName_list = strsplit(core_enrichment, "/"),
+        GeneRatio = as.double(stringr::str_extract(leading_edge, "[0-9]+")),
+        Count = lengths(geneName_list)
+      )
+      table_go <- dplyr::arrange(table_go, p.adjust)
+      table_go <- as_tibble(table_go)
+      data <- dplyr::mutate(split_lapply_rbind(table_go, ~ ONTOLOGY, head, n = 10),
+        Description = stringr::str_trunc(Description, 50)
+      )
+      p.go <- ggplot(data) +
+        geom_point(aes(x = reorder(Description, GeneRatio),
+            y = GeneRatio, size = Count, fill = p.adjust),
+          shape = 21, stroke = 0, color = "transparent") +
+        scale_fill_gradient(high = "yellow", low = "red") +
+        scale_size(range = c(4, 6)) +
+        guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
+        coord_flip() +
+        facet_grid(ONTOLOGY ~ ., scales = "free") +
+        theme_minimal() +
+        theme(axis.title.y = element_blank(),
+          strip.background = element_rect(fill = "grey90", color = "grey70")) +
+        geom_blank()
+    }
     x@params$res.go <- res.go
     x@params$res.kegg <- res.kegg
     x@tables[[ 1 ]] <- namel(table_go, table_kegg)
     x@plots[[ 1 ]] <- namel(p.go, p.kegg)
+    x$org <- org
     return(x)
   })
 
@@ -138,7 +167,7 @@ setMethod("step2", signature = c(x = "job_gsea"),
   })
 
 setMethod("step3", signature = c(x = "job_gsea"),
-  function(x, pathways, species = "hsa",
+  function(x, pathways, species = x$org,
     name = paste0("pathview", gs(Sys.time(), " |:", "_")),
     search = "pathview")
   {
@@ -186,11 +215,11 @@ setMethod("step4", signature = c(x = "job_gsea"),
     step_message("Custom database for GSEA enrichment.")
     ## general analysis
     insDb <- lapply(split(db, ~ term),
-      function(data) intersect(data$symbol, names(object(x)$hgnc_symbol)))
+      function(data) intersect(data$symbol, names(object(x)$symbol)))
     p.pie_insDb <- new_pie(rep(names(insDb), lengths(insDb)))
-    table_insDb <- dplyr::filter(db, symbol %in% names(object(x)$hgnc_symbol))
+    table_insDb <- dplyr::filter(db, symbol %in% names(object(x)$symbol))
     ## enrichment
-    res.gsea <- e(clusterProfiler::GSEA(object(x)$hgnc_symbol, TERM2GENE = db,
+    res.gsea <- e(clusterProfiler::GSEA(object(x)$symbol, TERM2GENE = db,
         pvalueCutoff = cutoff))
     table_gsea <- dplyr::as_tibble(res.gsea@result)
     if (!is.null(map)) {
@@ -210,4 +239,15 @@ setMethod("step4", signature = c(x = "job_gsea"),
     x@tables[[ 4 ]] <- namel(table_gsea, table_insDb)
     x@plots[[ 4 ]] <- namel(p.code, p.pie_insDb)
     return(x)
+  })
+
+setMethod("filter", signature = c(DF_object = "job_gsea"),
+  function(DF_object, ref, use = c("entrezgene_id", "symbol")){
+    use <- match.arg(use)
+    isThat <- names(object(DF_object)[[ use ]]) %in% ref
+    object(DF_object) <- lapply(object(DF_object),
+      function(x) {
+        x[ isThat ]
+      })
+    return(DF_object)
   })

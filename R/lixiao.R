@@ -532,17 +532,24 @@ get_tcm.base <- function(id, link_prefix) {
   data
 }
 
-get_c2_data <- function(pattern = NULL, path = "../human_c2_v5p2.rdata",
-  download_url = "https://bioinf.wehi.edu.au/software/MSigDB/human_c2_v5p2.rdata")
+get_c2_data <- function(pattern = NULL,
+  mode = c("hsa", "mmu"))
 {
+  mode <- match.arg(mode)
+  path <- if (mode == "hsa") {
+    "../human_c2_v5p2.rdata"
+  } else if (mode == "mmu"){
+    "../mouse_c2_v5p2.rdata"
+  }
   if (!file.exists(path)) {
-    system(paste0("wget ", download_url, " -O ", path))
+    ## download_url <- "https://bioinf.wehi.edu.au/software/MSigDB/human_c2_v5p2.rdata"
+    stop("file.exists(path) == F")
   }
   name <- load(path)
   db <- get(name)
   names(db) <- tolower(names(db))
   if (!is.null(pattern))
-    db <- db[ grep(pattern, names(db)) ]
+    db <- db[ grep(pattern, names(db), ignore.case = T) ]
   return(db)
 }
 
@@ -1718,7 +1725,7 @@ mx <- function(...){
   design
 }
 
-norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ...){
+norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ..., vis = T){
   ## raw
   raw_dge <- dge
   raw_dge$counts <- edgeR::cpm(raw_dge, log = T, prior.count = prior.count)
@@ -1726,7 +1733,7 @@ norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ...)
   dge <- e(edgeR::calcNormFactors(dge, method = "TMM"))
   pro_dge <- dge <- fun(dge, design, ...)
   ## data long
-  if (F) {
+  if (vis) {
     cli::cli_alert_info("as_data_long")
     data <- list(Raw = as_data_long(raw_dge), Normalized = as_data_long(pro_dge))
     data <- data.table::rbindlist(data, idcol = T, fill = T)

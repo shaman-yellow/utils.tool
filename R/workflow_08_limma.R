@@ -33,7 +33,7 @@ setMethod("step0", signature = c(x = "job_limma"),
 setMethod("step1", signature = c(x = "job_limma"),
   function(x, group = x@object$samples$group, batch = x@object$samples$batch,
     design = if (is.null(batch)) mx(~ 0 + group) else mx(~ 0 + group + batch),
-    min.count = 10, no.filter = F, no.norm = F)
+    min.count = 10, no.filter = F, no.norm = F, norm_vis = F)
   {
     step_message("Preprocess expression data.
       "
@@ -45,7 +45,7 @@ setMethod("step1", signature = c(x = "job_limma"),
       plots <- c(plots, namel(p.filter))
     }
     if (!no.norm) {
-      object(x) <- norm_genes.dge(object(x), design)
+      object(x) <- norm_genes.dge(object(x), design, norm_vis)
       if (length(x@object$targets$sample) < 50) {
         p.norm <- wrap(attr(object(x), "p"), 6, length(x@object$targets$sample) * .6)
       } else {
@@ -118,6 +118,13 @@ setMethod("step3", signature = c(x = "job_limma"),
       })
     tops <- unlist(tops, recursive = F)
     x$sets_intersection <- tops
+    message("The guess use dataset combination of:\n",
+      "\t ", names(tops)[1], " %in% ", names(tops)[4], "\n",
+      "\t ", names(tops)[2], " %in% ", names(tops)[3])
+    x$guess_use <- unique(c(
+      intersect(tops[[ 1 ]], tops[[ 4 ]]),
+      intersect(tops[[ 2 ]], tops[[ 3 ]])
+    ))
     p.sets_intersection <- new_upset(lst = tops)
     x@plots[[ 3 ]] <- namel(p.sets_intersection)
     return(x)
@@ -137,6 +144,9 @@ setMethod("map", signature = c(x = "job_limma"),
     object <- x@params$normed_data
     rownames(object) <- object$genes[[ ref.use ]]
     object <- object[rownames(object) %in% ref, ]
+    if (any(duplicated(rownames(object)))) {
+      object <- object[ !duplicated(rownames(object)), ]
+    }
     if (!is.null(group)) {
       object <- object[, object$targets[[ group.use ]] %in% group]
     }
@@ -210,13 +220,13 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
     data <- as_tibble(x@params$normed_data$E)
     anno <- x@params$normed_data$genes
     data$rownames <- anno[[ use ]]
-    colnames(data)[1] <- "hgnc_symbol"
-    data <- dplyr::mutate(data, hgnc_symbol = gname(hgnc_symbol))
+    colnames(data)[1] <- use
+    data <- dplyr::mutate(data, symbol = gname(!!rlang::sym(use)))
     lst <- lapply(list(from, to),
       function(set) {
         set <- gname(set)
-        data <- dplyr::filter(data, hgnc_symbol %in% dplyr::all_of(set))
-        dplyr::distinct(data, hgnc_symbol, .keep_all = T)
+        data <- dplyr::filter(data, symbol %in% dplyr::all_of(set))
+        dplyr::distinct(data, symbol, .keep_all = T)
       })
     if (is.null(names)) {
       corp <- cal_corp(lst[[1]], lst[[2]], "From", "To", trans = T)
