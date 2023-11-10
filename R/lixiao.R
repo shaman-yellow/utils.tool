@@ -2260,6 +2260,11 @@ setMethod("cal_corp", signature = c(x = "df", y = "df"),
 
 setMethod("new_heatdata", signature = c(x = "df"),
   function(x){
+    if (is.character(x[[1]])) {
+      x <- data.frame(x)
+      rownames(x) <- x[[1]]
+      x <- x[, -1]
+    }
     x <- as_data_long(x)
     new_heatdata(x)
   })
@@ -2440,7 +2445,8 @@ deparse_mail <- function(dir = "mail",
   m <- e(reticulate::import("mailbox"))
   ## load mail
   mdir <- m$Maildir(dir)
-  obj <- mdir$get_message(mdir$keys()[1])
+  obj <- mdir$get_message(mdir$keys()[1]) 
+  ## payload
   contents <- obj$get_payload()
   isMulti <- vapply(contents, function(x) x$is_multipart(), logical(1))
   ## all attachments
@@ -2501,6 +2507,15 @@ deparse_mail <- function(dir = "mail",
     })
   files_multipart <- lst_clear0(files_multipart)
   writeLines("", sig)
+  ## basic information
+  date <- lapply(obj$items(),
+    function(lst) {
+      if (lst[[ 1 ]] == "Date") {
+        return(lst[[ 2 ]])
+      }
+    })
+  date <- unlist(date)
+  writeLines(date, paste0(savedir, "/", "date.md"))
 }
 
 auto_material <- function(class = "job_geo", envir = .GlobalEnv) {
@@ -2901,10 +2916,11 @@ setMethod("abstract", signature = c(x = "files", name = "character", latex = "lo
 
 sumDir <- function(dir, sum.ex = NULL) {
   files <- list.files(dir)
+  num <- length(files)
   if (length(files) > 5)
     files <- c(head(files, n = 5), "...")
   files <- fix.tex(files)
-  paste0("注：文件夹", fix.tex(dir), "共包含", length(files), "个文件。\n",
+  paste0("注：文件夹", fix.tex(dir), "共包含", num, "个文件。\n",
     sum.ex, "\n",
     paste0(
       "\\begin{enumerate}",

@@ -160,9 +160,9 @@ dot_heatmap <- function(data, x = "sample", y = ".features_id",
 tile_heatmap <- function(data, x = "sample", y = ".features_id", fill = "value",
   lab_x = "Sample", lab_y = "Feature ID", lab_fill = "log2 (Feature level)", ...)
 {
-  if ( 0L < min(data[[ fill ]], na.rm = T) ) {
+  if ( 0L <= min(data[[ fill ]], na.rm = T) ) {
     scale_fill <- scale_fill_gradient(
-      high = "black", low = "#A73030FF",
+      high = "#A73030FF", low = "black",
       limits = c(min(data[[ fill ]]), max(data[[ fill ]])))
     color <- "black"
     size <- .7

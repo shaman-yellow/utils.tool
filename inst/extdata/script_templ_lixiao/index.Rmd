@@ -2,6 +2,10 @@
 ---
 
 ```{r include = F}
+deparse_mail()
+```
+
+```{r include = F}
 #| setup
 if (!requireNamespace("utils.tool"))
   devtools::load_all("~/utils.tool/")
@@ -11,7 +15,6 @@ autor_preset()
 ## please install the package `utils.tool` and other related packages (run
 ## install.R)
 options(savedir = list(figs = "Figure+Table", tabs = "Figure+Table"))
-deparse_mail()
 ```
 
 ```{r eval = T, echo = F, results = "asis"}

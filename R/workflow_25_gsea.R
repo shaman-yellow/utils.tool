@@ -12,7 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("http://www.gsea-msigdb.org/gsea/downloads.jsp"),
-    method = "ClusterProfiler used for GSEA enrichment"
+    method = "ClusterProfiler used for GSEA enrichment",
+    cite = "[@ClusterprofilerWuTi2021]"
     ))
 
 setGeneric("asjob_gsea", 
