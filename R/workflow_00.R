@@ -16,7 +16,8 @@
     info = "ANY",
     pg = "character",
     cite = "character",
-    method = "character"
+    method = "character",
+    sig = "character"
     ),
   prototype = prototype(step = 0L,
     params = list(wd = ".", remote = "remote")
@@ -72,7 +73,56 @@ setGeneric("others<-",
   function(x, value) standardGeneric("others<-"))
 setGeneric("ids", 
   function(x, ...) standardGeneric("ids"))
+setGeneric("sig", 
+  function(x, ...) standardGeneric("sig"))
+setGeneric("sig<-", 
+  function(x, value) standardGeneric("sig<-"))
+setGeneric("lab", 
+  function(x, ...) standardGeneric("lab"))
+setGeneric("lab<-", 
+  function(x, value) standardGeneric("lab<-"))
 
+setMethod("lab", signature = c(x = "ANY"),
+  function(x, ...){
+    attr(x, ".LABEL")
+  })
+setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
+  function(x, value){
+    attr(x, ".LABEL") <- value
+    return(x)
+  })
+
+.lab_out <- function(x) {
+  writeLines(Hmisc::capitalize(gs(lab(x), " ", "-")))
+}
+
+.set_lab <- function(x, sig, group = NULL, body = NULL, suffix = NULL) {
+  if (is(x, "list")) {
+    n <- 0L
+    x <- lapply(x,
+      function(obj) {
+        n <<- n + 1L
+        group <- group[n]
+        if (is.na(group)) {
+          stop("is.na(group)")
+        }
+        lab(obj) <- gs(gs(paste(sig, group, body, suffix), "[ ]+", " "), " $", "")
+        return(obj)
+      })
+  } else {
+    lab(x) <- gs(gs(paste(sig, group, body, suffix), "[ ]+", " "), " $", "")
+  }
+  return(x)
+}
+
+setMethod("sig", signature = c(x = "job"),
+  function(x){
+    x@sig
+  })
+setReplaceMethod("sig", signature = c(x = "job"),
+  function(x, value){
+    initialize(x, sig = value)
+  })
 
 #' @exportMethod pg
 setMethod("pg", signature = c(x = "job"),
@@ -706,3 +756,35 @@ setMethod("gname", signature = c(x = "character"),
   function(x){
     gs(x, "\\.[0-9]", "")
   })
+
+move_rds <- function(from, to) {
+  lapply(from,
+    function(path) {
+      dirname <- get_filename(gs(path, "/$", ""))
+      target <- paste0(to, "/", dirname)
+      dir.create(target, F)
+      files <- list.files(path, pattern = ".rds$|.RData$|.Rdata$", full.names = T, all.files = T)
+      lapply(files,
+        function(file) {
+          system(paste0("cp ", file, " -t ", target))
+          file.remove(file)
+        })
+    })
+}
+
+activate_celldancer <- function(env_pattern = "cellDancer", conda = "~/miniconda3/bin/conda") {
+  activate_base(env_pattern, conda = conda)
+}
+
+activate_base <- function(env_pattern = "base", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda")
+{
+  meta <- dplyr::filter(e(reticulate::conda_list()), grepl(env_pattern, name))
+  conda_env <- meta$name[1]
+  python <- meta$python[1]
+  e(base::Sys.setenv(RETICULATE_PYTHON = python))
+  ## e(reticulate::py_config())
+  e(reticulate::use_condaenv(conda_env, conda, required = TRUE))
+  e(reticulate::import("platform"))
+}
+
+

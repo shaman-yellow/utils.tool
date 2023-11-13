@@ -51,6 +51,7 @@ setMethod("step1", signature = c(x = "job_seurat"),
       object(x), pattern = "^MT-"
     ))
     p.qc <- plot_qc.seurat(x)
+    p.qc <- .set_lab(p.qc, sig(x), "Quality", "Control")
     x@plots[[ 1 ]] <- list(p.qc = p.qc)
     message("Dim: ", paste0(dim(object(x)), collapse = ", "))
     return(x)
@@ -84,6 +85,8 @@ setMethod("step2", signature = c(x = "job_seurat"),
         object(x), features = SeuratObject::VariableFeatures(object(x))
         ))
     x@plots[[ 2 ]] <- plot_pca.seurat(object(x))
+    x@plots[[ 2 ]]$p.pca_rank <- .set_lab(
+      x@plots[[ 2 ]]$p.pca_rank, sig(x), "Ranking of principle components")
     message("Dim: ", paste0(dim(object(x)), collapse = ", "))
     return(x)
   })
@@ -111,14 +114,15 @@ setMethod("step3", signature = c(x = "job_seurat"),
           "Please consider higher `resolution`. ")
       }
     }
-    if (isNamespaceLoaded("future")) {
-      e(pkgload::unload("future"))
-    }
+    # if (isNamespaceLoaded("future")) {
+      # e(pkgload::unload("future"))
+    # }
     object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims))
     object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution))
     object(x) <- e(Seurat::RunUMAP(object(x), dims = dims))
     p.umap <- e(Seurat::DimPlot(object(x), reduction = "umap", cols = color_set()))
     p.umap <- wrap(p.umap, 6, 5)
+    p.umap <- .set_lab(p.umap, sig(x), "UMAP", "Clustering")
     x@plots[[ 3 ]] <- namel(p.umap)
     return(x)
   })
@@ -245,7 +249,9 @@ setMethod("step6", signature = c(x = "job_seurat"),
         object(x), reduction = "umap", label = F, pt.size = .7,
         group.by = "scsa_cell", cols = color_set()
         ))
-    x@plots[[ 6 ]] <- list(p.map_scsa = wrap(as_grob(p.map_scsa), 7, 4))
+    p.map_scsa <- wrap(as_grob(p.map_scsa), 7, 4)
+    p.map_scsa <- .set_lab(p.map_scsa, sig(x), "SCSA", "Cell type annotation")
+    x@plots[[ 6 ]] <- list(p.map_scsa = p.map_scsa)
     return(x)
   })
 

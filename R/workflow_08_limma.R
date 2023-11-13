@@ -91,9 +91,15 @@ setMethod("step2", signature = c(x = "job_limma"),
     object(x) <- diff_test(object(x), x@params$design, contr, block)
     if (!is.null(contr)) {
       tops <- extract_tops(object(x), use = use, use.cut = use.cut, cut.fc = cut.fc)
+      tops <- .set_lab(tops, sig(x), paste("data", gs(names(tops), "-", "vs")), "DEGs")
+      lab(tops) <- paste(sig(x), "data", "DEGs")
+    } else {
+      tops <- NULL
     }
     p.valcano <- lapply(tops, plot_valcano, label = label, use = use, fc = cut.fc)
     p.valcano <- lapply(p.valcano, function(p) wrap(p, 5, 4))
+    p.valcano <- .set_lab(p.valcano, sig(x), gs(names(p.valcano), "-", "vs"), "DEGs")
+    lab(p.valcano) <- paste(sig(x), "volcano plot", "DEGs")
     x@tables[[ 2 ]] <- namel(tops)
     x@plots[[ 2 ]] <- namel(p.valcano)
     return(x)
@@ -126,6 +132,7 @@ setMethod("step3", signature = c(x = "job_limma"),
       intersect(tops[[ 2 ]], tops[[ 3 ]])
     ))
     p.sets_intersection <- new_upset(lst = tops)
+    p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "DEGs", "intersection")
     x@plots[[ 3 ]] <- namel(p.sets_intersection)
     return(x)
   })

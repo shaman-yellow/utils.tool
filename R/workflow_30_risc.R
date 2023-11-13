@@ -198,6 +198,10 @@ setMethod("ids", signature = c(x = "job_risc"),
 pgc <- pattern_gradientColor <- function(pattern, names,
   colors = ggsci::pal_rickandmorty()(10))
 {
+  if (length(pattern) > length(colors)) {
+    message("`colors` provided not enough.")
+    colors <- color_set()
+  }
   names <- as.character(unique(names))
   colors <- colors[ 1:length(pattern) ]
   n <- 0L

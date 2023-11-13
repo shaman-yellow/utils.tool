@@ -345,21 +345,6 @@ expr_sys.file.exists <- function(file) {
   paste0("if [ -e ", file, " ]; then echo T; else echo F; fi")
 }
 
-activate_qiime <- function(env_pattern = "qiime", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda") {
-  activate_base(env_pattern, env_path, conda)
-}
-
-activate_base <- function(env_pattern = "base", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda")
-{
-  meta <- dplyr::filter(e(reticulate::conda_list()), grepl(env_pattern, name))
-  conda_env <- meta$name[1]
-  python <- meta$python[1]
-  e(base::Sys.setenv(RETICULATE_PYTHON = python))
-  ## e(reticulate::py_config())
-  e(reticulate::use_condaenv(conda_env, conda, required = TRUE))
-  e(reticulate::import("platform"))
-}
-
 setMethod("set_remote", signature = c(x = "job_qiime"),
   function(x, path, wd = path,
     pattern = if (is.null(x@params$pattern_fq)) "fastq\\.gz$" else x@params$pattern_fq,
@@ -410,4 +395,8 @@ try_fqs_meta <- function(metadata, filepath, filter = F) {
     metadata <- filter(metadata, `forward-absolute-filepath` != "")
   }
   metadata
+}
+
+activate_qiime <- function(env_pattern = "qiime", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda") {
+  activate_base(env_pattern, env_path, conda)
 }

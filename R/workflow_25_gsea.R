@@ -153,6 +153,8 @@ setMethod("step1", signature = c(x = "job_gsea"),
     x@params$res.go <- res.go
     x@params$res.kegg <- res.kegg
     x@tables[[ 1 ]] <- namel(table_go, table_kegg)
+    p.go <- .set_lab(p.go, sig(x), "GO", "enrichment")
+    p.kegg <- .set_lab(p.kegg, sig(x), "KEGG", "enrichment")
     x@plots[[ 1 ]] <- namel(p.go, p.kegg)
     x$org <- org
     return(x)
@@ -238,6 +240,7 @@ setMethod("step4", signature = c(x = "job_gsea"),
     x@params$res.gsea <- res.gsea
     x@params$db.gsea <- db
     x@tables[[ 4 ]] <- namel(table_gsea, table_insDb)
+    p.code <- .set_lab(p.code, sig(x), "GSEA plot of pathway")
     x@plots[[ 4 ]] <- namel(p.code, p.pie_insDb)
     return(x)
   })

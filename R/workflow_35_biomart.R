@@ -49,6 +49,8 @@ setMethod("step1", signature = c(x = "job_biomart"),
         attrs <- c("mgi_symbol", "ensembl_transcript_id", "entrezgene_id", "hgnc_symbol", "description")
       }
     }
-    x$anno <- filter_biomart(x$mart, attrs, filters, values)
+    anno <- filter_biomart(x$mart, attrs, filters, values)
+    anno <- .set_lab(anno, sig(x), "genes", "annotation")
+    x$anno <- anno
     return(x)
   })
