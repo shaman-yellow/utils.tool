@@ -110,7 +110,7 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
         return(obj)
       })
   } else {
-    lab(x) <- gs(gs(paste(sig, group, body, suffix), "[ ]+", " "), " $", "")
+    lab(x) <- gs(gs(paste(sig, group, body, suffix), "[ ]+", " "), "^ | $", "")
   }
   return(x)
 }

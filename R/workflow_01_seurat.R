@@ -486,10 +486,11 @@ setMethod("vis", signature = c(x = "job_seurat"),
     if (is.null(palette)) {
       palette <- color_set()
     }
-    wrap(e(Seurat::DimPlot(
-        object(x), reduction = "umap", label = F, pt.size = pt.size,
-        group.by = group.by, cols = palette
-        )), 7, 4)
+    p <- wrap(e(Seurat::DimPlot(
+          object(x), reduction = "umap", label = F, pt.size = pt.size,
+          group.by = group.by, cols = palette
+          )), 7, 4)
+    .set_lab(p, sig(x), "group by", gs(group.by, "_", "-"))
   })
 
 setMethod("focus", signature = c(x = "job_seurat"),

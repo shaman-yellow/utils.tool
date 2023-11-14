@@ -240,13 +240,14 @@ setMethod("asjob_seurat", signature = c(x = "job_risc"),
     x <- .job_seurat(object = object)
     x$group.by <- group.by
     x$palette <- palette
+    x@step <- 3L
+    sig(x) <- name
     return(x)
   })
 
 setMethod("asjob_monocle", signature = c(x = "job_risc"),
   function(x){
     x <- asjob_seurat(x)
-    x@step <- 3L
     x <- asjob_monocle(x)
     return(x)
   })

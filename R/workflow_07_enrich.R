@@ -18,8 +18,12 @@
 
 job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_id")
 {
-  if (is.null(names(ids)))
+  if (!is(ids, "list")) {
+    ids <- list(ids = ids)
+  }
+  if (is.null(names(ids))) {
     stop("is.null(names(ids))")
+  }
   if (missing(annotation)) {
     mart <- new_biomart()
     annotation <- filter_biomart(mart, general_attrs(), from, unique(unlist(ids)))

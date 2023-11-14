@@ -61,3 +61,10 @@ setMethod("step1", signature = c(x = "job_edqtl"),
     writeLines("", recordfile)
   }
 }
+
+setMethod("anno", signature = c(x = "job_edqtl"),
+  function(x, file = "../gtex/edqtl/bulk-qtl_v8_editing-qtl_GTEx_Analysis_v8_edQTL.README.txt"){
+    system(paste0("vim ", file))
+  })
+
+
