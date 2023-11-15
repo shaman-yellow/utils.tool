@@ -587,3 +587,13 @@ setMethod("mutate", signature = c(DF_object = "job_seurat"),
     object(DF_object)@meta.data <- dplyr::mutate(object(DF_object)@meta.data, ...)
     return(DF_object)
   })
+
+setMethod("cal_corp", signature = c(x = "job_seurat", y = "NULL"),
+  function(x, y, from, to, names = NULL)
+  {
+    data <- object(x)[[ object(x)@active.assay ]]@data
+    data <- data[ rownames(data) %in% unique(c(from, to)), ]
+    anno <- data.frame(symbol = rownames(data))
+    data <- data.frame(Matrix::as.matrix(data))
+    .cal_corp.elist(data, anno, use = "symbol", from, to, names)
+  })

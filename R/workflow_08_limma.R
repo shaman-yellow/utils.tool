@@ -226,24 +226,30 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
   {
     data <- as_tibble(x@params$normed_data$E)
     anno <- x@params$normed_data$genes
-    data$rownames <- anno[[ use ]]
-    colnames(data)[1] <- use
-    data <- dplyr::mutate(data, symbol = gname(!!rlang::sym(use)))
-    lst <- lapply(list(from, to),
-      function(set) {
-        set <- gname(set)
-        data <- dplyr::filter(data, symbol %in% dplyr::all_of(set))
-        dplyr::distinct(data, symbol, .keep_all = T)
-      })
-    if (is.null(names)) {
-      corp <- cal_corp(lst[[1]], lst[[2]], "From", "To", trans = T)
-    } else {
-      corp <- cal_corp(lst[[1]], lst[[2]], names[[1]], names[[2]], trans = T)
-    }
-    sig.corp <- filter(corp, sign != "-")
-    hp <- new_heatdata(corp)
-    hp <- callheatmap(hp)
-    namel(corp, sig.corp, hp)
+    .cal_corp.elist(data, anno, use, from, to, names)
   })
 
-
+.cal_corp.elist <- function(data, anno, use, from, to, names)
+{
+  if (is.null(data$rownames)) {
+    data <- as_tibble(data)
+  }
+  data$rownames <- anno[[ use ]]
+  colnames(data)[1] <- use
+  data <- dplyr::mutate(data, symbol = gname(!!rlang::sym(use)))
+  lst <- lapply(list(from, to),
+    function(set) {
+      set <- gname(set)
+      data <- dplyr::filter(data, symbol %in% dplyr::all_of(set))
+      dplyr::distinct(data, symbol, .keep_all = T)
+    })
+  if (is.null(names)) {
+    corp <- cal_corp(lst[[1]], lst[[2]], "From", "To", trans = T)
+  } else {
+    corp <- cal_corp(lst[[1]], lst[[2]], names[[1]], names[[2]], trans = T)
+  }
+  sig.corp <- filter(corp, sign != "-")
+  hp <- new_heatdata(corp)
+  hp <- callheatmap(hp)
+  namel(corp, sig.corp, hp)
+}

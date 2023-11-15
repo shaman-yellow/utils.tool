@@ -69,8 +69,11 @@ job_gsea <- function(topTable, annotation, use)
   topTable <- dplyr::distinct(topTable, symbol, .keep_all = T)
   used.symbol <- nl(topTable$symbol, topTable$logFC, F)
   if (missing(annotation)) {
+    message("Missing `annotation`, use 'hgnc_symbol' to get annotation.")
     mart <- new_biomart()
-    annotation <- filter_biomart(mart, c(use, "entrezgene_id"), use, topTable$symbol)
+    annotation <- filter_biomart(mart,
+      c("hgnc_symbol", "entrezgene_id"), "hgnc_symbol", topTable$symbol)
+    annotation <- dplyr::rename(annotation, !!!nl(use, "hgnc_symbol"))
   }
   topTable <- map(topTable, "symbol", annotation, use, "entrezgene_id")
   used.entrezgene_id <- nl(topTable$entrezgene_id, topTable$logFC, F)
