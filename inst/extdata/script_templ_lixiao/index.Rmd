@@ -18,6 +18,10 @@ options(savedir = list(figs = "Figure+Table", tabs = "Figure+Table"))
 ```
 
 ```{r eval = T, echo = F, results = "asis"}
+set_cover("title")
+```
+
+```{r eval = T, echo = F, results = "asis"}
 set_index()
 ```
 

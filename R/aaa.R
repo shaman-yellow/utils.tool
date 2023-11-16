@@ -501,7 +501,7 @@ space <- function(env = .GlobalEnv, all.names = T) {
 
 save_small <- function(cutoff = 50, file = "small.rdata") {
   space <- space()
-  space <- dplyr::filter(space, value < !!cutoff)
+  space <- dplyr::filter(space, .data$value < !!cutoff)
   save(list = space$name, file = file, envir = .GlobalEnv)
 }
 

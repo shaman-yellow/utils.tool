@@ -10,8 +10,8 @@ output:
       # "--filter", "pandoc-tablenos"
     # ]
     keep_tex: true
-    toc: true
-    toc_depth: 4
+    toc: false
+    # toc_depth: 4
     latex_engine: xelatex
 header-includes:
   \usepackage{caption}
@@ -26,3 +26,7 @@ header-includes:
   \usepackage{setspace}
   \setstretch{1.3} 
   \usepackage{tcolorbox}
+  \setcounter{secnumdepth}{4}
+  \setcounter{tocdepth}{4}
+  \usepackage{wallpaper}
+  \usepackage[absolute]{textpos}

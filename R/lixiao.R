@@ -2570,10 +2570,40 @@ auto_method <- function(class = "job", envir = .GlobalEnv) {
   writeLines(methods)
 }
 
+set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
+  coverpage = "../cover_page.pdf", institution = "@立效研究院")
+{
+  content <- strwrap(paste0("\\begin{titlepage}
+      \\newgeometry{top=7.5cm}
+      \\ThisCenterWallPaper{1.12}{", coverpage, "}
+      \\begin{center}
+      \\textbf{\\Huge ", title, "}
+      \\vspace{4em}
+      \\begin{textblock}{10}(3,5.9)
+      \\huge \\textbf{\\textcolor{white}{", date, "}}
+      \\end{textblock}
+      \\begin{textblock}{10}(3,7.3)
+      \\Large \\textcolor{black}{", author, "}
+      \\end{textblock}
+      \\begin{textblock}{10}(3,11.3)
+      \\Large \\textcolor{black}{", institution, "}
+      \\end{textblock}
+      \\end{center}
+      \\end{titlepage}
+      \\restoregeometry
+      "
+      ), 50)
+  writeLines(content)
+}
+
 set_index <- function() {
   if (knitr::is_latex_output()) {
+    cat("\\pagenumbering{roman}\n\n")
+    cat("\\tableofcontents\n\n")
     cat("\\listoffigures\n\n")
     cat("\\listoftables\n\n")
+    cat("\\newpage\n\n")
+    cat("\\pagenumbering{arabic}\n\n")
   }
 }
 
@@ -3273,4 +3303,8 @@ grp <- function(x, pattern, ...) {
 
 grpl <- function(x, pattern, ...) {
   grepl(pattern, x, ...)
+}
+
+grpf <- function(x, pattern, ...) {
+  x[grepl(pattern, x, ...)]
 }

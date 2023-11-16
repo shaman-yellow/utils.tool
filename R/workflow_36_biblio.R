@@ -54,6 +54,102 @@ setMethod("step2", signature = c(x = "job_biblio"),
     return(x)
   })
 
+setMethod("step3", signature = c(x = "job_biblio"),
+  function(x, n = 30){
+    step_message("Network analysis.")
+    require(bibliometrix)
+    ## country
+    if (T) {
+      obj <- e(bibliometrix::metaTagExtraction(object(x), Field = "AU_CO"))
+      obj.net <- e(bibliometrix::biblioNetwork(obj, analysis = "collaboration",
+          network = "countries"))
+      p.net <- e(bibliometrix::networkPlot(obj.net, n = dim(obj.net)[1],
+          Title = "Country Collaboration", type = "circle", size = TRUE,
+          remove.multiple = FALSE, labelsize = 0.8))
+      p.co_country <- .plot_coNetwork(p.net$graph, fill = "color", size = "deg") +
+        guides(fill = "none", edge_width = "none") +
+        labs(size = "Centrality degree")
+      p.co_country <- wrap(p.co_country, 9, 7)
+    }
+    ## citation
+    if (T) {
+      ## C/Y filter and export
+      obj.net <- e(bibliometrix::biblioNetwork(object(x), analysis = "co-citation",
+          network = "references", n = n))
+      ## the most cited
+      rownames(obj.net)
+      strsplit(x@tables$step1$alls$rownames, ", ")
+
+      p.net <- e(bibliometrix::networkPlot(obj.net,
+          Title = "Co-Citation Network", type = "fruchterman",
+          size = T, remove.multiple = FALSE, labelsize = 0.7, edgesize = 5))
+      p.co_citation <- .plot_coNetwork(p.net$graph, fill = "color", size = "deg",
+        edge_color = "orange", zoRange = 1.5, fun_edge = ggraph::geom_edge_fan,
+        width_range = c(.01, .05)
+      )
+      p.co_citation <- p.co_citation +
+        guides(fill = "none", edge_width = "none") +
+        labs(size = "Centrality degree")
+      p.co_citation <- wrap(p.co_citation, 9, 7)
+    }
+    ## keywords
+    obj.net <- e(bibliometrix::biblioNetwork(object(x), analysis = "co-occurrences", network = "keywords"))
+    p.net <- e(bibliometrix::networkPlot(obj.net, normalize = "association", weighted = T, n = n,
+      Title = "Keyword Co-occurrences", type = "fruchterman", size = T,
+      edgesize = 5, labelsize = 0.7))
+    p.co_keywords <- recordPlot()
+    x@plots[[ 3 ]] <- namel(p.co_country, p.co_citation, p.co_keywords)
+    return(x)
+  })
+
+setMethod("step4", signature = c(x = "job_biblio"),
+  function(x){
+    step_message("Co-Word Analysis and Historical Direct Citation Network.")
+    # ID: Keywords Plus associated by ISI or SCOPUS database
+    require(bibliometrix)
+    cs <- e(bibliometrix::conceptualStructure(object(x), field = "ID", method = "MCA",
+        minDegree = 10, clust = 5, stemming = FALSE, labelsize = 3,
+        documents = 20, graph = FALSE))
+    p.conceptual_structure <- cs$graph_terms +
+      theme(
+        axis.title = element_text(size = 15, face = "plain"),
+        plot.title = element_text(size = 15, face = "plain")
+      )
+    p.conceptual_structure$layers[[ 6 ]] <- NULL
+    p.conceptual_structure <- wrap(p.conceptual_structure, 12, 10)
+    histResults <- e(bibliometrix::histNetwork(object(x)))
+    p.hist <- e(bibliometrix::histPlot(histResults, n = 10, size = FALSE, label = "short"))
+    p.hist$g$layers[[ 4 ]] <- NULL
+    p.hist$g <- p.hist$g + coord_cartesian(xlim = zoRange(p.hist$g$data$x, 1.2))
+    p.hist_direct <- wrap(p.hist$g)
+    x$cs <- cs
+    x$hist_direct <- p.hist
+    x@plots[[ 4 ]] <- namel(p.conceptual_structure, p.hist_direct)
+    return(x)
+  })
+
+.plot_coNetwork <- function(igraph, label = "name",
+  fill = "name", size = "size",
+  width = "width", edge_color = "lightblue", zoRange = 1.2,
+  fun_edge = ggraph::geom_edge_arc, width_range = c(.5, 1))
+{
+  graph <- tidygraph::as_tbl_graph(igraph)
+  graph <- create_layout(graph, layout = 'linear', circular = T)
+  p <- ggraph(graph) +
+    geom_node_point(aes(size = !!rlang::sym(size), fill = !!rlang::sym(fill)), alpha = .7, shape = 21) +
+    geom_node_text(aes(x = x * 1.1,  y = y * 1.1, 
+        label = !!rlang::sym(label),
+        angle = -((-node_angle(x,  y) + 90) %% 180) + 90), 
+      size = 3, hjust = 'outward') +
+    fun_edge(aes(width = !!rlang::sym(width)), color = edge_color, alpha = .5) +
+    scale_size(range = c(3, 9)) +
+    scale_fill_manual(values = color_set()) +
+    scale_edge_width_continuous(range = width_range) +
+    coord_cartesian(xlim = zoRange(graph$x, zoRange), ylim = zoRange(graph$y, zoRange)) +
+    theme_graph()
+  p
+}
+
 wos_logic <- function(lst, f = "ALL", logic = c("AND", "OR", "NOT")) {
   logic <- match.arg(logic)
   kds <- unlist(lst)
@@ -73,7 +169,7 @@ wos_or <- function(lst, f = "ALL") {
   wos_logic(lst, f, logic = "OR")
 }
 
-wos_or <- function(lst, f = "ALL") {
+wos_not <- function(lst, f = "ALL") {
   wos_logic(lst, f, logic = "NOT")
 }
 
@@ -104,7 +200,7 @@ wos_bind <- function(..., logic = c("AND", "OR", "NOT")) {
   ycoord <- c(max(xx$Freq),max(xx$Freq)-base::diff(range(xx$Freq))*0.15)
   # Authors
   
-  g <- ggplot(data=xx, aes(x=.data$AU, y=.data$Freq)) +
+  g <- ggplot(data = xx, aes(x = reorder(AU, Freq), y = Freq)) +
     geom_bar(stat="identity", fill="grey90")+
     labs(title="Most productive Authors", x = "Authors")+
     labs(y = "N. of Documents")+
