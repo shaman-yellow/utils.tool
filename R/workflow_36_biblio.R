@@ -18,9 +18,11 @@
 
 job_biblio <- function(lst)
 {
-  kds <- do.call(wos_bind, lapply(kds, wos_or))
+  kds <- do.call(wos_bind, lapply(lst, wos_or))
   x <- .job_biblio()
-  x$keywords <- kds
+  keywords <- new_lich(c(lst, list(query = kds)))
+  keywords <- .set_lab(keywords, "keywords", "for query")
+  x$keywords <- keywords
   return(x)
 }
 
@@ -44,72 +46,136 @@ setMethod("step1", signature = c(x = "job_biblio"),
   })
 
 setMethod("step2", signature = c(x = "job_biblio"),
-  function(x){
+  function(x, n = 10){
     step_message("Perform a descriptive analysis of the bibliographic data frame.")
     require(bibliometrix)
     x$overview <- e(bibliometrix::biblioAnalysis(object(x)))
+    t.summary <- e(bibliometrix:::summary.bibliometrix(object = x$overview, k = n, pause = F))
+    t.summary <- lapply(t.summary,
+      function(x) {
+        if (is(x, "data.frame"))
+          as_tibble(data.frame(x))
+      })
+    t.summary <- lst_clear0(t.summary)
+    t.summary <- .set_lab(t.summary, sig(x), paste0("data ", names(t.summary)))
     cli::cli_alert_info("bibliometrix:::plot.bibliometrix")
+    p.dt <- new_pie(x@tables$step1$alls$DT,
+      title = paste0("Total documents: ", nrow(object(x))),
+      fun_text = ggrepel::geom_label_repel)
+    p.dt <- wrap(p.dt, 10, 8)
+    p.dt <- .set_lab(p.dt, sig(x), "Total documents", nrow(object(x)))
     p.most_ave <- .plot_biblioAnalysis(x$overview)
-    x@plots[[ 2 ]] <- namel(p.most_ave)
+    p.most_ave <- lapply(p.most_ave, function(x) wrap(x, 7, 4))
+    p.most_ave <- .set_lab(p.most_ave, sig(x), names(p.most_ave))
+    x@plots[[ 2 ]] <- namel(p.most_ave, p.dt)
+    x@tables[[ 2 ]] <- t.summary
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_biblio"),
-  function(x, n = 30){
+  function(x, n = 30, rank.by = "C/Y", journal_info = fxlsx("../2022-if.xlsx")){
     step_message("Network analysis.")
     require(bibliometrix)
-    ## country
+    object(x) <- e(bibliometrix::metaTagExtraction(object(x), Field = "AU_CO"),
+      text = "AU_CO: country of author")
+    object(x) <- e(bibliometrix::metaTagExtraction(object(x), Field = "AU_UN"),
+      text = "AU_UN: affiliation of author")
     if (T) {
-      obj <- e(bibliometrix::metaTagExtraction(object(x), Field = "AU_CO"))
-      obj.net <- e(bibliometrix::biblioNetwork(obj, analysis = "collaboration",
+      ## country
+      obj.net <- e(bibliometrix::biblioNetwork(object(x), analysis = "collaboration",
           network = "countries"))
       p.net <- e(bibliometrix::networkPlot(obj.net, n = dim(obj.net)[1],
           Title = "Country Collaboration", type = "circle", size = TRUE,
-          remove.multiple = FALSE, labelsize = 0.8))
+          remove.multiple = FALSE, labelsize = 0.8), text = "collaboration")
       p.co_country <- .plot_coNetwork(p.net$graph, fill = "color", size = "deg") +
         guides(fill = "none", edge_width = "none") +
         labs(size = "Centrality degree")
       p.co_country <- wrap(p.co_country, 9, 7)
+      p.co_country <- .set_lab(p.co_country, sig(x), "country collaboration network")
     }
-    ## citation
     if (T) {
-      ## C/Y filter and export
+      ## Journal (SO)
+      obj <- object(x)
+      stat_jour <- head(sort(table(obj$SO), decreasing = T), n = n)
+      journal_top <- data.frame(journal = names(stat_jour), count = as.integer(stat_jour))
+      match2 <- function(x, y) {
+        lst <- lapply(list(x, y),
+          function(x) {
+            gs(toupper(gs(x, " ", "")), "[^A-Z]", "")
+          })
+        res <- match(lst[[1]], lst[[2]])
+        data.frame(x = x, y = y[res], which = res)
+      }
+      t.matched_journal_top <- match2(journal_top$journal, journal_info[[1]])
+      t.journal_top <- dplyr::slice(journal_info, !!t.matched_journal_top$which)
+      t.journal_top <- dplyr::bind_cols(journal_top, t.journal_top)
+      t.journal_top <- as_tibble(t.journal_top)
+      t.journal_top <- dplyr::select(t.journal_top, journal, count, CATEGORY, `2022IF`)
+      t.journal_top <- .set_lab(t.journal_top, sig(x), "top publication journal by count")
+    }
+    if (T) {
+      ## C/Y filter and export (average citation counts per year)
+      obj <- object(x)
+      obj$C.Y <- obj$TC / (as.integer(format(Sys.time(), "%Y")) - obj$PY + 1)
+      if (rank.by == "C/Y") {
+        obj <- obj[order(obj$C.Y, decreasing = T), ]
+      } else if (rank.by == "TC") {
+        obj <- obj[order(obj$TC, decreasing = T), ]
+      }
+      obj <- head(obj, n = n)
+      t.most_citation <- as_tibble(data.frame(obj))
+      tags.export <- dplyr::filter(x@params$summary$mandatoryTags,
+        status == "Excellent", tag != "NR")
+      t.most_citation <- dplyr::select(t.most_citation, short_name = rownames,
+        dplyr::all_of(tags.export$tag))
+      t.most_citation <- dplyr::rename(t.most_citation,
+        dplyr::all_of(nl(tags.export$description, tags.export$tag, F)))
+      t.most_citation <- .set_lab(t.most_citation, sig(x), "top ranked documents of citation per year")
+    }
+    if (T) {
+      ## co-citation
+      ## by look into the source code of `biblioNetwork`: n, the most frequent reference were selected.
       obj.net <- e(bibliometrix::biblioNetwork(object(x), analysis = "co-citation",
-          network = "references", n = n))
-      ## the most cited
-      rownames(obj.net)
-      strsplit(x@tables$step1$alls$rownames, ", ")
-
+          network = "references"))
       p.net <- e(bibliometrix::networkPlot(obj.net,
-          Title = "Co-Citation Network", type = "fruchterman",
-          size = T, remove.multiple = FALSE, labelsize = 0.7, edgesize = 5))
+          Title = "Co-Citation Network", type = "fruchterman", n = n,
+          size = T, remove.multiple = FALSE, labelsize = 0.7, edgesize = 5), text = "co-citation")
       p.co_citation <- .plot_coNetwork(p.net$graph, fill = "color", size = "deg",
-        edge_color = "orange", zoRange = 1.5, fun_edge = ggraph::geom_edge_fan,
+        edge_color = "orange", zoRange = 1.5, fun_edge = ggraph::geom_edge_arc,
         width_range = c(.01, .05)
       )
       p.co_citation <- p.co_citation +
         guides(fill = "none", edge_width = "none") +
         labs(size = "Centrality degree")
       p.co_citation <- wrap(p.co_citation, 9, 7)
+      p.co_citation <- .set_lab(p.co_citation, sig(x), "top ranked of co citation")
     }
-    ## keywords
-    obj.net <- e(bibliometrix::biblioNetwork(object(x), analysis = "co-occurrences", network = "keywords"))
-    p.net <- e(bibliometrix::networkPlot(obj.net, normalize = "association", weighted = T, n = n,
-      Title = "Keyword Co-occurrences", type = "fruchterman", size = T,
-      edgesize = 5, labelsize = 0.7))
-    p.co_keywords <- recordPlot()
+    if (T) {
+      ## keywords
+      ## all used for keywords analysis
+      obj.net <- e(bibliometrix::biblioNetwork(object(x), analysis = "co-occurrences", network = "keywords"))
+      ## top n used for plot
+      p.net <- e(bibliometrix::networkPlot(obj.net, normalize = "association", weighted = T, n = n,
+          Title = "Keyword Co-occurrences", type = "fruchterman", size = T,
+          edgesize = 5, labelsize = 0.7), text = "co-occurrences")
+      p.co_keywords <- recordPlot()
+      p.co_keywords <- .set_lab(p.co_keywords, sig(x), "top ranked keywords of co occurrences")
+    }
+    x@tables[[ 3 ]] <- namel(t.most_citation, t.journal_top)
     x@plots[[ 3 ]] <- namel(p.co_country, p.co_citation, p.co_keywords)
     return(x)
   })
 
 setMethod("step4", signature = c(x = "job_biblio"),
-  function(x){
+  function(x, n = 20){
     step_message("Co-Word Analysis and Historical Direct Citation Network.")
     # ID: Keywords Plus associated by ISI or SCOPUS database
     require(bibliometrix)
+    # by look into the codes of `bibliometrix::conceptualStructure`,
+    # the params `documents` do not results in p.conceptual_structure
     cs <- e(bibliometrix::conceptualStructure(object(x), field = "ID", method = "MCA",
         minDegree = 10, clust = 5, stemming = FALSE, labelsize = 3,
-        documents = 20, graph = FALSE))
+        documents = n, graph = FALSE))
     p.conceptual_structure <- cs$graph_terms +
       theme(
         axis.title = element_text(size = 15, face = "plain"),
@@ -117,6 +183,8 @@ setMethod("step4", signature = c(x = "job_biblio"),
       )
     p.conceptual_structure$layers[[ 6 ]] <- NULL
     p.conceptual_structure <- wrap(p.conceptual_structure, 12, 10)
+    p.conceptual_structure <- .set_lab(p.conceptual_structure, sig(x),
+      "conceptual structure map of a scientific field")
     histResults <- e(bibliometrix::histNetwork(object(x)))
     p.hist <- e(bibliometrix::histPlot(histResults, n = 10, size = FALSE, label = "short"))
     p.hist$g$layers[[ 4 ]] <- NULL
@@ -136,17 +204,18 @@ setMethod("step4", signature = c(x = "job_biblio"),
   graph <- tidygraph::as_tbl_graph(igraph)
   graph <- create_layout(graph, layout = 'linear', circular = T)
   p <- ggraph(graph) +
+    fun_edge(aes(width = !!rlang::sym(width)), color = edge_color, alpha = .5) +
     geom_node_point(aes(size = !!rlang::sym(size), fill = !!rlang::sym(fill)), alpha = .7, shape = 21) +
     geom_node_text(aes(x = x * 1.1,  y = y * 1.1, 
         label = !!rlang::sym(label),
         angle = -((-node_angle(x,  y) + 90) %% 180) + 90), 
-      size = 3, hjust = 'outward') +
-    fun_edge(aes(width = !!rlang::sym(width)), color = edge_color, alpha = .5) +
+      size = 3, hjust = 'outward', family = "Times") +
     scale_size(range = c(3, 9)) +
     scale_fill_manual(values = color_set()) +
     scale_edge_width_continuous(range = width_range) +
     coord_cartesian(xlim = zoRange(graph$x, zoRange), ylim = zoRange(graph$y, zoRange)) +
-    theme_graph()
+    theme_graph() +
+    theme(text = element_text(family = "Times"))
   p
 }
 

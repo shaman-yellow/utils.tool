@@ -97,7 +97,7 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
 }
 
 .set_lab <- function(x, sig, group = NULL, body = NULL, suffix = NULL) {
-  if (is(x, "list")) {
+  if (identical(class(x), "list")) {
     n <- 0L
     x <- lapply(x,
       function(obj) {
@@ -630,6 +630,17 @@ setGeneric("active",
 
 setGeneric("skel", 
   function(x, ...) standardGeneric("skel"))
+
+setGeneric("fill", 
+  function(x, ...) standardGeneric("fill"))
+
+setMethod("fill", signature = c(x = "df"),
+  function(x, ref, fill, lst){
+    for (i in 1:length(lst)) {
+      x[x[[ref]] == names(lst[i]), ][[ fill ]] <- lst[[ i ]]
+    }
+    return(x)
+  })
 
 ins <- function(..., lst = NULL) {
   if (is.null(lst)) {

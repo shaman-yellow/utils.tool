@@ -2183,7 +2183,13 @@ plot_sft <- function(sft)
 }
 
 wrap <- function(data, width = 10, height = 8) {
-  .wrap(data = data, width = width, height = height)
+  if (is(data, "wrap")) {
+    data@width <- width
+    data@height <- height
+    data
+  } else {
+    .wrap(data = data, width = width, height = height)
+  }
 }
 
 .wrap <- setClass("wrap", 
@@ -3190,7 +3196,7 @@ new_col <- function(..., lst = NULL, fun = function(x) x[ !is.na(x) & x != ""]) 
   wrap(p, 7, nrow(data) * .5 + .5)
 }
 
-new_pie <- function(x, title = NULL, use.ggplot = T) {
+new_pie <- function(x, title = NULL, use.ggplot = T, fun_text = ggplot2::geom_text) {
   x <- split(x, x)
   x <- vapply(x, length, integer(1))
   if (use.ggplot) {
@@ -3205,7 +3211,7 @@ new_pie <- function(x, title = NULL, use.ggplot = T) {
       else ggsci::pal_npg()(10)
     p <- ggplot(data, aes(x = 0L, y = value, fill = var)) +
       geom_bar(stat = 'identity', position = 'stack', width = 1) +
-      geom_text(aes(x = lab.x, y = lab.y, label = label)) +
+      fun_text(aes(x = lab.x, y = lab.y, label = label)) +
       scale_fill_manual(values = palette) +
       labs(x = '', y = '', title = '') +
       coord_polar(theta = 'y') +
