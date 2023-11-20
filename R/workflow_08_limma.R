@@ -165,7 +165,7 @@ setMethod("map", signature = c(x = "job_limma"),
   })
 
 plot_valcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val", fc = .3) {
-  data <- dplyr::select(top_table, !!rlang::sym(label), logFC, P.Value, adj.P.Val)
+  data <- dplyr::select(top_table, !!rlang::sym(label), logFC, !!rlang::sym(use))
   data <- dplyr::mutate(data,
     change = ifelse(logFC > abs(fc), "up",
       ifelse(logFC < -abs(fc), "down", "stable"))

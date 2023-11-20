@@ -29,6 +29,7 @@ setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
     }
     if (is.null(group.by))
       stop("is.null(group.by) == T")
+    object(x)@meta.data[[ group.by ]] %<>% droplevels()
     object <- e(CellChat::createCellChat(
         object = object(x), group.by = group.by, assay = assay,
         ...
@@ -82,6 +83,7 @@ setMethod("step1", signature = c(x = "job_cellchat"),
     pathway_net <- as_tibble(CellChat::subsetCommunication(object(x), slot.name = "netP"))
     object(x) <- e(CellChat::aggregateNet(object(x)))
     p.comms <- plot_communication.cellchat(object(x))
+    p.comms <- .set_lab(p.comms, sig(x), paste("overall communication", c("count", "weight", "individuals")))
     ## Signaling role of cell groups
     object(x) <- e(CellChat::netAnalysis_computeCentrality(object(x), slot.name = "netP"))
     ## Clustering
@@ -134,7 +136,7 @@ setMethod("step2", signature = c(x = "job_cellchat"),
             signaling = name, geneLR.return = F)
           return(namel(main, contri))
         } else {
-          return(namel(main))
+          return(namel(wrap(main)))
         }
       }))
     lr_comm_bubble <- e(CellChat::netVisual_bubble(object(x), remove.isolate = FALSE))
@@ -163,13 +165,15 @@ setMethod("step2", signature = c(x = "job_cellchat"),
             p <- CellChat::netAnalysis_signalingRole_heatmap(object(x), pattern = name,
               height = 1 + length(object(x)@netP$pathways) * .35
             )
-            grid::grid.grabExpr(print(p))
+            wrap(grid::grid.grabExpr(print(p)))
           })))
     if (inherits(res, "try-error")) {
       lr_role_heatmap <- NULL
       message("Due to error, escape from `CellChat::netAnalysis_signalingRole_heatmap`; ",
         "But the object was returned.")
     }
+    lr_role_heatmap <- .set_lab(lr_role_heatmap, sig(x), names(lr_role_heatmap), "ligand-receptor role")
+    cell_comm_heatmap$ALL$main <- .set_lab(cell_comm_heatmap$ALL$main, sig(x), "Cell communication heatmap")
     x@plots[[ 2 ]] <- namel(cell_comm_heatmap, lr_comm_bubble, gene_expr_violin,
       role_comps_heatmap, role_weight_scatter, lr_role_heatmap)
     return(x)
@@ -252,6 +256,7 @@ setMethod("map", signature = c(x = "job_cellchat", ref = "character"),
     data <- dplyr::filter(data, grepl(ref2, source) | grepl(ref2, target))
     p <- plot_lps_interaction(data, cap, layout)
     p <- wrap(p, width, height)
+    p <- .set_lab(p, sig(x), "ligand-receptor of", paste(ref, "communicate with", ref2))
     namel(p, data)
   })
 
@@ -275,7 +280,7 @@ plot_lps_interaction <- function(edges, cap = 5, layout = "sugiyama") {
   plot_sc_interaction <- function(graph, sc = cap, ec = cap, arr.len = 1)
   {
     p <- ggraph(graph) +
-      geom_edge_arc0(aes(x = x, y = y, width = -log2(pval + .001), color = source),
+      geom_edge_arc(aes(x = x, y = y, width = -log2(pval + .001), color = source),
         start_cap = circle(sc, 'mm'),
         end_cap = circle(ec, 'mm'),
         arrow = arrow(length = unit(arr.len, 'mm')), alpha = .5) +

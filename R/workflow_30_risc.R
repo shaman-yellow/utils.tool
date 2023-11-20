@@ -99,6 +99,7 @@ setMethod("step1", signature = c(x = "job_risc"),
     } else {
       p.reference <- wrap(p.reference, 8, 9)
     }
+    p.reference <- .set_lab(p.reference, sig(x), "select reference dataset for integration")
     x@plots[[ 1 ]] <- namel(p.reference)
     return(x)
   })

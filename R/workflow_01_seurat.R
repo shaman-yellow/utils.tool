@@ -12,8 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("Tutorial: https://satijalab.org/seurat/articles/pbmc3k_tutorial.html"),
-    cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]",
-    method = "Seurat used for scRNA-seq processing"
+    cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019; @ScsaACellTyCaoY2020]",
+    method = "Seurat used for scRNA-seq processing; SCSA used for cell type annotation"
     ))
 
 job_seurat <- function(dir, project = get_filename(sub("/$", "", dir)),
@@ -490,18 +490,20 @@ setMethod("vis", signature = c(x = "job_seurat"),
           object(x), reduction = "umap", label = F, pt.size = pt.size,
           group.by = group.by, cols = palette
           )), 7, 4)
-    .set_lab(p, sig(x), "group by", gs(group.by, "_", "-"))
+    .set_lab(p, sig(x), "The", gs(group.by, "_", "-"))
   })
 
 setMethod("focus", signature = c(x = "job_seurat"),
   function(x, features, group.by = x@params$group.by){
-    p.vln <- e(Seurat::VlnPlot(
+    p.vln <- wrap(e(Seurat::VlnPlot(
         object(x), features = features, group.by = group.by,
         pt.size = 0, alpha = .3, cols = color_set()
-        ))
-    p.dim <- e(Seurat::FeaturePlot(
+        )))
+    p.vln <- .set_lab(p.vln, sig(x), "violing plot of expression level of the genes")
+    p.dim <- wrap(e(Seurat::FeaturePlot(
         object(x), features = features
-        ))
+        )))
+    p.dim <- .set_lab(p.dim, sig(x), "dimension plot of expression level of the genes")
     namel(p.vln, p.dim)
   })
 

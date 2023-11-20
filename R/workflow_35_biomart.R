@@ -99,6 +99,7 @@ setMethod("map", signature = c(x = "job_biomart", ref = "job_edqtl"),
     p.edqtl <- new_allu(data, col.fill = 3, axes = 1:3, label.auto = T)
     p.edqtl <- .set_lab(p.edqtl, sig(x), "The matched RNA editing site")
     x$p.edqtl <- p.edqtl
+    db <- .set_lab(db, sig(x), "The matched RNA editing site DATA")
     x$edqtl <- db
     return(x)
   })
