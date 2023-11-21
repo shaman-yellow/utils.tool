@@ -29,21 +29,6 @@ set_index()
 
 # 前言 {#introduction}
 
-# 研究设计流程图 {#route}
-
-```{r}
-#| route
-route <- as_network(
-  list("RNA_seq_data:Preprocess",
-    ), "tree"
-)
-p.route <- flowChart(route, 1.1, 1)
-```
-
-```{r, eval = T, echo = F, fig.width = 10, fig.height = 7, fig.cap = NULL}
-p.route
-```
-
 # 材料和方法 {#methods}
 
 ## 材料

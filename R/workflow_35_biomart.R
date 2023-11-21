@@ -56,7 +56,7 @@ setMethod("step1", signature = c(x = "job_biomart"),
   })
 
 setMethod("map", signature = c(x = "job_biomart", ref = "job_edqtl"),
-  function(x, ref, use = "signif_variant_site_pairs"){
+  function(x, ref, use = "signif_variant_site_pairs", label.factor = 1){
     ## prepare for editing site
     db <- object(ref)[[ use ]]
     ed.site <- unique(db$gene_id)
@@ -96,7 +96,7 @@ setMethod("map", signature = c(x = "job_biomart", ref = "job_edqtl"),
     db <- dplyr::relocate(db, ref_gene, gene_id)
     data <- dplyr::select(db, Editing_Site = gene_id, Variant = variant_id, Symbol = ref_gene)
     data <- dplyr::mutate(data, Editing_Site = gs(Editing_Site, "_", "\n"))
-    p.edqtl <- new_allu(data, col.fill = 3, axes = 1:3, label.auto = T)
+    p.edqtl <- new_allu(data, col.fill = 3, axes = 1:3, label.auto = T, label.factor = label.factor)
     p.edqtl <- .set_lab(p.edqtl, sig(x), "The matched RNA editing site")
     x$p.edqtl <- p.edqtl
     db <- .set_lab(db, sig(x), "The matched RNA editing site DATA")

@@ -16,6 +16,14 @@ fig <- setClass("fig",
   representation = representation(),
   prototype = NULL)
 
+f <- function(file) {
+  .file_fig(file)
+}
+
+file_fig <- function(name, file) {
+  nl(name, list(.file_fig(file)))
+}
+
 .file_fig <- setClass("file_fig", 
   contains = c("fig"),
   representation = representation(),
@@ -2563,11 +2571,13 @@ auto_method <- function(class = "job", envir = .GlobalEnv) {
   methods <- lapply(info,
     function(lst) {
       if (!is.null(lst$method)) {
-        meth <- paste("-", lst$method)
-        if (!is.null(lst$cite)) {
-          meth <- paste(meth, lst$cite)
+        if (!identical(lst$method, character(0))) {
+          meth <- paste("-", lst$method)
+          if (!is.null(lst$cite)) {
+            meth <- paste(meth, lst$cite)
+          }
+          paste0(meth, ".")
         }
-        paste0(meth, ".")
       }
     })
   methods <- unique(unlist(methods))
@@ -3147,17 +3157,18 @@ setdev <- function(width, height) {
     dev.new(width = width, height = height)
 }
 
-new_allu <- function(data, col.fill = 1, axes = 1:2, label.auto = F, label.freq = NULL) {
+new_allu <- function(data, col.fill = 1, axes = 1:2, label.auto = F, label.freq = NULL, label.factor = 1) {
   require(ggalluvial)
   fill <- colnames(data)[col.fill]
   data <- dplyr::mutate(data, fill = !!rlang::sym(fill))
   data <- to_lodes_form(data, key = "Types", axes = axes)
   if (label.auto) {
     freq <- table(data$stratum)
-    if (is.null(label.freq))
-      label.notshow <- names(freq)[ as.integer(freq) <= fivenum(as.integer(freq))[4] ]
-    else
+    if (is.null(label.freq)) {
+      label.notshow <- names(freq)[ as.integer(freq) <= fivenum(as.integer(freq))[4] * label.factor ]
+    } else {
       label.notshow <- names(freq)[ as.integer(freq) <= label.freq ]
+    }
     fun <- function(x) {
       ifelse(x %in% label.notshow, "", as.character(x))
     }
@@ -3171,7 +3182,7 @@ new_allu <- function(data, col.fill = 1, axes = 1:2, label.auto = F, label.freq 
     geom_stratum(fill = "lightyellow") +
     geom_text(stat = "stratum") +
     labs(fill = "", y = "") +
-    scale_fill_manual(values = ggsci::pal_npg()(10)) +
+    scale_fill_manual(values = color_set()) +
     theme_minimal() +
     theme(axis.text.y = element_blank(),
       axis.title = element_blank(),

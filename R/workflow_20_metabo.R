@@ -98,10 +98,6 @@ setMethod("step2", signature = c(x = "job_metabo"),
   representation = representation(data = "ANY"),
   prototype = NULL)
 
-file_fig <- function(name, file) {
-  nl(name, list(.file_fig(file)))
-}
-
 .mtb_file <- function(..., postfix = "dpi72.pdf") {
   name <- paste0(unlist(list(...)), collapse = "")
   pn <- paste0(get_savedir("figs"), "/", name, "_")
