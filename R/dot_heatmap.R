@@ -148,6 +148,7 @@ dot_heatmap <- function(data, x = "sample", y = ".features_id",
     theme_minimal() +
     scale_color +
     scale_size(limits = range(data[[ size ]])) +
+    scale_shape_manual(values = c(17, 18, 19)) +
     labs(x = lab_x, y = lab_y, color = lab_color, size = lab_size, shape = lab_shape) +
     theme(text = element_text(family = .font, face = "bold"),
       axis.text = element_text(face = "plain"),

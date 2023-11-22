@@ -137,6 +137,13 @@ setMethod("step3", signature = c(x = "job_limma"),
     return(x)
   })
 
+.guess_intersect <- function(tops) {
+  unique(c(
+      intersect(tops[[ 1 ]], tops[[ 4 ]]),
+      intersect(tops[[ 2 ]], tops[[ 3 ]])
+      ))
+}
+
 setMethod("clear", signature = c(x = "job_limma"),
   function(x, save = T, suffix = NULL){
     if (save)

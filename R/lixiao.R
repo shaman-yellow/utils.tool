@@ -686,6 +686,17 @@ fxlsx <- function(file, ...) {
   as_tibble(openxlsx::read.xlsx(file, ...))
 }
 
+fxlsx2 <- function(file, ..., .id = "sheet") {
+  sheets <- openxlsx::getSheetNames(file)
+  lst <- lapply(1:length(sheets),
+    function(n) {
+      openxlsx::read.xlsx(file, sheet = n)
+    })
+  names(lst) <- sheets
+  data <- data.table::rbindlist(lst, idcol = T, fill = T)
+  as_tibble(dplyr::rename(data, !!!nl(.id, ".id")))
+}
+
 get_nci60_data <- function(comAct = "../comAct_nci60/DTP_NCI60_ZSCORE.xlsx",
   rna = "../rna_nci60/RNA__RNA_seq_composite_expression.xls")
 {
@@ -2063,7 +2074,9 @@ setMethod("draw", signature = c(x = "heatdata"),
       p <- aplot::insert_top(p, x@gg_xtree, height = 0.2)
     }
     if (x@para[[ "clust_row" ]] & !is.null(x@gg_ytree)) {
-      p <- aplot::insert_left(p, x@gg_ytree, width = 0.2)
+      fun <- function(n) length(unique(x@data_long[[n]]))
+      width <- if (fun(2) / fun(1) > 4) .1 else .2
+      p <- aplot::insert_left(p, x@gg_ytree, width = width)
     }
     if (!is.null(x@gg_xgroup)) {
       p <- aplot::insert_bottom(p, x@gg_xgroup, height = 0.05) 
