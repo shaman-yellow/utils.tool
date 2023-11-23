@@ -62,6 +62,7 @@ job_gsea <- function(topTable, annotation, use)
   if (rename) {
     topTable <- dplyr::rename(topTable, symbol = !!rlang::sym(use))
     annotation <- dplyr::rename(annotation, symbol = !!rlang::sym(use))
+    use <- "symbol"
   }
   topTable <- dplyr::select(topTable, symbol, logFC)
   topTable <- dplyr::filter(topTable, !is.na(symbol) & symbol != "")

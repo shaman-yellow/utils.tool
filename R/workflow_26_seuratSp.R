@@ -70,7 +70,8 @@ setMethod("vis", signature = c(x = "job_seuratSp"),
     p.spatial <- e(Seurat::SpatialDimPlot(object(x),
         group.by = group.by, label = F, label.size = 3, cols = palette)) +
       guides(fill = guide_legend(override.aes = list(size = 3)))
-    wrap(p.umap + p.spatial, 13, 5.5)
+    p <- wrap(as_grob(p.umap + p.spatial), 13, 5.5)
+    .set_lab(p, sig(x), "The", gs(group.by, "_", "-"))
   })
 
 setMethod("step4", signature = c(x = "job_seuratSp"),

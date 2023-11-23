@@ -2447,6 +2447,61 @@ setMethod("clip_data", signature = c(x = "elist", by = "wgcData"),
 # Fast display the content
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+items <- function(
+  type = "固定业务",
+  title = "化合物靶点功能通路分析",
+  status = "完成",
+  coef = .25,
+  date = "2023-07-12",
+  info = od_get_info(),
+  id = od_get_id(),
+  receive_date = od_get_date(),
+  score = od_get_score(),
+  member = "黄礼闯",
+  save = ".items.rds")
+{
+  items <- as.list(environment())
+  saveRDS(items, save)
+  items
+}
+
+od_get_id <- function(...) {
+  it <- od_get(..., key = "id")
+}
+
+od_get_score <- function(...) {
+  it <- od_get(..., key = "score")
+}
+
+od_get_info <- function(...) {
+  it <- od_get(..., key = "info")
+}
+
+od_get_date <- function(file = "./mailparsed/date.md") {
+  line <- readLines(file, n = 1)
+  as.Date(line, "%A, %d %B %Y")
+}
+
+od_get <- function(file = "./mailparsed/part_1.md", key = "id",
+  pattern = paste0("(?<=", key, "\\{\\{).*?(?=\\}\\})"))
+{
+  if (file.exists(file)) {
+    lines <- readLines(file)
+    if (is.null(pattern)) {
+      lines
+    } else {
+      res <- stringr::str_extract(paste0(lines, collapse = " "), pattern)
+      if (is.na(res)) {
+        ""
+      } else {
+        res
+      }
+    }
+  } else {
+    return()
+  }
+}
+
 deparse_mail <- function(dir = "mail",
   savedir = "mailparsed", attsdir = "order_material",
   force = F)

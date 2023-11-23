@@ -46,9 +46,10 @@ setMethod("step1", signature = c(x = "job_biomart"),
       if (mode == "hsa") {
         attrs <- general_attrs()
       } else if (mode == "mmu") {
-        attrs <- c("mgi_symbol", "ensembl_transcript_id", "entrezgene_id", "hgnc_symbol", "description")
+        attrs <- c("mgi_symbol", "ensembl_transcript_id", "ensembl_gene_id", "entrezgene_id", "hgnc_symbol", "description")
       }
     }
+    attrs <- unique(c(attrs, filters))
     anno <- filter_biomart(x$mart, attrs, filters, values)
     anno <- .set_lab(anno, sig(x), "genes", "annotation")
     x$anno <- anno

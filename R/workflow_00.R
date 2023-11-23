@@ -634,6 +634,20 @@ setGeneric("skel",
 setGeneric("fill", 
   function(x, ...) standardGeneric("fill"))
 
+setGeneric("upd", 
+  function(x, ...) standardGeneric("upd"))
+
+setMethod("upd", signature = c(x = "ANY"),
+  function(x){
+    new <- new(class(x))
+    new@object <- x@object
+    new@params <- x@params
+    new@plots <- x@plots
+    new@tables <- x@tables
+    new@step <- x@step
+    new
+  })
+
 setMethod("fill", signature = c(x = "df"),
   function(x, ref, fill, lst){
     for (i in 1:length(lst)) {
@@ -768,13 +782,15 @@ setMethod("gname", signature = c(x = "character"),
     gs(x, "\\.[0-9]", "")
   })
 
-move_rds <- function(from, to) {
+move_rds <- function(from, to, exclude = ".items.rds") {
   lapply(from,
     function(path) {
       dirname <- get_filename(gs(path, "/$", ""))
       target <- paste0(to, "/", dirname)
       dir.create(target, F)
       files <- list.files(path, pattern = ".rds$|.RData$|.Rdata$", full.names = T, all.files = T)
+      thefilenames <- get_filename(files)
+      files <- files[ !thefilenames %in% exclude ]
       lapply(files,
         function(file) {
           system(paste0("cp ", file, " -t ", target))
