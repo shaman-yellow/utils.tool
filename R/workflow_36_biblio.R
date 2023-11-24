@@ -127,7 +127,7 @@ setMethod("step3", signature = c(x = "job_biblio"),
       tags.export <- dplyr::filter(x@params$summary$mandatoryTags,
         status == "Excellent", tag != "NR")
       t.most_citation <- dplyr::select(t.most_citation, short_name = rownames,
-        dplyr::all_of(tags.export$tag))
+        dplyr::all_of(tags.export$tag), citation_per_year = C.Y)
       t.most_citation <- dplyr::rename(t.most_citation,
         dplyr::all_of(nl(tags.export$description, tags.export$tag, F)))
       t.most_citation <- .set_lab(t.most_citation, sig(x), "top ranked documents of citation per year")

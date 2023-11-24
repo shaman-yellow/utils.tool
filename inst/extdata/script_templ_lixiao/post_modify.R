@@ -11,8 +11,9 @@ package_results(head = NULL, masterZip = NULL, report = report)
 file.rename("./client.zip", paste0(id, ".zip"))
 
 info <- items(
+  belong = odate(6),
   type = "固定业务",
-  title = "化合物靶点功能通路分析",
+  title = od_get_title(),
   status = "完成",
   coef = .25,
   date = "2023-06-29",

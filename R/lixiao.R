@@ -2447,9 +2447,240 @@ setMethod("clip_data", signature = c(x = "elist", by = "wgcData"),
 # Fast display the content
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+send_registers <- function(to,
+  subject = "业务表格更新",
+  content = "Hello, 慧姐\n\n这是每月末需提交的更新的业务登记表。\n\nBest wish!",
+  time = Sys.time(),
+  month = lubridate::month(time),
+  year = lubridate::year(time),
+  path_summary = paste0("~/outline/lixiao/", "summary"),
+  atts = paste0(path_summary, "/", "生信组表格登记-黄礼闯.xlsx"))
+{
+  send_that(to, subject, content, atts)
+}
+
+send_prin <- function(to,
+  subject = "月底交个人行为准则考核表",
+  content = "Hello, 慧姐\n\n个人行为准则考核表已交。\n\nBest wish!",
+  time = Sys.time(),
+  month = lubridate::month(time),
+  year = lubridate::year(time),
+  path_summary = paste0("~/outline/lixiao/", "summary_", paste0(year, "-", month)),
+  atts = paste0(path_summary, "/", "2023年行为准则考核表.xlsx"))
+{
+  send_that(to, subject, content, atts)
+}
+
+send_summary <- function(to,
+  subject = "月底交付考核",
+  content = "Hello, 慧姐\n\n绩效表已提交。\n\nBest wish!",
+  time = Sys.time(),
+  month = lubridate::month(time),
+  year = lubridate::year(time),
+  path_summary = paste0("~/outline/lixiao/", "summary_", paste0(year, "-", month)),
+  atts = paste0(path_summary, "/", "assess_绩效+软性考核表.xlsx"))
+{
+  send_that(to, subject, content, atts)
+}
+
+send_that <- function(to, subject, content, atts = NULL, from = "huanglichuang@wie-biotech.com") {
+  isthat <- usethis::ui_yeah("Are you sure sending the mail?")
+  if (!isthat) {
+    return(message("Sending cancelled."))
+  }
+  if (is.character(content)) {
+    file <- tempfile("mail_", fileext = ".txt")
+    writeLines(content, file)
+  }
+  if (!is.null(atts)) {
+    code_atts <- paste0(" -a ", paste0(atts, collapse = " "), " -- ")
+  } else {
+    code_atts <- ""
+  }
+  cdRun("mutt ", to,
+    " -e 'my_hdr From:", from, "'",
+    " -s '", subject, "'",
+    code_atts,
+    " < ", file
+  )
+  message("Done")
+}
+
+update_registers <- function(orders = get_orders(),
+  path = "~/outline/lixiao/summary",
+  name = "黄礼闯",
+  register = paste0(path, "/", "生信组表格登记-", name, ".xlsx"),
+  templ_dir = "~/outline/lixiao/performance_templ/")
+{
+  target <- paste0(templ_dir, "/", "生信组表格登记-XX.xlsx")
+  if (!dir.exists(path)) {
+    dir.create(path)
+  }
+  if (!file.exists(register)) {
+    file.copy(target, register)
+  }
+  wb <- openxlsx2::wb_load(register)
+  pos <- list(2, 1)
+  ## base
+  data <- dplyr::filter(orders, type != "备单业务")
+  data <- dplyr::mutate(data, seq = 1:nrow(data), note = "")
+  data <- dplyr::select(data,
+    date, seq, info, id, score, member, receive_date, status, title, note
+  )
+  wb <- openxlsx2::wb_add_data(wb, 1, data, col_names = F,
+    dims = do.call(openxlsx2::wb_dims, pos))
+  ## extra
+  data <- dplyr::filter(orders, type == "备单业务")
+  data <- dplyr::mutate(data, seq = 1:nrow(data), note = "")
+  data <- dplyr::select(data,
+    date, seq, info, id, score, member, receive_date, status, title, note
+  )
+  wb <- openxlsx2::wb_add_data(wb, 2, data, col_names = F,
+    dims = do.call(openxlsx2::wb_dims, pos))
+  openxlsx2::wb_save(wb, register)
+  browseURL(normalizePath(register))
+}
+
+summary_month <- function(
+  time = Sys.time(),
+  orders = get_orders(),
+  month = lubridate::month(time),
+  year = lubridate::year(time),
+  path = "~/outline/lixiao",
+  templ_dir = "~/outline/lixiao/performance_templ/",
+  rm = F)
+{
+  dir <- paste0(path, "/", "summary_", paste0(year, "-", month))
+  targets <- c(ass = "assess_绩效+软性考核表.xlsx", prin = "2023年行为准则考核表.xlsx")
+  if (rm) {
+    unlink(dir, T, T)
+  }
+  if (!dir.exists(dir)) {
+    dir.create(dir)
+    file.copy(paste0(templ_dir, "/", targets), dir)
+  }
+  targets[] <- paste0(dir, "/", targets)
+  wb <- openxlsx2::wb_load(targets[[ "ass" ]])
+  ## prepare orders (this month)
+  orders <- dplyr::filter(orders, lubridate::year(belong) == !!year,
+    lubridate::month(belong) == !!month)
+  ## modify the assess table
+  pos.date <- list(3, 1)
+  date <- paste0(year, "年 ", month, "月 01日", "至",
+    year, "年 ", month, "月 ", lubridate::days_in_month(time), "日")
+  wb <- openxlsx2::wb_add_data(wb, 1, date,
+    dims = do.call(openxlsx2::wb_dims, pos.date))
+  if (T) {
+    pos.data_ass <- list(7, 1)
+    data_ass <- dplyr::mutate(orders,
+      seq = 1:nrow(orders), num = 1, title.en = "", note = "", coef = round(coef, 3))
+    data_ass <- dplyr::select(data_ass,
+      member, seq, id, type, score, num, title, title.en, status, note, coef
+    )
+    wb <- openxlsx2::wb_add_data(wb, 1, data_ass, col_names = F,
+      dims = do.call(openxlsx2::wb_dims, pos.data_ass))
+  }
+  if (T) {
+    pos.data_sum <- list(29, 6)
+    data_ass <- dplyr::mutate(data_ass,
+      type = ifelse(type %in% c("固定业务", "备单业务"), "base", "other"))
+    data_sum <- split_lapply_rbind(data_ass, ~type,
+      function(data) {
+        sum <- data.frame(
+          num = nrow(data),
+          score = "",
+          coef = sum(data$coef)
+        )
+        dplyr::mutate(sum,
+          coef_fomu = paste0(paste0(data$coef, collapse = "+"), "=", coef)
+        )
+      })
+    wb <- openxlsx2::wb_add_data(wb, 1, data_sum, col_names = F,
+      dims = do.call(openxlsx2::wb_dims, pos.data_sum))
+  }
+  if (T) {
+    pos.sum <- list(29, 10)
+    sum <- sum(data_sum$coef)
+    wb <- openxlsx2::wb_add_data(wb, 1, sum,
+      dims = do.call(openxlsx2::wb_dims, pos.sum))
+  }
+  openxlsx2::wb_save(wb, targets[[ "ass" ]])
+  ########################################
+  ########################################
+  wb <- openxlsx2::wb_load(targets[[ "prin" ]])
+  info <- data.frame(depart = "部门：技术部",
+    x1 = "", x2 = "",
+    job = "岗位：生物信息工程师",
+    x3 = "", name = "姓名：黄礼闯", x4 = "",
+    month = paste0("月度：", year, "年", month, "月"))
+  pos.info <- list(2, 1)
+  wb <- openxlsx2::wb_add_data(wb, 1, info, col_names = F,
+    dims = do.call(openxlsx2::wb_dims, pos.info))
+  pos.sign <- list(22, 1)
+  sign <- paste0("本人确认：            日 期 ：", year, "年 ", month, "月  日")
+  wb <- openxlsx2::wb_add_data(wb, 1, sign,
+    dims = do.call(openxlsx2::wb_dims, pos.sign))
+  openxlsx2::wb_save(wb, targets[[ "prin" ]])
+  ## check
+  browseURL(normalizePath(targets[[ "ass" ]]))
+}
+
+cf <- function(remuneration, base_wage = 6000) {
+  remuneration / base_wage
+}
+
+odate <- function(month, year = format(Sys.time(), "%Y")) {
+  as.Date(paste0(year, "-", month, "-01"))
+}
+
+remu <- function(coef, date, base_wage) {
+  use <- vapply(date, FUN.VALUE = double(1),
+    function(date) {
+      which <- tail(which(as.Date(names(base_wage)) <= as.Date(date)), n = 1)
+      base_wage[[which]]
+    })
+  coef * use
+}
+
+get_orders <- function(
+  dir = "~/outline/lixiao/", pattern = ".items.rds",
+  base_wage = list("2023-07-01" = 3000, "2023-08-01" = 4500, "2023-09-01" = 6000))
+{
+  files <- list.files(dir, pattern, T, T, T)
+  lst <- lapply(files,
+    function(file) {
+      lst <- readRDS(file)
+      maybeMulti <- c("coef", "belong", "id", "type")
+      lst.m <- lst[ names(lst) %in% maybeMulti ]
+      lst <- lst[ !names(lst) %in% maybeMulti ]
+      data <- do.call(tibble::tibble, lst)
+      if (length(lst.m$coef) > 1) {
+        data <- do.call(rbind, rep(list(data), length(lst.m$coef)))
+      }
+      data <- do.call(dplyr::mutate, c(list(data), lapply(lst.m, unlist)))
+      data <- dplyr::mutate(data,
+        coef = as.double(coef),
+        date = as.Date(date),
+        receive_date = as.Date(receive_date)
+      )
+      data
+    })
+  data <- as_tibble(data.table::rbindlist(lst, fill = T))
+  data <- dplyr::arrange(data, belong, receive_date)
+  data <- dplyr::mutate_if(data, is.character,
+    function(x) ifelse(is.na(x), "", x))
+  data <- dplyr::mutate(data, remuneration = remu(coef, belong, base_wage))
+  data <- dplyr::relocate(data, belong, id, title, remuneration)
+  data
+}
+
+od_get_title <- function() {
+  getOption("title")
+}
+
 items <- function(
   type = "固定业务",
-  title = "化合物靶点功能通路分析",
+  title = od_get_title(),
   status = "完成",
   coef = .25,
   date = "2023-07-12",
@@ -2458,8 +2689,15 @@ items <- function(
   receive_date = od_get_date(),
   score = od_get_score(),
   member = "黄礼闯",
-  save = ".items.rds")
+  save = ".items.rds",
+  belong = as.Date(receive_date))
 {
+  if (is.null(id)) {
+    stop("The `id` can not be a NULL !!!")
+  }
+  if (identical(id, "")) {
+    stop("The `id` can not be a empty character !!!")
+  }
   items <- as.list(environment())
   saveRDS(items, save)
   items
@@ -2657,6 +2895,7 @@ auto_method <- function(class = "job", envir = .GlobalEnv) {
 set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
   coverpage = "../cover_page.pdf", institution = "@立效研究院")
 {
+  options(title = title)
   content <- strwrap(paste0("\\begin{titlepage}
       \\newgeometry{top=7.5cm}
       \\ThisCenterWallPaper{1.12}{", coverpage, "}
