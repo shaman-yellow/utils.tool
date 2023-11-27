@@ -41,7 +41,9 @@ setMethod("asjob_gsea", signature = c(x = "job_seurat"),
     } else {
       topTable <- marker.list
     }
-    job_gsea(dplyr::relocate(topTable, symbol = gene, logFC = avg_log2FC), use = "symbol")
+    x <- job_gsea(dplyr::relocate(topTable, symbol = gene, logFC = avg_log2FC), use = "symbol")
+    sig(x) <- gs(contrast.pattern, "_", " ")
+    x
   })
 
 job_gsea <- function(topTable, annotation, use)
@@ -169,6 +171,7 @@ setMethod("step2", signature = c(x = "job_gsea"),
     step_message("GSEA visualization for specific pathway")
     obj <- x@params[[ use ]]
     p.code <- wrap(e(enrichplot::gseaplot2(obj, key, pvalue_table = F)), 7.5, 6)
+    p.code <- .set_lab(p.code, sig(x), "GSEA plot of the pathways")
     x@plots[[ 2 ]] <- namel(p.code)
     return(x)
   })

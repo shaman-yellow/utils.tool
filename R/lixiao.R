@@ -2447,6 +2447,18 @@ setMethod("clip_data", signature = c(x = "elist", by = "wgcData"),
 # Fast display the content
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+send_eval <- function(to,
+  subject = "需要评估绩效的业务",
+  content = "Hello, 慧姐\n\n这是这个月需要评估绩效的业务，已附在表格中。\n\nBest wish!",
+  time = Sys.time(),
+  month = lubridate::month(time),
+  year = lubridate::year(time),
+  path_summary = paste0("~/outline/lixiao/", "summary_", paste0(year, "-", month)),
+  atts = paste0(path_summary, "/", "need_eval.xlsx"))
+{
+  send_that(to, subject, content, atts)
+}
+
 send_registers <- function(to,
   subject = "业务表格更新",
   content = "Hello, 慧姐\n\n这是每月末需提交的更新的业务登记表。\n\nBest wish!",
@@ -2553,7 +2565,8 @@ summary_month <- function(
   dir <- paste0(path, "/", "summary_", paste0(year, "-", month))
   targets <- c(ass = "assess_绩效+软性考核表.xlsx", prin = "2023年行为准则考核表.xlsx")
   if (rm) {
-    unlink(dir, T, T)
+    unlink(list.files(dir, full.names = T, all.files = T, recursive = T), T, T)
+    file.copy(paste0(templ_dir, "/", targets), dir)
   }
   if (!dir.exists(dir)) {
     dir.create(dir)
@@ -2577,8 +2590,15 @@ summary_month <- function(
     data_ass <- dplyr::select(data_ass,
       member, seq, id, type, score, num, title, title.en, status, note, coef
     )
-    wb <- openxlsx2::wb_add_data(wb, 1, data_ass, col_names = F,
-      dims = do.call(openxlsx2::wb_dims, pos.data_ass))
+    fun <- function(wb, data) {
+      openxlsx2::wb_add_data(wb, 1, data, col_names = F,
+        dims = do.call(openxlsx2::wb_dims, pos.data_ass), na.strings = "")
+    }
+    if (any(is.na(data_ass$coef))) {
+      wb_eval <- fun(wb, dplyr::filter(data_ass, is.na(coef)))
+      openxlsx2::wb_save(wb_eval, paste0(dir, "/need_eval.xlsx"))
+    }
+    wb <- fun(wb, data_ass)
   }
   if (T) {
     pos.data_sum <- list(29, 6)

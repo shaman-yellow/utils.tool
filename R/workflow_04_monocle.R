@@ -89,7 +89,7 @@ setMethod("step0", signature = c(x = "job_monocle"),
   })
 
 setMethod("step1", signature = c(x = "job_monocle"),
-  function(x, groups = x@params$group.by, pt.size = 1.5){
+  function(x, groups = x@params$group.by, pt.size = 1.5, pre = F, norm_method = "none"){
     step_message("Constructing single-cell trajectories.
       red{{`groups`}} would passed to `monocle3::plot_cells` for
       annotation in plot. Mutilple group could be given.
@@ -102,6 +102,9 @@ setMethod("step1", signature = c(x = "job_monocle"),
     }
     if (!all(groups %in% colnames(object(x)@colData)))
       stop("Some of `groups` not found in `colData` of `object(x)`")
+    if (pre) {
+      object(x) <- e(monocle3::preprocess_cds(object(x), norm_method = norm_method))
+    }
     object(x) <- e(monocle3::cluster_cells(object(x)))
     object(x) <- e(monocle3::learn_graph(object(x)))
     p.traj <- e(sapply(groups, simplify = F,
@@ -147,12 +150,13 @@ setMethod("step2", signature = c(x = "job_monocle"),
         cell_size = x$pt.size, cell_stroke = 0, alpha = .7
         ))
     p.pseu <- wrap(p.pseu, 6, 5)
+    p.pseu <- .set_lab(p.pseu, sig(x), "pseudotime")
     x@plots[[ 2 ]] <- namel(p.pseu)
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_monocle"),
-  function(x, formula_string = NULL, cores = 4){
+  function(x, formula_string = NULL, group.by = NULL, cores = 4){
     step_message("This step do:
       1. Regression analysis;
       2. Graph-autocorrelation analysis;
@@ -160,6 +164,12 @@ setMethod("step3", signature = c(x = "job_monocle"),
       4. Significant genes in co-regulated modules.
       "
     )
+    if (!is.null(group.by)) {
+      x$group.by <- group.by
+    }
+    if (length(unique(object(x)@colData[[ x$group.by ]])) <= 2) {
+      stop("Too few clusters for gene modules finding...")
+    }
     if (length(x@tables) < 3)
       x@tables[[ 3 ]] <- list()
     if (!is.null(formula_string)) {
@@ -223,6 +233,8 @@ setMethod("step3", signature = c(x = "job_monocle"),
               callheatmap(new_heatdata(as_data_long(lst$aggregate, , "module", "cell")))
           }
         })
+      gene_module_heatdata$graph_test.sig <- .set_lab(gene_module_heatdata$graph_test.sig,
+        sig(x), "gene module heatmap")
       x@plots[[ 3 ]] <- namel(gene_module_heatdata)
     } else {
       gene_module <- x@tables[[ 3 ]]$gene_module
@@ -339,7 +351,7 @@ cal_modules.cds <- function(cds, gene_sigs, cell_group) {
       anno <- paste0("with ", names(gene_sigs)[n])
       res <- try(
         monocle3::find_gene_modules(cds[genes, ], cores = 4, resolution = 10 ^ seq(-6,-1)),
-        silent = T
+        silent = F
       )
       if (!inherits(res, "try-error")) {
         aggregate <- monocle3::aggregate_gene_expression(cds, res, cell_group)
@@ -401,10 +413,18 @@ cal_modules.cds <- function(cds, gene_sigs, cell_group) {
 
 
 setMethod("asjob_seurat", signature = c(x = "job_monocle"),
-  function(x, k, rename = NULL){
+  function(x, k, rename = NULL, reset_palette = T){
     x <- regroup(x$sr_sub, x$cellClass_tree.gene_module, k, rename = rename)
+    if (reset_palette)
+      x$palette <- NULL
     show(vis(x, "regroup.hclust", 1.5))
     return(x)
+  })
+
+setMethod("vis", signature = c(x = "job_monocle"),
+  function(x, ref, use = "logcounts"){
+    cell_order <- order(e(monocle3::pseudotime(object(x))))
+    expr <- object(x)@assays@data[[ use ]][ ref, cell_order ]
   })
 
 setMethod("skel", signature = c(x = "job_monocle"),
@@ -415,11 +435,11 @@ setMethod("skel", signature = c(x = "job_monocle"),
     code <- c('',
       paste0('mn <- do_monocle(sr, "', pattern, '")'),
       '',
-      'mn <- step1(mn)',
+      'mn <- step1(mn, "cell_type", pre = T)',
       'mn@plots$step1$p.prin',
       'mn <- step2(mn, "Y_2")',
       'mn@plots$step2$p.pseu',
-      'mn <- step3(mn)',
+      'mn <- step3(mn, group.by = "seurat_clusters")',
       'mn@plots$step3$gene_module_heatdata$graph_test.sig',
       '',
       paste0('sr_sub <- asjob_seurat(mn, 5, rename = "', pattern, "_", suffix, '")'),

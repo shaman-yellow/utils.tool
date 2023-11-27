@@ -306,7 +306,8 @@ setMethod("diff", signature = c(x = "job_seurat"),
       })
     tops <- unlist(tops, recursive = F)
     x$diff_sets_intersection <- tops
-    p.sets_intersection <- new_upset(lst = tops)
+    p.sets_intersection <- new_upset(lst = tops, trunc = NULL)
+    p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "contrasts-DEGs-intersection")
     x$p.diff_sets_intersection <- p.sets_intersection
     return(x)
   })
