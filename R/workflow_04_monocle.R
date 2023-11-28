@@ -422,10 +422,70 @@ setMethod("asjob_seurat", signature = c(x = "job_monocle"),
   })
 
 setMethod("vis", signature = c(x = "job_monocle"),
-  function(x, ref, use = "logcounts"){
+  function(x, refs, group.by = x@param$group.by,
+    use = "logcounts", rownames = T, rownames.size = 5, smooth = T)
+  {
+    if (!is(refs, "list")) {
+      refs <- list(Value = refs)
+    }
+    if (is.null(names(refs))) {
+      names(refs) <- paste0("Hm ", 1:length(refs))
+    }
     cell_order <- order(e(monocle3::pseudotime(object(x))))
-    expr <- object(x)@assays@data[[ use ]][ ref, cell_order ]
+    hp.anno <- ComplexHeatmap::HeatmapAnnotation(
+      Group = object(x)@colData[[ group.by ]][ cell_order ],
+      col = list(Group = .setPaletteForMN(x, group.by, ggsci::pal_npg()(10)))
+    )
+    n <- 0L
+    h.lst <- lapply(refs,
+      function(ref) {
+        n <<- n + 1L
+        expr <- object(x)@assays@data[[ use ]][ ref, cell_order ]
+        if (smooth) {
+          expr <- e(apply(expr, 1, function(x) stats::smooth.spline(x, df = 3)$y))
+          expr <- t(scale(expr))
+        } else {
+          expr <- t(scale(Matrix::t(expr)))
+        }
+        params <- list(
+          expr, name = names(refs)[n], km = 2,
+          col = .get_col_fun(expr),
+          cluster_columns = F,
+          row_names_gp = gpar(fontsize = rownames.size),
+          show_column_names = F,
+          show_row_names = rownames,
+          clustering_method_rows = "ward.D2",
+          heatmap_legend_param = list(title = names(refs)[n], ncol = 1)
+        )
+        if (n == 1) {
+          params <- c(params, list(top_annotation = hp.anno))
+        }
+        do.call(ComplexHeatmap::Heatmap, params)
+      })
+    hs <- h.lst[[1]]
+    if (length(h.lst) >= 2) {
+      for (i in 2:length(h.lst)) {
+        hs <- ComplexHeatmap::`%v%`(hs, h.lst[[ i ]])
+      }
+    }
+    return(hs)
   })
+
+.setPaletteForMN <- function(x, group.by = x@params$group.by, palette = color_set()) {
+  groups <- x@object@colData[[ group.by ]]
+  if (is.factor(groups)) {
+    levels <- levels(groups)
+  } else {
+    levels <- sort(unique(groups))
+  }
+  nl(levels, palette[1:length(levels)], F)
+}
+
+.get_col_fun <- function(data) {
+  range <- range(data)
+  circlize::colorRamp2(seq(from = floor(range[1]), to = ceiling(range[2]), length = 11),
+    rev(RColorBrewer::brewer.pal(11, "RdYlGn")))
+}
 
 setMethod("skel", signature = c(x = "job_monocle"),
   function(x, suffix, pattern, sig.mn = paste0("mn.", suffix),

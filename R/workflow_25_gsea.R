@@ -63,7 +63,8 @@ job_gsea <- function(topTable, annotation, use)
   }
   if (rename) {
     topTable <- dplyr::rename(topTable, symbol = !!rlang::sym(use))
-    annotation <- dplyr::rename(annotation, symbol = !!rlang::sym(use))
+    if (!missing(annotation))
+      annotation <- dplyr::rename(annotation, symbol = !!rlang::sym(use))
     use <- "symbol"
   }
   topTable <- dplyr::select(topTable, symbol, logFC)
@@ -262,3 +263,24 @@ setMethod("filter", signature = c(DF_object = "job_gsea"),
       })
     return(DF_object)
   })
+
+setClassUnion("jobn_enrich", c("job_gsea", "job_gsea"))
+
+setMethod("map", signature = c(x = "job_monocle", ref = "jobn_enrich"),
+  function(x, ref, pathways,
+    data = if (is(ref, "job_gsea")) ref@tables$step1$table_kegg else
+      ref@tables$step1$res.kegg[[1]],
+    trunc = 20, ...)
+  {
+    data <- dplyr::filter(data, ID %in% !!pathways)
+    refs <- data$geneName_list
+    names(refs) <- data$Description
+    if (is.numeric(trunc)) {
+      names(refs) <- stringr::str_trunc(names(refs), trunc)
+    }
+    p <- wrap(vis(x, refs, ...))
+    p <- .set_lab(p, sig(x), "show pathway genes in pseudotime")
+    p
+  })
+
+

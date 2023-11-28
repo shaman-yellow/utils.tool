@@ -86,8 +86,12 @@ setMethod("lab", signature = c(x = "ANY"),
   function(x, ...){
     attr(x, ".LABEL")
   })
+
 setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
   function(x, value){
+    if (is.null(x)) {
+      return(x)
+    }
     attr(x, ".LABEL") <- value
     return(x)
   })

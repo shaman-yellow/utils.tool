@@ -281,7 +281,9 @@ setMethod("diff", signature = c(x = "job_seurat"),
           function(con) {
             data <- Seurat::FindMarkers(object(x),
               ident.1 = con[1], ident.2 = con[2],
-              group.by = group.by)
+              group.by = group.by,
+              test.use = "negbinom"
+            )
             data$gene <- rownames(data)
             data
           }))
