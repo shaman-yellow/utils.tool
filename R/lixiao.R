@@ -2823,11 +2823,12 @@ deparse_mail <- function(dir = "mail",
   ## multipart
   main <- contents[ isMulti ]
   if (length(main) == 0) {
-    return()
+    # return()
+    main <- contents
   } else {
     main <- main[[1]]
+    main <- main$get_payload()
   }
-  main <- main$get_payload()
   n <- 0L
   files_multipart <- lapply(main,
     function(part) {
@@ -2908,7 +2909,7 @@ auto_method <- function(class = "job", envir = .GlobalEnv) {
     })
   methods <- unique(unlist(methods))
   methods <- c("Mainly used method:", "", methods,
-  "- Other R packages used for statistic analysis or data visualization.")
+  "- Other R packages (eg., `dplyr` and `ggplot2`) used for statistic analysis or data visualization.")
   writeLines(methods)
 }
 
@@ -3130,6 +3131,9 @@ trunc_table <- function(x) {
     blank <- head(x, n = 0)
     blank[1, ] <- "..."
     x <- dplyr::bind_rows(x, blank)
+  }
+  if (ncol(x) > 10) {
+    x <- x[, 1:10]
   }
   col <- vapply(colnames(x), nchar, integer(1))
   col <- which(cumsum(col) > 80)

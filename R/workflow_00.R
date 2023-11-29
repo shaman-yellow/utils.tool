@@ -23,6 +23,13 @@
     params = list(wd = ".", remote = "remote")
     ))
 
+setValidity("job", 
+  function(object){
+    class <- class(object)
+    options(method_name = class)
+    if (is(object, "job")) T else F
+  })
+
 setClass("hclust")
 ## cutree, the tree higher, the sort number lower
 
@@ -640,6 +647,15 @@ setGeneric("fill",
 
 setGeneric("upd", 
   function(x, ...) standardGeneric("upd"))
+
+setGeneric("not", 
+  function(x, ...) standardGeneric("not"))
+
+setMethod("not", signature = c(x = "job"),
+  function(x){
+    validObject(x)
+    return(x)
+  })
 
 setMethod("upd", signature = c(x = "ANY"),
   function(x){
