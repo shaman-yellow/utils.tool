@@ -23,6 +23,7 @@ job_biblio <- function(lst)
   keywords <- new_lich(c(lst, list(query = kds)))
   keywords <- .set_lab(keywords, "keywords", "for query")
   x$keywords <- keywords
+  x$kds <- lst
   return(x)
 }
 
@@ -32,16 +33,62 @@ setMethod("step0", signature = c(x = "job_biblio"),
   })
 
 setMethod("step1", signature = c(x = "job_biblio"),
-  function(x, num, from = "~/Downloads", to = timeName("wos"), pattern = "^savedrecs"){
+  function(x, num, from = "~/Downloads", to = timeName("wos"), pattern = "^savedrecs",
+    filter_dup = T, filter_nonEng = T, filter_naAbs = T, filter_AbsKey = T)
+  {
     step_message("Re-save the obtained files from WOS.")
     files <- unlist(moveToDir(paste0("wos_", 1:num), pattern, from = "~/Downloads",
       to = to, suffix = ".txt"))
     object(x) <- e(bibliometrix::convert2df(files, dbsource = "wos", format = "plaintext"))
-    alls <- as_tibble(data.frame(object(x)))
+    dat <- alls <- as_tibble(data.frame(object(x)))
+    dat <- dplyr::mutate(dat, .seq_id = 1:nrow(dat))
+    fun <- function(dat) {
+      dplyr::filter(dat, !.seq_id %in% !!d.out$.seq_id)
+    }
+    if (filter_dup) {
+      d.out <- dplyr::filter(dat, duplicated(TI))
+      filter_dup <- nrow(d.out)
+      dat <- fun(dat)
+    }
+    if (filter_nonEng) {
+      d.out <- dplyr::filter(dat, LA != "ENGLISH")
+      filter_nonEng <- nrow(d.out)
+      dat <- fun(dat)
+    }
+    if (filter_naAbs) {
+      d.out <- dplyr::filter(dat, is.na(AB))
+      filter_naAbs <- nrow(d.out)
+      dat <- fun(dat)
+    }
+    if (filter_AbsKey) {
+      kds <- x$kds
+      isThat.lst <- lapply(kds,
+        function(ch) {
+          grpl(dat$AB, paste0(ch, collapse = "|"), ignore.case = T)
+        })
+      isThat <- isThat.lst[[1]]
+      for (i in 2:length(isThat.lst)) {
+        isThat <- isThat & isThat.lst[[ i ]]
+      }
+      notThat <- !isThat
+      d.out <- dplyr::filter(dat, !!notThat)
+      filter_AbsKey <- nrow(d.out)
+      dat <- fun(dat)
+    }
+    keep <- dat$.seq_id
+    object(x) <- object(x)[keep, ]
     x$summary <- e(bibliometrix::missingData(object(x)))
     x@tables[[ 1 ]] <- namel(alls)
     x$files <- files
     x$savedir <- to
+    x$prefilter <- namel(filter_dup, filter_nonEng, filter_naAbs, filter_AbsKey)
+    x$prefilter.lich <- new_lich(list(
+      `Step 1: filter out the duplicated by Title` = filter_dup,
+      `Step 2: filter out the non-Englich documents` = filter_nonEng,
+      `Step 3: filter out the abstract of which documents is not available` = filter_naAbs,
+      `Step 4: filter out the abstract of which not contain the keywords` = filter_AbsKey,
+      `Finaly documents number` = nrow(object(x))
+    ))
     return(x)
   })
 
@@ -68,7 +115,7 @@ setMethod("step2", signature = c(x = "job_biblio"),
     p.most_ave <- lapply(p.most_ave, function(x) wrap(x, 7, 4))
     p.most_ave <- .set_lab(p.most_ave, sig(x), names(p.most_ave))
     x@plots[[ 2 ]] <- namel(p.most_ave, p.dt)
-    x@tables[[ 2 ]] <- t.summary
+    x@tables[[ 2 ]] <- namel(t.summary)
     return(x)
   })
 

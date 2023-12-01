@@ -20,13 +20,20 @@
 job_tcga <- function(project)
 {
   object <- list(
-    query_1 = list(
+    RNA = list(
       project = project, 
       data.category = "Transcriptome Profiling", 
       data.type = "Gene Expression Quantification", 
       workflow.type = "STAR - Counts"
-    ),
-    query_2 = list(
+      ),
+    mutation = list(
+      project = project,
+      data.category = "Simple Nucleotide Variation", 
+      access = "open",
+      data.type = "Masked Somatic Mutation", 
+      workflow.type = "Aliquot Ensemble Somatic Variant Merging and Masking"
+      ),
+    clinical = list(
       project = project,
       data.category = "Clinical",
       data.type = "Clinical Supplement",
@@ -44,10 +51,9 @@ setMethod("step0", signature = c(x = "job_tcga"),
   })
 
 setMethod("step1", signature = c(x = "job_tcga"),
-  function(x, keep_consensus = T){
-    step_message("Get information in TCGA.
-      "
-    )
+  function(x, query = c("RNA", "clinical"), keep_consensus = T){
+    step_message("Get information in TCGA.")
+    object(x) <- object(x)[ names(object(x)) %in% query ]
     pblapply <- pbapply::pblapply
     if (is.null(x@tables$step1)) {
       object(x) <- e(pblapply(object(x),
@@ -96,18 +102,17 @@ setMethod("step2", signature = c(x = "job_tcga"),
   })
 
 setMethod("step3", signature = c(x = "job_tcga"),
-  function(x, use = "vital_status"){
-    step_message("Prepare 'Transcriptome Profiling' data (red{{only one query}}).")
-    query <- lapply(object(x),
-      function(query) {
-        if (query$data.category == "Transcriptome Profiling")
-          query
-      })
-    query <- lst_clear0(query)[[1]]
+  function(x, use = "vital_status", query = "RNA"){
+    step_message("Prepare data for next step analysis.")
+    lst.query <- object(x)[[ query ]]
+    if (is.null(lst.query))
+      stop("is.null(lst.query)")
     x@params$queries <- object(x)
-    object(x) <- e(TCGAbiolinks::GDCprepare(query = query))
-    p.vital <- new_pie(SummarizedExperiment::colData(object(x))[[ use ]])
-    x@plots[[ 3 ]] <- namel(p.vital)
+    object(x) <- e(TCGAbiolinks::GDCprepare(query = lst.query))
+    if (query == "RNA") {
+      p.vital <- new_pie(SummarizedExperiment::colData(object(x))[[ use ]])
+      x@plots[[ 3 ]] <- namel(p.vital)
+    }
     return(x)
   })
 

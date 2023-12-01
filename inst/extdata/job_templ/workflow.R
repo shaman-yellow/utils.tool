@@ -12,7 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("Tutorial: https://github.com/satijalab/seurat/wiki"),
-    cite = ""
+    cite = "",
+    method = ""
     ))
 
 job_seurat <- function()
