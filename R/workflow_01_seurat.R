@@ -194,10 +194,12 @@ setMethod("step5", signature = c(x = "job_seurat"),
     all_markers_no_filter <- markers
     markers <- dplyr::filter(markers, p_val_adj < .05)
     tops <- slice_max(group_by(markers, cluster), avg_log2FC, n = 10)
-    p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = T))
-    p.toph <- wrap(p.toph, 14, 12)
+    if (F) {
+      p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = T))
+      p.toph <- wrap(p.toph, 14, 12)
+      x@plots[[ 5 ]] <- namel(p.toph)
+    }
     x@tables[[ 5 ]] <- list(all_markers = markers, all_markers_no_filter = all_markers_no_filter)
-    x@plots[[ 5 ]] <- namel(p.toph)
     return(x)
   })
 

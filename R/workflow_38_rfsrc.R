@@ -26,13 +26,18 @@ setGeneric("asjob_rfsrc",
 
 setMethod("asjob_rfsrc", signature = c(x = "job_maf"),
   function(x){
-    gene.mut <- e(maftools::genesToBarcodes(object(x), object(x)@gene.summary[[1]], justNames = T))
-    dat <- dplyr::select(x$clinical, vital_status)
-    rownames(dat) <- x$clinical$Tumor_Sample_Barcode
-    dat <- dplyr::mutate(dat, vital_status = as.factor(vital_status))
-    # rownames, sample
-    # colnames, var, genes
-    .job_rfsrc(object = object)
+    data <- e(maftools::genesToBarcodes(object(x), object(x)@gene.summary[[1]], justNames = T))
+    data <- as_tibble(as_df.lst(data))
+    data <- dplyr::mutate(data, value = 1L)
+    data <- e(tidyr::spread(data, type, value))
+    rownames <- data$name
+    data <- map(data, "name", x$clinical, "Tumor_Sample_Barcode", "vital_status")
+    data <- e(dplyr::mutate_all(data, function(x) ifelse(is.na(x), 0L, x)))
+    data <- as.data.frame(data)
+    rownames(data) <- rownames
+    data <- e(dplyr::mutate(data, vital_status = as.factor(vital_status)))
+    data <- dplyr::rename(data, class = vital_status)
+    .job_rfsrc(object = data)
   })
 
 setMethod("step0", signature = c(x = "job_rfsrc"),
@@ -43,7 +48,27 @@ setMethod("step0", signature = c(x = "job_rfsrc"),
   })
 
 setMethod("step1", signature = c(x = "job_rfsrc"),
-  function(x){
-    step_message("Quality control (QC).")
+  function(x, top = 30){
+    step_message("Classification importance.")
+    if (is.null(x$imp)) {
+      model <- e(randomForestSRC::rfsrc(class ~ ., data = object(x), splitrule = "gini"))
+      imp <- e(randomForestSRC::vimp(model))
+      x$imp <- imp
+      x$model <- model
+    } else {
+      imp <- x$imp
+    }
+    t.imp <- as_tibble(imp$importance)
+    t.imp <- dplyr::arrange(t.imp, dplyr::desc(all))
+    t.imp <- .set_lab(t.imp, sig(x), "Variable importance")
+    data <- dplyr::slice(as_tibble(t.imp), 1:top)
+    p.imp <- ggplot(data) +
+      geom_point(aes(x = reorder(rownames, all), y = all), shape = 21) +
+      coord_flip() +
+      labs(y = "Variable importance (Gini)", x = "") +
+      ggthemes::theme_calc()
+    p.imp <- .set_lab(wrap(p.imp), sig(x), "Variable importance")
+    x@tables[[ 1 ]] <- namel(t.imp)
+    x@plots[[ 1 ]] <- namel(p.imp)
     return(x)
   })
