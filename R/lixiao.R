@@ -401,6 +401,11 @@ get_from_genecards <- function(query, score = 5, keep_drive = F) {
   return(table)
 }
 
+get_table.html <- function(file) {
+  ht <- e(XML::htmlParse(readLines(file)))
+  XML::readHTMLTable(ht)
+}
+
 moveToDir_herbs <- function(ids,
   file.pattern = "\\.xlsx$", index.pfun = file_seq.by_time,
   from = "~/Downloads", to = "herbs_ingredient", suffix = ".xlsx", .id = "herb_id")
@@ -1797,7 +1802,7 @@ extract_tops <- function(x, use = "adj.P.Val", use.cut = 0.05, cut.fc = 0.3){
       if (!is.null(use.cut) & !is.null(cut.fc)) {
         res <- dplyr::filter(res, !!rlang::sym(use) < use.cut, abs(logFC) > cut.fc)
       }
-      dplyr::as_tibble(res) 
+      as_tibble(res) 
     }))
   names(res) <- colnames(x$contrasts)
   res
@@ -2278,7 +2283,6 @@ setMethod("cal_corp", signature = c(x = "df", y = "df"),
     if (trans) {
       x <- t(x)
       y <- t(y)
-      tt <<- x
     }
     cor <- agricolae::correlation(x, y)
     data <- as_data_long(cor$correlation, cor$pvalue, row_var, col_var, "cor", "pvalue")
@@ -2833,6 +2837,9 @@ deparse_mail <- function(dir = "mail",
   files_multipart <- lapply(main,
     function(part) {
       n <<- n + 1L
+      if (part$get_content_type() == "multipart/alternative") {
+        part <- part$get_payload()[[1]]
+      }
       bin <- part$get_payload(decode = T)
       if (part$get_content_type() == "text/plain") {
         filename <- paste0("part_", n, ".md")

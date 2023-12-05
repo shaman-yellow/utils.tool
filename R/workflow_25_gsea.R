@@ -54,6 +54,7 @@ job_gsea <- function(topTable, annotation, use)
     if (any(colnames(topTable) == "symbol")) {
       message("Use column `symbol` as gene input.")
       rename <- F
+      use <- "symbol"
     } else if (length(whichs <- grp(colnames(topTable), "_symbol")) >= 1) {
       use <- colnames(topTable)[ whichs[1] ]
       message("Use column `", use, "` as gene input.")
@@ -160,8 +161,8 @@ setMethod("step1", signature = c(x = "job_gsea"),
     x@params$res.go <- res.go
     x@params$res.kegg <- res.kegg
     x@tables[[ 1 ]] <- namel(table_go, table_kegg)
-    p.go <- .set_lab(p.go, sig(x), "GO", "enrichment")
-    p.kegg <- .set_lab(p.kegg, sig(x), "KEGG", "enrichment")
+    p.go <- .set_lab(wrap(p.go), sig(x), "GO", "enrichment")
+    p.kegg <- .set_lab(wrap(p.kegg), sig(x), "KEGG", "enrichment")
     x@plots[[ 1 ]] <- namel(p.go, p.kegg)
     x$org <- org
     return(x)

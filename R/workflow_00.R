@@ -117,11 +117,11 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
         if (is.na(group)) {
           stop("is.na(group)")
         }
-        lab(obj) <- gs(gs(paste(sig, group, body, suffix), "[ ]+", " "), " $", "")
+        lab(obj) <- gs(gs(paste(sig, group, body, suffix), "[ ]+", " "), "^[ \\-]|[ \\-]$", "")
         return(obj)
       })
   } else {
-    lab(x) <- gs(gs(paste(sig, group, body, suffix), "[ ]+", " "), "^ | $", "")
+    lab(x) <- gs(gs(paste(sig, group, body, suffix), "[ ]+", " "), "^[ \\-]|[ \\-]$", "")
   }
   return(x)
 }
@@ -286,6 +286,11 @@ setMethod("step0", signature = c(x = "character"),
 
 setGeneric("step1",
   function(x, ...) {
+    if (identical(sig(x), character(0))) {
+      name <- substitute(x)
+      sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
+      sig(x) <- sig
+    }
     x <- checkAddStep(x, 1L)
     x <- standardGeneric("step1")
     stepPostModify(x, 1)

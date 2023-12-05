@@ -491,10 +491,10 @@ setMethod("vis", signature = c(x = "job_seurat"),
     if (is.null(palette)) {
       palette <- color_set()
     }
-    p <- wrap(e(Seurat::DimPlot(
+    p <- wrap(as_grob(e(Seurat::DimPlot(
           object(x), reduction = "umap", label = F, pt.size = pt.size,
           group.by = group.by, cols = palette
-          )), 7, 4)
+          ))), 7, 4)
     .set_lab(p, sig(x), "The", gs(group.by, "_", "-"))
   })
 
@@ -510,6 +510,15 @@ setMethod("focus", signature = c(x = "job_seurat"),
         )))
     p.dim <- .set_lab(p.dim, sig(x), "dimension plot of expression level of the genes")
     namel(p.vln, p.dim)
+  })
+
+setMethod("map", signature = c(x = "job_seurat", ref = "character"),
+  function(x, ref){
+    p.heatmap <- wrap(as_grob(e(Seurat::DoHeatmap(
+          object(x), features = ref, raster = T, size = 3
+          ))))
+    p.heatmap <- .set_lab(p.heatmap, sig(x), "heatmap show the reference genes")
+    p.heatmap
   })
 
 setMethod("map", signature = c(x = "job_seurat", ref = "job_seurat"),

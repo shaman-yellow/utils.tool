@@ -13,8 +13,19 @@
   prototype = prototype(
     info = c("..."),
     cite = "[@LimmaPowersDiRitchi2015; @EdgerDifferenChen]",
-    method = "Limma and edgeR used for differential expression analysis"
+    method = "Limma and edgeR used for differential expression analysis",
+    params = list(isTcga = F)
     ))
+
+job_limma_normed <- function(data, metadata) {
+  .check_columns(metadata, c("sample", "group"))
+  metadata <- dplyr::slice(metadata, match(sample, colnames(data)))
+  data <- dplyr::select(data, dplyr::all_of(metadata$sample))
+  if (!identical(colnames(data), metadata$sample)) {
+    stop("!identical(colnames(data), metadata$sample)")
+  }
+  .job_limma(object = data, params = list(metadata = metadata, isTcga = F))
+}
 
 job_limma <- function(DGEList)
 {
@@ -52,16 +63,24 @@ setMethod("step1", signature = c(x = "job_limma"),
         p.norm <- wrap(attr(object(x), "p"))
       }
       plots <- c(plots, namel(p.norm))
+      x@params$p.norm_data <- p.norm@data$data
+      x@params$normed_data <- object(x)
+    } else {
+      x$normed_data <- list(
+        genes = data.frame(rownames = rownames(object(x))),
+        targets = metadata,
+        E = object(x)
+      )
     }
     if (F) {
       pca <- pca_data.long(as_data_long(object(x)))
       p.pca <- plot_andata(pca)
     }
-    x@plots[[ 1 ]] <- plots
-    x@params$p.norm_data <- p.norm@data$data
+    if (length(plots)) {
+      x@plots[[ 1 ]] <- plots
+    }
     x@params$group <- group
     x@params$design <- design
-    x@params$normed_data <- object(x)
     return(x)
   })
 
@@ -172,6 +191,10 @@ setMethod("map", signature = c(x = "job_limma"),
   })
 
 plot_valcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val", fc = .3) {
+  if (!any(label == colnames(top_table))) {
+    if (any("rownames" == colnames(top_table)))
+      label <- "rownames"
+  }
   data <- dplyr::select(top_table, !!rlang::sym(label), logFC, !!rlang::sym(use))
   data <- dplyr::mutate(data,
     change = ifelse(logFC > abs(fc), "up",
@@ -259,4 +282,11 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
   hp <- new_heatdata(corp)
   hp <- callheatmap(hp)
   namel(corp, sig.corp, hp)
+}
+
+expand.cons <- function(...) {
+  apply(expand.grid(...), 1, simplify = T,
+    function(x){
+      paste0(x[1], "-", x[2])
+    })
 }

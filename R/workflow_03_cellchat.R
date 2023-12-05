@@ -316,6 +316,7 @@ setMethod("select_pathway", signature = c(x = "job_cellchat"),
       grepl(pattern, source) | grepl(pattern, target),
       pval < .05
     )
+    pathways <- .set_lab(pathways, sig(x), "interaction of pathways")
     if (get == "pathways") {
       return(pathways)
     }
@@ -323,6 +324,7 @@ setMethod("select_pathway", signature = c(x = "job_cellchat"),
       grepl(pattern, source) | grepl(pattern, target),
       pval < .05
     )
+    lps <- .set_lab(lps, sig(x), "interaction of ligand and receptor")
     if (get == "lps") {
       return(lps)
     }

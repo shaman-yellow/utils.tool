@@ -1155,7 +1155,7 @@ visualize_summary <-
       data2$recall.value <- 100 - data2$recall.value
       rbind(data, data2)
     }
-    tt <<- data.recall <- fun(data.recall)
+    data.recall <- fun(data.recall)
     p.recall <- ggplot(data.recall) +
       geom_col(aes(x = 0, y = recall.value, fill = form(evaluate))) +
       geom_text(data = dplyr::filter(data.recall, evaluate == "non-false"),
