@@ -23,6 +23,8 @@ job_herb <- function(herbs, db = get_herb_data())
   herbs_info <- filter(object(x)$herb, Herb_cn_name %in% !!params(x)$herbs)
   x@params$herbs_info <- herbs_info
   print(herbs_info)
+  message("Got the herbs:\n\n\t", paste0(herbs_info$Herb_cn_name, collapse = ", "),
+      "\n\n", "\tTotal: ", colSum(herbs_info$Herb_cn_name))
   x
 }
 
@@ -135,13 +137,13 @@ setMethod("step3", signature = c(x = "job_herb"),
         disease_targets_annotation = disease_targets_annotation$hgnc_symbol
       )
       plots <- c(plots, namel(p.targets_disease))
+      x@params$ppi_used <- dplyr::filter(
+        targets_annotation,
+        hgnc_symbol %in% dplyr::all_of(disease_targets_annotation$hgnc_symbol)
+      )
     }
     x@plots[[ 3 ]] <- plots
     x@tables[[ 3 ]] <- tables
-    x@params$ppi_used <- dplyr::filter(
-      targets_annotation,
-      hgnc_symbol %in% dplyr::all_of(disease_targets_annotation$hgnc_symbol)
-    )
     return(x)
   })
 

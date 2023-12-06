@@ -1092,13 +1092,19 @@ NULL
 #' @description \code{fast_layout}: ...
 #' @rdname network
 fast_layout <- function(edges, layout = "fr", nodes = NULL, ...){
-  if (is(edges, "data.frame")) {
+  if (!is.null(edges)) {
+    if (is(edges, "data.frame")) {
+      graph <- igraph::graph_from_data_frame(edges, directed = T, vertices = nodes)
+    } else if (is(edges, "igraph")) {
+      graph <- edges
+    }
+  } else {
+    edges <- data.frame(from = nodes[[1]], to = nodes[[1]])
     graph <- igraph::graph_from_data_frame(edges, directed = T, vertices = nodes)
-  } else if (is(edges, "igraph")) {
-    graph <- edges
   }
   graph <- tidygraph::as_tbl_graph(graph)
-  graph <- dplyr::mutate(graph, centrality_degree = tidygraph::centrality_degree(mode = 'all'))
+  graph <- dplyr::mutate(graph, centrality_degree = tidygraph::centrality_degree(mode = 'all'),
+    cent = centrality_degree)
   ggraph::create_layout(graph, layout, ...)
 }
 

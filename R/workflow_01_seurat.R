@@ -283,8 +283,7 @@ setMethod("diff", signature = c(x = "job_seurat"),
           function(con) {
             data <- Seurat::FindMarkers(object(x),
               ident.1 = con[1], ident.2 = con[2],
-              group.by = group.by,
-              test.use = "negbinom"
+              group.by = group.by
             )
             data$gene <- rownames(data)
             data
@@ -293,6 +292,7 @@ setMethod("diff", signature = c(x = "job_seurat"),
       res <- dplyr::as_tibble(data.table::rbindlist(res, idcol = T))
       res <- dplyr::rename(res, contrast = .id)
       res <- dplyr::filter(res, p_val_adj < .05)
+      res <- .set_lab(res, sig(x), "DEGs of the contrasts")
       x@params$contrasts <- res
     } else {
       res <- x@params$contrasts

@@ -3663,3 +3663,11 @@ grpl <- function(x, pattern, ...) {
 grpf <- function(x, pattern, ...) {
   x[grepl(pattern, x, ...)]
 }
+
+## igraph tips
+# grid star circle
+
+get_layout <- function(edges = NULL, layout = "grid", nodes = NULL, ...) {
+  data <- as_tibble(data.frame(fast_layout(edges, layout, nodes = nodes, ...)))
+  data
+}

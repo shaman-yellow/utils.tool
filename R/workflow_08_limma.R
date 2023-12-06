@@ -256,7 +256,11 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
   {
     data <- as_tibble(x@params$normed_data$E)
     anno <- x@params$normed_data$genes
-    .cal_corp.elist(data, anno, use, from, to, names)
+    lst <- .cal_corp.elist(data, anno, use, from, to, names)
+    lst$hp
+    lst$hp <- .set_lab(lst$hp, sig(x), "genes correlation heatmap")
+    lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), "data significant genes of correlation")
+    return(lst)
   })
 
 .cal_corp.elist <- function(data, anno, use, from, to, names)
@@ -267,6 +271,10 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
   data$rownames <- anno[[ use ]]
   colnames(data)[1] <- use
   data <- dplyr::mutate(data, symbol = gname(!!rlang::sym(use)))
+  if (use != "symbol") {
+    data <- dplyr::select(data, -!!rlang::sym(use))
+    data <- dplyr::relocate(data, symbol)
+  }
   lst <- lapply(list(from, to),
     function(set) {
       set <- gname(set)
