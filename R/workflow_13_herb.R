@@ -55,26 +55,50 @@ setMethod("step1", signature = c(x = "job_herb"),
   })
 
 setMethod("step2", signature = c(x = "job_herb"),
-  function(x, group_number = 50, group_sleep = 3)
+  function(x, group_number = 50, group_sleep = 3, db = "../")
   {
     step_message("Dowload targets of compounds")
-    link <- start_drive(browser = "firefox")
-    Sys.sleep(3)
     all_ids <- unique(x@tables$step1$herbs_compounds$Ingredient.id)
-    all_ids <- grouping_vec2list(all_ids, group_number, T)
-    lst <- pbapply::pblapply(all_ids,
-      function(ids) {
-        to <- paste0("compounds_target", "/", attr(ids, "name"))
-        if (!file.exists(to)) {
-          download_compoundTargets(link, ids)
-        }
-        data <- moveToDir_herbs(ids, to = to, .id = "Ingredient_id")
-        cli::cli_alert_info("Sleep between groups ...")
-        Sys.sleep(group_sleep)
-        data
-      })
-    end_drive()
-    compounds_targets <- as_tibble(data.table::rbindlist(lst, fill = T))
+    merge_data <- F
+    if (!is.null(db)) {
+      dbfile <- list.files(db, "^HBIN.*.xlsx$", full.names = T, recursive = T)
+      names(dbfile) <- get_realname(dbfile)
+      dbfile <- dbfile[ !duplicated(dbfile) ]
+      has_ids <- all_ids[ all_ids %in% names(dbfile) ]
+      if (length(has_ids)) {
+        files <- dbfile[ names(dbfile) %in% has_ids ]
+        data <- moveToDir_herbs(readFrom = files, .id = "Ingredient_id")
+        all_ids <- all_ids[ !all_ids %in% has_ids ]
+        merge_data <- T
+      }
+    }
+    if (length(all_ids)) {
+      all_ids <- grouping_vec2list(all_ids, group_number, T)
+      link <- start_drive(browser = "firefox")
+      Sys.sleep(3)
+      lst <- pbapply::pblapply(all_ids,
+        function(ids) {
+          to <- paste0("compounds_target", "/", attr(ids, "name"))
+          if (!file.exists(to)) {
+            download_compoundTargets(link, ids)
+          }
+          data <- moveToDir_herbs(ids, to = to, .id = "Ingredient_id")
+          cli::cli_alert_info("Sleep between groups ...")
+          Sys.sleep(group_sleep)
+          data
+        })
+      end_drive()
+    } else {
+      lst <- list()
+    }
+    if (merge_data) {
+      if (length(lst))
+        lst <- list(lst, list(data))
+      else
+        lst <- list(data)
+    }
+    data <- data.table::rbindlist(lst, fill = T)
+    compounds_targets <- as_tibble(data)
     x@tables[[ 2 ]] <- namel(compounds_targets)
     return(x)
   })
@@ -110,17 +134,22 @@ setMethod("step3", signature = c(x = "job_herb"),
     )
     x@params$herbs_targets <- herbs_targets
     easyRead <- map(x@params$herbs_targets, "herb_id", object(x)$herb, "Herb_", "Herb_pinyin_name")
-    x@params$easyRead <- easyRead
-    ## plot upset of herbs targets
-    sets <- distinct(herbs_targets, herb_id, Target.name)
-    sets <- split(sets$Target.name, sets$herb_id)
-    fun <- function(sets) x@params$herbs_info$Herb_pinyin_name[match(names(sets), x@params$herbs_info$Herb_)]
-    names(sets) <- fun(sets)
-    p.herbs_targets <- new_upset(lst = sets)
-    ## plot upset of herbs ingredient
-    sets <- split(herbs_compounds$Ingredient.id, herbs_compounds$herb_id)
-    names(sets) <- fun(sets)
-    p.herbs_compounds <- new_upset(lst = sets)
+    x@params$easyRead <- easyRead 
+    if (length(unique(herbs_targets$herb_id)) > 1) {
+      ## plot upset of herbs targets
+      sets <- dplyr::distinct(herbs_targets, herb_id, Target.name)
+      sets <- split(sets$Target.name, sets$herb_id)
+      fun <- function(sets) x@params$herbs_info$Herb_pinyin_name[match(names(sets), x@params$herbs_info$Herb_)]
+      names(sets) <- fun(sets)
+      p.herbs_targets <- new_upset(lst = sets)
+      ## plot upset of herbs ingredient
+      sets <- split(herbs_compounds$Ingredient.id, herbs_compounds$herb_id)
+      names(sets) <- fun(sets)
+      p.herbs_compounds <- new_upset(lst = sets)
+    } else {
+      p.herbs_targets <- NULL
+      p.herbs_compounds <- NULL
+    }
     ## set plots and tables
     plots <- namel(p.herbs_targets, p.herbs_compounds)
     tables <- namel(compounds_targets_annotation)
@@ -142,10 +171,117 @@ setMethod("step3", signature = c(x = "job_herb"),
         hgnc_symbol %in% dplyr::all_of(disease_targets_annotation$hgnc_symbol)
       )
     }
+    data.allu <- dplyr::select(easyRead, Herb_pinyin_name, Ingredient.name, Target.name)
+    data.allu <- dplyr::filter(data.allu, !is.na(Target.name))
+    x$data.allu <- data.allu
+    p.pharm <- plot_network.pharm(data.allu, seed = x$seed)
+    plots <- c(plots, namel(p.pharm))
     x@plots[[ 3 ]] <- plots
     x@tables[[ 3 ]] <- tables
     return(x)
   })
 
+rstyle <- function(get = "pal", seed = NULL, n = 1L) {
+  if (get == "pal") {
+    set <- lapply(ggsci:::ggsci_db[1:19], function(x) unname(x[[1]]))
+  } else if (get == "shape.c") {
+    set <- as.list(15:19)
+  } else if (get == "shape.f") {
+    set <- as.list(21:25)
+  } else if (get == "theme") {
+    set <- list(theme_grey(), theme_minimal(), theme_bw(), theme_light())
+  }
+  if (!is.null(seed)) {
+    set.seed(seed)
+  }
+  res <- sample(set, n)
+  if (n == 1) {
+    return(res[[ 1 ]])
+  }
+  res
+}
+
+plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed = 1) {
+  prepare_data <- function(data) {
+    colnames(data) <- c("Herb", "Compound", "Target")
+    nodes <- tidyr::gather(data, type, value)
+    nodes <- dplyr::distinct(nodes)
+    nodes <- dplyr::relocate(nodes, name = value, type)
+    nodes <- dplyr::mutate(nodes, name = ifelse(duplicated(name), paste0(type, ":", name), name))
+    ed.12 <- dplyr::distinct(data, dplyr::pick(1:2))
+    freq12 <- table(ed.12$Compound)
+    ComSin <- names(freq12[ freq12 == 1 ])
+    ComMul <- names(freq12[ freq12 > 1 ])
+    ed.12sin <- dplyr::filter(ed.12, Compound %in% !!ComSin)
+    resize <- function(data, f) {
+      data$x <- data$x * f
+      data$y <- data$y * f
+      data
+    }
+    shift <- function(data, x = 0, y = 0) {
+      data$x <- data$x + x
+      data$y <- data$y + y
+      data
+    }
+    crds.Tgt <- get_layout(NULL, "grid", nodes = dplyr::filter(nodes, type == "Target"))
+    crds.Tgt <- shift(crds.Tgt, -max(crds.Tgt$x) / 2, -max(crds.Tgt$y) / 2)
+    f.rsz <- max(crds.Tgt$x) * f.f
+    crds.Hrb <- get_layout(NULL, "circle", nodes = dplyr::filter(nodes, type == "Herb"))
+    crds.Hrb <- resize(crds.Hrb, f.rsz)
+    lst <- split(ed.12sin, ~Herb)
+    crds.ComSin <- mapply(lst, names(lst), SIMPLIFY = F,
+      FUN = function(ed, nm) {
+        lay <- resize(get_layout(ed, "star"), f.rsz * f.f.sin)
+        crd.hrb <- dplyr::filter(crds.Hrb, name == !!nm)
+        dplyr::filter(shift(lay, crd.hrb$x, crd.hrb$y), name != !!nm)
+      })
+    crds.ComSin <- do.call(dplyr::bind_rows, crds.ComSin)
+    crds.ComMul <- get_layout(NULL, "circle", nodes = data.frame(name = ComMul))
+    crds.ComMul <- resize(crds.ComMul, f.rsz * f.f.mul)
+    crds <- list(crds.Hrb, crds.ComSin, crds.ComMul, crds.Tgt)
+    crds <- do.call(dplyr::bind_rows, crds)
+    crds <- dplyr::distinct(crds, name, .keep_all = T)
+    edges <- lapply(1:2,
+      function(n) {
+        edges <- dplyr::distinct(data, dplyr::pick(n:(n+1)))
+        colnames(edges) <- c("source", "target")
+        edges
+      })
+    edges <- do.call(dplyr::bind_rows, edges)
+    nodes <- dplyr::mutate(nodes,
+      type = ifelse(name %in% !!ComSin, "Compound Unique",
+        ifelse(name %in% !!ComMul, "Compound Sharing", type)))
+    nodes <- dplyr::filter(nodes, name %in% !!crds$name)
+    crds <- crds[ match(nodes$name, crds$name), ]
+    layout <- dplyr::select(crds, x, y)
+    fast_layout(edges, layout = layout, nodes = nodes)
+  }
+  x <- prepare_data(data)
+  data <- as_tibble(data.frame(x))
+  data <- dplyr::mutate(
+    data, cent = ifelse(type == "Herb", cent * 150,
+      ifelse(grpl(type, "Compound"), cent * 20, cent)))
+  data.tgt <- dplyr::filter(data, type == "Target")
+  set.seed(seed)
+  p <- ggraph(x) +
+    geom_edge_link(color = sample(color_set()[1:6], 1), alpha = .2, width = .1) +
+    geom_node_point(data = data, aes(x = x, y = y, color = type, size = cent),
+      shape = rstyle("shape.c", seed)) +
+    ggrepel::geom_label_repel(
+      data = dplyr::filter(data, cent > 1000),
+      aes(x = x, y = y, label = name, color = type)) +
+    ggrepel::geom_label_repel(
+      data = dplyr::filter(data.tgt, cent >= sort(cent, T)[10]),
+      aes(x = x, y = y, label = name, color = type)) +
+    scale_size(range = c(.5, 15)) +
+    guides(size = "none") +
+    scale_color_manual(values = rstyle("pal", seed)) +
+    rstyle("theme", seed) +
+    labs(color = "Type") +
+    theme(axis.text = element_blank(),
+      axis.title = element_blank()) +
+    geom_blank()
+  wrap(p, 15, 12)
+}
 
 

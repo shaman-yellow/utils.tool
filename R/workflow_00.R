@@ -291,6 +291,7 @@ setGeneric("step1",
       sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
       sig(x) <- sig
     }
+    x$seed <- sample(1:100, 1)
     x <- checkAddStep(x, 1L)
     x <- standardGeneric("step1")
     stepPostModify(x, 1)

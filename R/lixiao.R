@@ -408,14 +408,20 @@ get_table.html <- function(file) {
 
 moveToDir_herbs <- function(ids,
   file.pattern = "\\.xlsx$", index.pfun = file_seq.by_time,
-  from = "~/Downloads", to = "herbs_ingredient", suffix = ".xlsx", .id = "herb_id")
+  from = "~/Downloads", to = "herbs_ingredient", suffix = ".xlsx", .id = "herb_id", readFrom = NULL)
 {
-  if (!file.exists(to)) {
-    args <- as.list(environment())
-    files <- do.call(moveToDir, args)
-    isOrdered <- T
+  if (is.null(readFrom)) {
+    if (!file.exists(to)) {
+      args <- as.list(environment())
+      args$readFrom <- NULL
+      files <- do.call(moveToDir, args)
+      isOrdered <- T
+    } else {
+      files <- list.files(to, file.pattern, full.names = T)
+      isOrdered <- F
+    }
   } else {
-    files <- list.files(to, file.pattern, full.names = T)
+    files <- readFrom
     isOrdered <- F
   }
   data <- lapply(files,
@@ -624,7 +630,14 @@ new_biomart <- function(dataset = c("hsapiens_gene_ensembl", "sscrofa_gene_ensem
   } else {
     dataset <- match.arg(dataset)
   }
-  ensembl <- e(biomaRt::useEnsembl(biomart = "ensembl", dataset = dataset))
+  predb <- getOption("biomart")[[ dataset ]]
+  if (is.null(predb)) {
+    ensembl <- e(biomaRt::useEnsembl(biomart = "ensembl", dataset = dataset))
+    lst <- nl(dataset, list(ensembl))
+    options(biomart = lst)
+  } else {
+    ensembl <- predb
+  }
   ensembl
 }
 
@@ -2744,6 +2757,40 @@ od_get_date <- function(file = "./mailparsed/date.md") {
   as.Date(line, "%A, %d %B %Y")
 }
 
+odb <- function(...) {
+  n <- 0L
+  res <- lapply(list(...),
+    function(key) {
+      res <- odk(key, if (!n) T else F)
+      if (is.null(res)) {
+        stop("No keywords of ", key, " found.")
+      }
+      res
+    })
+  paste0(unlist(res), collapse = "")
+}
+
+odk <- function(key, fresh = F, file = "./mailparsed/part_1.md")
+{
+  kds <- getOption("od_keywords")
+  if (is.null(kds) | fresh) {
+    lines <- readLines(file)
+    pattern <- paste0("[a-z]+\\[\\[.*?\\]\\]")
+    res <- stringr::str_extract_all(paste0(lines, collapse = " "), pattern)
+    res <- unlist(res)
+    res <- lapply(res,
+      function(x) {
+        name <- gs(x, "^([a-z]+).*", "\\1")
+        value <- gs(x, ".*\\[\\[(.*?)\\]\\].*", "\\1")
+        list(name, value)
+      })
+    kds <- lapply(res, function(x) x[[2]])
+    names(kds) <- lapply(res, function(x) x[[1]])
+    options(od_keywords = kds)
+  }
+  kds[[ key ]]
+}
+
 od_get <- function(file = "./mailparsed/part_1.md", key = "id",
   pattern = paste0("(?<=", key, "\\{\\{).*?(?=\\}\\})"))
 {
@@ -2824,6 +2871,8 @@ deparse_mail <- function(dir = "mail",
         fp$close()
       })
   }
+  if (!length(list.files(attsdir)))
+    writeLines("", paste0(attsdir, "empty.txt"))
   ## multipart
   main <- contents[ isMulti ]
   if (length(main) == 0) {

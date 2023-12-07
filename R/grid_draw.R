@@ -1099,7 +1099,8 @@ fast_layout <- function(edges, layout = "fr", nodes = NULL, ...){
       graph <- edges
     }
   } else {
-    edges <- data.frame(from = nodes[[1]], to = nodes[[1]])
+    edges <- data.frame(from = nodes[[1]][1], to = nodes[[1]][1])
+    edges <- tibble::tibble(from = character(0), to = character(0))
     graph <- igraph::graph_from_data_frame(edges, directed = T, vertices = nodes)
   }
   graph <- tidygraph::as_tbl_graph(graph)
