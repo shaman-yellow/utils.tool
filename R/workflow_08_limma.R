@@ -14,17 +14,17 @@
     info = c("..."),
     cite = "[@LimmaPowersDiRitchi2015; @EdgerDifferenChen]",
     method = "Limma and edgeR used for differential expression analysis",
-    params = list(isTcga = F)
+    params = list(isTcga = F, normed = F)
     ))
 
 job_limma_normed <- function(data, metadata) {
   .check_columns(metadata, c("sample", "group"))
-  metadata <- dplyr::slice(metadata, match(sample, colnames(data)))
+  metadata <- dplyr::slice(metadata, match(colnames(data), sample))
   data <- dplyr::select(data, dplyr::all_of(metadata$sample))
   if (!identical(colnames(data), metadata$sample)) {
     stop("!identical(colnames(data), metadata$sample)")
   }
-  .job_limma(object = data, params = list(metadata = metadata, isTcga = F))
+  .job_limma(object = data, params = list(metadata = metadata, isTcga = F, normed = T))
 }
 
 job_limma <- function(DGEList)
@@ -42,13 +42,16 @@ setMethod("step0", signature = c(x = "job_limma"),
   })
 
 setMethod("step1", signature = c(x = "job_limma"),
-  function(x, group = x@object$samples$group, batch = x@object$samples$batch,
+  function(x,
+    group = if (x$normed) x$metadata$group else x@object$samples$group,
+    batch = if (x$normed) x$metadata$batch else x@object$samples$batch,
     design = if (is.null(batch)) mx(~ 0 + group) else mx(~ 0 + group + batch),
-    min.count = 10, no.filter = F, no.norm = F, norm_vis = F)
+    min.count = 10,
+    no.filter = if (x$normed) T else F,
+    no.norm = no.filter,
+    norm_vis = F)
   {
-    step_message("Preprocess expression data.
-      "
-    )
+    step_message("Preprocess expression data.")
     plots <- list()
     if (!no.filter) {
       object(x) <- filter_low.dge(object(x), group, min.count = min.count)
@@ -257,8 +260,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
     data <- as_tibble(x@params$normed_data$E)
     anno <- x@params$normed_data$genes
     lst <- .cal_corp.elist(data, anno, use, from, to, names)
-    lst$hp
-    lst$hp <- .set_lab(lst$hp, sig(x), "genes correlation heatmap")
+    lst$hp <- .set_lab(wrap(lst$hp), sig(x), "genes correlation heatmap")
     lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), "data significant genes of correlation")
     return(lst)
   })

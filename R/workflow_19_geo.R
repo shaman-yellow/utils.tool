@@ -58,9 +58,35 @@ setMethod("meta", signature = c(x = "job_geo"),
   })
 
 setMethod("asjob_limma", signature = c(x = "job_geo"),
-  function(x, metadata, use = 1L){
+  function(x, metadata, use = 1L, normed = F){
     counts <- as_tibble(x@params$about[[ use ]]@assayData$exprs)
     genes <- as_tibble(x@params$about[[ use ]]@featureData@data)
-    genes <- dplyr::relocate(genes, rownames, hgnc_symbol = `Gene Symbol`)
-    job_limma(new_dge(metadata, counts, genes))
+    if (any(colnames(genes) == "rownames")) {
+      if (grpl(colnames(genes), "Gene Symbol")) {
+        genes <- dplyr::relocate(genes, rownames, hgnc_symbol = `Gene Symbol`)
+      }
+    } else {
+      guess <- grpf(colnames(genes), "^gene", ignore.case = T)
+      message("All available:\n\t", paste0(guess, collapse = ", "))
+      message("Use the firist.")
+      guess <- guess[[ 1 ]]
+      keep <- !is.na(genes[[ guess ]]) & genes[[ guess ]] != "" & !duplicated(genes[[ guess ]])
+      ## format
+      genes <- dplyr::mutate(genes, rownames = !!rlang::sym(guess))
+      genes <- dplyr::relocate(genes, rownames)
+      message("Col.names of the data.frame:\n\t",
+        stringr::str_trunc(paste0(colnames(counts), collapse = ", "), 40))
+      counts <- dplyr::mutate(counts, rownames = !!genes[[ guess ]])
+      counts <- dplyr::relocate(counts, rownames)
+      genes <- genes[ keep, ]
+      counts <- counts[ keep,  ]
+    }
+    if (normed) {
+      counts <- dplyr::select(counts, -1)
+      counts <- data.frame(counts)
+      rownames(counts) <- genes$rownames
+      job_limma_normed(counts, metadata)
+    } else {
+      job_limma(new_dge(metadata, counts, genes))
+    }
   })

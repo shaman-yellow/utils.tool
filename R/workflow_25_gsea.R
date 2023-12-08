@@ -169,12 +169,18 @@ setMethod("step1", signature = c(x = "job_gsea"),
   })
 
 setMethod("step2", signature = c(x = "job_gsea"),
-  function(x, key, use = "res.kegg"){
+  function(x, key, highlight = key[1], use = "res.kegg"){
     step_message("GSEA visualization for specific pathway")
     obj <- x@params[[ use ]]
     p.code <- wrap(e(enrichplot::gseaplot2(obj, key, pvalue_table = F)), 7.5, 6)
     p.code <- .set_lab(p.code, sig(x), "GSEA plot of the pathways")
-    x@plots[[ 2 ]] <- namel(p.code)
+    if (!is.null(highlight)) {
+      p.highlight <- plot_highlight_enrich(x@tables$step1$table_kegg, highlight, object(x)$symbol)
+      p.highlight <- .set_lab(p.highlight, sig(x), "KEGG enrichment with enriched genes")
+    } else {
+      p.highlight <- NULL
+    }
+    x@plots[[ 2 ]] <- namel(p.code, p.highlight)
     return(x)
   })
 
@@ -243,8 +249,8 @@ setMethod("step4", signature = c(x = "job_gsea"),
     }
     table_gsea <- dplyr::mutate(table_gsea,
       geneName_list = strsplit(core_enrichment, "/"),
-      GeneRatio = stringr::str_extract(leading_edge, "[0-9]+"),
-      Count = lengths(geneName_list)
+      Count = lengths(geneName_list),
+      GeneRatio = round(as.double(stringr::str_extract(leading_edge, "[0-9]+")) / 100, 2)
     )
     x@params$res.gsea <- res.gsea
     x@params$db.gsea <- db
@@ -284,4 +290,72 @@ setMethod("map", signature = c(x = "job_monocle", ref = "jobn_enrich"),
     p
   })
 
-
+plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
+  n = 10L, shift = .2, top_by = "p.adjust", sort_by = "GeneRatio", use = "p.adjust")
+{
+  table_enrich <- dplyr::arrange(table_enrich, !!rlang::sym(top_by))
+  table_enrich <- head(table_enrich, n = n)
+  reshape <- function(data) {
+    split_lapply_rbind(data, ~ ID,
+      function(x) {
+        symbol <- x$geneName_list[[ 1 ]]
+        x <- dplyr::select(x, -dplyr::contains("_list"))
+        x <- dplyr::slice(x, rep(1, length(!!symbol)))
+        x <- dplyr::mutate(x, Symbol = !!symbol)
+        return(x)
+      })
+  }
+  table_enrich <- reshape(table_enrich)
+  table_enrich$log2fc <- do.call(dplyr::recode, c(list(table_enrich$Symbol), lst_logFC))
+  table_enrich <- dplyr::arrange(table_enrich, dplyr::desc(!!rlang::sym(sort_by)))
+  ## data for plot the enrichment score
+  data <- dplyr::distinct(table_enrich, Description, !!rlang::sym(use), Count, GeneRatio)
+  data <- dplyr::mutate(data, path.p = nrow(data):1)
+  ## edges for plot left panel (network of genes with pathway name)
+  edges <- dplyr::distinct(table_enrich, Symbol, Description, ID, log2fc)
+  edges <- dplyr::filter(edges, ID %in% !!highlight)
+  tt <<- edges
+  ## nodes for location
+  nodes <- tidyr::gather(edges, type, name, -log2fc, -ID)
+  nodes <- split(nodes, ~type)
+  nodes$Symbol <- dplyr::arrange(nodes$Symbol, log2fc)
+  nodes$Symbol <- dplyr::mutate(
+    nodes$Symbol, x = -max(data$GeneRatio) * (1 + shift),
+    y = seq(1, n, length.out = length(name))
+  )
+  nodes$Description <- dplyr::distinct(nodes$Description, type, name)
+  nodes$Description <- dplyr::mutate(
+    nodes$Description, x = 0L - shift * max(data$GeneRatio),
+    y = data$path.p[ match(name, data$Description) ]
+  )
+  nodes <- data.table::rbindlist(nodes, fill = T)
+  nodes <- dplyr::relocate(nodes, name)
+  ## custom layout
+  graph <- fast_layout(edges, dplyr::select(nodes, x, y), nodes = dplyr::select(nodes, -x, -y))
+  p <- ggraph(graph) +
+    geom_edge_diagonal(aes(x = x, y = y, width = abs(log2fc)),
+      color = sample(ggsci::pal_npg()(10), 1), strength = 1, flipped = T, alpha = .1) +
+    geom_node_label(
+      data = filter(nodes, type == "Symbol"),
+      aes(label = name, x = x, y = y, fill = log2fc),
+      hjust = 1, size = 2) +
+    ## enrichment
+    geom_segment(data = data,
+      aes(x = 0, xend = GeneRatio, y = path.p, yend = path.p, color = !!rlang::sym(use))) +
+    geom_point(data = data,
+      aes(x = GeneRatio, y = path.p, color = !!rlang::sym(use), size = Count)) +
+    geom_label(data = data,
+      aes(x = - shift * max(GeneRatio) / 2, y = path.p, label = stringr::str_wrap(Description, 30)),
+      hjust = 1, size = 4) +
+    geom_vline(xintercept = 0L, linetype = 4) +
+    labs(x = "", y = "", edge_width = "|log2(FC)|", fill = "log2(FC)") +
+    rstyle("theme") +
+    theme(axis.text.y = element_blank()) +
+    scale_fill_gradient2(low = "#3182BDFF", high = "#A73030FF") +
+    scale_color_gradientn(colours = c(sample(ggsci:::ggsci_db$uchicago$dark, 1), sample(color_set()[1:10], 1))) +
+    scale_x_continuous(breaks = round(seq(0, max(data$GeneRatio), length.out = 4), 3),
+      limits = c(-max(data$GeneRatio) * (1 + shift) * 1.2, max(data$GeneRatio))) +
+    geom_blank()
+  p <- wrap(p, 12, 8)
+  p
+}

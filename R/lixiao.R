@@ -603,7 +603,7 @@ writeDatas <- function(lst, dir, ..., fun = data.table::fwrite, postfix = ".csv"
       file <- paste0(dir, "/", n, "_", name, postfix)
       n <<- n + 1
       if (is.null(data) | is.character(data)) {
-        writeLines("", file)
+        writeLines(if (is.character(data)) data else "", gs(file, paste0(postfix, "$"), ".txt"))
       } else {
         fun(data, file)
       }
@@ -1145,6 +1145,15 @@ write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".
     qpdf::pdf_subset(file, page, newfile)
     file.copy(newfile, file, T)
   }
+  return(file)
+}
+
+write_character <- function(x, name, ..., file = paste0(get_realname(name), ".txt"),
+  mkdir = get_savedir("figs"))
+{
+  if (!file.exists(mkdir))
+    dir.create(mkdir)
+  writeLines(x, file <- paste0(mkdir, "/", file))
   return(file)
 }
 
@@ -3084,6 +3093,11 @@ setMethod("autor", signature = c(x = "can_not_be_draw", name = "character"),
   function(x, name, ...){
     file <- autosv(x, name, ...)
     autor(file, name, ...)
+    if (!is.null(lich <- attr(x, "lich"))) {
+      abstract(lich, name)
+      file <- autosv(lich, name <- paste0(name, "-content"))
+      locate_file(name, "上述信息框内容已保存至")
+    }
   })
 
 setClassUnion("can_be_draw", c("gg.obj", "heatdata", "grob.obj"))
@@ -3249,6 +3263,11 @@ setMethod("select_savefun", signature = c(x = "heatdata"),
     }
   })
 
+setMethod("select_savefun", signature = c(x = "character"),
+  function(x){
+    get_fun("write_character")
+  })
+
 setMethod("select_savefun", signature = c(x = "grob.obj"),
   function(x){
     get_fun("write_grob")
@@ -3326,7 +3345,7 @@ setMethod("abstract", signature = c(x = "lich", name = "character", latex = "log
     str <- sapply(names(x),
       function(name){
         ch <- c("\n\\textbf{", name, ":}\n\n\\vspace{0.5em}\n")
-        ch <- c(ch, strwrap(x[[ name ]], indent = 4, width = 60))
+        ch <- c(ch, strwrap(stringr::str_trunc(x[[ name ]], 1500), indent = 4, width = 60))
         ch <- c(ch, "\n\\vspace{2em}\n")
         ch
       })
@@ -3375,12 +3394,12 @@ sumTbl <- function(x, key, sum.ex) {
     "个唯一`", colnames(x[, key]), "'。\n", sum.ex)
 }
 
-locate_file <- function(name) {
+locate_file <- function(name, des = "对应文件为") {
   if (!exists('autoRegisters'))
     stop("!exists('autoRegisters')")
   if (!file.exists(autoRegisters[[ name ]]))
     stop("file.exists(autoRegisters[[ name ]] == F)")
-  cat("\n**(对应文件为 `", autoRegisters[[ name ]], "`)**", "\n", sep = "")
+  cat("\n**(", des, " `", autoRegisters[[ name ]], "`)**", "\n", sep = "")
 }
 
 text_roundrect <- function(str, collapse = "\n") {
@@ -3524,18 +3543,24 @@ new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T) 
   }
 }
 
-new_venn <- function(..., lst = NULL, wrap = T, color.high = "lightyellow") {
+new_venn <- function(..., lst = NULL, wrap = T, fun_pre = rm.no) {
   if (is.null(lst)) {
     lst <- list(...)
   }
-  lst <- lapply(lst, unique)
+  lst <- lapply(lst, fun_pre)
   p <- ggVennDiagram::ggVennDiagram(lst) +
-    scale_fill_gradient(low = "grey90", high = color.high)
+    scale_fill_gradient(low = "grey95", high = sample(color_set(), 1)) +
+    rstyle("theme") +
+    theme(axis.text = element_blank(),
+      axis.title = element_blank(),
+      axis.ticks = element_blank()) +
+    geom_blank()
   if (wrap) {
-    wrap(p, 4, 2.5)
-  } else {
-    p
+    p <- wrap(p, 4, 2.5)
   }
+  attr(p, "ins") <- ins <- intersect(lst[[1]], lst[[2]])
+  attr(p, "lich") <- new_lich(list(Intersection = ins))
+  p
 }
 
 setdev <- function(width, height) {
