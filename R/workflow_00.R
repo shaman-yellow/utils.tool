@@ -551,30 +551,34 @@ show_standardGeneric <- selectMethod(
       else
         str[1] <- sub("^.*?(function)", "\\1", str[1])
       str <- paste0(str, collapse = " ")
-      str <- strsplit(str, "")[[1]]
-      sig <- 0L
-      pair <- 0L
-      char <- c()
-      for (i in str) {
-        if (i == "(") {
-          pair <- 1L
-          sig <- sig + 1L
-        } else if (i == ")") {
-          sig <- sig - 1L
-        }
-        if (sig == 0L & pair)
-          break
-        else if (pair) {
-          if (i == "(" & sig == 1L)
-            next
-          char <- c(char, i)
-        }
-      }
-      args <- paste(char, collapse = "")
+      args <- match_pair(str)
       message(crayon::green(gsub("#", ", ", methods@names[[n]])), ":")
       message(strwrap(args, indent = 4))
     })
   cli::cli_h1("Methods parameters")
+}
+
+match_pair <- function(str, left = "(", right = ")") {
+  str <- strsplit(str, "")[[1]]
+  sig <- 0L
+  pair <- 0L
+  char <- c()
+  for (i in str) {
+    if (i == left) {
+      pair <- 1L
+      sig <- sig + 1L
+    } else if (i == right) {
+      sig <- sig - 1L
+    }
+    if (sig == 0L & pair)
+      break
+    else if (pair) {
+      if (i == left & sig == 1L)
+        next
+    char <- c(char, i)
+    }
+  }
+  paste0(char, collapse = "")
 }
 
 setMethod("show", 
@@ -840,4 +844,16 @@ activate_base <- function(env_pattern = "base", env_path = "~/miniconda3/envs/",
   e(reticulate::import("platform"))
 }
 
+.view_obj <- function(x, howto = "vsplit") {
+  nvimcom:::nvim_viewobj(x, howto = howto)
+}
 
+view_obj_for_vim <- function(x, y) {
+  if (isGeneric(x)) {
+    obj <- selectMethod(x, class(get(y, envir = .GlobalEnv)))
+    assign(name <- ".tmpfun", obj, envir = .GlobalEnv)
+    .view_obj(name)
+  } else {
+    .view_obj(x)
+  }
+}
