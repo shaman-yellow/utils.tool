@@ -5,6 +5,7 @@
 write_articlePdf("index.Rmd", "output.Rmd", "")
 
 # id <- "IN2023072803-3+销售：周燕青+客户：戴心怡+斑痕增生+生信分析"
+# id <- gid(theme = "rTMS和不完全性脊髓损伤")
 id <- odb("name", "analysis")
 file.copy("./output.pdf", report <- paste0(id, ".pdf"), T)
 

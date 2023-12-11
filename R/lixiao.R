@@ -1041,6 +1041,9 @@ vis_enrich.go <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
         data
       })
     data <- data.table::rbindlist(data, idcol = T)
+    if (!nrow(data)) {
+      return()
+    }
     data <- dplyr::mutate(
       data, GeneRatio = as_double.ratioCh(GeneRatio),
       stringr::str_wrap(Description, width = 30)
@@ -2245,6 +2248,28 @@ wrap <- function(data, width = 10, height = 8) {
   representation = representation(data = "ANY", width = "ANY", height = "ANY"),
   prototype = NULL)
 
+setMethod("[[", signature = c(x = "wrap"),
+  function(x, i, ...){
+    attr(x, i)
+  })
+
+setMethod("[[<-", signature = c(x = "wrap"),
+  function(x, i, ..., value){
+    attr(x, i) <- value
+    return(x)
+  })
+
+setMethod("$", signature = c(x = "wrap"),
+  function(x, name){
+    x[[ name ]]
+  })
+
+setMethod("$<-", signature = c(x = "wrap"),
+  function(x, name, value){
+    x[[ name ]] <- value
+    return(x)
+  })
+
 setGeneric("zoom", 
   function(x, s.w, s.h, ...) standardGeneric("zoom"))
 
@@ -2671,6 +2696,10 @@ summary_month <- function(
   browseURL(normalizePath(targets[[ "ass" ]]))
 }
 
+dic <- function() {
+
+}
+
 cf <- function(remuneration, base_wage = 6000) {
   remuneration / base_wage
 }
@@ -2744,9 +2773,32 @@ items <- function(
   if (identical(id, "")) {
     stop("The `id` can not be a empty character !!!")
   }
+  if (is.null(title)) {
+    stop("is.null(title)")
+  }
   items <- as.list(environment())
   saveRDS(items, save)
   items
+}
+
+gid <- function(title = NULL, theme, items = info, member = 3) {
+  if (!is.null(title)) {
+    if (title != "") {
+      return(title)
+    }
+  }
+  ext <- function(key) {
+    stringr::str_extract(items$info, paste0(key, "：", "[^ ]+"))
+  }
+  sales <- ext("销售")
+  if (is.na(sales)) {
+    stop("is.na(sales)")
+  }
+  client <- ext("客户")
+  if (is.na(client)) {
+    stop("is.na(client)")
+  }
+  paste0(items$id, "-", member, "+", sales, "+", client, "+", theme, "+", items$score, "分")
 }
 
 od_get_id <- function(...) {
@@ -3326,9 +3378,24 @@ setMethod("abstract", signature = c(x = "df", name = "character", latex = "logic
       cat(abs, "\n")
     locate_file(name)
     if (!is.null(summary)) {
-      cat(text_roundrect(fix.tex(sumTbl(x, key, sum.ex))))
+      cat(text_roundrect(fix.tex(
+            c(sumTbl(x, key, sum.ex),
+              .enumerate_items(.get_des(colnames(x)))
+            )
+            )))
     }
   })
+
+.enumerate_items <- function(ch) {
+  if (length(ch)) {
+    paste0(
+      "\\begin{enumerate}",
+      "\\tightlist\n",
+      paste0(paste0("\\item ", names(ch), ": ", unname(ch)), collapse = "\n"),
+      "\n\\end{enumerate}",
+      collapse = "\n")
+  }
+}
 
 ## abstract for figure of file
 setMethod("abstract", signature = c(x = "fig", name = "character", latex = "logical"),
@@ -3615,6 +3682,7 @@ new_col <- function(..., lst = NULL, fun = function(x) x[ !is.na(x) & x != ""]) 
     ylim(c(0, max(data$value) * 1.2)) +
     coord_flip() +
     labs(x = "", y = "") +
+    rstyle("theme") +
     theme(legend.position = "")
   wrap(p, 7, nrow(data) * .5 + .5)
 }

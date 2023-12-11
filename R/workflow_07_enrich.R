@@ -57,6 +57,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
     res.kegg <- multi_enrichKEGG(object(x), organism = organism)
     p.kegg <- vis_enrich.kegg(res.kegg, maxShow = maxShow)
     p.kegg <- lapply(p.kegg, function(x) wrap(x, 8, 4 * (maxShow / 10)))
+    p.kegg <- .set_lab(p.kegg, sig(x), names(p.kegg), "KEGG enrichment")
     fun <- function(sets) {
       lapply(sets,
         function(set) {
@@ -69,6 +70,8 @@ setMethod("step1", signature = c(x = "job_enrich"),
     cli::cli_alert_info("clusterProfiler::enrichGO")
     res.go <- multi_enrichGO(object(x), orgDb = orgDb, cl = cl)
     p.go <- vis_enrich.go(res.go, maxShow = maxShow)
+    p.go <- lapply(p.go, function(x) wrap(x))
+    p.go <- .set_lab(p.go, sig(x), names(p.go), "GO enrichment")
     x@tables[[ 1 ]] <- namel(res.kegg, res.go)
     x@plots[[ 1 ]] <- namel(p.kegg, p.go)
     x@params$check_go <- check_enrichGO(res.go)

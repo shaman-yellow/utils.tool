@@ -314,7 +314,6 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
   ## edges for plot left panel (network of genes with pathway name)
   edges <- dplyr::distinct(table_enrich, Symbol, Description, ID, log2fc)
   edges <- dplyr::filter(edges, ID %in% !!highlight)
-  tt <<- edges
   ## nodes for location
   nodes <- tidyr::gather(edges, type, name, -log2fc, -ID)
   nodes <- split(nodes, ~type)

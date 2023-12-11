@@ -111,10 +111,18 @@ setMethod("step2", signature = c(x = "job_limma"),
           ))
     }
     object(x) <- diff_test(object(x), x@params$design, contr, block)
+    plots <- list()
     if (!is.null(contr)) {
       tops <- extract_tops(object(x), use = use, use.cut = use.cut, cut.fc = cut.fc)
       tops <- .set_lab(tops, sig(x), paste("data", gs(names(tops), "-", "vs")), "DEGs")
       lab(tops) <- paste(sig(x), "data", "DEGs")
+      if (length(tops) >= 2) {
+        lst <- lapply(tops, function(x) x[[ label ]])
+        names(lst) <- gs(names(lst), "\\s*-\\s*", " vs ")
+        p.contrast_cols <- new_col(lst = lst)
+        p.contrast_cols <- .set_lab(p.contrast_cols, sig(x), "All DEGs of contrasts")
+        plots <- c(plots, namel(p.contrast_cols))
+      }
     } else {
       tops <- NULL
     }
@@ -122,8 +130,9 @@ setMethod("step2", signature = c(x = "job_limma"),
     p.valcano <- lapply(p.valcano, function(p) wrap(p, 5, 4))
     p.valcano <- .set_lab(p.valcano, sig(x), gs(names(p.valcano), "-", "vs"), "DEGs")
     lab(p.valcano) <- paste(sig(x), "volcano plot", "DEGs")
+    plots <- c(plots, namel(p.valcano))
     x@tables[[ 2 ]] <- namel(tops)
-    x@plots[[ 2 ]] <- namel(p.valcano)
+    x@plots[[ 2 ]] <- plots
     return(x)
   })
 
@@ -255,13 +264,13 @@ setMethod("tops", signature = c(x = "job_limma"),
   })
 
 setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
-  function(x, y, from, to, names = NULL, use = if (x$isTcga) "gene_name" else "hgnc_symbol")
+  function(x, y, from, to, names = NULL, use = if (x$isTcga) "gene_name" else "hgnc_symbol", theme = NULL)
   {
     data <- as_tibble(x@params$normed_data$E)
     anno <- x@params$normed_data$genes
     lst <- .cal_corp.elist(data, anno, use, from, to, names)
-    lst$hp <- .set_lab(wrap(lst$hp), sig(x), "genes correlation heatmap")
-    lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), "data significant genes of correlation")
+    lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
+    lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), theme, "significant correlation")
     return(lst)
   })
 
