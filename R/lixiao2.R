@@ -293,6 +293,7 @@ setMethod("render", signature = c(x = "columns"),
     files <- list.files(".", get_realname(name))
     file.copy(files, path, T)
     file.remove(files)
+    browseURL(paste0(path, "/", gs(name, ".tex$", ".pdf")))
   })
 
 setMethod("render", signature = c(x = "column"),

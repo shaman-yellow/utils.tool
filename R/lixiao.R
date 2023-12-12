@@ -1304,6 +1304,12 @@ package_results <- function(
   } else {
     message("Only client file were packaged.")
   }
+  if (file.exists(file <- ".items.rds")) {
+    info <- readRDS(file)
+    info$date <- Sys.Date()
+    info$isLatest <- T
+    saveRDS(info, file)
+  }
 }
 
 colSum <- function(col) {
@@ -2696,8 +2702,94 @@ summary_month <- function(
   browseURL(normalizePath(targets[[ "ass" ]]))
 }
 
-dic <- function() {
+.di <- setClass("di", 
+  contains = c("list"),
+  representation = representation(),
+  prototype = NULL)
 
+d <- function(ref, mode = c("all", "chinese", "english")) {
+  dic <- getOption("dic")
+  if (is.null(dic)) {
+    stop("No `dic` in options found. Please use function `dic` to set that.")
+  }
+  mode <- match.arg(mode)
+  names(dic) <- tolower(names(dic))
+  ref <- match.arg(ref, names(dic))
+  res <- dic[[ ref ]]
+  if (mode == "all") {
+    paste0(res$ch, " (", res$en, ", ", res$abs, ") ")
+  } else if (mode == "chinese") {
+    res$ch
+  } else if (mode == "english") {
+    res$en
+  }
+}
+
+dic <- function(...) {
+  dic <- lapply(list(...),
+    function(x) {
+      if (is(x, "di")) {
+        x
+      } else if (is.character(x)) {
+        if (grpl(x, "^[a-zA-Z]")) {
+          di(en = x)
+        } else {
+          di(ch = x)
+        }
+      }
+    })
+  names(dic) <- lapply(dic, function(x) x$abs)
+  options(dic = dic)
+  mess <- vapply(dic, FUN.VALUE = character(1),
+    function(x) {
+      paste0("# ", x$abs, ": ", x$en, " ", x$ch)
+    })
+  writeLines(mess)
+}
+
+di <- function(ch = NULL, en = NULL, abs = NULL) {
+  if (is.null(ch) & is.null(en)) {
+    stop("`ch` and `en` can not be both 'NULL'")
+  }
+  if (is.null(ch)) {
+    ch <- trans.google(en, to = "zh-CN")
+  } else if (is.null(en)) {
+    en <- trans.google(ch, to = "en")
+  }
+  if (is.null(abs)) {
+    abs <- paste0(stringr::str_extract_all(en, "(?<= |^).")[[1]], collapse = "")
+    abs <- toupper(abs)
+  }
+  .di(as.list(environment()))
+}
+
+trans <- function(str) {
+  if (grpl(str, "^[A-Za-z]")) {
+    trans.google(str, to = "zh-CN")
+  } else {
+    trans.google(str, to = "en")
+  }
+}
+
+trans.google <- function(str, from = "auto", to = "zh-CN") {
+  e(gtranslate::translate(str, from = from, to = to))
+}
+
+trans.youdao <- function(str) {
+  res <- try(e(ecce::translate(str)), silent = T)
+  if (inherits(res, "try-error")) {
+    stop("The `str` (", str, ") could not be translated (error).")
+  }
+  res
+}
+
+.set_API_youdao <- function() {
+  if (Sys.getenv("app_key") == "") {
+    Sys.setenv(
+      app_key = "5206fcce5ba590d5",
+      app_secret = "gORc2vFSztfXn1JmJHA5VNHdgsrzzBmi"
+    )
+  }
 }
 
 cf <- function(remuneration, base_wage = 6000) {
@@ -2750,22 +2842,23 @@ get_orders <- function(
 }
 
 od_get_title <- function() {
-  getOption("title")
+  odb("name", "analysis")
 }
 
 items <- function(
-  type = "固定业务",
+  belong = as.Date(receive_date),
+  coef = if (type == "固定业务") .25 else NA,
+  type = od_guess_type(),
   title = od_get_title(),
   status = "完成",
-  coef = .25,
-  date = "2023-07-12",
+  date = Sys.Date(),
   info = od_get_info(),
   id = od_get_id(),
   receive_date = od_get_date(),
   score = od_get_score(),
   member = "黄礼闯",
   save = ".items.rds",
-  belong = as.Date(receive_date))
+  isLatest = F)
 {
   if (is.null(id)) {
     stop("The `id` can not be a NULL !!!")
@@ -2777,36 +2870,96 @@ items <- function(
     stop("is.null(title)")
   }
   items <- as.list(environment())
+  if (file.exists(save)) {
+    info <- readRDS(save)
+    if (is.null(info$isLatest)) {
+      items$date <- info$date
+    } else if (info$isLatest) {
+      items$date <- info$date
+    }
+  }
   saveRDS(items, save)
   items
 }
 
-gid <- function(title = NULL, theme, items = info, member = 3) {
-  if (!is.null(title)) {
-    if (title != "") {
-      return(title)
+od_guess_type <- function() {
+  lines <- od_get(pattern = NULL)
+  if (any(grpl(lines, "固定业务"))) {
+    "固定业务"
+  } else {
+    "其他业务"
+  }
+}
+
+gidn <- gid <- function(theme = NULL, items = info, member = 3) {
+  idn <- character(0)
+  if (grpl(items$id, "^[A-Za-z]*[0-9]+$")) {
+    idn <- paste0(items$id, "-", member)
+  } else {
+    id <- odk("id")
+    if (!is.null(id)) {
+      idn <- id
     }
   }
   ext <- function(key) {
-    stringr::str_extract(items$info, paste0(key, "：", "[^ ]+"))
+    stringr::str_extract(items$info, paste0("(?<=", key, "：)", "[^ ]+"))
   }
-  sales <- ext("销售")
-  if (is.na(sales)) {
-    stop("is.na(sales)")
+  sale <- ext("销售")
+  if (is.na(sale)) {
+    sale <- odk("sale")
+  }
+  if (!is.null(sale)) {
+    idn <- paste0(idn, "+销售：", sale)
   }
   client <- ext("客户")
   if (is.na(client)) {
-    stop("is.na(client)")
+    client <- odk("client")
   }
-  paste0(items$id, "-", member, "+", sales, "+", client, "+", theme, "+", items$score, "分")
+  if (!is.null(client)) {
+    if (identical(idn, character(0))) {
+      idn <- odb("client", "analysis")
+    } else {
+      idn <- paste0(idn, "+客户：", client)
+    }
+  } else {
+    if (identical(idn, character(0))) {
+      idn <- odb("client", "analysis")
+    }
+    if (idn == "") {
+      stop("Cant not found the mark of `client` or `analysis`")
+    }
+  }
+  if (!is.null(theme)) {
+    idn <- paste0(idn, "+", theme)
+  } else {
+    theme <- odk("theme")
+    if (!is.null(theme))
+      idn <- paste0(idn, "+", theme)
+  }
+  if (items$score != "") {
+    idn <- paste0(idn, "+", items$score, "分")
+  }
+  idn
 }
 
 od_get_id <- function(...) {
   it <- od_get(..., key = "id")
+  if (it == "") {
+    it <- odk("id")
+    if (is.null(it))
+      it <- odb("client", "analysis")
+  }
+  it
 }
 
 od_get_score <- function(...) {
   it <- od_get(..., key = "score")
+  if (is.null(it) || it == "") {
+    it <- odk("score")
+    if (is.null(it))
+      it <- ""
+  }
+  it
 }
 
 od_get_info <- function(...) {
@@ -2823,9 +2976,6 @@ odb <- function(...) {
   res <- lapply(list(...),
     function(key) {
       res <- odk(key, if (!n) T else F)
-      if (is.null(res)) {
-        stop("No keywords of ", key, " found.")
-      }
       res
     })
   paste0(unlist(res), collapse = "")
@@ -2833,23 +2983,27 @@ odb <- function(...) {
 
 odk <- function(key, fresh = F, file = "./mailparsed/part_1.md")
 {
-  kds <- getOption("od_keywords")
-  if (is.null(kds) | fresh) {
-    lines <- readLines(file)
-    pattern <- paste0("[a-z]+\\[\\[.*?\\]\\]")
-    res <- stringr::str_extract_all(paste0(lines, collapse = " "), pattern)
-    res <- unlist(res)
-    res <- lapply(res,
-      function(x) {
-        name <- gs(x, "^([a-z]+).*", "\\1")
-        value <- gs(x, ".*\\[\\[(.*?)\\]\\].*", "\\1")
-        list(name, value)
-      })
-    kds <- lapply(res, function(x) x[[2]])
-    names(kds) <- lapply(res, function(x) x[[1]])
-    options(od_keywords = kds)
+  if (file.exists(file)) {
+    kds <- getOption("od_keywords")
+    if (is.null(kds) | fresh) {
+      lines <- readLines(file)
+      pattern <- paste0("[a-z]+\\[\\[.*?\\]\\]")
+      res <- stringr::str_extract_all(paste0(lines, collapse = " "), pattern)
+      res <- unlist(res)
+      res <- lapply(res,
+        function(x) {
+          name <- gs(x, "^([a-z]+).*", "\\1")
+          value <- gs(x, ".*\\[\\[(.*?)\\]\\].*", "\\1")
+          list(name, value)
+        })
+      kds <- lapply(res, function(x) x[[2]])
+      names(kds) <- lapply(res, function(x) x[[1]])
+      options(od_keywords = kds)
+    }
+    kds[[ key ]]
+  } else {
+    NULL
   }
-  kds[[ key ]]
 }
 
 od_get <- function(file = "./mailparsed/part_1.md", key = "id",
@@ -2907,7 +3061,7 @@ deparse_mail <- function(dir = "mail",
     dir.create(attsdir)
   }
   if (length(atts) == 0) {
-    writeLines("", paste0(attsdir, "empty.txt"))
+    writeLines("", paste0(attsdir, "/empty.txt"))
   } else {
     n <- 0L
     lapply(atts,
@@ -2932,8 +3086,9 @@ deparse_mail <- function(dir = "mail",
         fp$close()
       })
   }
-  if (!length(list.files(attsdir)))
-    writeLines("", paste0(attsdir, "empty.txt"))
+  if (!length(list.files(attsdir))) {
+    writeLines("", paste0(attsdir, "/empty.txt"))
+  }
   ## multipart
   main <- contents[ isMulti ]
   if (length(main) == 0) {
@@ -3245,18 +3400,27 @@ as_caption <- function(str) {
 }
 
 trunc_table <- function(x) {
+  if (ncol(x) > 10) {
+    x <- x[, 1:10]
+  }
+  width <- if (ncol(x) > 7) {
+    9
+  } else if (ncol(x) > 5) {
+    13
+  } else if (ncol(x) > 3) {
+    20
+  } else {
+    30
+  }
   x <- dplyr::mutate_all(x, as.character)
-  x <- dplyr::mutate_all(x, function(str) stringr::str_trunc(str, 8))
-  colnames(x) %<>% stringr::str_trunc(8)
+  x <- dplyr::mutate_all(x, function(str) stringr::str_trunc(str, width))
+  colnames(x) %<>% stringr::str_trunc(width)
   if (nrow(x) > 15) {
     x <- head(x, n = 15)
     blank <- head(x, n = 0)
     blank[1, ] <- "..."
     x <- dplyr::bind_rows(x, blank)
-  }
-  if (ncol(x) > 10) {
-    x <- x[, 1:10]
-  }
+  } 
   col <- vapply(colnames(x), nchar, integer(1))
   col <- which(cumsum(col) > 80)
   if (length(col) > 0) {
