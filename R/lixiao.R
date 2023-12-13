@@ -574,7 +574,7 @@ get_c2_data <- function(pattern = NULL,
 
 writeWraps <- function(lst, dir, width = 7, height = 7, ..., postfix = ".pdf") 
 {
-  fun <- function(p, file) write_graphics(p, file, mkdir = dir)
+  fun <- function(p, file) write_graphics(p, file, mkdir = get_path(file))
   writeDatas(lst, dir, fun = fun, postfix = postfix)
 }
 
@@ -2506,7 +2506,7 @@ setMethod("clip_data", signature = c(x = "elist", by = "wgcData"),
 
 send_eval <- function(to,
   subject = "需要评估绩效的业务",
-  content = "Hello, 慧姐\n\n这是这个月需要评估绩效的业务，已附在表格中。\n\nBest wish!",
+  content = "Hello, 慧姐\n\n这是这个月需要评估绩效的业务，已附在表格中。\n\nBest wishes!",
   time = Sys.time(),
   month = lubridate::month(time),
   year = lubridate::year(time),
@@ -2518,7 +2518,7 @@ send_eval <- function(to,
 
 send_registers <- function(to,
   subject = "业务表格更新",
-  content = "Hello, 慧姐\n\n这是每月末需提交的更新的业务登记表。\n\nBest wish!",
+  content = "Hello, 慧姐\n\n这是每月末需提交的更新的业务登记表。\n\nBest wishes!",
   time = Sys.time(),
   month = lubridate::month(time),
   year = lubridate::year(time),
@@ -2530,7 +2530,7 @@ send_registers <- function(to,
 
 send_prin <- function(to,
   subject = "月底交个人行为准则考核表",
-  content = "Hello, 慧姐\n\n个人行为准则考核表已交。\n\nBest wish!",
+  content = "Hello, 慧姐\n\n个人行为准则考核表已交。\n\nBest wishes!",
   time = Sys.time(),
   month = lubridate::month(time),
   year = lubridate::year(time),
@@ -2542,7 +2542,7 @@ send_prin <- function(to,
 
 send_summary <- function(to,
   subject = "月底交付考核",
-  content = "Hello, 慧姐\n\n绩效表已提交。\n\nBest wish!",
+  content = "Hello, 慧姐\n\n绩效表已提交。\n\nBest wishes!",
   time = Sys.time(),
   month = lubridate::month(time),
   year = lubridate::year(time),
@@ -2838,7 +2838,8 @@ get_orders <- function(
     function(x) ifelse(is.na(x), "", x))
   data <- dplyr::mutate(data, remuneration = remu(coef, belong, base_wage))
   data <- dplyr::relocate(data, belong, id, title, remuneration)
-  data
+  print(data, n = Inf)
+  invisible(data)
 }
 
 od_get_title <- function() {

@@ -14,7 +14,7 @@
     info = paste0("Tutorial: https://www.bioconductor.org/packages/release/bioc/html/TCGAbiolinks.html",
       "\nhttps://portal.gdc.cancer.gov/"),
     cite = "[@TcgabiolinksAColapr2015]",
-    method = "TCGAbiolinks used for abtain TCGA dataset"
+    method = "R package `TCGAbiolinks` used for abtain TCGA dataset"
     ))
 
 job_tcga <- function(project)

@@ -13,7 +13,7 @@
   prototype = prototype(
     info = c("https://bioconductor.org/packages/release/bioc/html/maftools.html"),
     cite = "[@MaftoolsEfficMayako2018]",
-    method = "Package 'maftools' used for analyzing and visualizing Mutation Annotation Format (MAF) files"
+    method = "R package 'maftools' used for analyzing and visualizing Mutation Annotation Format (MAF) files"
     ))
 
 setGeneric("asjob_maf", 

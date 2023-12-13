@@ -11,9 +11,9 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("..."),
+    info = c("|log~2~(FC)| &gt; 0.03, P-value or adjusted P-value &lt; 0.05"),
     cite = "[@LimmaPowersDiRitchi2015; @EdgerDifferenChen]",
-    method = "Limma and edgeR used for differential expression analysis",
+    method = "R package `Limma` and `edgeR` used for differential expression analysis",
     params = list(isTcga = F, normed = F)
     ))
 

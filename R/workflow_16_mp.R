@@ -13,7 +13,7 @@
   prototype = prototype(
     info = c("Tutorial: https://bioconductor.org/packages/release/bioc/vignettes/MicrobiotaProcess/inst/doc/MicrobiotaProcess.html"),
     cite = "[@MicrobiotaproceXuSh2023]",
-    method = "MicrobiotaProcess used for microbiome data visualization"
+    method = "R package `MicrobiotaProcess` used for microbiome data visualization"
     ))
 
 setGeneric("asjob_mp", 

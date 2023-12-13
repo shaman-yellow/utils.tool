@@ -106,6 +106,7 @@ setMethod("write", signature = c(x = "fasta"),
         n <<- n + 1
         file <- paste0(name, "_", n, ".fasta")
         writeLines(gs(x, "\\*$", ""), file)
+        return(file)
       })
   })
 
@@ -138,7 +139,14 @@ get_seq.pro <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol", 
   }
 }
 
-get_seq.rna <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol", to = "cdna") {
+get_seq.rna <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol",
+  to = c("gene_exon_intron", "coding"))
+{
+  # mrefseq <- biomaRt::getSequence(id = "NM_001621", type = "refseq_mrna", seqType = "coding", mart = mart)
+  # coding <- biomaRt::getSequence(id = "AHR", type = "hgnc_symbol", seqType = "coding", mart = mart)
+  # identical(mrefseq[[1]], coding[[1]])
+  # ref: <https://www.sangon.com/customerCenter/classOnline/help_gene>
+  to <- match.arg(to)
   do.call(get_seq.pro, as.list(environment()))
 }
 

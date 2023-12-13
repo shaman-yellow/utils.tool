@@ -13,7 +13,7 @@
   prototype = prototype(
     info = c("Tutorials: https://autodock-vina.readthedocs.io/en/latest/docking_basic.html"),
     cite = "[@AutodockVina1Eberha2021]",
-    method = "AutoDock vina used for molecular docking"
+    method = "`AutoDock vina` used for molecular docking"
     ))
 
 job_vina <- function(cids, hgnc_symbols)

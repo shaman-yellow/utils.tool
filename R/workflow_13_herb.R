@@ -13,7 +13,7 @@
   prototype = prototype(
     info = c("..."),
     cite = "[@HerbAHighThFang2021]",
-    method = "Website HERB <http://herb.ac.cn/> used for data source"
+    method = "Website `HERB` <http://herb.ac.cn/> used for data source"
     ))
 
 job_herb <- function(herbs, db = get_herb_data())

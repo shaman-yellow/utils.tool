@@ -12,7 +12,7 @@
     others = "ANY"),
   prototype = prototype(
     info = c("..."),
-    method = "Package survival and survminer used for survival analysis"
+    method = "R package `survival` and `survminer` used for survival analysis"
     ))
 
 setGeneric("asjob_survival", 

@@ -13,7 +13,7 @@
   prototype = prototype(
     info = c("http://service.tartaglialab.com/static_files/shared/documentation_omics2.html"),
     cite = "[@ICatIRapidArmaos2021]",
-    method = "The catRAPID omics v2.1 used for protein binding with RNA prediction."
+    method = "The `catRAPID omics` v2.1 used for protein binding with RNA prediction."
     ))
 
 job_catr <- function(protein, rna)
@@ -29,7 +29,7 @@ setMethod("step0", signature = c(x = "job_catr"),
   })
 
 setMethod("step1", signature = c(x = "job_catr"),
-  function(x, wd = timeName("catRapid")){
+  function(x, wd = timeName("catRapid"), rna_type = "gene_exon_intron"){
     step_message("Prepare upload files.")
     if (is.null(x$mart)) {
       mart <- new_biomart()
@@ -40,7 +40,7 @@ setMethod("step1", signature = c(x = "job_catr"),
     dir.create(wd, F)
     x$wd <- wd
     protein_seq <- get_seq.pro(object(x)$protein, mart)
-    rna_seq <- get_seq.rna(object(x)$rna, mart)
+    rna_seq <- get_seq.rna(object(x)$rna, mart, to = rna_type)
     write(protein_seq$fasta, paste0(wd, "/protein"))
     write(rna_seq$fasta, paste0(wd, "/rna"))
     x$protein_seq <- protein_seq

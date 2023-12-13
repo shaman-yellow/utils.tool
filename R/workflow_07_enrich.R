@@ -13,7 +13,7 @@
   prototype = prototype(
     info = c("..."),
     cite = "[@ClusterprofilerWuTi2021]",
-    method = "ClusterProfiler used for gene enrichment analysis"
+    method = "R package `ClusterProfiler` used for gene enrichment analysis"
     ))
 
 job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_id")

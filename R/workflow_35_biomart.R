@@ -13,7 +13,7 @@
   prototype = prototype(
     info = c("https://www.bioconductor.org/packages/release/bioc/html/biomaRt.html"),
     cite = "[@MappingIdentifDurinc2009]",
-    method = "Package biomaRt used for gene annotation"
+    method = "R package `biomaRt` used for gene annotation"
     ))
 
 job_biomart <- function(mart_dataset, global = T)

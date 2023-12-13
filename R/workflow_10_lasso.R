@@ -13,7 +13,7 @@
   prototype = prototype(
     info = c("..."),
     cite = "[@EfsAnEnsemblNeuman2017]",
-    method = "Package glmnet used for LASSO analysis and EFS used for feature selection"
+    method = "R package `glmnet` used for LASSO analysis and EFS used for feature selection"
     ))
 
 setGeneric("asjob_lasso", 

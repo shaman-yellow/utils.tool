@@ -13,7 +13,7 @@
   prototype = prototype(
     info = c("Tutorial: https://github.com/navinlabcode/copykat"),
     cite = "[@DelineatingCopGaoR2021]",
-    method = "Package copyKAT used for aneuploid cell or cancer cell prediction"
+    method = "R package `copyKAT` used for aneuploid cell or cancer cell prediction"
     ))
 
 job_kat <- function(x, use = names(x@object@assays)[[1]])

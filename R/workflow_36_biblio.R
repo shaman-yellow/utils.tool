@@ -13,7 +13,7 @@
   prototype = prototype(
     info = c("https://github.com/massimoaria/bibliometrix"),
     cite = "[@BibliometrixAria2017]",
-    method = "Package bibliometrix used for quantitative research in bibliometrics and scientometrics"
+    method = "R package `bibliometrix` used for quantitative research in bibliometrics and scientometrics"
     ))
 
 job_biblio <- function(lst)

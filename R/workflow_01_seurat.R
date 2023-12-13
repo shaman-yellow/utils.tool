@@ -13,7 +13,7 @@
   prototype = prototype(
     info = c("Tutorial: https://satijalab.org/seurat/articles/pbmc3k_tutorial.html"),
     cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019; @ScsaACellTyCaoY2020]",
-    method = "Seurat used for scRNA-seq processing; SCSA used for cell type annotation"
+    method = "The R package `Seurat` used for scRNA-seq processing; `SCSA` (python) used for cell type annotation"
     ))
 
 job_seurat <- function(dir, project = get_filename(sub("/$", "", dir)),
