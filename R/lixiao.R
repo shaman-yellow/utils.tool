@@ -1007,17 +1007,29 @@ as_double.ratioCh <- function(ch) {
     })
 }
 
-vis_enrich.kegg <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
+vis_enrich.kegg <- function(lst, cutoff = .1, maxShow = 10,
+  use = c("p.adjust", "pvalue"), least = 3L)
+{
+  use <- match.arg(use)
+  use.p <- use
   res <- lapply(lst,
     function(data) {
-      data <- dplyr::filter(data, p.adjust < cutoff_p.adjust)
-      if (nrow(data) == 0) return()
-      data <- dplyr::arrange(data, p.adjust)
+      data <- dplyr::filter(raw <- data, !!rlang::sym(use) < !!cutoff)
+      if (!nrow(data) | nrow(data) < least) {
+        message("\n", "Too few of the results (", nrow(data), ")")
+        if (use == "p.adjust") {
+          message("Switch to use `pvalue`.")
+          use <- "pvalue"
+          use.p <<- use
+          data <- dplyr::filter(raw, !!rlang::sym(use) < !!cutoff)
+        }
+      }
+      data <- dplyr::arrange(data, !!rlang::sym(use))
       data <- head(data, n = maxShow)
       data <- dplyr::mutate(data, GeneRatio = as_double.ratioCh(GeneRatio))
       p <- ggplot(data) +
         geom_point(aes(x = reorder(Description, GeneRatio),
-            y = GeneRatio, size = Count, fill = p.adjust),
+            y = GeneRatio, size = Count, fill = !!rlang::sym(use)),
           shape = 21, stroke = 0, color = "transparent") +
         scale_fill_gradient(high = "yellow", low = "red") +
         scale_size(range = c(4, 6)) +
@@ -1028,15 +1040,23 @@ vis_enrich.kegg <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
         theme_minimal()
       p
     })
+  if (length(lst) == 1) {
+    attr(res, "use.p") <- use.p
+  }
+  res
 }
 
-vis_enrich.go <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
+vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
+  use = c("p.adjust", "pvalue"), least = 3L)
+{
+  use <- match.arg(use)
   fun <- function(data) {
     data <- lapply(data,
       function(data) {
-        if (is.character(data)) return(NULL)
-        data <- dplyr::filter(data, p.adjust < cutoff_p.adjust)
-        data <- dplyr::arrange(data, p.adjust)
+        if (is.character(data))
+          return()
+        data <- dplyr::filter(data, !!rlang::sym(use) < cutoff)
+        data <- dplyr::arrange(data, !!rlang::sym(use))
         data <- head(data, n = maxShow)
         data
       })
@@ -1050,7 +1070,7 @@ vis_enrich.go <- function(lst, cutoff_p.adjust = .1, maxShow = 10) {
     )
     p <- ggplot(data) +
       geom_point(aes(x = reorder(Description, GeneRatio),
-          y = GeneRatio, size = Count, fill = p.adjust),
+          y = GeneRatio, size = Count, fill = !!rlang::sym(use)),
         shape = 21, stroke = 0, color = "transparent") +
       scale_fill_gradient(high = "yellow", low = "red") +
       scale_size(range = c(4, 6)) +
@@ -2934,8 +2954,11 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
     idn <- paste0(idn, "+", theme)
   } else {
     theme <- odk("theme")
-    if (!is.null(theme))
+    if (!is.null(theme)) {
       idn <- paste0(idn, "+", theme)
+    } else if (!is.null(ana <- odk("analysis"))) {
+      idn <- paste0(idn, "+", ana)
+    }
   }
   if (items$score != "") {
     idn <- paste0(idn, "+", items$score, "分")
@@ -2955,7 +2978,17 @@ od_get_id <- function(...) {
 
 od_get_score <- function(...) {
   it <- od_get(..., key = "score")
-  if (is.null(it) || it == "") {
+  if (it == "") {
+    lines <- od_get(..., key = "info", pattern = NULL)
+    ext <- function(key) {
+      res <- unlist(stringr::str_extract_all(lines, paste0("(?<=", key, "：)", ".+")),
+        use.names = F)
+      res <- res[!is.na(res)]
+      res[ nchar(res) == max(nchar(res)) ][1]
+    }
+    it <- ext("分值")
+  }
+  if (is.null(it) || !length(it)) {
     it <- odk("score")
     if (is.null(it))
       it <- ""
