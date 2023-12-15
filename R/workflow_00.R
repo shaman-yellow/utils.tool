@@ -857,3 +857,37 @@ view_obj_for_vim <- function(x, y) {
     .view_obj(x)
   }
 }
+
+plot_workflow_summary <- function() {
+  alls <- available_signatures("step1")
+  name <- gs(alls, "^job_", "")
+  nodes <- data.frame(name = name)
+  asjobs <- paste0("asjob_", name)
+  asjobs <- sapply(asjobs, simplify = F,
+    function(x) {
+      res <- try(get_fun(x), T)
+      if (!inherits(res, "try-error")) {
+        available_signatures(x)
+      } else {
+        NULL
+      }
+    })
+  edges <- as_df.lst(lst_clear0(asjobs))
+  edges <- dplyr::mutate(edges, from = gs(type, "^asjob_", ""), to = gs(name, "^job_", ""))
+  edges <- dplyr::relocate(edges, from, to)
+  edges <- dplyr::filter(edges, from %in% nodes$name, to %in% nodes$name)
+  graph <- fast_layout(edges, "linear", nodes = nodes, circular = T)
+  p <- ggraph(graph) +
+    geom_edge_arc(color = "lightblue", alpha = .5) +
+    geom_node_point(aes(size = centrality_degree,
+        fill = centrality_degree), alpha = .7, shape = 21) +
+    geom_node_text(aes(x = x * 1.1,  y = y * 1.1, 
+        label = Hmisc::capitalize(name), angle = -((-node_angle(x,  y) + 90) %% 180) + 90), 
+      size = 3, hjust = 'outward', family = "Times") +
+    scale_size(range = c(2, 12)) +
+    scale_fill_gradientn(colors = color_set()[1:3]) +
+    coord_cartesian(xlim = zoRange(graph$x, 1.2), ylim = zoRange(graph$y, 1.2)) +
+    theme_graph() +
+    theme(text = element_text(family = "Times"))
+  wrap(p, 8, 6)
+}

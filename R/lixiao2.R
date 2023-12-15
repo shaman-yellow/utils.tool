@@ -410,3 +410,22 @@ get_detail_chunk <- function(body) {
   other_lines <- head(other_lines, grep("^17-项目负责人", other_lines)[1])
   c(body[sig:sig.end], other_lines)
 }
+
+# ==========================================================================
+# for slidy
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+setGeneric("convert", 
+  function(x, ...) standardGeneric("convert"))
+
+setMethod("convert", signature = c(x = "character"),
+  function(x){
+    y <- gs(x, "\\.pdf$", ".png")
+    pdf_convert(x, filenames = y)
+  })
+
+sl.col <- function() {
+}
+
+sl.items <- function() {
+}

@@ -1,8 +1,12 @@
 ---
 ---
 
-```{r include = F}
+```{r include = F, eval = F}
 deparse_mail()
+info <- items(belong = odate(12), coef = NA)
+
+order_publish()
+idname <- order_packaging()
 ```
 
 ```{r include = F}

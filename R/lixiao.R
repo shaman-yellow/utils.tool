@@ -1154,7 +1154,11 @@ write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".
     dir.create(mkdir)
   file <- paste0(mkdir, "/", file)
   if (is(data, "wrap")) {
-    pdf(file, width = data@width, height = data@height)
+    if (!is.null(fam <- getOption("font_family"))) {
+      pdf(file, width = data@width, height = data@height, family = fam)
+    } else {
+      pdf(file, width = data@width, height = data@height)
+    }
   } else {
     pdf(file)
   }
@@ -2784,10 +2788,23 @@ di <- function(ch = NULL, en = NULL, abs = NULL) {
 }
 
 trans <- function(str) {
-  if (grpl(str, "^[A-Za-z]")) {
-    trans.google(str, to = "zh-CN")
+  fun <- function(str) {
+    if (grpl(str, "^[A-Za-z]")) {
+      trans.google(str, to = "zh-CN")
+    } else {
+      trans.google(str, to = "en")
+    }
+  }
+  if (length(str) > 1) {
+    ref <- unique(str)
+    ref <- sapply(ref, simplify = F,
+      function(x) {
+        fun(x)
+    })
+    print(ref)
+    unlist(ref[ match(str, names(ref)) ])
   } else {
-    trans.google(str, to = "en")
+    fun(str)
   }
 }
 
@@ -2860,6 +2877,72 @@ get_orders <- function(
   data <- dplyr::relocate(data, belong, id, title, remuneration)
   print(data, n = Inf)
   invisible(data)
+}
+
+plot_orders_summary <- function(data) {
+  data <- dplyr::mutate(data,
+    .type = dplyr::recode(type, `备单业务` = "BI", `固定业务` = "IN", "其他业务" = "Others")
+  )
+  p.all.pop <- new_pie(data$.type, title = "All types")
+  idata <- split(data, ~belong)
+  fun <- function(lst) {
+    lst <- lapply(lst,
+      function(data) {
+        dplyr::mutate(data, value = 1 / nrow(data))
+      })
+    data <- do.call(dplyr::bind_rows, lst)
+    p <- ggplot(data, aes(x = reorder(gs(belong, "-01$", ""), belong, decreasing = T), y = value)) +
+      geom_col(aes(fill = .type), position = "stack", width = .6) +
+      coord_flip() +
+      labs(y = "Months", x = "Proportion", fill = "Type") +
+      scale_fill_manual(values = ggsci::pal_npg()(8)) +
+      theme_minimal()
+    p
+  }
+  p.ind.pop <- fun(idata)
+  fun <- function(data) {
+    data <- dplyr::summarize(dplyr::group_by(data, belong), sum_coef = sum(coef))
+    p <- ggplot(data, aes(x = 1:nrow(data), y = sum_coef)) +
+      geom_line() +
+      geom_area(fill = 'grey90', alpha = .5) +
+      scale_x_continuous(labels = gs(data$belong, "-01$", "")) +
+      coord_cartesian(ylim = zoRange(data$sum_coef, 5)) +
+      labs(x = "Month", y = "Coef") +
+      theme_minimal()
+    wrap(p, 5, 3)
+  }
+  p.all.coef <- fun(data)
+  fun <- function(data) {
+    data <- dplyr::mutate(data, used = date - receive_date + 1)
+    data <- dplyr::summarize(dplyr::group_by(data, .type, belong), avg_time = mean(used))
+    data <- dplyr::arrange(data, belong)
+    p <- ggplot(data, aes(x = as.integer(belong), y = avg_time, color = .type)) +
+      geom_line() +
+      ggsci::scale_color_npg() +
+      scale_x_continuous(labels = gs(unique(data$belong), "-01$", ""),
+        breaks = unique(as.integer(data$belong))) +
+      labs(x = "Month", y = "Cost time (Day)", color = "Type") +
+      theme_minimal()
+    wrap(p, 7, 3)
+  }
+  p.ind.avgTime <- fun(data)
+  namel(p.all.pop, p.ind.pop, p.all.coef, p.ind.avgTime)
+}
+
+order_publish <- function(file = "index.Rmd", output = "output.Rmd", title = "",
+  fun = write_articlePdf)
+{
+  browseURL(fun(file, output, title))
+}
+
+order_packaging <- function(target = "output.pdf", register = autoRegisters)
+{
+  idname <- gidn()
+  report <- paste0(idname, ".pdf")
+  file.copy(target, report, T)
+  package_results(head = NULL, masterZip = NULL, report = report)
+  file.rename("./client.zip", paste0(idname, ".zip"))
+  return(idname)
 }
 
 od_get_title <- function() {
@@ -3905,9 +3988,11 @@ new_pie <- function(x, title = NULL, use.ggplot = T, fun_text = ggplot2::geom_te
       labs(x = '', y = '', title = '') +
       coord_polar(theta = 'y') +
       theme_minimal() +
+      ggtitle(title) +
       theme(legend.position = "none",
+        plot.title = element_text(size = 15, hjust = .5, vjust = -.5),
         axis.text = element_blank(),
-        plot.margin = margin(-.1, -.1, -.1, -.1, "npc"),
+        plot.margin = margin(if (is.null(title)) -.1 else 0, -.1, -.1, -.1, "npc"),
         panel.grid = element_blank()) +
       geom_blank()
     wrap(as_grob(p), 5, 4)

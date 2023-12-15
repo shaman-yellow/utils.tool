@@ -20,21 +20,10 @@
 job_miranda <- function(mirna, rna)
 {
   message("The `rna` should be symbol (hgnc_symbol)\n",
-  "The `mirna` can be character (pattern) for match miRNA.")
-  mirdb <- .get_mature_miRNA.mirbase()
-  if (grpl(mirna, "^miR")) {
-    message("Use `hsa` as default species.")
-    mirna <- paste0("hsa-", mirna)
-  }
-  foundThat <- grpf(names(mirdb), mirna, ignore.case = T)
-  message("All found miRNA:\n\n", stringr::str_trunc(paste0(foundThat, collapse = "\n"), 100), "\n")
-  if (length(foundThat) > 1) {
-    message("Use the first.")
-  }
-  mirna <- foundThat[1]
-  x <- .job_miranda(object = list(mirna = mirna, rna = gname(rna)))
-  x$foundThat <- foundThat
-  x$mirdb <- mirdb
+    "The `mirna` can be character (pattern) for match miRNA.")
+  mi <- .prepare_mirna(mirna)
+  x <- .job_miranda(object = list(mirna = mi$mirna, rna = gname(rna)))
+  x$mi <- mi
   x
 }
 
@@ -56,7 +45,7 @@ setMethod("step1", signature = c(x = "job_miranda"),
     dir.create(wd, F)
     x$wd <- wd
     # miRNA seq
-    x$mirna_seq <- x$mirdb[ object(x)$mirna ]
+    x$mirna_seq <- x$mi$mirdb[ object(x)$mirna ]
     x$mirna_file <- paste0(wd, "/", make.names(object(x)$mirna), ".fa")
     e(Biostrings::writeXStringSet(x$mirna_seq, x$mirna_file))
     # RNA seq
@@ -74,7 +63,7 @@ setMethod("step2", signature = c(x = "job_miranda"),
       " ", x$rna_file,
       " -out ", x$outfile
     )
-    x$alls <- .read_miRNA_results(x$outfile)
+    x$alls <- .read_miranda_results(x$outfile)
     names(x$alls$cans) <- object(x)$rna
     t.overs <- lapply(x$alls$cans,
       function(x) {
@@ -96,7 +85,22 @@ setMethod("step2", signature = c(x = "job_miranda"),
     return(x)
   })
 
-.read_miRNA_results <- function(file) {
+.prepare_mirna <- function(mirna) {
+  mirdb <- .get_mature_miRNA.mirbase()
+  if (grpl(mirna, "^miR")) {
+    message("Use `hsa` as default species.")
+    mirna <- paste0("hsa-", mirna)
+  }
+  foundThat <- grpf(names(mirdb), mirna, ignore.case = T)
+  message("All found miRNA:\n\n", stringr::str_trunc(paste0(foundThat, collapse = "\n"), 100), "\n")
+  if (length(foundThat) > 1) {
+    message("Use the first.")
+  }
+  mirna <- foundThat[1]
+  namel(mirna, foundThat, mirdb)
+}
+
+.read_miranda_results <- function(file) {
   lines <- readLines(file)
   sep.h <- grp(lines, "^Read Sequence")[1]
   head <- lines[1:sep.h]
