@@ -2938,6 +2938,42 @@ plot_orders_summary <- function(data) {
   namel(p.all.pop, p.ind.pop, p.all.coef, p.ind.avgTime, p.alls)
 }
 
+plot_task_summary <- function() {
+  route <- as_network(list(
+      "Mail:Deparse",
+      "Deparse:Tags",
+      "Tags:Info, Analysis",
+      "Info:Extracting",
+      "Extracting:ID, Score, Client, Date..",
+      "ID, Score, Client, Date..:Namespace",
+      "Analysis:Workflow",
+      "Workflow:Job.1, job.2, job...",
+      "Job.1, job.2, job...:Summary",
+      "Summary:Report",
+      "Report:Packaging",
+      "Packaging, Namespace:Record",
+      "Packaging:Send_mail"
+      ))
+  p.each <- flowChart(route, 1.1, 1)
+  p.each <- wrap(p.each, 7.5, 7)
+  route <- as_network(list(
+      "Monthly_Tasks:Task.1, Task.2, Task.3, Task...",
+      "Task.1, Task.2, Task.3, Task...:Summary",
+      "Summary:Titles, Scores, IDs, Dates, Analysis",
+      "Titles, Scores, IDs, Dates, Analysis:Information",
+      "Information:Tables",
+      "Tables:Record_1, Record_2, Record_3, Record_4",
+      "Record_1, Record_2, Record_3, Record_4:Send_mail"
+      ))
+  p.month <- flowChart(route, 1.1, 1)
+  p.month <- wrap(p.month, 7.5, 7)
+  p.alls <- frame_col(c(p.each = 1.3, p.month = 1),
+    list(p.each = as_grob(p.each@data),
+      p.month = as_grob(p.month@data)))
+  p.alls <- wrap(p.alls, 12, 7)
+  namel(p.each, p.month, p.alls)
+}
+
 plot_report_summary <- function(cover_file = "~/outline/lixiao/cover_page.pdf")
 {
   outline <- function(name) {
