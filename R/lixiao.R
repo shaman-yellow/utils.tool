@@ -2865,7 +2865,8 @@ get_orders <- function(
       data <- dplyr::mutate(data,
         coef = as.double(coef),
         date = as.Date(date),
-        receive_date = as.Date(receive_date)
+        receive_date = as.Date(receive_date),
+        .dir = get_path(file)
       )
       data
     })
@@ -2926,7 +2927,75 @@ plot_orders_summary <- function(data) {
     wrap(p, 7, 3)
   }
   p.ind.avgTime <- fun(data)
-  namel(p.all.pop, p.ind.pop, p.all.coef, p.ind.avgTime)
+  null <- nullGrob()
+  fr1 <- frame_col(c(p.all.pop = 1, p.ind.pop = 1),
+    list(p.all.pop = p.all.pop@data, p.ind.pop = as_grob(p.ind.pop)))
+  fr2 <- frame_col(c(p.all.coef = 1, p.ind.avgTime = 1),
+    list(p.all.coef = as_grob(p.all.coef@data),
+      p.ind.avgTime = as_grob(p.ind.avgTime@data)))
+  p.alls <- wrap(yf(fr1 = 1, fr2 = 1))
+  p.alls <- wrap(p.alls, 10, 5)
+  namel(p.all.pop, p.ind.pop, p.all.coef, p.ind.avgTime, p.alls)
+}
+
+plot_report_summary <- function(cover_file = "~/outline/lixiao/cover_page.pdf")
+{
+  outline <- function(name) {
+    grecti(name, tfill = "black",
+      tgp_args = list(col = "transparent"), borderF = 1.5)
+  }
+  block <- function(text) {
+    into(grectn("grey92", , list(col = "transparent")),
+      gtext(text, list(font = c(plain = 1)), x = .1, hjust = 0))
+  }
+  stext <- function(text) {
+    gtext(text, x = 0, hjust = 0)
+  }
+  txt.h1 <- stext("Table name")
+  txt.h2 <- stext("Table location")
+  blk.b1 <- block("Dim: w * h")
+  blk.b2 <- block("- Col1: ...\n- Col2: ...")
+  df <- data.frame(Col1 = n(id., 3), Col2 = n(cand., 3))
+  grob_table <- gridExtra::tableGrob(df, theme = gridExtra::ttheme_default(8))
+  null <- nullGrob()
+  tab.cont <- yf(txt.h1 = 1, txt.h2 = 1, null = .1, blk.b1 = 1, null = .2,
+    blk.b2 = 2, null = .2, grob_table = 4)
+  tab.cont <- ggather(tab.cont, vp = viewport(, , .8, .8))
+  tab <- outline("Table show")
+  tab <- into(tab, tab.cont)
+  ## figure
+  fig <- into(grectn(), gtext("Fig.", list(cex = 3)))
+  txt.h1 <- stext("Table name")
+  txt.h2 <- stext("Table location")
+  fig.cont <- yf(null = 1, txt.h1 = 1, txt.h2 = 1, null = .2, fig = 3, null = 1.5)
+  fig.cont <- ggather(fig.cont, vp = viewport(, , .8, .8))
+  fig <- outline("Table show")
+  fig <- into(fig, fig.cont)
+  ## table of contents
+  fun <- function(text, name) {
+    obj <- lapply(1:3, function(x) stext(paste0("\t", text, " ", x)))
+    names(obj) <- paste0(name, 1:3)
+    obj
+  }
+  ans <- fun("Analysis", "ans")
+  ts <- fun("Table", "ts")
+  fs <- fun("Figure", "fs")
+  txt.t1 <- stext("Contents")
+  txt.t2 <- stext("Tables")
+  txt.t3 <- stext("Figures")
+  wei.lst <- nl(c("txt.t1", names(ans), "txt.t2", names(ts), 'txt.t3', names(fs)),
+    1, F, default = 1)
+  lst.cont <- frame_row(wei.lst, c(ans, ts, fs, namel(txt.t1, txt.t2, txt.t3, null)))
+  lst.cont <- ggather(lst.cont, vp = viewport(, , .8, .8))
+  lst <- outline("Table of contents")
+  lst <- into(lst, lst.cont)
+  ## Cover
+  tmp <- tempfile()
+  pdf_convert(cover_file, filenames = tmp)
+  cover <- ggather(rasterGrob(png::readPNG(tmp)), vp = viewport(, , .8, .9))
+  cover <- into(outline("Cover"), cover)
+  p.rep <- xf(cover = 1, null = .1, lst = 1, null = .1, tab = 1, null = .1, fig = 1)
+  wrap(p.rep, 9, 5)
 }
 
 order_publish <- function(file = "index.Rmd", output = "output.Rmd", title = "",

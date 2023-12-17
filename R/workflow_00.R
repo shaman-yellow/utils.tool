@@ -858,36 +858,162 @@ view_obj_for_vim <- function(x, y) {
   }
 }
 
-plot_workflow_summary <- function() {
-  alls <- available_signatures("step1")
-  name <- gs(alls, "^job_", "")
-  nodes <- data.frame(name = name)
-  asjobs <- paste0("asjob_", name)
-  asjobs <- sapply(asjobs, simplify = F,
-    function(x) {
-      res <- try(get_fun(x), T)
-      if (!inherits(res, "try-error")) {
-        available_signatures(x)
-      } else {
-        NULL
-      }
-    })
-  edges <- as_df.lst(lst_clear0(asjobs))
-  edges <- dplyr::mutate(edges, from = gs(type, "^asjob_", ""), to = gs(name, "^job_", ""))
-  edges <- dplyr::relocate(edges, from, to)
-  edges <- dplyr::filter(edges, from %in% nodes$name, to %in% nodes$name)
-  graph <- fast_layout(edges, "linear", nodes = nodes, circular = T)
-  p <- ggraph(graph) +
-    geom_edge_arc(color = "lightblue", alpha = .5) +
-    geom_node_point(aes(size = centrality_degree,
-        fill = centrality_degree), alpha = .7, shape = 21) +
-    geom_node_text(aes(x = x * 1.1,  y = y * 1.1, 
-        label = Hmisc::capitalize(name), angle = -((-node_angle(x,  y) + 90) %% 180) + 90), 
-      size = 3, hjust = 'outward', family = "Times") +
-    scale_size(range = c(2, 12)) +
-    scale_fill_gradientn(colors = color_set()[1:3]) +
-    coord_cartesian(xlim = zoRange(graph$x, 1.2), ylim = zoRange(graph$y, 1.2)) +
-    theme_graph() +
-    theme(text = element_text(family = "Times"))
-  wrap(p, 8, 6)
+plot_workflow_summary <- function(data) {
+  fun <- function() {
+    alls <- available_signatures("step1")
+    name <- gs(alls, "^job_", "")
+    nodes <- data.frame(name = name)
+    asjobs <- paste0("asjob_", name)
+    asjobs <- sapply(asjobs, simplify = F,
+      function(x) {
+        res <- try(get_fun(x), T)
+        if (!inherits(res, "try-error")) {
+          available_signatures(x)
+        } else {
+          NULL
+        }
+      })
+    edges <- as_df.lst(lst_clear0(asjobs))
+    edges <- dplyr::mutate(edges, from = gs(type, "^asjob_", ""), to = gs(name, "^job_", ""))
+    edges <- dplyr::relocate(edges, from, to)
+    edges <- dplyr::filter(edges, from %in% nodes$name, to %in% nodes$name)
+    graph <- fast_layout(edges, "linear", nodes = nodes, circular = T)
+    p <- ggraph(graph) +
+      geom_edge_arc(color = "lightblue", alpha = .5) +
+      geom_node_point(aes(size = centrality_degree,
+          fill = centrality_degree), alpha = .7, shape = 21) +
+      geom_node_text(aes(x = x * 1.1,  y = y * 1.1, 
+          label = Hmisc::capitalize(name), angle = -((-node_angle(x,  y) + 90) %% 180) + 90), 
+        size = 3, hjust = 'outward', family = "Times") +
+      scale_size(range = c(2, 12)) +
+      scale_fill_gradientn(colors = color_set()[1:3]) +
+      coord_cartesian(xlim = zoRange(graph$x, 1.2), ylim = zoRange(graph$y, 1.2)) +
+      theme_graph() +
+      theme(text = element_text(family = "Times"))
+    wrap(p, 8, 6)
+  }
+  p.co_job <- fun()
+  ###################################
+  ###################################
+  fun <- function(alls) {
+    used <- lapply(alls$.dir,
+      function(dir) {
+        file <- paste0(dir, "/index.Rmd")
+        if (file.exists(file)) {
+          x <- stringr::str_extract(readLines(file), "job_[a-zA-Z0-9]+")
+          x[!is.na(x)]
+        }
+      })
+    alls <- dplyr::mutate(alls,
+      .type = dplyr::recode(type,
+        `备单业务` = "BI", `固定业务` = "IN", "其他业务" = "Others"))
+    names(used) <- paste0(alls$receive_date, "##", alls$.type)
+    used <- lst_clear0(used)
+    used <- as_df.lst(used)
+    used <- dplyr::mutate(used, value = 1,
+      order = paste0("Order ", gs(type, "##.*$", "")),
+      rank = as.integer(as.Date(type)), name = gs(name, "^job_", ""),
+      type = gs(type, ".*##(.*)$", "\\1")
+    )
+    data <- as_tibble(used)
+    p.ind.pop <- ggplot(data, aes(x = reorder(order, rank, decreasing = T), y = value)) +
+      geom_col(aes(fill = name), position = "stack", width = .6) +
+      geom_point(
+        data = dplyr::distinct(data, order, type, rank),
+        aes(reorder(order, rank, decreasing = T), y = -3, shape = type, color = type),
+        size = 5) +
+      coord_flip() +
+      labs(y = "Order (Date)", x = "Frequence", fill = "Name",
+        color = "Type", shape = "Type") +
+      scale_fill_manual(values = color_set()) +
+      scale_color_manual(values = rstyle("pal", seed = 6)) +
+      theme_minimal()
+    p.alls <- new_pie(data$name, fun_text = ggrepel::geom_label_repel)
+    p.alls <- wrap(p.alls, 8, 6)
+    namel(p.ind.pop, p.alls)
+  }
+  p.use_freq <- fun(data)
+  ###################################
+  ###################################
+  fun <- function() {
+    omit <- circleGrob(seq(.2, .8, , 3), .5, .07, gp = gpar(fill = "grey20"),
+      vp = viewport(, , u(1.5, line), u(1.5, line)))
+    ids <- n(n, 5)
+    graph <- random_graph(ids, layout = "kk")
+    theme <- theme_void() + theme(legend.position = "none")
+    layer0 <- ggraph::ggraph(graph)
+    scale_size <- scale_size(range = c(1, 3))
+    layer5 <- layer0 + 
+      ggraph::geom_edge_fan(aes(edge_width = width), color = "lightblue") +
+      ggraph::geom_node_point(aes(size = size, fill = name), shape = 21) +
+      scale_size + ggsci::scale_fill_npg() + theme
+    layer5_ <- ggather(as_grob(layer5))
+    ## weight
+    weight.chi <- list("..." = 1, tables = 3, plots = 3, params = 3, `...` = 1)
+    ## draw
+    type <- c("class", "slot", "sub.slot", "function", "custom")
+    pal <- MCnebula2:::.as_dic(color_set(), type, na.rm = T)
+    grobs.chi <- lst_grecti(names(weight.chi), pal, "custom", grecti2)
+    grobs.chi$... <- omit
+    ## signal grid layout
+    n <- 3
+    seq <- seq(.2, .8, length.out = n)
+    grid <- segmentsGrob(c(rep(0, n), seq),
+      c(seq, rep(1, n)),
+      c(rep(1, n), seq),
+      c(seq, rep(0, n)), gp = gpar(lty = "dashed"))
+    grid <- ggather(clipGrob(height = .8), rectGrob(), grid, vp = viewport(, , .8, .8))
+    grobs.chi$tables %<>% into(grid)
+    ## signal viewport
+    n <- 6
+    seq <- seq(135, 0, length.out = n)
+    seq2 <- seq(45, 0, length.out = n)
+    vps <- lapply(1:length(seq),
+      function(n, fx = .5, fy = .5, x = .5) {
+        ang <- seq[n]
+        ang2 <- seq2[n]
+        vp <- viewport(cospi(ang / 180) * fx + x, sinpi(ang / 180) * fy + x,
+          u(2, line), u(2, line), angle = ang2,
+          just = c("centre", "bottom"))
+        ggather(rectGrob(gp = gpar(fill = "lightyellow", col = pal[["sub.slot"]])),
+          gtext(paste0("n", rev(1:length(seq))[n]),
+            gpar(fontface = "plain"), form = F), vp = vp)
+      })
+    vps <- do.call(ggather, c(vps, list(vp = viewport(, .1, .5, .5))))
+    grobs.chi$params %<>% into(vps)
+    ## signal ggset
+    ggsets <- frame_col(c(n = 1, x = 1, mn = 1),
+      list(n = gtext("n", list(cex = 2.5), form = F),
+        x = gtext("×", list(cex = 2, font = c(plain = 1))),
+        mn = into(glayer(3), layer5_)))
+    ggsets <- ggather(ggsets, vp = viewport(, , .7, .7))
+    grobs.chi$plots %<>% into(ggsets)
+    ## child... gather
+    chi <- frame_row(weight.chi, grobs.chi)
+    chi <- ggather(chi, vp = viewport(, , .9, .95))
+    job <- grecti2("Job")
+    job <- into(job, chi)
+    route <- as_network(
+      list("Job:step1",
+        "step1:step2",
+        "step2:step3",
+        "step3:step4",
+        "step4:..."
+        ), "tree"
+    )
+    p.route <- as_grob(flowChart(route, 1.1, 1))
+    job_de <- xf(job = 1, p.route = .4)
+    p.jobde <- wrap(job_de, 5, 4)
+    p.jobde
+  }
+  p.jobde <- fun()
+  p.fr1 <- frame_col(c(p.jobde = 1, p.co_job = 1.5),
+    list(p.jobde = ggather(p.jobde@data, vp = viewport(, , .9, .8)),
+      p.co_job = as_grob(p.co_job@data)))
+  p.fr1 <- wrap(p.fr1, 10, 5)
+  p.fr2 <- frame_col(c(p.alls = 1, p.ind.pop = 1),
+    list(p.alls = ggather(p.use_freq$p.alls@data, vp = viewport(, , .9, .9)),
+      p.ind.pop = as_grob(p.use_freq$p.ind.pop)))
+  p.fr2 <- wrap(p.fr2, 14, 7)
+  c(namel(p.co_job, p.jobde), p.use_freq, namel(p.fr1, p.fr2))
 }
