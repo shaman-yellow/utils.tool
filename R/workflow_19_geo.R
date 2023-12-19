@@ -15,6 +15,14 @@
     method = "GEO <https://www.ncbi.nlm.nih.gov/geo/> used for expression dataset aquisition"
     ))
 
+.job_publish <- setClass("job_publish", 
+  contains = c("job"),
+  representation = representation(),
+  prototype = prototype(
+    method = "Supplementary file from article refer to"))
+
+setClassUnion("job_PUBLISH", c("job_geo", "job_publish"))
+
 job_geo <- function(id)
 {
   .job_geo(object = id)

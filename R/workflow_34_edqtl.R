@@ -16,16 +16,33 @@
     method = "The edQTL data were abtained from GTEx database"
     ))
 
-job_edqtl <- function(path = "../gtex/edqtl", file = "bulk-qtl_v8_editing-qtl_GTEx_Analysis_v8_edQTL.tar")
+job_edqtl <- function(mode = c("edqtl", "eqtl"))
 {
-  .check_untar(paste0(path, "/", file))
+  mode <- match.arg(mode)
+  lst <- list(
+    edqtl = list(
+      path = "../gtex/edqtl",
+      file = "bulk-qtl_v8_editing-qtl_GTEx_Analysis_v8_edQTL.tar",
+      patterns = c("edsite", "signif_variant_site_pairs"),
+      anno_file = "bulk-qtl_v8_editing-qtl_GTEx_Analysis_v8_edQTL.README.txt"),
+    eqtl = list(
+      path = "../gtex/eqtl",
+      file = "bulk-qtl_v8_single-tissue-cis-qtl_GTEx_Analysis_v8_eQTL.tar",
+      patterns = c("egenes", "signif_variant_gene_pairs"),
+      anno_file = "bulk-qtl_v8_single-tissue-cis-qtl_README_eQTL_v8.txt"
+    )
+  )
+  lst <- lst[[ mode ]]
+  .check_untar(paste0(lst$path, "/", lst$file))
   x <- .job_edqtl()
-  files <- list.files(path, "txt.gz$", full.names = T)
+  files <- list.files(lst$path, "txt.gz$", full.names = T, recursive = T)
   x$metadata <- tibble::tibble(
     tissue = stringr::str_extract(get_filename(files), "^[^.]*"),
     files = files
   )
-  x$db_path <- path
+  x$db_path <- lst$path
+  x$anno_file <- paste0(lst$path, "/", lst$anno_file)
+  x$patterns <- lst$patterns
   return(x)
 }
 
@@ -39,9 +56,9 @@ setMethod("step0", signature = c(x = "job_edqtl"),
 setMethod("step1", signature = c(x = "job_edqtl"),
   function(x, tissue){
     step_message("Read the tissue edQRL files.")
-    db <- sapply(c("edsite", "signif_variant_site_pairs"),
-      function(name) {
-        file <- list.files(x$db_path, paste0(tissue, ".*", name, ".*"), full.names = T)
+    db <- sapply(x$patterns,
+      function(pattern) {
+        file <- list.files(x$db_path, paste0(tissue, ".*", pattern, ".*"), full.names = T, recursive = T)
         if (length(file) == 0) {
           stop("Check the input tissue as no file retrieved.")
         } else if (length(file) > 1) {
@@ -54,6 +71,22 @@ setMethod("step1", signature = c(x = "job_edqtl"),
     return(x)
   })
 
+setMethod("step2", signature = c(x = "job_edqtl"),
+  function(x, job_biomart = NULL, use = "signif_variant_gene_pairs"){
+    step_message("Get hgnc_symbol for `gene_id`.")
+    if (is.null(job_biomart)) {
+      bt <- job_biomart("hsa")
+      bt <- step1(bt, unique(gname(object(x)[[ use ]]$gene_id)), "ensembl_gene_id")
+      x$job_biomart <- bt
+    }
+    use.eq <- object(x)[[ use ]]
+    use.eq <- dplyr::mutate(use.eq, symbol = gname(gene_id))
+    use.eq <- map(use.eq, "symbol", bt$anno, "ensembl_gene_id", "hgnc_symbol")
+    use.eq <- dplyr::filter(use.eq, !is.na(hgnc_symbol))
+    x$use.eq <- use.eq
+    return(x)
+  })
+
 .check_untar <- function(file, path = get_path(file)) {
   recordfile <- paste0(path, "/.check_untar")
   if (!file.exists(recordfile)) {
@@ -63,7 +96,7 @@ setMethod("step1", signature = c(x = "job_edqtl"),
 }
 
 setMethod("anno", signature = c(x = "job_edqtl"),
-  function(x, file = "../gtex/edqtl/bulk-qtl_v8_editing-qtl_GTEx_Analysis_v8_edQTL.README.txt"){
+  function(x, file = x$anno_file){
     system(paste0("vim ", file))
   })
 

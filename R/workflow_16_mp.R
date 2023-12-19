@@ -211,8 +211,7 @@ setMethod("step4", signature = c(x = "job_mp"),
 
 setMethod("step5", signature = c(x = "job_mp"),
   function(x, match,
-    use = c("pvalue", "fdr"), cutoff = .05, classes = c("Species", "Genus", "Family"),
-    db = "../Gut Microbe and Metabolite-human.txt")
+    use = c("pvalue", "fdr"), cutoff = .05, classes = c("Species", "Genus", "Family"))
   {
     step_message("From Microbiota to metabolites.")
     ## prepare patterns to match
@@ -221,6 +220,8 @@ setMethod("step5", signature = c(x = "job_mp"),
       nodeClass %in% dplyr::all_of(classes))
     mt.pattern <- .create_mt_pattern(mic_tops$label)
     ## download database
+    db <- "../Gut Microbe and Metabolite-human.txt"
+    # GutmdisorderACheng2019
     if (!file.exists(db)) {
       data <- e(RCurl::getURL("http://bio-annotation.cn/gutmgene/public/res/Gut%20Microbe%20and%20Metabolite-human.txt"))
       write_tsv(data, db)

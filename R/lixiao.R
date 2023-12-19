@@ -690,18 +690,24 @@ get_herb_data <- function(herb = "../HERB_herb_info.txt",
 }
 
 ftibble <- function(files, ...) {
+  fun <- function(file, ...) {
+    data <- data.table::fread(file, ...)
+    if (any(dup <- duplicated(colnames(data)))) {
+      message("Duplicated colnames found, adding suffix.")
+      thedup <- colnames(data)[dup]
+      colnames(data)[dup] <- paste0(thedup, ".dup.", 1:length(thedup))
+    }
+    tibble::as_tibble(data)
+  }
   if (length(files) > 1) {
-    lapply(files,
-      function(file){
-        tibble::as_tibble(data.table::fread(file, ...))
-      })
+    lapply(files, fun, ...)
   } else {
-    tibble::as_tibble(data.table::fread(files, ...))
+    fun(file, ...)
   }
 }
 
 fxlsx <- function(file, ...) {
-  as_tibble(openxlsx::read.xlsx(file, ...))
+  as_tibble(data.frame(openxlsx::read.xlsx(file, ...)))
 }
 
 fxlsx2 <- function(file, ..., .id = "sheet") {
@@ -1846,6 +1852,7 @@ diff_test <- function(x, design, contr = NULL, block = NULL){
   if (!is.null(contr)) {
     fit <- e(limma::contrasts.fit(fit, contrasts = contr))
   }
+  # https://liuyujie0136.gitbook.io/sci-tech-notes/bioinformatics/p-value
   fit <- e(limma::eBayes(fit))
   fit
 }
@@ -3353,33 +3360,46 @@ deparse_mail <- function(dir = "mail",
   writeLines(date, paste0(savedir, "/", "date.md"))
 }
 
-auto_material <- function(class = "job_geo", envir = .GlobalEnv) {
+auto_material <- function(class = "job_PUBLISH", envir = .GlobalEnv) {
   names <- ls(envir = envir, all.names = all.names)
   info <- lapply(names,
     function(name) {
       obj <- get(name, envir = envir)
       if (is(obj, class)) {
-        list(gse = object(obj),
-          design = obj@params$about[[1]]@experimentData@other$overall_design)
+        if (is(obj, "job_geo")) {
+          x <- list(gse = object(obj),
+            design = obj@params$about[[1]]@experimentData@other$overall_design)
+          list(type = "geo",
+            content = c(paste0("- **", x$gse, "**: ", stringr::str_trunc(x$design, 200)), ""))
+        } else if (is(obj, "job_publish")) {
+          x <- list(cite = obj@cite, method = obj@method)
+          list(type = "publish",
+            content = c(paste0("- ", x$method, x$cite, "."))
+          )
+        }
       } else NULL
     })
   info <- lst_clear0(info)
-  info <- lapply(info,
-    function(x) {
-      c(paste0("- **", x$gse, "**: ", stringr::str_trunc(x$design, 200)), "")
+  showThat <- function(name, des) {
+    info <- lapply(info, function(x) if (x$type == name) x$content)
+    info <- unlist(info)
+    if (length(info)) {
+      info <- c(des, "", info)
+      writeLines(info)
     }
-  )
-  info <- unlist(info)
-  info <- c("All used GEO expression data and their design: ", "", info)
-  writeLines(info)
+  }
+  showThat("geo", "All used GEO expression data and their design:")
+  showThat("publish", "Other data obtained from published article (e.g., supplementary tables):")
 }
 
-auto_method <- function(class = "job", envir = .GlobalEnv) {
+auto_method <- function(class = "job", envir = .GlobalEnv, exclude = "job_publish") {
   names <- ls(envir = envir, all.names = all.names)
   info <- lapply(names,
     function(name) {
       obj <- get(name, envir = envir)
-      if (is(obj, class)) {
+      if (is(obj, exclude)) {
+        NULL
+      } else if (is(obj, class)) {
         res <- try(list(cite = obj@cite, method = obj@method), T)
         if (inherits(res, "try-error")) {
           NULL
@@ -4201,3 +4221,5 @@ get_layout <- function(edges = NULL, layout = "grid", nodes = NULL, ...) {
   data <- as_tibble(data.frame(fast_layout(edges, layout, nodes = nodes, ...)))
   data
 }
+
+

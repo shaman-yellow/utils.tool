@@ -87,6 +87,7 @@ setMethod("step2", signature = c(x = "job_herb"),
           Sys.sleep(group_sleep)
           data
         })
+      lst <- data.table::rbindlist(lst, fill = T)
       end_drive()
     } else {
       lst <- list()
