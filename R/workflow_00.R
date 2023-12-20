@@ -812,6 +812,41 @@ setMethod("gname", signature = c(x = "character"),
     gs(x, "\\.[0-9]", "")
   })
 
+.thedir_job <- function(month, year = 2023, path = "~/disk_sdb1/my_job") {
+  month <- as.character(month)
+  if (nchar(month) < 2) {
+    month <- paste0("0", month)
+  }
+  paste0(path, "/", year, month)
+}
+
+.cp_job <- function(from, to) {
+  if (!dir.exists(to)) {
+    dir.create(to)
+  }
+  file.copy(from, to, T, T)
+}
+
+backup_jobs <- function(alls, time = Sys.time(),
+  month = lubridate::month(time),
+  year = lubridate::year(time))
+{
+  data <- dplyr::filter(alls,
+    lubridate::month(belong) == !!month,
+    lubridate::year(belong) == !!year
+  )
+  thedir <- .thedir_job(month, year)
+  lapply(data$.dir,
+    function(dir) {
+      files <- list.files(dir, ".*\\.zip", full.names = T)
+      if (length(files) > 1) {
+        n <- menu(get_filename(files), title = "Select a zip file to backup.")
+        files <- files[n]
+      }
+      .cp_job(files, thedir)
+    })
+}
+
 move_rds <- function(from, to, exclude = ".items.rds") {
   lapply(from,
     function(path) {

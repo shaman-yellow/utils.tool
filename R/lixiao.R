@@ -702,7 +702,7 @@ ftibble <- function(files, ...) {
   if (length(files) > 1) {
     lapply(files, fun, ...)
   } else {
-    fun(file, ...)
+    fun(files, ...)
   }
 }
 
@@ -3361,23 +3361,21 @@ deparse_mail <- function(dir = "mail",
 }
 
 auto_material <- function(class = "job_PUBLISH", envir = .GlobalEnv) {
-  names <- ls(envir = envir, all.names = all.names)
+  names <- .get_job_list(envir)
   info <- lapply(names,
     function(name) {
-      obj <- get(name, envir = envir)
-      if (is(obj, class)) {
-        if (is(obj, "job_geo")) {
-          x <- list(gse = object(obj),
-            design = obj@params$about[[1]]@experimentData@other$overall_design)
-          list(type = "geo",
-            content = c(paste0("- **", x$gse, "**: ", stringr::str_trunc(x$design, 200)), ""))
-        } else if (is(obj, "job_publish")) {
-          x <- list(cite = obj@cite, method = obj@method)
-          list(type = "publish",
-            content = c(paste0("- ", x$method, x$cite, "."))
-          )
-        }
-      } else NULL
+      obj <- .obtain_job(name, envir, class)
+      if (is(obj, "job_geo")) {
+        x <- list(gse = object(obj),
+          design = obj@params$about[[1]]@experimentData@other$overall_design)
+        list(type = "geo",
+          content = c(paste0("- **", x$gse, "**: ", stringr::str_trunc(x$design, 200)), ""))
+      } else if (is(obj, "job_publish")) {
+        x <- list(cite = obj@cite, method = obj@method)
+        list(type = "publish",
+          content = c(paste0("- ", x$method, x$cite, "."))
+        )
+      }
     })
   info <- lst_clear0(info)
   showThat <- function(name, des) {
@@ -3392,11 +3390,12 @@ auto_material <- function(class = "job_PUBLISH", envir = .GlobalEnv) {
   showThat("publish", "Other data obtained from published article (e.g., supplementary tables):")
 }
 
-auto_method <- function(class = "job", envir = .GlobalEnv, exclude = "job_publish") {
-  names <- ls(envir = envir, all.names = all.names)
+auto_method <- function(class = "job", envir = .GlobalEnv, exclude = "job_publish")
+{
+  names <- .get_job_list(envir)
   info <- lapply(names,
     function(name) {
-      obj <- get(name, envir = envir)
+      obj <- .obtain_job(name, envir, class)
       if (is(obj, exclude)) {
         NULL
       } else if (is(obj, class)) {
@@ -3425,6 +3424,37 @@ auto_method <- function(class = "job", envir = .GlobalEnv, exclude = "job_publis
   methods <- c("Mainly used method:", "", methods,
   "- Other R packages (eg., `dplyr` and `ggplot2`) used for statistic analysis or data visualization.")
   writeLines(methods)
+}
+
+.get_job_list <- function(envir, extra = getOption("internal_job")) {
+  names <- ls(envir = envir, all.names = F)
+  if (!is.null(extra)) {
+    if (identical(class(extra), "list")) {
+      names <- c(as.list(names), extra)
+    } else {
+      names <- c(as.list(names), list(extra))
+    }
+  }
+  names
+}
+
+.obtain_job <- function(name, envir, class = "job") {
+  if (!is(name, class) & is.character(name)) {
+    obj <- get(name, envir = envir)
+  } else {
+    obj <- name
+  }
+  obj
+}
+
+.add_internal_job <- function(job, limit = 20) {
+  size <- as.double(gs(obj.size(job), "[a-zA-Z]", ""))
+  if (size > limit) {
+    warning("Too large `job` (", size, ") add into 'internal_job' options (limit: ", limit, ").")
+  }
+  injobs <- getOption("internal_job", list())
+  injobs <- c(injobs, nl(class(job), list(job)))
+  options(internal_job = injobs)
 }
 
 set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),

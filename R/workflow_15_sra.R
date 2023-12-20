@@ -31,11 +31,10 @@ setMethod("step0", signature = c(x = "job_sra"),
 
 setMethod("step1", signature = c(x = "job_sra"),
   function(x){
-    step_message("Prepare for dowloading SRA data (16s rRNA data).
-      "
-    )
-    E(cdRun("esearch -db sra -query ", x@object,
-        " | efetch -format runinfo > ", x@params$wd, "/info.csv"))
+    step_message("Prepare for dowloading SRA data (16s rRNA data).")
+    cli::cli_alert_info("esearch -db sra -query")
+    cdRun("esearch -db sra -query ", x@object,
+        " | efetch -format runinfo > ", x@params$wd, "/info.csv")
     x@params$info <- ftibble(paste0(x@params$wd, "/info.csv"))
     return(x)
   })
@@ -43,7 +42,8 @@ setMethod("step1", signature = c(x = "job_sra"),
 setMethod("step2", signature = c(x = "job_sra"),
   function(x){
     step_message("Download load SRA data.")
-    E(pbapply::pblapply(x@params$info$Run,
+    cli::cli_alert_info("bash: prefetch ...")
+    pbapply::pblapply(x@params$info$Run,
         function(id) {
           path <- x@params$wd
           exists <- file.exists(paste0(path, "/", id))
@@ -51,7 +51,7 @@ setMethod("step2", signature = c(x = "job_sra"),
             cdRun("prefetch ", id, " ", "--output-directory ", path)
             exists <- file.exists(paste0(path, "/", id))
           }
-        }))
+        })
     x@params$all_sra <- list.files(x@params$wd, "\\.sra$", full.names = T, recursive = T)
     return(x)
   })
@@ -60,25 +60,26 @@ setMethod("step3", signature = c(x = "job_sra"),
   function(x, pattern = "fastq\\.gz$"){
     step_message("Format as fastq file")
     x@params$pattern <- pattern
-    E(pbapply::pblapply(x@params$all_sra,
+    cli::cli_alert_info("fastq-dump --gzip --split-3")
+    pbapply::pblapply(x@params$all_sra,
         function(file) {
           path <- get_path(file)
           if (length(list.files(path, pattern)) == 0)
             cdRun("fastq-dump --gzip --split-3 ", file, " -O ", path)
-        }))
+        })
     return(x)
   })
 
 setMethod("step4", signature = c(x = "job_sra"),
   function(x, filter = T){
     step_message("Try to format `x@params$info` as metadata.")
-    info <- mutate(x@params$info, SampleName = gs(SampleName, "_", "."))
-    filepath <- lapply(metadata$Run,
+    info <- dplyr::mutate(x@params$info, SampleName = gs(SampleName, "_", "."))
+    filepath <- lapply(info$Run,
       function(id) {
         path <- list.files(paste0(x@params$wd, "/", id), x@params$pattern, full.names = T)
         normalizePath(path)
       })
-    metadata <- select(info, "sample-id" = SampleName, Run)
+    metadata <- dplyr::select(info, "sample-id" = SampleName, Run)
     metadata <- try_fqs_meta(metadata, filepath, filter = filter)
     x@params$metadata <- metadata
     print(metadata)

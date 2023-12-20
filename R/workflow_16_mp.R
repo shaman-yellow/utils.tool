@@ -44,16 +44,26 @@ setMethod("step1", signature = c(x = "job_mp"),
       "
     )
     x@params$group <- group
+    error <- F
     if (is.null(x@params$mp_cal_rarecurve)) {
       object(x) <- e(MicrobiotaProcess::mp_rrarefy(object(x)))
-      object(x) <- e(MicrobiotaProcess::mp_cal_rarecurve(object(x), .abundance = RareAbundance))
+      res <- try(e(MicrobiotaProcess::mp_cal_rarecurve(object(x), .abundance = RareAbundance)), T)
+      if (inherits(res, "try-error")) {
+        error <- T
+      } else {
+        object(x) <- res
+      }
       x@params$mp_cal_rarecurve <- T
     }
-    p1 <- e(MicrobiotaProcess::mp_plot_rarecurve(object(x), .rare = RareAbundanceRarecurve)) +
-      theme(legend.position = "none")
-    p2 <- e(MicrobiotaProcess::mp_plot_rarecurve(object(x), .rare = RareAbundanceRarecurve,
-        .group = !!rlang::sym(x@params$group), plot.group = T))
-    p.rarefaction <- wrap(p1 + p2, 15, 5)
+    if (!error) {
+      p1 <- e(MicrobiotaProcess::mp_plot_rarecurve(object(x), .rare = RareAbundanceRarecurve)) +
+        theme(legend.position = "none")
+      p2 <- e(MicrobiotaProcess::mp_plot_rarecurve(object(x), .rare = RareAbundanceRarecurve,
+          .group = !!rlang::sym(x@params$group), plot.group = T))
+      p.rarefaction <- wrap(p1 + p2, 15, 5)
+    } else {
+      p.rarefaction <- NULL
+    }
     if (is.null(x@params$mp_cal_alpha)) {
       object(x) <- e(MicrobiotaProcess::mp_cal_alpha(object(x), .abundance = RareAbundance))
       x@params$mp_cal_alpha <- T
@@ -219,19 +229,11 @@ setMethod("step5", signature = c(x = "job_mp"),
     mic_tops <- filter(mp@tables$step4$top_table, !!rlang::sym(use) < cutoff,
       nodeClass %in% dplyr::all_of(classes))
     mt.pattern <- .create_mt_pattern(mic_tops$label)
-    ## download database
-    db <- "../Gut Microbe and Metabolite-human.txt"
-    # GutmdisorderACheng2019
-    if (!file.exists(db)) {
-      data <- e(RCurl::getURL("http://bio-annotation.cn/gutmgene/public/res/Gut%20Microbe%20and%20Metabolite-human.txt"))
-      write_tsv(data, db)
-      db_data <- data.table::fread(text = data)
-    } else {
-      db_data <- ftibble(db)
-    }
-    db_data <- dplyr::rename_all(db_data, make.names)
+    gm <- job_gutmd()
+    .add_internal_job(gm)
+    db_data <- object(gm)
     ## find related metabolites in database
-    matched <- matchThat(db_data[[1]], mt.pattern)
+    matched <- matchThats(db_data[[1]], mt.pattern)
     db_data_matched <- filter(db_data,
       Gut.Microbiota %in% dplyr::all_of(unique(unlist(matched))),
       Substrate != "")
@@ -275,9 +277,14 @@ setMethod("step5", signature = c(x = "job_mp"),
   mt.pattern
 }
 
-matchThat <- function(x, patterns) {
-  matched <- .find_and_sort_strings(unique(x), patterns)
-  matched <- nl(patterns, matched)
-  matched <- lst_clear0(matched)
-  matched
+matchThats <- function(x, patterns) {
+  patterns <- patterns[ !is.na(patterns) ]
+  if (length(patterns)) {
+    matched <- .find_and_sort_strings(unique(x), patterns)
+    matched <- nl(patterns, matched)
+    matched <- lst_clear0(matched)
+    matched
+  } else {
+    list()
+  }
 }

@@ -180,7 +180,7 @@ setMethod("step4", signature = c(x = "job_qiime"),
           path = x@params$wd)
       )
     }
-    x@plots[[ 4 ]] <- new_qzv(paste0(x@params$wd, "/diversity"))
+    x@plots[[ 4 ]] <- new_qzv("/diversity")
     return(x)
   })
 
@@ -228,7 +228,7 @@ setMethod("step5", signature = c(x = "job_qiime"),
     )
     qzvs <- sapply(get_filename(c(ga, gb)), simplify = F,
       function(dir) {
-        new_qzv(paste0(x@params$wd, "/", dir))
+        new_qzv(dir)
       })
     x@plots[[ 5 ]] <- qzvs
     return(x)

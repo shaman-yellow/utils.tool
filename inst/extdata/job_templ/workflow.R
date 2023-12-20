@@ -23,9 +23,7 @@ job_seurat <- function()
 
 setMethod("step0", signature = c(x = "job_seurat"),
   function(x){
-    step_message("Prepare your data with function `job_seurat`.
-      "
-    )
+    step_message("Prepare your data with function `job_seurat`.")
   })
 
 setMethod("step1", signature = c(x = "job_seurat"),
