@@ -22,9 +22,18 @@ get_data.mrlx2022 <- function(file = "~/outline/lixiao/published_data/MendelianR
   .job_publish(object = lst, cite = "[@MendelianRandoLiuX2022]")
 }
 
-get_data.aaog2014 <- function(data = "~/outline/lixiao/published_data/AnAtlasOfGenShin2014_s1.xlsx") {
+get_data.aaog2014 <- function(file = "~/outline/lixiao/published_data/AnAtlasOfGenShin2014_s1.xlsx") {
   .job_publish(object, cite = "[@AnAtlasOfGenShin2014]")
 }
 
-
+get_data.cacc2021 <- function(file = "~/outline/lixiao/published_data/ChangesAndCorChen2021_s2.xlsx") {
+  data <- fxlsx(file)
+  data <- dplyr::select(data, metabolite = 1, microbiota = 2, cor = 3, pvalue = 4, AdjPvalue)
+  data <- add_anno(.corp(data))
+  x <- .job_publish(cite = "[@ChangesAndCorChen2021]")
+  x$heatmap <- wrap(callheatmap(new_heatdata(.corp(data))), 28, 12)
+  x$heatmap <- .set_lab(x$heatmap, "PUBLISHED-ChangesAndCorChen2021-correlation-heatmap")
+  object(x) <- dplyr::filter(data, pvalue < .05)
+  x
+}
 

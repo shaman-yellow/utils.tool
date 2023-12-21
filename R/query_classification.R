@@ -27,7 +27,7 @@ query_classification <- function(inchikey2d, dir,
   classes <- extract_rdata_list(rdata)
   if (!is.null(classes))
     inchikey2d <- inchikey2d[!inchikey2d %in% names(classes)]
-  if(length(inchikey2d) == 0)
+  if(!length(inchikey2d))
     return(paste0(dir, "/", rdata.name))
   inchikey_set <- extract_rdata_list(inchikey.rdata, inchikey2d)
   if (is.null(inchikey_set))

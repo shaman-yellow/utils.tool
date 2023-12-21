@@ -620,7 +620,9 @@ list_datasets <- function() {
   e(biomaRt::listDatasets(ensembl))
 }
 
-new_biomart <- function(dataset = c("hsapiens_gene_ensembl", "sscrofa_gene_ensembl", "mmusculus_gene_ensembl"))
+new_biomart <- function(
+  dataset = c("hsapiens_gene_ensembl", "sscrofa_gene_ensembl", "mmusculus_gene_ensembl"),
+  ...)
 {
   if (missing(dataset)) {
     message("Missing `dataset`, try get from global options.")
@@ -632,7 +634,7 @@ new_biomart <- function(dataset = c("hsapiens_gene_ensembl", "sscrofa_gene_ensem
   }
   predb <- getOption("biomart")[[ dataset ]]
   if (is.null(predb)) {
-    ensembl <- e(biomaRt::useEnsembl(biomart = "ensembl", dataset = dataset))
+    ensembl <- e(biomaRt::useEnsembl(biomart = "ensembl", dataset = dataset, ...))
     lst <- nl(dataset, list(ensembl))
     options(biomart = lst)
   } else {
@@ -687,6 +689,10 @@ get_herb_data <- function(herb = "../HERB_herb_info.txt",
   names <- colnames(db$component)
   colnames(db$component) <- c(names[-1], "extra_id")
   db
+}
+
+frbind <- function(lst, ...) {
+  as_tibble(data.table::rbindlist(lst, ...))
 }
 
 ftibble <- function(files, ...) {
@@ -1917,7 +1923,9 @@ limma_downstream <- function(dge.list, group., design, contr.matrix,
   }
 
 fuzzy <- function(str) {
-  make.names(gsub(" ", "", str))
+  str <- unique(str)
+  str <- tolower(make.names(str[ !is.na(str) ]))
+  gs(gs(str, "_|^x\\.", "."), "[.]+", ".")
 }
 
 # ==========================================================================
@@ -3133,13 +3141,13 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
   }
   if (!is.null(client)) {
     if (identical(idn, character(0))) {
-      idn <- odb("client", "analysis")
+      idn <- odb("client", "analysis", collapse = "+")
     } else {
       idn <- paste0(idn, "+客户：", client)
     }
   } else {
     if (identical(idn, character(0))) {
-      idn <- odb("client", "analysis")
+      idn <- odb("client", "analysis", collapse = "+")
     }
     if (idn == "") {
       stop("Cant not found the mark of `client` or `analysis`")
@@ -3151,12 +3159,14 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
     theme <- odk("theme")
     if (!is.null(theme)) {
       idn <- paste0(idn, "+", theme)
-    } else if (!is.null(ana <- odk("analysis"))) {
-      idn <- paste0(idn, "+", ana)
     }
   }
-  if (items$score != "") {
-    idn <- paste0(idn, "+", items$score, "分")
+  if (!is.na(items$score)) {
+    if (items$score != "") {
+      if (grpl(items$score, "[0-9]")) {
+        idn <- paste0(idn, "+", items$score, "分")
+      }
+    }
   }
   idn
 }
@@ -3200,14 +3210,14 @@ od_get_date <- function(file = "./mailparsed/date.md") {
   as.Date(line, "%A, %d %B %Y")
 }
 
-odb <- function(...) {
+odb <- function(..., collapse = "") {
   n <- 0L
   res <- lapply(list(...),
     function(key) {
       res <- odk(key, if (!n) T else F)
       res
     })
-  paste0(unlist(res), collapse = "")
+  paste0(unlist(res), collapse = collapse)
 }
 
 odk <- function(key, fresh = F, file = "./mailparsed/part_1.md")
@@ -4232,16 +4242,16 @@ get_fe_data <- function(use.symbol = T, for_gsea = F,
   data
 }
 
-grp <- function(x, pattern, ...) {
-  grep(pattern, x, ...)
+grp <- function(x, pattern, ignore.case = F, ...) {
+  grep(pattern, x, ignore.case = ignore.case, ...)
 }
 
-grpl <- function(x, pattern, ...) {
-  grepl(pattern, x, ...)
+grpl <- function(x, pattern, ignore.case = F, ...) {
+  grepl(pattern, x, ignore.case = ignore.case, ...)
 }
 
-grpf <- function(x, pattern, ...) {
-  x[grepl(pattern, x, ...)]
+grpf <- function(x, pattern, ignore.case = F, ...) {
+  x[grepl(pattern, x, ignore.case = ignore.case, ...)]
 }
 
 ## igraph tips

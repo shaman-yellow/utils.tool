@@ -99,6 +99,11 @@ pubchem_get_synonyms <- function(cid, dir, ...)
 #' @description \code{extract_rdata_list}: extract results from .rdata
 #' @rdname query_synonyms
 extract_rdata_list <- function(rdata, names = NA){
+  path <- get_path(rdata)
+  if (!dir.exists(path)) {
+    message("The parent directory of `rdata` not exists, so make it herein.")
+    dir.create(path)
+  }
   if(!file.exists(rdata))
     return()
   load(rdata)

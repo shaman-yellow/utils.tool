@@ -47,7 +47,7 @@ setMethod("step1", signature = c(x = "job_mp"),
     error <- F
     if (is.null(x@params$mp_cal_rarecurve)) {
       object(x) <- e(MicrobiotaProcess::mp_rrarefy(object(x)))
-      res <- try(e(MicrobiotaProcess::mp_cal_rarecurve(object(x), .abundance = RareAbundance)), T)
+      res <- try(e(MicrobiotaProcess::mp_cal_rarecurve(object(x), .abundance = RareAbundance)), F)
       if (inherits(res, "try-error")) {
         error <- T
       } else {
@@ -191,22 +191,30 @@ setMethod("step4", signature = c(x = "job_mp"),
       x@params$mp_diff_analysis <- T
     }
     ## plot boxplot
-    p.box <- e(MicrobiotaProcess::mp_plot_diff_boxplot(object(x),
-        taxa.class = c(Phylum, Class, Order, Family, Genus, Species),
-        .group = !!rlang::sym(x@params$group)))
-    p.box <- MicrobiotaProcess::set_diff_boxplot_color(p.box,
-      values = ggsci::pal_npg()(10),
-      guide = guide_legend(title = NULL)
-    )
+    p.box <- try(e(MicrobiotaProcess::mp_plot_diff_boxplot(object(x),
+        .group = !!rlang::sym(x@params$group))), T)
+    if (!inherits(p.box, "try-error")) {
+      p.box <- MicrobiotaProcess::set_diff_boxplot_color(p.box,
+        values = ggsci::pal_npg()(10),
+        guide = guide_legend(title = NULL)
+      )
+    } else {
+      p.box <- NULL
+    }
     ## plot radical tree
-    p.tree <- e(MicrobiotaProcess::mp_plot_diff_cladogram(object(x),
+    p.tree <- try(e(MicrobiotaProcess::mp_plot_diff_cladogram(object(x),
+        .group = !!rlang::sym(x@params$group),
         label.size = 2.5, hilight.alpha = .3, bg.tree.size = .5,
-        bg.point.size = 2, bg.point.stroke = .25))
-    p.tree <- p.tree + 
-      MicrobiotaProcess::scale_fill_diff_cladogram(values = ggsci::pal_npg()(10)) +
-      scale_size_continuous(range = c(1, 4))
-    print(p.tree)
-    p.tree <- recordPlot()
+        bg.point.size = 2, bg.point.stroke = .25)), T)
+    if (!inherits(p.tree, "try-error")) {
+      p.tree <- p.tree + 
+        MicrobiotaProcess::scale_fill_diff_cladogram(values = ggsci::pal_npg()(10)) +
+        scale_size_continuous(range = c(1, 4))
+      print(p.tree)
+      p.tree <- recordPlot()
+    } else {
+      p.tree <- NULL
+    }
     x@plots[[ 4 ]] <- namel(p.box, p.tree)
     ## extract results
     tree <- e(MicrobiotaProcess::mp_extract_tree(object(x), type = "taxatree"))

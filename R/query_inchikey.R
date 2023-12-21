@@ -34,13 +34,19 @@ query_inchikey <- function(
   inchikey_set <- extract_rdata_list(rdata)
   if (!is.null(inchikey_set))
     inchikey2d <- inchikey2d[!inchikey2d %in% names(inchikey_set)]
-  if(length(inchikey2d) == 0)
+  if (!length(inchikey2d))
     return(paste0(dir, "/", rdata.name))
   pbapply::pblapply(inchikey2d, pubchem_get_inchikey,
     dir = dir, cl = curl_cl, ...)
   if (gather_as_rdata) {
     cat("## gather data\n")
-    packing_as_rdata_list(dir, pattern = "^[A-Z]{14}$",
+    args <- list(...)
+    if (args$type == "cid") {
+      pattern <- "^[0-9]+$"
+    } else {
+      pattern <- "^[A-Z]{14}$"
+    }
+    packing_as_rdata_list(dir, pattern = pattern,
       rdata = rdata.name, extra = inchikey_set)
   }
   return(paste0(dir, "/", rdata.name))
