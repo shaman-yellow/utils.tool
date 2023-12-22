@@ -105,7 +105,7 @@ setMethod("step2", signature = c(x = "job_herb"),
   })
 
 setMethod("step3", signature = c(x = "job_herb"),
-  function(x, disease = NULL, mart_dataset = "hsapiens_gene_ensembl")
+  function(x, disease = NULL, mart_dataset = "hsapiens_gene_ensembl", HLs = NULL)
   {
     step_message("Get disease targets from genecards and annotate targets with biomaRt.
       As well, plot the intersection of herbs targets.
@@ -175,7 +175,7 @@ setMethod("step3", signature = c(x = "job_herb"),
     data.allu <- dplyr::select(easyRead, Herb_pinyin_name, Ingredient.name, Target.name)
     data.allu <- dplyr::filter(data.allu, !is.na(Target.name))
     x$data.allu <- data.allu
-    p.pharm <- plot_network.pharm(data.allu, seed = x$seed)
+    p.pharm <- plot_network.pharm(data.allu, seed = x$seed, HLs = HLs)
     p.pharm <- .set_lab(p.pharm, sig(x), "network pharmacology visualization")
     plots <- c(plots, namel(p.pharm))
     x@plots[[ 3 ]] <- plots
@@ -203,7 +203,9 @@ rstyle <- function(get = "pal", seed = NULL, n = 1L) {
   res
 }
 
-plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed = 1) {
+plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed = 1,
+  HLs = NULL)
+{
   if (length(unique(data[[1]])) == 1) {
     sherb <- 1L
   } else {
@@ -277,6 +279,11 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
     nodes <- dplyr::filter(nodes, name %in% !!crds$name)
     crds <- crds[ match(nodes$name, crds$name), ]
     layout <- dplyr::select(crds, x, y)
+    if (!is.null(HLs)) {
+      edges <- dplyr::mutate(edges,
+        highlight = ifelse(source %in% HLs & target %in% HLs, "Highlight", "Non-highlight")
+      )
+    }
     fast_layout(edges, layout = layout, nodes = nodes)
   }
   x <- prepare_data(data)
@@ -286,8 +293,12 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
       ifelse(grpl(type, "Compound", ignore.case = T), cent * 20, cent)))
   data.tgt <- dplyr::filter(data, type == "Target")
   set.seed(seed)
-  p <- ggraph(x) +
-    geom_edge_link(color = sample(color_set()[1:6], 1), alpha = .2, width = .1) +
+  if (is.null(HLs)) {
+    geom_edge <- geom_edge_link(color = sample(color_set()[1:6], 1), alpha = .2, width = .1)
+  } else {
+    geom_edge <- geom_edge_link(aes(edge_color = highlight, edge_width = highlight), alpha = .2)
+  }
+  p <- ggraph(x) + geom_edge +
     geom_node_point(data = data, aes(x = x, y = y, color = type, size = cent, shape = type)) +
     ggrepel::geom_label_repel(
       data = dplyr::filter(data, cent > if (sherb) 100 else 1000),
@@ -298,11 +309,19 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
     scale_size(range = c(.5, 15)) +
     guides(size = "none", shape = "none") +
     scale_color_manual(values = rstyle("pal", seed)) +
+    scale_edge_color_manual(values = c("Highlight" = "red", "Non-highlight" = "lightblue")) +
+    scale_edge_width_manual(values = c("Highlight" = 1, "Non-highlight" = .1)) +
     rstyle("theme", seed) +
-    labs(color = "Type") +
+    labs(color = "Type", edge_color = "Highlight", edge_width = "Highlight") +
     theme(axis.text = element_blank(),
       axis.title = element_blank()) +
     geom_blank()
+  if (!is.null(HLs)) {
+    data <- dplyr::filter(data, name %in% HLs)
+    p <- p + geom_point(data = data, aes(x = x, y = y), shape = 21, color = "red", size = 10) +
+      ggrepel::geom_label_repel(data = data, aes(x = x, y = y, label = name),
+        size = 7, color = "black")
+  }
   if (sherb) {
     wrap(p, 10, 8)
   } else {

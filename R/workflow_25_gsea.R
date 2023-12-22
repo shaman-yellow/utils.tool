@@ -112,7 +112,7 @@ setMethod("step1", signature = c(x = "job_gsea"),
     table_kegg <- try(dplyr::mutate(res.kegg@result,
         geneID_list = strsplit(core_enrichment, "/"),
         geneName_list = fun(geneID_list),
-        GeneRatio = stringr::str_extract(leading_edge, "[0-9]+"),
+        GeneRatio = as.double(stringr::str_extract(leading_edge, "[0-9]+")) / 100,
         Count = lengths(geneName_list)
         ), T)
     if (!inherits(table_kegg, "try-error")) {
@@ -295,6 +295,7 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
 {
   table_enrich <- dplyr::arrange(table_enrich, !!rlang::sym(top_by))
   table_enrich <- head(table_enrich, n = n)
+  n <- nrow(table_enrich)
   reshape <- function(data) {
     split_lapply_rbind(data, ~ ID,
       function(x) {
@@ -344,7 +345,7 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
     geom_point(data = data,
       aes(x = GeneRatio, y = path.p, color = !!rlang::sym(use), size = Count)) +
     geom_label(data = data,
-      aes(x = - shift * max(GeneRatio) / 2, y = path.p, label = stringr::str_wrap(Description, 30)),
+      aes(x = - shift * max(GeneRatio) / 2, y = path.p, label = stringr::str_wrap(Description, 50)),
       hjust = 1, size = 4) +
     geom_vline(xintercept = 0L, linetype = 4) +
     labs(x = "", y = "", edge_width = "|log2(FC)|", fill = "log2(FC)") +

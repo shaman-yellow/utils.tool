@@ -87,6 +87,14 @@ setMethod("step2", signature = c(x = "job_edqtl"),
     return(x)
   })
 
+setMethod("map", signature = c(x = "job_edqtl", ref = "job_publish"),
+  function(x, ref, filter, use.filter = "hgnc_symbol"){
+    if (ref@cite == "[@MendelianRandoLiuX2022]") {
+    }
+    x <- .job_publish()
+    return(x)
+  })
+
 .check_untar <- function(file, path = get_path(file)) {
   recordfile <- paste0(path, "/.check_untar")
   if (!file.exists(recordfile)) {

@@ -52,7 +52,7 @@ setMethod("step0", signature = c(x = "job_vina"),
   })
 
 setMethod("step1", signature = c(x = "job_vina"),
-  function(x, bdb = "../BindingDB_All.tsv", each_target = 3){
+  function(x, bdb = "../BindingDB_All.tsv", each_target = 3, pdbs = NULL){
     step_message("Prepare Docking Combination.
       "
     )
@@ -64,6 +64,14 @@ setMethod("step1", signature = c(x = "job_vina"),
     x$targets_annotation <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
       object(x)$hgnc_symbols, distinct = F)
     x$targets_annotation <- dplyr::filter(x$targets_annotation, pdb != "")
+    if (!is.null(pdbs)) {
+      pdbs <- list(hgnc_symbol = names(pdbs), pdb = unname(pdbs))
+      if (!is.character(x$targets_annotation$pdb)) {
+        x$targets_annotation <- dplyr::mutate(x$targets_annotation, pdb = as.character(pdb))
+      }
+      x$targets_annotation <- tibble::add_row(x$targets_annotation, !!!pdbs)
+      x$targets_annotation <- dplyr::distinct(x$targets_annotation, hgnc_symbol, .keep_all = T)
+    }
     if (!is.null(bdb)) {
       bdb <- ld_cutRead(bdb, c("PubChem CID", "PDB ID(s) of Target Chain"))
       bdb <- dplyr::filter(bdb, `PubChem CID` %in% object(x)$cids)

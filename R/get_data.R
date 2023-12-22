@@ -8,6 +8,9 @@ get_data.mrlx2022 <- function(file = "~/outline/lixiao/published_data/MendelianR
     data <- dplyr::mutate(data,
       variant_id = paste0(Chr., "_", BP, "_", A1, "_", A2, "_b38")
     )
+    data <- dplyr::relocate(data, variant_id)
+    data <- dplyr::select(data, variant_id:Pdiscovery)
+    data
   }
   snp_microbiota <- fxlsx(file, sheet = 3, startRow = 4)
   snp_microbiota <- fun(snp_microbiota)
@@ -19,6 +22,7 @@ get_data.mrlx2022 <- function(file = "~/outline/lixiao/published_data/MendelianR
   snp_metabolite <- fxlsx(file, sheet = 7, startRow = 4)
   snp_metabolite <- fun(snp_metabolite)
   lst <- namel(snp_microbiota, snp_metabolite)
+  lst <- lapply(lst, function(x) dplyr::select(x, -Gene))
   .job_publish(object = lst, cite = "[@MendelianRandoLiuX2022]")
 }
 

@@ -98,7 +98,7 @@ pubchem_get_synonyms <- function(cid, dir, ...)
 #' @aliases extract_rdata_list
 #' @description \code{extract_rdata_list}: extract results from .rdata
 #' @rdname query_synonyms
-extract_rdata_list <- function(rdata, names = NA){
+extract_rdata_list <- function(rdata, names = NULL){
   path <- get_path(rdata)
   if (!dir.exists(path)) {
     message("The parent directory of `rdata` not exists, so make it herein.")
@@ -107,7 +107,7 @@ extract_rdata_list <- function(rdata, names = NA){
   if(!file.exists(rdata))
     return()
   load(rdata)
-  if(!is.na(names[1])){
+  if (!is.null(names)){
     list <- list[names(list) %in% names]
   }
   return(list)
@@ -121,17 +121,25 @@ packing_as_rdata_list <- function(path, pattern, rdata,
   extra = NULL, rm_files = T, dedup = T)
 {
   file_set <- list.files(path, pattern = pattern)
-  if(length(file_set) == 0)
+  if (!length(file_set))
     return()
-  list <- pbapply::pblapply(paste0(path, "/", file_set), read_tsv)
+  list <- pbapply::pblapply(paste0(path, "/", file_set),
+    function(file) {
+      res <- try(ftibble(file), T)
+      if (inherits(res, "try-error")) {
+        data.frame()
+      } else {
+        res
+      }
+    })
   names(list) <- file_set
   list <- c(extra, list)
-  if(dedup){
+  if (dedup){
     df <- data.table::data.table(name = names(list), n = 1:length(list))
     df <- dplyr::distinct(df, name, .keep_all = T)
     list <- list[df$n]
   }
-  if(rm_files){
+  if (rm_files){
     lapply(paste0(path, "/", file_set), file.remove)
   }
   save(list, file = paste0(path, "/", rdata))

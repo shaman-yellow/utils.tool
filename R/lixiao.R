@@ -692,7 +692,7 @@ get_herb_data <- function(herb = "../HERB_herb_info.txt",
 }
 
 frbind <- function(lst, ...) {
-  as_tibble(data.table::rbindlist(lst, ...))
+  dplyr::as_tibble(data.table::rbindlist(lst, ...))
 }
 
 ftibble <- function(files, ...) {
@@ -3381,10 +3381,12 @@ auto_material <- function(class = "job_PUBLISH", envir = .GlobalEnv) {
         list(type = "geo",
           content = c(paste0("- **", x$gse, "**: ", stringr::str_trunc(x$design, 200)), ""))
       } else if (is(obj, "job_publish")) {
-        x <- list(cite = obj@cite, method = obj@method)
-        list(type = "publish",
-          content = c(paste0("- ", x$method, x$cite, "."))
-        )
+        if (length(obj@cite)) {
+          x <- list(cite = obj@cite, method = obj@method)
+          list(type = "publish",
+            content = c(paste0("- ", x$method, x$cite, "."))
+          )
+        }
       }
     })
   info <- lst_clear0(info)
