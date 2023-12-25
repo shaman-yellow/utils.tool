@@ -157,9 +157,12 @@ setMethod("step5", signature = c(x = "job_vina"),
       geom_col(aes(x = reorder(hgnc_symbol, Affinity, decreasing = T), y = Affinity, fill = Affinity), width = .7) +
       labs(x = "", y = "Affinity (kcal/mol)") +
       coord_flip() +
+      ylim(zoRange(c(-1, data$Affinity), 1.4)) +
       facet_wrap(as.formula(paste0("~ Hmisc::capitalize(paste0(", facet, "))")),
         ncol = 1, scales = "free_y") +
       theme()
+    p.res_vina <- wrap(p.res_vina)
+    p.res_vina <- .set_lab(p.res_vina, sig(x), "Overall combining Affinity")
     x@tables[[ 5 ]] <- namel(res_dock, unique_tops = data)
     x@plots[[ 5 ]] <- namel(p.res_vina)
     return(x)

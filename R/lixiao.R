@@ -3084,6 +3084,13 @@ items <- function(
   save = ".items.rds",
   isLatest = F)
 {
+  if (!missing(coef)) {
+    if (!is.na(coef)) {
+      if (coef == .25) {
+        type <- "固定业务"
+      }
+    }
+  }
   if (is.null(id)) {
     stop("The `id` can not be a NULL !!!")
   }
@@ -3159,6 +3166,10 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
     theme <- odk("theme")
     if (!is.null(theme)) {
       idn <- paste0(idn, "+", theme)
+    } else {
+      theme <- odk("analysis")
+      if (!grpl(idn, theme))
+        idn <- paste0(idn, "+", theme)
     }
   }
   if (!is.na(items$score)) {
@@ -3392,7 +3403,7 @@ auto_material <- function(class = "job_PUBLISH", envir = .GlobalEnv) {
   info <- lst_clear0(info)
   showThat <- function(name, des) {
     info <- lapply(info, function(x) if (x$type == name) x$content)
-    info <- unlist(info)
+    info <- unique(unlist(info))
     if (length(info)) {
       info <- c(des, "", info)
       writeLines(info)
@@ -3425,7 +3436,7 @@ auto_method <- function(class = "job", envir = .GlobalEnv, exclude = "job_publis
       if (!is.null(lst$method)) {
         if (!identical(lst$method, character(0))) {
           meth <- paste("-", lst$method)
-          if (!is.null(lst$cite)) {
+          if (!identical(lst$cite, character(0))) {
             meth <- paste(meth, lst$cite)
           }
           paste0(meth, ".")
@@ -4065,7 +4076,7 @@ new_venn <- function(..., lst = NULL, wrap = T, fun_pre = rm.no) {
   lst <- lapply(lst, fun_pre)
   p <- ggVennDiagram::ggVennDiagram(lst) +
     scale_fill_gradient(low = "grey95", high = sample(color_set(), 1)) +
-    rstyle("theme") +
+    theme_void() +
     theme(axis.text = element_blank(),
       axis.title = element_blank(),
       axis.ticks = element_blank()) +

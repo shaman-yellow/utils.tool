@@ -11,9 +11,10 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("https://gtexportal.org/home/downloads/adult-gtex#qtl"),
+    info = c("https://gtexportal.org/home/downloads/adult-gtex#qtl",
+      "https://www.nature.com/scitable/topicpage/quantitative-trait-locus-qtl-analysis-53904/"),
     cite = "[@TheGtexConsorNone2020]",
-    method = "The edQTL data were abtained from GTEx database"
+    method = "The QTL data were abtained from GTEx database"
     ))
 
 job_edqtl <- function(mode = c("edqtl", "eqtl"))
@@ -43,6 +44,7 @@ job_edqtl <- function(mode = c("edqtl", "eqtl"))
   x$db_path <- lst$path
   x$anno_file <- paste0(lst$path, "/", lst$anno_file)
   x$patterns <- lst$patterns
+  x$mode <- gs(mode, "qtl", "QTL")
   return(x)
 }
 
@@ -55,7 +57,7 @@ setMethod("step0", signature = c(x = "job_edqtl"),
 
 setMethod("step1", signature = c(x = "job_edqtl"),
   function(x, tissue){
-    step_message("Read the tissue edQRL files.")
+    step_message("Read the tissue QRL files.")
     db <- sapply(x$patterns,
       function(pattern) {
         file <- list.files(x$db_path, paste0(tissue, ".*", pattern, ".*"), full.names = T, recursive = T)
@@ -83,15 +85,43 @@ setMethod("step2", signature = c(x = "job_edqtl"),
     use.eq <- dplyr::mutate(use.eq, symbol = gname(gene_id))
     use.eq <- map(use.eq, "symbol", bt$anno, "ensembl_gene_id", "hgnc_symbol")
     use.eq <- dplyr::filter(use.eq, !is.na(hgnc_symbol))
+    use.eq <- .set_lab(use.eq, sig(x), paste("all used", x$mode, "data"))
     x$use.eq <- use.eq
     return(x)
   })
 
+setMethod("step3", signature = c(x = "job_edqtl"),
+  function(x, filter, label = "DEGs", use.filter = "hgnc_symbol", data = x@params$use.eq){
+    step_message("Filter the edqtl data.")
+    lst <- c(nl(label, list(filter)), list(DB_edQTL = data[[ use.filter ]]))
+    p.venn <- new_venn(lst = lst)
+    p.venn <- .set_lab(p.venn, sig(x), paste("database of", x$mode, "intersect with"), label)
+    data <- dplyr::filter(data, !!rlang::sym(use.filter) %in% !!filter)
+    data <- .set_lab(data, sig(x), paste0("database of ", x$mode, " intersect with ", label, " DATA"))
+    x@plots[[ 3 ]] <- namel(p.venn)
+    x@tables[[ 3 ]] <- list(filtered.eq = data)
+    return(x)
+  })
+
 setMethod("map", signature = c(x = "job_edqtl", ref = "job_publish"),
-  function(x, ref, filter, use.filter = "hgnc_symbol"){
+  function(x, ref, label = "Filtered_edQTL", data = x@tables$step3$filtered.eq){
     if (ref@cite == "[@MendelianRandoLiuX2022]") {
+      data <- dplyr::select(data, variant_id, hgnc_symbol)
+      filter_fun <- function(refd, ref_label) {
+        lst <- c(nl(label, list(data$variant_id)), nl(ref_label, list(refd$variant_id)))
+        p.venn <- new_venn(lst = lst)
+        p.venn <- .set_lab(p.venn, sig(x), paste0("filtered ", x$mode, " data intersect with"), ref_label)
+        refd <- dplyr::select(refd, 1:2)
+        data <- tbmerge(refd, data, by = "variant_id")
+        data <- .set_lab(data, sig(x), paste0("filtered ", x$mode, " data intersect with ", ref_label), "DATA")
+        namel(data, p.venn)
+      }
+      lst.micro <- filter_fun(object(ref)$snp_microbiota, "microbiota related")
+      attr(lst.micro$data, "pattern") <- ref$get_pattern(lst.micro$data$Microbiome.features)
+      lst.metab <- filter_fun(object(ref)$snp_metabolite, "metabolite related")
+      object <- namel(lst.micro, lst.metab)
     }
-    x <- .job_publish()
+    x <- .job_publish(object = object, cite = ref@cite)
     return(x)
   })
 

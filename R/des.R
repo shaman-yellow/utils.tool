@@ -31,9 +31,9 @@
         lines <- sep_list(lines, "^$")
         lines <- unlist(lapply(lines, function(x) paste0(x, collapse = " ")))
         lines <- gs(lines, "^\\s*|\\s*$", "")
-        lines <- gs(lines, "\\s{2,}", "\\s")
+        lines <- gs(lines, "\\s{2,}", " ")
       }
-      lines <- strsplit(lines, ": ")
+      lines <- strsplit(lines, ":")
       lines
     })
   lst <- unlist(lst, recursive = F)
@@ -44,5 +44,5 @@
     vapply(lst, function(x) x[2], character(1)))
   lst <- lst[ !duplicated(names(lst)) ]
   lst <- lst[ !names(lst) %in% excludes ]
-  lst
+  lapply(lst, function(x) gs(x, "([{}])", "\\\\\\1"))
 }

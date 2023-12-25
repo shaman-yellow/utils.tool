@@ -35,11 +35,30 @@ setMethod("step0", signature = c(x = "job_gutmd"),
   })
 
 setMethod("step1", signature = c(x = "job_gutmd"),
-  function(x, patterns){
-    step_message("Match microbiota in database")
-    x$matches <- matchThats(object(x)[[1]], patterns)
-    x$db_matched <- dplyr::filter(object(x),
-      Gut.Microbiota %in% dplyr::all_of(unique(unlist(!!x$matches)))
-    )
+  function(x, micro_patterns = NULL, metab_patterns = NULL, label = NULL){
+    step_message("Match microbiota or metabolite in database")
+    tables <- list()
+    if (!is.null(micro_patterns)) {
+      res <- list()
+      res$matches <- matchThats(object(x)[[1]], micro_patterns)
+      res$db_matched <- dplyr::filter(object(x),
+        Gut.Microbiota %in% unlist(!!res$matches, use.names = F)
+      )
+      x$res_micro <- res
+    }
+    if (!is.null(metab_patterns)) {
+      res <- list()
+      alls <- rm.no(c(object(x)$Substrate, object(x)$Metabolite))
+      res$matches <- matchThats(alls, metab_patterns)
+      names <- unlist(res$matches, use.names = F)
+      res$db_matched <- dplyr::filter(object(x),
+        Substrate %in% !!names | Metabolite %in% !!names
+      )
+      x$res_metab <- res
+      metab <- dplyr::select(res$db_matched, Metabolite, Substrate, Gut.Microbiota, Classification)
+      metab <- .set_lab(metab, label, "gutMDisorder", "Matched metabolites and their related microbiota")
+      tables$metab <- namel(metab)
+    }
+    x@tables <- tables
     return(x)
   })
