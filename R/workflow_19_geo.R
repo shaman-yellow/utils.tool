@@ -98,3 +98,37 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
       job_limma(new_dge(metadata, counts, genes))
     }
   })
+
+get_metadata.geo <- function(lst,
+  select = rlang::quos(rownames, title),
+  pattern = c("diagnosis", "Sex", "^age", "^time point", "data_processing"),
+  abbrev = c("data_processing"))
+{
+  res <- lapply(lst,
+    function(eset){
+      as_tibble(eset@phenoData@data)
+    })
+  if (!is.null(select)) {
+    main <- lapply(res,
+      function(data){
+        cols <- colnames(data)
+        extra <- unlist(.find_and_sort_strings(cols, pattern))
+        dplyr::select(data, !!!select, dplyr::all_of(extra))
+      })
+    if (!is.null(abbrev)) {
+      abbrev <- lapply(res,
+        function(data){
+          cols <- colnames(data)
+          extra <- unlist(.find_and_sort_strings(cols, abbrev))
+          dplyr::distinct(data, dplyr::pick(extra))
+        })
+    } else abbrev <- NULL
+    res <- namel(main, abbrev, res)
+  }
+  lst_clear0(res)
+}
+
+get_prod.geo <- function(lst) {
+  res <- as.list(dplyr::distinct(do.call(rbind, lst$abbrev)))
+  .lich(res)
+}

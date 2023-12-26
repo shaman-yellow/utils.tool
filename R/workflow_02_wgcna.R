@@ -174,4 +174,50 @@ setMethod("step6", signature = c(x = "job_wgcna"),
     return(x)
   })
 
+cut_tree <- function(tree, height, size) {
+  clust <- e(WGCNA::cutreeStatic(tree, height, size))
+  clust == 1
+}
 
+cal_sft <- function(data, powers = c(c(1:10), seq(12, 20, by = 2))) 
+{
+  if (!is(data, "wgcData")) {
+    stop("is(data, \"wgcData\") == F")
+  }
+  sft <- e(WGCNA::pickSoftThreshold(data, powerVector = powers, verbose = 5))
+  sft
+}
+
+plot_sft <- function(sft) 
+{
+  p1 <- ggplot(sft$fitIndices, aes(x = Power, y = -sign(slope) * SFT.R.sq)) +
+    geom_line(color = "darkred", size = 2, lineend = "round") +
+    labs(x = "Soft Threshold (power)",
+      y = "Scale Free Topology Model Fit, signed R^2") +
+    theme_classic()
+  p2 <- ggplot(sft$fitIndices, aes(x = Power, y = mean.k.)) +
+    geom_line(color = "darkgreen", size = 2, lineend = "round") +
+    labs(x = "Soft Threshold (power)",
+      y = "Mean Connectivity") +
+    theme_classic()
+  require(patchwork)
+  p1 + p2
+}
+
+cal_module <- function(data, power, cut_hight = .25, min_size = 30, save_tom = "tom",
+  maxBlockSize = 25000, ...)
+{
+  if (!is(data, "wgcData")) {
+    stop("is(data, \"wgcData\") == F")
+  }
+  require(WGCNA)
+  net <- e(WGCNA::blockwiseModules(
+      data, power = power,
+      TOMType = "unsigned", minModuleSize = min_size,
+      reassignThreshold = 0, mergeCutHeight = cut_hight,
+      numericLabels = TRUE, pamRespectsDendro = FALSE, loadTOM = T,
+      saveTOMs = TRUE, saveTOMFileBase = save_tom,
+      maxBlockSize = maxBlockSize, verbose = 3, ...
+      ))
+  .wgcNet(net)
+}

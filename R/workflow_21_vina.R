@@ -189,3 +189,182 @@ setMethod("step7", signature = c(x = "job_vina"),
     )
     return(x)
   })
+
+vina_limit <- function(lig, recep, timeLimit = 120, dir = "vina_space", ...) {
+  try(vina(lig, recep, ..., timeLimit = timeLimit, dir = dir), T)
+}
+
+vina <- function(lig, recep, dir = "vina_space",
+  exhaustiveness = 32, scoring = "ad4", stout = "/tmp/res.log", timeLimit = 60)
+{
+  if (!file.exists(dir)) {
+    dir.create(dir, F)
+  } 
+  subdir <- paste0(reals <- get_realname(c(lig, recep)), collapse = "_into_")
+  wd <- paste0(dir, "/", subdir)
+  if (!file.exists(paste0(wd, "/", subdir, "_out.pdbqt"))) {
+    dir.create(wd, F)
+    file.copy(c(recep, lig), wd)
+    .message_info("Generating affinity maps", subdir)
+    .cdRun <- function(...) cdRun(..., path = wd)
+    files <- get_filename(c(lig, recep))
+    .cdRun("prepare_gpf.py -l ", files[1], " -r ", files[2], " -y")
+    .cdRun("autogrid4 -p ", reals[2], ".gpf ", " -l ", reals[2], ".glg")
+    cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = T)
+    try(.cdRun("timeout ", timeLimit, 
+        " vina  --ligand ", files[1],
+        " --maps ", reals[2],
+        " --scoring ", scoring,
+        " --exhaustiveness ", exhaustiveness,
+        " --out ", subdir, "_out.pdbqt",
+        " >> ", stout), T)
+  }
+}
+
+vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
+  timeLimit = 3, backup = NULL)
+{
+  if (!file.exists(path <- paste0(dir, "/", subdir))) {
+    stop("file.exists(path <- paste0(dir, \"/\", subdir))")
+  } 
+  wd <- paste0(dir, "/", subdir)
+  out <- paste0(Combn, "_out.pdbqt")
+  recep <- paste0(recep, ".pdbqt")
+  res <- paste0(Combn, ".png")
+  .cdRun <- function(...) cdRun(..., path = wd)
+  try(.cdRun("timeout ", timeLimit, 
+      " pymol ", out, " ", recep,
+      " -g ", res), T)
+  if (is.character(backup)) {
+    dir.create(backup, F)
+    file.copy(paste0(wd, "/", res), backup, T)
+  }
+}
+
+summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$")
+{
+  files <- list.files(space, pattern, recursive = T, full.names = T)
+  res_dock <- lapply(files,
+    function(file) {
+      lines <- readLines(file)
+      if (length(lines) >= 1) {
+        name <- gsub("_out\\.pdbqt", "", get_filename(file))
+        top <- stringr::str_extract(lines[2], "[\\-0-9.]{1,}")
+        top <- as.double(top)
+        names(top) <- name
+        top
+      }
+    })
+  res_dock <- unlist(res_dock)
+  res_dock <- tibble::tibble(
+    Combn = names(res_dock), Affinity = unname(res_dock)
+  )
+  res_dock <- dplyr::mutate(
+    res_dock, PubChem_id = stringr::str_extract(Combn, "^[^_]{1,}"),
+    PDB_ID = stringr::str_extract(Combn, "[^_]{1,}$"),
+    dir = paste0(space, "/", Combn),
+    file = paste0(dir, "/", Combn, "_out.pdbqt")
+  )
+  dplyr::select(res_dock, PubChem_id, PDB_ID, Affinity, dir, file, Combn)
+}
+
+smiles_as_sdfs.obabel <- function(smiles) {
+  lst.sdf <- pbapply::pbsapply(smiles, simplify = F,
+    function(smi) {
+      ChemmineOB::convertFormat("SMI", "SDF", source = test)
+    })
+  lst.sdf
+}
+
+tbmerge <- function(x, y, ...) {
+  x <- data.table::as.data.table(x)
+  y <- data.table::as.data.table(y)
+  tibble::as_tibble(data.table::merge.data.table(x, y, ...))
+}
+
+ld_cols <- function(file, sep = "\t") {
+  line <- readLines(file, n = 1)
+  strsplit(line, sep)[[ 1 ]]
+}
+
+lst_clear0 <- function(lst, len = 0) {
+  lst[ vapply(lst, function(v) if (length(v) > len) T else F, logical(1)) ]
+}
+
+ld_cutRead <- function(file, cols, abnum = T, sep = "\t", tmp = "/tmp/ldtmp.txt") {
+  if (is.character(cols)) {
+    names <- ld_cols(file, sep)
+    pos <- which( names %in% cols )
+    if (abnum) {
+      pos <- head(pos, n = length(cols))
+    }
+  } else {
+    pos <- cols
+  }
+  cdRun("cut -f ", paste0(pos, collapse = ","), " ", file, " > ", tmp)
+  ftibble(tmp)
+}
+
+sdf_as_pdbqts <- function(sdf_file, mkdir.pdbqt = "pdbqt", check = F) {
+  dir.create(mkdir.pdbqt, F)
+  check_sdf_validity <- function(file) {
+    lst <- sep_list(readLines(file), "^\\${4,}$")
+    lst <- lst[ - length(lst) ]
+    osum <- length(lst)
+    lst <- lapply(lst,
+      function(line) {
+        pos <- grep("^\\s*-OEChem|M\\s*END", line)
+        if (pos[2] - pos[1] > 5)
+          line
+      })
+    lst <- lst[ !vapply(lst, is.null, logical(1)) ]
+    nsum <- length(lst)
+    list(data = lst, osum = osum, nsum = nsum, dec = osum - nsum)
+  }
+  if (check) {
+    lst <- check_sdf_validity(sdf_file)
+    lines <- unlist(lst$data)
+    lst <- lst[ -1 ]
+    writeLines(lines, sdf_file <- gsub("\\.sdf", "_modified.sdf", sdf_file))
+  } else {
+    lst <- list(file = sdf_file)
+  }
+  system(paste0("mk_prepare_ligand.py -i ", sdf_file, " --multimol_outdir ", mkdir.pdbqt))
+  lst$file <- sdf_file
+  lst$pdbqt <- list.files(mkdir.pdbqt, "\\.pdbqt$", full.names = T)
+  lst$pdbqt.num <- length(lst$pdbqt)
+  lst$pdbqt.cid <- stringr::str_extract(lst$pdbqt, "(?<=/|^)[0-9]{1,}")
+  return(lst)
+}
+
+select_files_by_grep <- function(files, pattern){
+  res <- lapply(files,
+    function(file) {
+      line <- readLines(file)
+      if (any(grepl(pattern, line, T)))
+        return(file)
+      else NULL
+    })
+  res <- res[ !vapply(res, is.null, logical(1)) ]
+  res
+}
+
+filter_pdbs <- function(files, pattern = "ORGANISM_SCIENTIFIC: HOMO SAPIENS") {
+  select_files_by_grep(files, pattern)
+}
+
+prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {
+  dir.create(mkdir.pdbqt, F)
+  file <- lapply(files,
+    function(file) {
+      if (!is.null(file)) {
+        newfile <- gsub("\\.pdb$", ".pdbqt", get_filename(file))
+        newfile <- paste0(mkdir.pdbqt, "/", newfile)
+        system(paste0("prepare_receptor -r ", file, " -o ", newfile, " -A hydrogens"))
+        return(newfile)
+      }
+    })
+  file <- file[ !vapply(file, is.null, logical(1)) ]
+  file[ vapply(file, file.exists, logical(1)) ]
+}
+

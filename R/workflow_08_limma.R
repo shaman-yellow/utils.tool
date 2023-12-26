@@ -309,3 +309,141 @@ expand.cons <- function(...) {
       paste0(x[1], "-", x[2])
     })
 }
+
+filter_low.dge <- function(dge, group., min.count = 10, prior.count = 2) {
+  dge$samples$group = group.
+  mean <- mean(dge$samples$lib.size) * 1e-6
+  median <- median(dge$samples$lib.size) * 1e-6
+  cutoff <- log2(min.count / median + 2 / mean)
+  ## raw
+  raw_dge <- dge
+  raw_dge$counts <- edgeR::cpm(raw_dge, log = T, prior.count = prior.count)
+  ## filter
+  keep.exprs <- e(edgeR::filterByExpr(dge, group = group., min.count = min.count))
+  pro_dge <- dge <- e(edgeR::`[.DGEList`(dge, keep.exprs, , keep.lib.sizes = F))
+  pro_dge$counts <- e(edgeR::cpm(pro_dge, log = T))
+  ## plot
+  data <- list(Raw = as_data_long(raw_dge), Filtered = as_data_long(pro_dge))
+  data <- data.table::rbindlist(data, idcol = T)
+  data <- dplyr::select(data, .id, sample, value)
+  p <- ggplot(data) +
+    geom_density(aes(x = value, color = sample), alpha = .7) +
+    geom_vline(xintercept = cutoff, linetype = "dashed") +
+    facet_wrap(~ factor(.id, c("Raw", "Filtered"))) +
+    labs(x = "Log2-cpm", y = "Density")
+  if (length(unique(data$sample)) > 50) {
+    p <- p + theme(legend.position = "none")
+  }
+  attr(dge, "p") <- p
+  dge
+}
+
+norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ..., vis = T){
+  ## raw
+  raw_dge <- dge
+  raw_dge$counts <- edgeR::cpm(raw_dge, log = T, prior.count = prior.count)
+  ## pro
+  dge <- e(edgeR::calcNormFactors(dge, method = "TMM"))
+  pro_dge <- dge <- fun(dge, design, ...)
+  ## data long
+  if (vis) {
+    cli::cli_alert_info("as_data_long")
+    data <- list(Raw = as_data_long(raw_dge), Normalized = as_data_long(pro_dge))
+    data <- data.table::rbindlist(data, idcol = T, fill = T)
+    data <- dplyr::select(data, .id, sample, value)
+    if (length(unique(data$sample)) < 50) {
+      p <- ggplot(data) +
+        geom_boxplot(aes(x = sample, y = value),
+          outlier.color = "grey60", outlier.size = .5) +
+        coord_flip() +
+        facet_wrap(~ factor(.id, c("Raw", "Normalized"))) +
+        labs(x = "Sample", y = "Log2-cpm")
+    } else {
+      p <- plot_median_expr_line(data)
+    }
+  } else {
+    p <- NULL
+  }
+  attr(dge, "p") <- p
+  dge
+}
+
+diff_test <- function(x, design, contr = NULL, block = NULL){
+  if (!is.null(block)){
+    dupcor <- e(limma::duplicateCorrelation(x, design, block = block))
+    cor <- dupcor$consensus.correlation
+    message("## Within-donor correlation:", cor)
+  } else {
+    cor <- NULL
+  }
+  fit <- e(limma::lmFit(x, design, block = block, correlation = cor))
+  if (!is.null(contr)) {
+    fit <- e(limma::contrasts.fit(fit, contrasts = contr))
+  }
+  # https://liuyujie0136.gitbook.io/sci-tech-notes/bioinformatics/p-value
+  fit <- e(limma::eBayes(fit))
+  fit
+}
+
+extract_tops <- function(x, use = "adj.P.Val", use.cut = 0.05, cut.fc = 0.3){
+  res <- e(lapply(1:ncol(x$contrasts),
+    function(coef){
+      res <- limma::topTable(x, coef = coef, number = Inf)
+      if (!is.null(use.cut) & !is.null(cut.fc)) {
+        res <- dplyr::filter(res, !!rlang::sym(use) < use.cut, abs(logFC) > cut.fc)
+      }
+      as_tibble(res) 
+    }))
+  names(res) <- colnames(x$contrasts)
+  res
+}
+
+prepare_expr_data <- function(metadata, counts, genes, message = T) 
+{
+  ## sort and make name for metadata and counts
+  checkDup <- function(x) {
+    if (any(duplicated(x))) {
+      stop("The value in ID column are duplicated.")
+    }
+  }
+  lapply(list(counts[[ 1 ]], genes[[ 1 ]], metadata[[ 1 ]]), checkDup)
+  colnames(metadata) %<>% make.names()
+  metadata <- dplyr::rename(metadata, sample = 1)
+  counts <- dplyr::select(counts, 1, dplyr::all_of(metadata$sample))
+  metadata$sample %<>% make.names()
+  colnames(counts) %<>% make.names()
+  ## sort genes
+  data_id <- do.call(data.frame, nl(colnames(genes)[1], list(counts[[1]])))
+  genes <- dplyr::distinct(genes, !!rlang::sym(colnames(genes)[1]), .keep_all = T)
+  genes <- tbmerge(
+    data_id, genes,
+    by.x = colnames(data_id)[1], by.y = colnames(genes)[1],
+    sort = F, all.x = T
+  )
+  if (ncol(genes) > 1) {
+    if (message) {
+      message("## The missing genes in `genes`")
+      check.na <- dplyr::filter(
+        genes, is.na(!!rlang::sym(colnames(genes)[2]))
+      )
+      print(check.na)
+    }
+  }
+  counts <- dplyr::select(counts, -1)
+  colnames(counts) <- metadata$sample
+  namel(counts, metadata, genes)
+}
+
+new_dge <- function(metadata, counts, genes, message = T)
+{
+  lst <- do.call(prepare_expr_data, as.list(environment()))
+  e(edgeR::DGEList(lst$counts, samples = lst$metadata, genes = lst$genes))
+}
+
+new_elist <- function(metadata, counts, genes, message = T)
+{
+  lst <- do.call(prepare_expr_data, as.list(environment()))
+  elist(list(E = tibble::as_tibble(lst$counts), targets = lst$metadata, genes = lst$genes))
+}
+
+

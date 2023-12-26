@@ -122,3 +122,68 @@ setMethod("step2", signature = c(x = "job_biomart2"),
   names(urls) <- vapply(theValues, function(x) attr(x, "name"), character(1))
   namel(urls, theValues)
 }
+
+new_biomart <- function(
+  dataset = c("hsapiens_gene_ensembl", "sscrofa_gene_ensembl", "mmusculus_gene_ensembl"),
+  ...)
+{
+  if (missing(dataset)) {
+    message("Missing `dataset`, try get from global options.")
+    arg <- getOption("mart_dataset", "hsapiens_gene_ensembl")
+    dataset <- match.arg(arg, dataset)
+    message("Use ", dataset)
+  } else {
+    dataset <- match.arg(dataset)
+  }
+  predb <- getOption("biomart")[[ dataset ]]
+  if (is.null(predb)) {
+    ensembl <- e(biomaRt::useEnsembl(biomart = "ensembl", dataset = dataset, ...))
+    lst <- nl(dataset, list(ensembl))
+    options(biomart = lst)
+  } else {
+    ensembl <- predb
+  }
+  ensembl
+}
+
+list_datasets <- function() {
+  ensembl <- e(biomaRt::useEnsembl("genes"))
+  e(biomaRt::listDatasets(ensembl))
+}
+
+filter_biomart <- function(mart, attrs, filters = "", values = "", distinct = T) {
+  anno <- e(biomaRt::getBM(attributes = attrs, filters = filters,
+    values = values, mart = mart))
+  anno <- relocate(anno, !!rlang::sym(filters))
+  if (distinct)
+    anno <- distinct(anno, !!rlang::sym(filters), .keep_all = T)
+  tibble::as_tibble(anno)
+}
+
+list_attrs <- function(mart) {
+  tibble::as_tibble(biomaRt::listAttributes(mart))
+}
+
+general_attrs <- function(pdb = F, ensembl_transcript_id = F) {
+  attrs <- c("ensembl_gene_id",
+    "entrezgene_id",
+    "hgnc_symbol",
+    "refseq_mrna",
+    "chromosome_name",
+    "start_position",
+    "end_position",
+    "description")
+  if (pdb) {
+    attrs <- c(attrs, "pdb")
+  }
+  if (ensembl_transcript_id) {
+    attrs <- c(attrs, "ensembl_transcript_id")
+  }
+  attrs
+}
+
+hsym <- function() {
+  "hgnc_symbol"
+}
+
+

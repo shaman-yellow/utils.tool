@@ -329,4 +329,263 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
   }
 }
 
+get_herb_data <- function(herb = "../HERB_herb_info.txt",
+  component = "../HERB_ingredient_info.txt",
+  target = "../HERB_target_info.txt")
+{
+  db <- lapply(namel(herb, component, target),
+    function(file) {
+      tibble::as_tibble(suppressWarnings(data.table::fread(file)))
+    })
+  names <- colnames(db$component)
+  colnames(db$component) <- c(names[-1], "extra_id")
+  db
+}
+
+download_herbTargets <- function(link, ids,
+  urls = paste0("http://herb.ac.cn/Detail/?v=", ids, "&label=Herb"),
+  heading = "Related Gene Targets")
+{
+  download_herbCompounds(link, ids, heading = heading)
+}
+
+download_compoundTargets <- function(link, ids,
+  urls = paste0("http://herb.ac.cn/Detail/?v=", ids, "&label=Ingredient"),
+  heading = "Related Gene Targets")
+{
+  download_herbCompounds(link, ids, urls, heading = heading)
+}
+
+download_herbCompounds <- function(link, ids,
+  urls = paste0("http://herb.ac.cn/Detail/?v=", ids, "&label=Herb"),
+  heading = "Related Ingredients")
+{
+  get_all <- function() list.files("~/Downloads", "\\.xlsx$", full.names = T)
+  checks <- get_all()
+  if (length(checks) > 0)
+    file.remove(checks)
+  link$open()
+  jobn <- 0
+  res <- lapply(urls,
+    function(url) {
+      link$navigate(url)
+      jobn <<- jobn + 1
+      if (jobn > 1) {
+        link$refresh()
+      }
+      Sys.sleep(.5)
+      res <- try(silent = T, {
+        ele <- link$findElement(
+          using = "xpath",
+          value = paste0("//main//div//h4[text()='", heading, "']/../div//button")
+        )
+        Sys.sleep(.5)
+        ele$sendKeysToElement(list("Download", key = "enter"))
+      })
+      Sys.sleep(.5)
+      if (inherits(res, "try-error")) {
+        writeLines("", paste0("~/Downloads/empty_", jobn, ".xlsx"))
+      }
+      checks <- get_all()
+      cli::cli_alert_info(paste0("Job number ", jobn))
+      while (length(checks) < jobn) {
+        cli::cli_alert_info("Retry remotes response ...")
+        ele$sendKeysToElement(list("Download", key = "enter"))
+        Sys.sleep(1)
+        checks <- get_all()
+      }
+    })
+  link$close()
+}
+
+start_drive <- function(command = "java -jar ~/operation/selenium.jar",
+  port = 4444, extra = NULL, browser = c("chrome", "firefox"), ...)
+{
+  system(paste(command, "-port", port, extra), wait = F)
+  new_link(port = port, browser = match.arg(browser))
+}
+
+end_drive <- function(pattern = "[0-9]\\s*java.*-jar") {
+  tmp <- tempfile(fileext = ".txt")
+  system(paste0("ps aux > ", tmp))
+  text <- readLines(tmp)
+  text <- text[ grepl(pattern, text) ]
+  pid <- stringr::str_extract(text, "(?<=\\s)[0-9]{1,}(?=\\s)")
+  system(paste("kill", paste0(pid, collapse = " ")))
+}
+
+get_from_genecards <- function(query, score = 5, keep_drive = F) {
+  query <- gs(query, " ", "%20")
+  url <- paste0('https://www.genecards.org/Search/Keyword?queryString=', query,
+    '&pageSize=25000&startPage=0')
+  link <- start_drive(browser = "firefox")
+  Sys.sleep(3)
+  link$open()
+  link$navigate(url)
+  html <- link$getPageSource()[[1]]
+  html <- XML::htmlParse(html)
+  table <- XML::readHTMLTable(html)
+  table <- as_tibble(data.frame(table[[1]]))
+  colnames(table) %<>% gs("\\.+", "_")
+  colnames(table) %<>% gs("X_|_$", "")
+  table <- select(table, -1, -2)
+  table <- filter(table, Score > !!score)
+  if (!keep_drive)
+    end_drive()
+  return(table)
+}
+
+get_table.html <- function(file) {
+  ht <- e(XML::htmlParse(readLines(file)))
+  XML::readHTMLTable(ht)
+}
+
+moveToDir_herbs <- function(ids,
+  file.pattern = "\\.xlsx$", index.pfun = file_seq.by_time,
+  from = "~/Downloads", to = "herbs_ingredient", suffix = ".xlsx", .id = "herb_id", readFrom = NULL)
+{
+  if (is.null(readFrom)) {
+    if (!file.exists(to)) {
+      args <- as.list(environment())
+      args$readFrom <- NULL
+      files <- do.call(moveToDir, args)
+      isOrdered <- T
+    } else {
+      files <- list.files(to, file.pattern, full.names = T)
+      isOrdered <- F
+    }
+  } else {
+    files <- readFrom
+    isOrdered <- F
+  }
+  data <- lapply(files,
+    function(file) {
+      res <- try(openxlsx::read.xlsx(file), T)
+      if (inherits(res, "try-error")) {
+        tibble::tibble()
+      } else res
+    })
+  if (isOrdered) {
+    names(data) <- ids
+  } else {
+    names(data) <- get_realname(files)
+  }
+  data <- tibble::as_tibble(data.table::rbindlist(data, idcol = T, fill = T))
+  cols <- colnames(data)
+  data <- dplyr::relocate(data, .id)
+  colnames(data)[ which(cols == ".id") ] <- .id
+  data
+}
+
+moveToDir <- function(ids,
+  file.pattern, index.pfun = file_seq.by_time,
+  from, to, suffix, ...)
+{
+  files <- list.files(from, file.pattern, full.names = T)
+  index <- index.pfun(files)
+  files <- files[order(index)][1:length(ids)]
+  files <- rev(files)
+  dir.create(to, F, T)
+  files <- lapply(1:length(ids),
+    function(n) {
+      file.copy(files[ n ], file <- paste0(to, "/", ids[n], suffix), T)
+      file
+    })
+  files
+}
+
+file_seq.by_time <- function(files) {
+  info <- fs::file_info(files)
+  info <- dplyr::mutate(info, .INDEX = 1:nrow(info))
+  info <- dplyr::arrange(info, dplyr::desc(modification_time))
+  info <- dplyr::mutate(info, .SEQ = 1:nrow(info))
+  info <- dplyr::arrange(info, .INDEX)
+  info$.SEQ
+}
+
+format_index.by_num <- function(index) {
+  index <- gsub("\\(|\\)", "", index)
+  index <- ifelse(is.na(index), "0", index)
+  as.integer(index)
+}
+
+new_link <- function(port = 4444L, browser = c("chrome", "firefox"), addr = "localhost",
+  timeout = 3000000)
+{
+  browser <- match.arg(browser)
+  if (browser == "firefox") {
+    prof <- RSelenium::makeFirefoxProfile(list('permissions.default.image' = 2L))
+    link <- RSelenium::remoteDriver(
+      remoteServerAddr = addr, port = port,
+      browserName = browser,
+      extraCapabilities = prof
+    )
+    # link$setTimeout(type = "page load", milliseconds = timeout)
+    link
+  } else if (browser == "chrome") {
+    RSelenium::remoteDriver(
+      remoteServerAddr = addr, port = port,
+      browserName = browser,
+      extraCapabilities = list()
+    )
+  }
+}
+
+merge.componentsGenes <- function(data, genes.lst) {
+  names(genes.lst) <- data[[1]]
+  genes.lst <- lapply(genes.lst,
+    function(lst) {
+      if (nrow(lst$ids) == 0) {
+        return(NULL)
+      } else {
+        lst$ids$genes <- lst$data
+        return(lst$ids)
+      }
+    })
+}
+
+get_tcm.components <- function(id, key = "Components",
+  link_prefix = "http://www.tcmip.cn/ETCM/index.php/Home/Index/yc_details.html?id=",
+  src = NULL)
+{
+  if (is.null(src)) {
+    src <- get_tcm.base(id, link_prefix)
+  }
+  pos <- grep(paste0("^\\s*\\{\"ID*.*", key), src)
+  data <- src[pos]
+  ids.data <- extract_id(data)
+  data <- gsub("<[^<^>]*>", "##", data)
+  data <- gsub("^.*?####|####[^#]*$", "", data)
+  data <- strsplit(data, "##, ##")[[1]]
+  list(data = data, ids = ids.data, src = src)
+}
+
+extract_id <- function(ch) {
+  links <- stringr::str_extract_all(ch, "(?<=href=\').*?(?=\')")[[1]]
+  ids <- stringr::str_extract(links, "[^=]*$")
+  data.frame(links = links, ids = ids)
+}
+
+get_tcm.componentToGenes <- function(ids, key = "Candidate Target Genes", dep = T) 
+{
+  link_prefix <- "http://www.tcmip.cn/ETCM/index.php/Home/Index/cf_details.html?id="
+  lst <- pbapply::pblapply(ids,
+    function(id) {
+      data <- get_tcm.components(id, key, link_prefix)
+      if (dep) {
+        data$src <- NULL
+      }
+      data
+    })
+  lst
+}
+
+get_tcm.base <- function(id, link_prefix) {
+  link <- paste0(link_prefix, id)
+  src <- xml2::read_html(link)
+  data <- rvest::html_text(src)
+  data <- strsplit(data, "\r\n")[[1]]
+  data
+}
+
 

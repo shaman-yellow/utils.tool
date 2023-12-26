@@ -171,3 +171,129 @@ setMethod("asjob_enrich", signature = c(x = "job_seurat"),
     ids <- lst_clear0(ids)
     job_enrich(ids, anno)
   })
+
+multi_enrichKEGG <- function(lst.entrez_id, organism = 'hsa')
+{
+  res <- pbapply::pblapply(lst.entrez_id,
+    function(ids) {
+      res.kegg <- clusterProfiler::enrichKEGG(ids, organism = organism)
+      res.path <- tibble::as_tibble(res.kegg@result)
+      res.path <- dplyr::mutate(res.path, geneID_list = lapply(strsplit(geneID, "/"), as.integer))
+      res.path
+    })
+  res
+}
+
+multi_enrichGO <- function(lst.entrez_id, orgDb = 'org.Hs.eg.db', cl = NULL)
+{
+  res <- pbapply::pblapply(lst.entrez_id, cl = cl,
+    function(ids) {
+      onts <- c("BP", "CC", "MF")
+      res <- sapply(onts, simplify = F,
+        function(ont) {
+          res.go <- try(clusterProfiler::enrichGO(ids, orgDb, ont = ont), T)
+          if (inherits(res.go, "try-error")) {
+            return("try-error of enrichment")
+          }
+          res.res <- try(res.go@result, T)
+          if (inherits(res.res, "try-error")) {
+            value <- "try-error of enrichment"
+            attr(value, "data") <- res.res
+            return(value)
+          }
+          res.path <- tibble::as_tibble(res.res)
+          res.path
+        })
+    })
+}
+
+check_enrichGO <- function(res.go) {
+  isthat <- lapply(res.go,
+    function(res) {
+      !vapply(res, FUN.VALUE = logical(1), is.character)
+    })
+  isthat
+}
+
+vis_enrich.kegg <- function(lst, cutoff = .1, maxShow = 10,
+  use = c("p.adjust", "pvalue"), least = 3L)
+{
+  use <- match.arg(use)
+  use.p <- use
+  res <- lapply(lst,
+    function(data) {
+      data <- dplyr::filter(raw <- data, !!rlang::sym(use) < !!cutoff)
+      if (!nrow(data) | nrow(data) < least) {
+        message("\n", "Too few of the results (", nrow(data), ")")
+        if (use == "p.adjust") {
+          message("Switch to use `pvalue`.")
+          use <- "pvalue"
+          use.p <<- use
+          data <- dplyr::filter(raw, !!rlang::sym(use) < !!cutoff)
+        }
+      }
+      data <- dplyr::arrange(data, !!rlang::sym(use))
+      data <- head(data, n = maxShow)
+      data <- dplyr::mutate(data, GeneRatio = as_double.ratioCh(GeneRatio))
+      p <- ggplot(data) +
+        geom_point(aes(x = reorder(Description, GeneRatio),
+            y = GeneRatio, size = Count, fill = !!rlang::sym(use)),
+          shape = 21, stroke = 0, color = "transparent") +
+        scale_fill_gradient(high = "yellow", low = "red") +
+        scale_size(range = c(4, 6)) +
+        labs(x = "", y = "Gene Ratio") +
+        guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
+        coord_flip() +
+        ylim(zoRange(data$GeneRatio, 1.3)) +
+        theme_minimal()
+      p
+    })
+  if (length(lst) == 1) {
+    attr(res, "use.p") <- use.p
+  }
+  res
+}
+
+vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
+  use = c("p.adjust", "pvalue"), least = 3L)
+{
+  use <- match.arg(use)
+  fun <- function(data) {
+    data <- lapply(data,
+      function(data) {
+        if (is.character(data))
+          return()
+        data <- dplyr::filter(data, !!rlang::sym(use) < cutoff)
+        data <- dplyr::arrange(data, !!rlang::sym(use))
+        data <- head(data, n = maxShow)
+        data
+      })
+    data <- data.table::rbindlist(data, idcol = T)
+    if (!nrow(data)) {
+      return()
+    }
+    data <- dplyr::mutate(
+      data, GeneRatio = as_double.ratioCh(GeneRatio),
+      stringr::str_wrap(Description, width = 30)
+    )
+    p <- ggplot(data) +
+      geom_point(aes(x = reorder(Description, GeneRatio),
+          y = GeneRatio, size = Count, fill = !!rlang::sym(use)),
+        shape = 21, stroke = 0, color = "transparent") +
+      scale_fill_gradient(high = "yellow", low = "red") +
+      scale_size(range = c(4, 6)) +
+      guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
+      coord_flip() +
+      facet_grid(.id ~ ., scales = "free") +
+      theme_minimal() +
+      theme(axis.title.y = element_blank(),
+        strip.background = element_rect(fill = "grey90", color = "grey70")) +
+      geom_blank()
+    p
+  }
+  res <- lapply(lst,
+    function(x) {
+      try(fun(x), silent = T)
+    })
+  res
+}
