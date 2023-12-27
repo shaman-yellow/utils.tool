@@ -1818,18 +1818,27 @@ odate <- function(month, year = format(Sys.time(), "%Y")) {
   as.Date(paste0(year, "-", month, "-01"))
 }
 
-remu <- function(coef, date, base_wage) {
-  use <- vapply(date, FUN.VALUE = double(1),
+.get_wages <- function(date, base_wage) {
+  vapply(date, FUN.VALUE = double(1),
     function(date) {
       which <- tail(which(as.Date(names(base_wage)) <= as.Date(date)), n = 1)
       base_wage[[which]]
     })
+}
+
+.remu <- function(coef, date, base_wage) {
+  use <- .get_wages(date, base_wage)
   coef * use
+}
+
+.setFill.orders <- function() {
+  list("2023-12-01" = 3800)
 }
 
 get_orders <- function(
   dir = "~/outline/lixiao/", pattern = ".items.rds",
-  base_wage = list("2023-07-01" = 3000, "2023-08-01" = 4500, "2023-09-01" = 6000))
+  base_wage = list("2023-07-01" = 3000, "2023-08-01" = 4500, "2023-09-01" = 6000),
+  setFill = .setFill.orders())
 {
   files <- list.files(dir, pattern, T, T, T)
   lst <- lapply(files,
@@ -1855,7 +1864,20 @@ get_orders <- function(
   data <- dplyr::arrange(data, belong, receive_date)
   data <- dplyr::mutate_if(data, is.character,
     function(x) ifelse(is.na(x), "", x))
-  data <- dplyr::mutate(data, remuneration = remu(coef, belong, base_wage))
+  if (!is.null(setFill)) {
+    for (i in 1:length(setFill)) {
+      i.month <- names(setFill)[i]
+      if (is.na(as.Date(i.month, optional = T))) {
+        i.month <- paste0(i.month, "-01")
+      }
+      theWhich <- which(grpl(data$belong, paste0("^", i.month)) & is.na(data$coef))
+      if (length(theWhich)) {
+        i.base <- .get_wages(i.month, base_wage)
+        data$coef[theWhich] <- cf(setFill[[ i ]] / length(theWhich), i.base)
+      }
+    }
+  }
+  data <- dplyr::mutate(data, remuneration = .remu(coef, belong, base_wage))
   data <- dplyr::relocate(data, belong, id, title, remuneration)
   print(data, n = Inf)
   invisible(data)

@@ -37,9 +37,7 @@ setMethod("step0", signature = c(x = "job_herb"),
 
 setMethod("step1", signature = c(x = "job_herb"),
   function(x){
-    step_message("Dowload compounds of herbs.
-      "
-    )
+    step_message("Dowload compounds of herbs.")
     link <- start_drive(browser = "firefox")
     Sys.sleep(3)
     tryCatch(
@@ -509,8 +507,7 @@ format_index.by_num <- function(index) {
   as.integer(index)
 }
 
-new_link <- function(port = 4444L, browser = c("chrome", "firefox"), addr = "localhost",
-  timeout = 3000000)
+new_link <- function(port = 4444L, browser = c("chrome", "firefox"), addr = "localhost")
 {
   browser <- match.arg(browser)
   if (browser == "firefox") {
@@ -520,7 +517,6 @@ new_link <- function(port = 4444L, browser = c("chrome", "firefox"), addr = "loc
       browserName = browser,
       extraCapabilities = prof
     )
-    # link$setTimeout(type = "page load", milliseconds = timeout)
     link
   } else if (browser == "chrome") {
     RSelenium::remoteDriver(
