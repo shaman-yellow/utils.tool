@@ -3141,7 +3141,7 @@ new_pie <- function(x, title = NULL, use.ggplot = T, fun_text = ggplot2::geom_te
     data <- data.frame(var = names(x), value = unname(x))
     data <- dplyr::arrange(data, dplyr::desc(var))
     data <- dplyr::mutate(data,
-      label = paste0("(", round(value / sum(value) * 100, 1), "%)"),
+      label = paste0("(", value, ", ", round(value / sum(value) * 100, 1), "%)"),
       label = paste0(var, " ", label), lab.x = .2,
       lab.y = value / 2 + c(0, cumsum(value)[ -length(value) ])
     )

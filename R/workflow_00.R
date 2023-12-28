@@ -1052,3 +1052,47 @@ plot_workflow_summary <- function(data) {
   p.fr2 <- wrap(p.fr2, 14, 7)
   c(namel(p.co_job, p.jobde), p.use_freq, namel(p.fr1, p.fr2))
 }
+
+# ==========================================================================
+# 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+.local_db <- setClass("local_db", 
+  contains = c(),
+  representation = representation(
+    db = "df",
+    idcol = "character",
+    db_file = "character",
+    query = "ANY"),
+  prototype = NULL)
+
+new_db <- function(db_file, idcol) {
+  .local_db(db_file = db_file, idcol = idcol)
+}
+
+setMethod("not", signature = c(x = "local_db"),
+  function(x, ids, force = F){
+    if (nrow(x@db) & !force) {
+      stop("The `x` is not an empty data object.")
+    }
+    if (file.exists(x@db_file)) {
+      x@db <- readRDS(x@db_file)
+      x@query <- ids[ !ids %in% x@db[[ ".id" ]] ]
+    } else {
+      x@query <- ids
+    }
+    return(x)
+  })
+
+setMethod("upd", signature = c(x = "local_db"),
+  function(x, data){
+    idcol <- x@idcol
+    data <- dplyr::filter(data, !(!!rlang::sym(idcol) %in% !!x@db[[ idcol ]]))
+    if (nrow(data)) {
+      x@db <- dplyr::bind_rows(x@db, data)
+      saveRDS(x@db, x@db_file)
+    }
+    return(x)
+  })
+
+

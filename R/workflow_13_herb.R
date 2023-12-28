@@ -397,7 +397,7 @@ download_herbCompounds <- function(link, ids,
 }
 
 start_drive <- function(command = "java -jar ~/operation/selenium.jar",
-  port = 4444, extra = NULL, browser = c("chrome", "firefox"), ...)
+  port = 4444, extra = NULL, browser = c("firefox", "chrome"), ...)
 {
   system(paste(command, "-port", port, extra), wait = F)
   new_link(port = port, browser = match.arg(browser))
@@ -507,7 +507,7 @@ format_index.by_num <- function(index) {
   as.integer(index)
 }
 
-new_link <- function(port = 4444L, browser = c("chrome", "firefox"), addr = "localhost")
+new_link <- function(port = 4444L, browser = c("firefox", "chrome"), addr = "localhost")
 {
   browser <- match.arg(browser)
   if (browser == "firefox") {
