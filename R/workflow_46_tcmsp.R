@@ -133,6 +133,48 @@ setMethod("step2", signature = c(x = "job_tcmsp"),
     return(x)
   })
 
+setMethod("step3", signature = c(x = "job_tcmsp"),
+  function(x, disease = NULL, disease.score = 5, HLs = NULL,
+    db_uniprot = "../tcmsp/largedata/uniprotkb.rds")
+  {
+    step_message("Query genes (symbol) for target proteins, and do step3 similar to `job_herb`...")
+    ########################
+    ########################
+    cli::cli_alert_info("UniprotKB")
+    compounds_targets <- x@tables$step2$compounds_targets
+    kb <- job_uniprotkb(compounds_targets[[ "Target name" ]], db_uniprot)
+    kb <- suppressMessages(step1(kb))
+    .add_internal_job(kb)
+    res <- kb@tables$step1$format_results
+    compounds_targets <- tbmerge(compounds_targets, res, by.x = "Target name", by.y = "query",
+      all.x = T, allow.cartesian = T)
+    ########################
+    ########################
+    cli::cli_alert_info("step3: job_herb")
+    hb <- .job_herb(step = 2L)
+    hb@tables$step1$herbs_compounds <- dplyr::select(
+      x@tables$step1$ingredients,
+      herb_id = Herb_pinyin_name, Ingredient.id = `Mol ID`,
+      Ingredient.name = `Molecule Name`
+    )
+    hb@tables$step2$compounds_targets <- dplyr::select(compounds_targets,
+      Ingredient_id = `Mol ID`, Target.name = symbols,
+      Target.protein = `Target name`
+    )
+    hb@params$herbs_info <- dplyr::select(
+      dplyr::mutate(x@params$herbs_info, Herb_ = Herb_pinyin_name),
+      Herb_, Herb_pinyin_name, Herb_cn_name
+    )
+    hb@object$herb <- hb@params$herbs_info
+    hb <- suppressMessages(step3(hb, disease = disease, HLs = HLs))
+    x@plots[[ 3 ]] <- c(kb@plots$step1, hb@plots$step3)
+    easyRead <- dplyr::relocate(compounds_targets,
+      Herb_pinyin_name, compounds = `Molecule Name`)
+    x@tables[[ 3 ]] <- namel(easyRead,
+      disease_targets_annotation = hb@tables$step3$disease_targets_annotation)
+    return(x)
+  })
+
 setMethod("map", signature = c(x = "job_tcmsp", ref = "job_classyfire"),
   function(x, ref) {
     if (x@step < 2L) {
@@ -383,3 +425,20 @@ tryGetLink.tcmsp <- function(x, sep = " ### ", ...) {
   }
   lst
 }
+
+setMethod("filter", signature = c(DF_object = "job_tcmsp"),
+  function(DF_object, ...){
+    if (DF_object@step != 2L) {
+      stop("DF_object@step != 2L")
+    }
+    DF_object@tables$step1$ingredients <- dplyr::filter(
+      DF_object@tables$step1$ingredients, ...
+    )
+    DF_object@tables$step2$compounds_targets <- dplyr::filter(
+      DF_object@tables$step2$compounds_targets, ...
+    )
+    DF_object@tables$step2$ingredients <- dplyr::filter(
+      DF_object@tables$step2$ingredients, ...
+    )
+    return(DF_object)
+  })

@@ -73,15 +73,17 @@ setMethod("step1", signature = c(x = "job_vina"),
       x$targets_annotation <- dplyr::distinct(x$targets_annotation, hgnc_symbol, .keep_all = T)
     }
     if (!is.null(bdb)) {
-      bdb <- ld_cutRead(bdb, c("PubChem CID", "PDB ID(s) of Target Chain"))
-      bdb <- dplyr::filter(bdb, `PubChem CID` %in% object(x)$cids)
-      colnames(bdb) <- c("PubChem_id", "pdb_id")
-      x@params$bdb_compounds_targets <- bdb
-      bdb <- nl(bdb$PubChem_id, strsplit(bdb$pdb_id, ","))
-      bdb <- lst_clear0(bdb)
-      bdb <- lapply(bdb, function(v) v[ v %in% x$targets_annotation$pdb ])
-      bdb <- lst_clear0(bdb)
-      x$dock_layout <- bdb
+      if (file.exists(bdb)) {
+        bdb <- ld_cutRead(bdb, c("PubChem CID", "PDB ID(s) of Target Chain"))
+        bdb <- dplyr::filter(bdb, `PubChem CID` %in% object(x)$cids)
+        colnames(bdb) <- c("PubChem_id", "pdb_id")
+        x@params$bdb_compounds_targets <- bdb
+        bdb <- nl(bdb$PubChem_id, strsplit(bdb$pdb_id, ","))
+        bdb <- lst_clear0(bdb)
+        bdb <- lapply(bdb, function(v) v[ v %in% x$targets_annotation$pdb ])
+        bdb <- lst_clear0(bdb)
+        x$dock_layout <- bdb
+      }
     } else {
       pdbs <- split(x$targets_annotation$pdb, x$targets_annotation$hgnc_symbol)
       pdbs <- unlist(lapply(pdbs, head, n = each_target), use.names = F)
@@ -148,6 +150,16 @@ setMethod("step5", signature = c(x = "job_vina"),
       res_dock <- tbmerge(res_dock, x$compounds, by = "PubChem_id", all.x = T)
       facet <- "Ingredient_name"
     } else {
+      if (missing(compounds)) {
+        compounds <- data.frame(PubChem_id = as.integer(object(x)$cids))
+        if (is.null(names(object(x)$cids))) {
+          compounds$Ingredient_name <- paste0("CID:", object(x)$cids)
+        } else {
+          compounds$Ingredient_name <- names(object(x)$cids)
+        }
+        by.y <- "PubChem_id"
+        facet <- "Ingredient_name"
+      }
       res_dock <- tbmerge(res_dock, compounds,
         by.x = "PubChem_id", by.y = by.y, all.x = T)
     }

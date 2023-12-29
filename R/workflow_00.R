@@ -1067,6 +1067,10 @@ plot_workflow_summary <- function(data) {
   prototype = NULL)
 
 new_db <- function(db_file, idcol) {
+  path <- get_path(db_file)
+  if (!dir.exists(path)) {
+    dir.create(path)
+  }
   .local_db(db_file = db_file, idcol = idcol)
 }
 
@@ -1077,6 +1081,9 @@ setMethod("not", signature = c(x = "local_db"),
     }
     if (file.exists(x@db_file)) {
       x@db <- readRDS(x@db_file)
+      if (!is(x@db, "tbl_df")) {
+        x@db <- dplyr::as_tibble(x@db)
+      }
       x@query <- ids[ !ids %in% x@db[[ ".id" ]] ]
     } else {
       x@query <- ids
@@ -1087,9 +1094,11 @@ setMethod("not", signature = c(x = "local_db"),
 setMethod("upd", signature = c(x = "local_db"),
   function(x, data){
     idcol <- x@idcol
-    data <- dplyr::filter(data, !(!!rlang::sym(idcol) %in% !!x@db[[ idcol ]]))
     if (nrow(data)) {
-      x@db <- dplyr::bind_rows(x@db, data)
+      data <- dplyr::filter(data, !(!!rlang::sym(idcol) %in% !!x@db[[ idcol ]]))
+    }
+    if (nrow(data)) {
+      x@db <- dplyr::bind_rows(x@db, tibble::as_tibble(data))
       saveRDS(x@db, x@db_file)
     }
     return(x)

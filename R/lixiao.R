@@ -2464,8 +2464,10 @@ auto_method <- function(class = "job", envir = .GlobalEnv, exclude = "job_publis
     warning("Too large `job` (", size, ") add into 'internal_job' options (limit: ", limit, ").")
   }
   injobs <- getOption("internal_job", list())
-  injobs <- c(injobs, nl(class(job), list(job)))
-  options(internal_job = injobs)
+  if (!any(class(job) == names(injobs))) {
+    injobs <- c(injobs, nl(class(job), list(job)))
+    options(internal_job = injobs)
+  }
 }
 
 set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
@@ -3134,7 +3136,7 @@ new_col <- function(..., lst = NULL, fun = function(x) x[ !is.na(x) & x != ""]) 
   wrap(p, 7, nrow(data) * .5 + .5)
 }
 
-new_pie <- function(x, title = NULL, use.ggplot = T, fun_text = ggplot2::geom_text) {
+new_pie <- function(x, title = NULL, use.ggplot = T, fun_text = ggrepel::geom_label_repel) {
   x <- split(x, x)
   x <- vapply(x, length, integer(1))
   if (use.ggplot) {

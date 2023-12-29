@@ -103,7 +103,8 @@ setMethod("step2", signature = c(x = "job_herb"),
   })
 
 setMethod("step3", signature = c(x = "job_herb"),
-  function(x, disease = NULL, mart_dataset = "hsapiens_gene_ensembl", HLs = NULL)
+  function(x, disease = NULL, disease.score = 5,
+    mart_dataset = "hsapiens_gene_ensembl", HLs = NULL)
   {
     step_message("Get disease targets from genecards and annotate targets with biomaRt.
       As well, plot the intersection of herbs targets.
@@ -133,7 +134,7 @@ setMethod("step3", signature = c(x = "job_herb"),
     )
     x@params$herbs_targets <- herbs_targets
     easyRead <- map(x@params$herbs_targets, "herb_id", object(x)$herb, "Herb_", "Herb_pinyin_name")
-    x@params$easyRead <- easyRead 
+    x@params$easyRead <- easyRead
     if (length(unique(herbs_targets$herb_id)) > 1) {
       ## plot upset of herbs targets
       sets <- dplyr::distinct(herbs_targets, herb_id, Target.name)
@@ -153,7 +154,7 @@ setMethod("step3", signature = c(x = "job_herb"),
     plots <- namel(p.herbs_targets, p.herbs_compounds)
     tables <- namel(compounds_targets_annotation)
     if (!is.null(disease)) {
-      disease_targets <- get_from_genecards(disease)
+      disease_targets <- get_from_genecards(disease, score = disease.score)
       x@params$disease_targets <- disease_targets
       disease_targets_annotation <- filter_biomart(mart, general_attrs(), "hgnc_symbol",
         disease_targets$Symbol)
@@ -291,8 +292,15 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
       ifelse(grpl(type, "Compound", ignore.case = T), cent * 20, cent)))
   data.tgt <- dplyr::filter(data, type == "Target")
   set.seed(seed)
+  minSize <- .5
   if (is.null(HLs)) {
-    geom_edge <- geom_edge_link(color = sample(color_set()[1:6], 1), alpha = .2, width = .1)
+    if (nrow(dplyr::filter(data, type == "Compound")) > 10L) {
+      width <- .1
+    } else {
+      width <- 1
+      minSize <- 3
+    }
+    geom_edge <- geom_edge_link(color = sample(color_set()[1:6], 1), alpha = .2, width = width)
   } else {
     geom_edge <- geom_edge_link(aes(edge_color = highlight, edge_width = highlight), alpha = .2)
   }
@@ -304,12 +312,12 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
     ggrepel::geom_label_repel(
       data = dplyr::filter(data.tgt, cent >= sort(cent, T)[10]),
       aes(x = x, y = y, label = name, color = type)) +
-    scale_size(range = c(.5, 15)) +
+    scale_size(range = c(minSize, 15)) +
     guides(size = "none", shape = "none") +
     scale_color_manual(values = rstyle("pal", seed)) +
     scale_edge_color_manual(values = c("Highlight" = "red", "Non-highlight" = "lightblue")) +
     scale_edge_width_manual(values = c("Highlight" = 1, "Non-highlight" = .1)) +
-    rstyle("theme", seed) +
+    theme_minimal() +
     labs(color = "Type", edge_color = "Highlight", edge_width = "Highlight") +
     theme(axis.text = element_blank(),
       axis.title = element_blank()) +
