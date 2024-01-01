@@ -664,7 +664,7 @@ setGeneric("not",
 setMethod("not", signature = c(x = "job"),
   function(x){
     validObject(x)
-    return(x)
+    invisible(x)
   })
 
 setMethod("upd", signature = c(x = "ANY"),

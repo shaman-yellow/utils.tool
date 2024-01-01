@@ -2508,10 +2508,10 @@ set_index <- function() {
   }
 }
 
-autor_preset <- function(...) {
+autor_preset <- function(echo = F, eval = F, ...) {
   knitr::opts_chunk$set(
-    echo = F, eval = F, message = F, warning = F,
-    fig.cap = character(0),
+    echo = echo, eval = eval, message = F, warning = F,
+    fig.cap = character(0), collapse = F,
     out.width = "\\linewidth", ...)
   fun_fig.cap <- function(options) {
     options$fig.cap <- Hmisc::capitalize(gsub("-", " ", options$label))

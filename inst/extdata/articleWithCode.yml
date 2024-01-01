@@ -10,6 +10,7 @@ output:
       # "--filter", "pandoc-tablenos"
     # ]
     keep_tex: true
+    keep_md: true
     toc: false
     # toc_depth: 4
     latex_engine: xelatex
@@ -21,7 +22,7 @@ header-includes:
   \renewenvironment{figure}
   {\def\@captype{figure}}
   \makeatother
-  \definecolor{shadecolor}{RGB}{242,242,242}
+  \definecolor{shadecolor}{RGB}{230,230,230}
   \usepackage{xeCJK}
   \usepackage{setspace}
   \setstretch{1.3} 
@@ -30,3 +31,12 @@ header-includes:
   \setcounter{tocdepth}{4}
   \usepackage{wallpaper}
   \usepackage[absolute]{textpos}
+  \tcbuselibrary{breakable}
+  \renewenvironment{Shaded}
+  {\begin{tcolorbox}[colback = gray!10, colframe = gray!40, width = 16cm,
+    arc = 1mm, auto outer arc, title = {Input}]}
+  {\end{tcolorbox}}
+  \usepackage{titlesec}
+  \titleformat{\paragraph}
+  {\fontsize{10pt}{0pt}\bfseries} {\arabic{section}.\arabic{subsection}.\arabic{subsubsection}.\arabic{paragraph}} {1em} {} []
+
