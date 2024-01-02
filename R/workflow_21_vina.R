@@ -95,7 +95,7 @@ setMethod("step1", signature = c(x = "job_vina"),
 
 setMethod("step2", signature = c(x = "job_vina"),
   function(x, cl = 10){
-    step_message("Download sdf files and convert as pdbqt.")
+    step_message("Download sdf files and convert as pdbqt for ligands.")
     sdfFile <- query_sdfs(unique(names(x$dock_layout)), curl_cl = cl)
     res.pdbqt <- sdf_as_pdbqts(sdfFile) 
     x$res.ligand <- nl(res.pdbqt$pdbqt.cid, res.pdbqt$pdbqt)
@@ -103,9 +103,25 @@ setMethod("step2", signature = c(x = "job_vina"),
   })
 
 setMethod("step3", signature = c(x = "job_vina"),
-  function(x, cl = 10, pattern = "ORGANISM_SCIENTIFIC: HOMO SAPIENS"){
-    step_message("Dowload pdb files of targets.")
+  function(x, cl = 10, pattern = "ORGANISM_SCIENTIFIC: HOMO SAPIENS",
+    extra_pdb.files = NULL, extra_layouts = NULL, extra_symbols = NULL)
+  {
+    step_message("Dowload pdb files for targets.")
     pdb.files <- get_pdb(unique(unlist(x$dock_layout, use.names = F)), cl = cl)
+    if (!is.null(extra_layouts)) {
+      if (is(extra_layouts, "character")) {
+        extra_layouts <- as.list(extra_layouts)
+      }
+      x$dock_layout <- c(x$dock_layout, extra_layouts)
+    }
+    if (!is.null(extra_pdb.files)) {
+      pdb.files <- c(pdb.files, extra_pdb.files)
+      if (is.null(extra_symbols)) {
+        extra_symbols <- nl(toupper(names(extra_pdb.files)), names(extra_pdb.files), F)
+      }
+      x@params$targets_annotation %<>%
+        tibble::add_row(hgnc_symbol = names(extra_symbols), pdb = unname(extra_symbols))
+    }
     pdb.files <- filter_pdbs(pdb.files, pattern)
     x$res.receptor <- prepare_receptor(pdb.files)
     return(x)

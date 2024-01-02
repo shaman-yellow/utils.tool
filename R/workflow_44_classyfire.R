@@ -68,7 +68,11 @@ setMethod("step1", signature = c(x = "job_classyfire"),
 setMethod("step2", signature = c(x = "job_classyfire"),
   function(x, pattern_match = NULL, cl = 5, savedir = "classify"){
     step_message("Use inchikey query classification.")
-    query <- unique(x$db_inchi$inchikey2d)
+    if (x$type == "inchikey") {
+      query <- unique(x$db_inchi$inchikey2d)
+    } else if (x$type == "cid") {
+      query <- unique(x$db_inchi$CID)
+    }
     x$rd.class <- query_classification(query, savedir,
       inchikey.rdata = x$rd.inchi)
     db_class <- frbind(extract_rdata_list(x$rd.class, query), idcol = T)

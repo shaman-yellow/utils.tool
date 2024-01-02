@@ -19,17 +19,17 @@ NULL
 #' @aliases query_classification
 #' @description \code{query_classification}: ...
 #' @rdname query_classification
-query_classification <- function(inchikey2d, dir, 
+query_classification <- function(query, dir, 
   inchikey.rdata = paste0(dir, "/inchikey.rdata"), rdata.name = "classification.rdata",
   classyfire_cl = NULL, gather_as_rdata = T, ...)
 {
   rdata <- paste0(dir, "/", rdata.name)
   classes <- extract_rdata_list(rdata)
   if (!is.null(classes))
-    inchikey2d <- inchikey2d[!inchikey2d %in% names(classes)]
-  if(!length(inchikey2d))
+    query <- query[!query %in% names(classes)]
+  if (!length(query))
     return(paste0(dir, "/", rdata.name))
-  inchikey_set <- extract_rdata_list(inchikey.rdata, inchikey2d)
+  inchikey_set <- extract_rdata_list(inchikey.rdata, query)
   if (is.null(inchikey_set))
     stop("is.null(inchikey_set) == T. File `inchikey.rdata` may not exists.")
   sets <- lapply(inchikey_set, function(df){

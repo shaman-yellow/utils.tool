@@ -3265,4 +3265,6 @@ get_layout <- function(edges = NULL, layout = "grid", nodes = NULL, ...) {
   data
 }
 
-
+ink2d <- function(inchikey) {
+  stringr::str_extract(inchikey, "^[A-Z]{14}")
+}

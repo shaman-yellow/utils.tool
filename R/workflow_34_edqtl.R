@@ -61,6 +61,7 @@ setMethod("step1", signature = c(x = "job_edqtl"),
     db <- sapply(x$patterns,
       function(pattern) {
         file <- list.files(x$db_path, paste0(tissue, ".*", pattern, ".*"), full.names = T, recursive = T)
+        message("Search get files:\n\t", paste0(file, collapse = ", "))
         if (length(file) == 0) {
           stop("Check the input tissue as no file retrieved.")
         } else if (length(file) > 1) {

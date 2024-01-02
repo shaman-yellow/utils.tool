@@ -176,23 +176,24 @@ setMethod("step3", signature = c(x = "job_tcmsp"),
   })
 
 setMethod("map", signature = c(x = "job_tcmsp", ref = "job_classyfire"),
-  function(x, ref) {
+  function(x, ref, ...) {
     if (x@step < 2L) {
       stop("x@step < 2L")
-    }
-    if (ref@step < 2L) {
-      stop("ref@step < 2L")
-    }
-    if (is.null(ref$match)) {
-      stop("is.null(ref$match)")
     }
     if (is.null(x$step2.compounds_targets.raw)) {
       data <- x$step2.compounds_targets.raw <- x@tables$step2$compounds_targets
     } else {
       data <- x$step2.compounds_targets.raw
     }
-    data <- dplyr::mutate(data, inchikey2d = stringr::str_extract(InChIKey, "^[A-Z]+"))
-    data <- dplyr::filter(data, inchikey2d %in% !!ref$match$inchikey2d)
+    data <- dplyr::mutate(data, inchikey2d = ink2d(InChIKey))
+    if (ref@step < 2L) {
+      data <- dplyr::filter(data, inchikey2d %in% ref@params$db_inchi$inchikey2d, ...)
+    } else {
+      if (is.null(ref$match)) {
+        stop("is.null(ref$match)")
+      }
+      data <- dplyr::filter(data, inchikey2d %in% !!ref$match$inchikey2d, ...)
+    }
     x@tables$step2$compounds_targets <- data
     return(x)
   })
