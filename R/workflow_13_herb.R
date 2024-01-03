@@ -36,24 +36,25 @@ setMethod("step0", signature = c(x = "job_herb"),
   })
 
 setMethod("step1", signature = c(x = "job_herb"),
-  function(x){
+  function(x, tempdir = "download"){
     step_message("Dowload compounds of herbs.")
-    link <- start_drive(browser = "firefox")
+    x$tempdir <- tempdir
+    link <- start_drive(browser = "firefox", download.dir = x$tempdir)
     Sys.sleep(3)
     tryCatch(
-      download_herbCompounds(link, params(x)$herbs_info$Herb_),
+      download_herbCompounds(link, params(x)$herbs_info$Herb_, tempdir = x$tempdir),
       finally = end_drive()
     )
     if (file.exists("herbs_ingredient")) {
       unlink("herbs_ingredient", T, T)
     }
-    herbs_compounds <- moveToDir_herbs(params(x)$herbs_info$Herb_)
+    herbs_compounds <- moveToDir_herbs(params(x)$herbs_info$Herb_, from = x$tempdir)
     x@tables[[ 1 ]] <- namel(herbs_compounds)
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_herb"),
-  function(x, group_number = 50, group_sleep = 3, db = "../")
+  function(x, group_number = 50, group_sleep = 3, db = "../", removeExistsTemp = F)
   {
     step_message("Dowload targets of compounds")
     all_ids <- unique(x@tables$step1$herbs_compounds$Ingredient.id)
@@ -65,7 +66,7 @@ setMethod("step2", signature = c(x = "job_herb"),
       has_ids <- all_ids[ all_ids %in% names(dbfile) ]
       if (length(has_ids)) {
         files <- dbfile[ names(dbfile) %in% has_ids ]
-        data <- moveToDir_herbs(readFrom = files, .id = "Ingredient_id")
+        data <- moveToDir_herbs(readFrom = files, .id = "Ingredient_id", from = x$tempdir)
         all_ids <- all_ids[ !all_ids %in% has_ids ]
         merge_data <- T
       }
@@ -78,9 +79,19 @@ setMethod("step2", signature = c(x = "job_herb"),
         function(ids) {
           to <- paste0("compounds_target", "/", attr(ids, "name"))
           if (!file.exists(to)) {
-            download_compoundTargets(link, ids)
+            download_compoundTargets(link, ids, tempdir = x$tempdir)
+          } else {
+            if (!removeExistsTemp) {
+              isThat <- usethis::ui_yeah(paste0("Remove the exists tempdir:", to, " ?"))
+            } else {
+              isThat <- T
+            }
+            if (isThat) {
+              unlink(to, recursive = T, force = T)
+              download_compoundTargets(link, ids, tempdir = x$tempdir)
+            }
           }
-          data <- moveToDir_herbs(ids, to = to, .id = "Ingredient_id")
+          data <- moveToDir_herbs(ids, to = to, .id = "Ingredient_id", from = x$tempdir)
           cli::cli_alert_info("Sleep between groups ...")
           Sys.sleep(group_sleep)
           data
@@ -96,7 +107,11 @@ setMethod("step2", signature = c(x = "job_herb"),
       else
         lst <- list(data)
     }
-    data <- data.table::rbindlist(lst, fill = T)
+    if (is(lst, "list")) {
+      data <- data.table::rbindlist(lst, fill = T)
+    } else {
+      data <- lst
+    }
     compounds_targets <- as_tibble(data)
     x@tables[[ 2 ]] <- namel(compounds_targets)
     return(x)
@@ -350,23 +365,23 @@ get_herb_data <- function(herb = "../HERB_herb_info.txt",
 
 download_herbTargets <- function(link, ids,
   urls = paste0("http://herb.ac.cn/Detail/?v=", ids, "&label=Herb"),
-  heading = "Related Gene Targets")
+  heading = "Related Gene Targets", ...)
 {
-  download_herbCompounds(link, ids, heading = heading)
+  download_herbCompounds(link, ids, heading = heading, ...)
 }
 
 download_compoundTargets <- function(link, ids,
   urls = paste0("http://herb.ac.cn/Detail/?v=", ids, "&label=Ingredient"),
-  heading = "Related Gene Targets")
+  heading = "Related Gene Targets", ...)
 {
-  download_herbCompounds(link, ids, urls, heading = heading)
+  download_herbCompounds(link, ids, urls, heading = heading, ...)
 }
 
 download_herbCompounds <- function(link, ids,
   urls = paste0("http://herb.ac.cn/Detail/?v=", ids, "&label=Herb"),
-  heading = "Related Ingredients")
+  heading = "Related Ingredients", tempdir = "download")
 {
-  get_all <- function() list.files("~/Downloads", "\\.xlsx$", full.names = T)
+  get_all <- function() list.files(tempdir, "\\.xlsx$", full.names = T)
   checks <- get_all()
   if (length(checks) > 0)
     file.remove(checks)
@@ -390,7 +405,7 @@ download_herbCompounds <- function(link, ids,
       })
       Sys.sleep(.5)
       if (inherits(res, "try-error")) {
-        writeLines("", paste0("~/Downloads/empty_", jobn, ".xlsx"))
+        writeLines("", paste0(tempdir, "/empty_", jobn, ".xlsx"))
       }
       checks <- get_all()
       cli::cli_alert_info(paste0("Job number ", jobn))
@@ -405,19 +420,21 @@ download_herbCompounds <- function(link, ids,
 }
 
 start_drive <- function(command = "java -jar ~/operation/selenium.jar",
-  port = 4444, extra = NULL, browser = c("firefox", "chrome"), ...)
+  port = 4444, extra = NULL, browser = c("firefox", "chrome"), download.dir = "download", ...)
 {
   system(paste(command, "-port", port, extra), wait = F)
-  new_link(port = port, browser = match.arg(browser))
+  new_link(port = port, browser = match.arg(browser), download.dir = download.dir, ...)
 }
 
 end_drive <- function(pattern = "[0-9]\\s*java.*-jar") {
-  tmp <- tempfile(fileext = ".txt")
-  system(paste0("ps aux > ", tmp))
-  text <- readLines(tmp)
-  text <- text[ grepl(pattern, text) ]
-  pid <- stringr::str_extract(text, "(?<=\\s)[0-9]{1,}(?=\\s)")
-  system(paste("kill", paste0(pid, collapse = " ")))
+  if (Sys.info()[["sysname"]] == "Linux") {
+    tmp <- tempfile(fileext = ".txt")
+    system(paste0("ps aux > ", tmp))
+    text <- readLines(tmp)
+    text <- text[ grepl(pattern, text) ]
+    pid <- stringr::str_extract(text, "(?<=\\s)[0-9]{1,}(?=\\s)")
+    system(paste("kill", paste0(pid, collapse = " ")))
+  }
 }
 
 get_from_genecards <- function(query, score = 5, keep_drive = F) {
@@ -448,7 +465,7 @@ get_table.html <- function(file) {
 
 moveToDir_herbs <- function(ids,
   file.pattern = "\\.xlsx$", index.pfun = file_seq.by_time,
-  from = "~/Downloads", to = "herbs_ingredient", suffix = ".xlsx", .id = "herb_id", readFrom = NULL)
+  from = "download", to = "herbs_ingredient", suffix = ".xlsx", .id = "herb_id", readFrom = NULL)
 {
   if (is.null(readFrom)) {
     if (!file.exists(to)) {
@@ -515,11 +532,22 @@ format_index.by_num <- function(index) {
   as.integer(index)
 }
 
-new_link <- function(port = 4444L, browser = c("firefox", "chrome"), addr = "localhost")
+new_link <- function(port = 4444L, browser = c("firefox", "chrome"), addr = "localhost", download.dir = "download")
 {
+  if (!dir.exists(download.dir)) {
+    dir.create(download.dir)
+  }
   browser <- match.arg(browser)
   if (browser == "firefox") {
-    prof <- RSelenium::makeFirefoxProfile(list('permissions.default.image' = 2L))
+    download.dir <- normalizePath(download.dir)
+    prof <- RSelenium::makeFirefoxProfile(
+      list('permissions.default.image' = 2L,
+        'browser.download.folderList' = 2L,
+        'browser.download.manager.showWhenStarting' = F,
+        'browser.download.lastDir' = download.dir,
+        'browser.download.dir' = download.dir
+      )
+    )
     link <- RSelenium::remoteDriver(
       remoteServerAddr = addr, port = port,
       browserName = browser,

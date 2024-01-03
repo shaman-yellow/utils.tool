@@ -153,7 +153,7 @@ setMethod("step3", signature = c(x = "job_tcmsp"),
     cli::cli_alert_info("step3: job_herb")
     hb <- .job_herb(step = 2L)
     hb@tables$step1$herbs_compounds <- dplyr::select(
-      x@tables$step1$ingredients,
+      x@tables$step2$ingredients,
       herb_id = Herb_pinyin_name, Ingredient.id = `Mol ID`,
       Ingredient.name = `Molecule Name`
     )
@@ -428,18 +428,30 @@ tryGetLink.tcmsp <- function(x, sep = " ### ", ...) {
 }
 
 setMethod("filter", signature = c(DF_object = "job_tcmsp"),
-  function(DF_object, ...){
+  function(DF_object, ..., cutoff = 30){
     if (DF_object@step != 2L) {
       stop("DF_object@step != 2L")
     }
-    DF_object@tables$step1$ingredients <- dplyr::filter(
-      DF_object@tables$step1$ingredients, ...
-    )
-    DF_object@tables$step2$compounds_targets <- dplyr::filter(
+    message("Only `ingredients` data in `step1` was modified.")
+    if (F) {
+      DF_object@tables$step1$ingredients <- dplyr::filter(
+        DF_object@tables$step1$ingredients, ...
+      )
+    }
+    data <- DF_object@tables$step2$compounds_targets <- dplyr::filter(
       DF_object@tables$step2$compounds_targets, ...
     )
     DF_object@tables$step2$ingredients <- dplyr::filter(
       DF_object@tables$step2$ingredients, ...
     )
-    return(DF_object)
+    p <- ggplot(data) +
+      geom_col(aes(x = reorder(`Molecule Name`, `OB (%)`), y = `OB (%)`, fill = DL), width = .7) +
+      geom_hline(yintercept = cutoff, linetype = 4) +
+      coord_flip() +
+      labs(x = "Molecule Name", y = "OB (%)", fill = "DL") +
+      theme_minimal()
+    p <- wrap(p, 7, height = 2 + nrow(data) * .3)
+    p <- .set_lab(p, sig(DF_object), "Filterd ingredients")
+    DF_object$p.filtered <- p
+    DF_object
   })
