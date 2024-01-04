@@ -169,17 +169,21 @@ setMethod("step3", signature = c(x = "job_herb"),
     plots <- namel(p.herbs_targets, p.herbs_compounds)
     tables <- namel(compounds_targets_annotation)
     if (!is.null(disease)) {
+      x$disease <- disease
       disease_targets <- get_from_genecards(disease, score = disease.score)
+      .add_internal_job(.job_genecard())
       x@params$disease_targets <- disease_targets
       disease_targets_annotation <- filter_biomart(mart, general_attrs(), "hgnc_symbol",
         disease_targets$Symbol)
+      .add_internal_job(.job_biomart())
       tables <- c(tables, namel(disease_targets_annotation))
-      p.targets_disease <- new_upset(
+      lst <- list(
         targets = targets,
         targets_annotation = targets_annotation$hgnc_symbol,
         disease_targets = disease_targets$Symbol,
         disease_targets_annotation = disease_targets_annotation$hgnc_symbol
       )
+      p.targets_disease <- new_upset(lst = lst)
       plots <- c(plots, namel(p.targets_disease))
       x@params$ppi_used <- dplyr::filter(
         targets_annotation,
@@ -437,29 +441,13 @@ end_drive <- function(pattern = "[0-9]\\s*java.*-jar") {
   }
 }
 
-get_from_genecards <- function(query, score = 5, keep_drive = F) {
-  query <- gs(query, " ", "%20")
-  url <- paste0('https://www.genecards.org/Search/Keyword?queryString=', query,
-    '&pageSize=25000&startPage=0')
-  link <- start_drive(browser = "firefox")
-  Sys.sleep(3)
-  link$open()
-  link$navigate(url)
-  html <- link$getPageSource()[[1]]
-  html <- XML::htmlParse(html)
-  table <- XML::readHTMLTable(html)
-  table <- as_tibble(data.frame(table[[1]]))
-  colnames(table) %<>% gs("\\.+", "_")
-  colnames(table) %<>% gs("X_|_$", "")
-  table <- select(table, -1, -2)
-  table <- filter(table, Score > !!score)
-  if (!keep_drive)
-    end_drive()
-  return(table)
-}
-
-get_table.html <- function(file) {
-  ht <- e(XML::htmlParse(readLines(file)))
+get_table.html <- function(x) {
+  if (file.exists(x)) {
+    str <- readLines(x)
+  } else {
+    str <- x
+  }
+  ht <- e(XML::htmlParse(str))
   XML::readHTMLTable(ht)
 }
 

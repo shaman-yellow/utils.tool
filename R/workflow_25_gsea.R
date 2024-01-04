@@ -260,15 +260,15 @@ setMethod("step4", signature = c(x = "job_gsea"),
     return(x)
   })
 
-setMethod("filter", signature = c(DF_object = "job_gsea"),
-  function(DF_object, ref, use = c("entrezgene_id", "symbol")){
+setMethod("filter", signature = c(x = "job_gsea"),
+  function(x, ref, use = c("entrezgene_id", "symbol")){
     use <- match.arg(use)
-    isThat <- names(object(DF_object)[[ use ]]) %in% ref
-    object(DF_object) <- lapply(object(DF_object),
+    isThat <- names(object(x)[[ use ]]) %in% ref
+    object(x) <- lapply(object(x),
       function(x) {
         x[ isThat ]
       })
-    return(DF_object)
+    return(x)
   })
 
 setClassUnion("jobn_enrich", c("job_gsea", "job_gsea"))

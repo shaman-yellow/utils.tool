@@ -612,13 +612,13 @@ esearch <- function(query = NULL, fetch.save = paste0(gsub(" ", "_", query), ".x
   res
 }
 
-split_lapply_rbind <- function(data, f, fun, ..., verbose = F) {
+split_lapply_rbind <- function(data, f, fun, ..., verbose = F, args = list(fill = F)) {
   data <- split(data, f)
   if (verbose)
     data <- pbapply::pblapply(data, fun, ...)
   else
     data <- lapply(data, fun, ...)
-  data <- data.table::rbindlist(data)
+  data <- do.call(data.table::rbindlist, c(list(data), args))
   tibble::as_tibble(data)
 }
 
@@ -1821,7 +1821,7 @@ odate <- function(month, year = format(Sys.time(), "%Y")) {
 .get_wages <- function(date, base_wage) {
   vapply(date, FUN.VALUE = double(1),
     function(date) {
-      which <- tail(which(as.Date(names(base_wage)) <= as.Date(date)), n = 1)
+      which <- utils::tail(which(as.Date(names(base_wage)) <= as.Date(date)), n = 1)
       base_wage[[which]]
     })
 }
@@ -2858,10 +2858,14 @@ setMethod("abstract", signature = c(x = "fig", name = "character", latex = "logi
 
 setMethod("abstract", signature = c(x = "lich", name = "character", latex = "logical"),
   function(x, name, latex, ..., abs = NULL){
+    if (length(x) > 5) {
+      x <- head(x, n = 5)
+      x <- c(x, list("(Others)" = "..."))
+    }
     str <- sapply(names(x),
       function(name){
         ch <- c("\n\\textbf{", name, ":}\n\n\\vspace{0.5em}\n")
-        ch <- c(ch, strwrap(stringr::str_trunc(x[[ name ]], 1500), indent = 4, width = 60))
+        ch <- c(ch, strwrap(stringr::str_trunc(x[[ name ]], 300), indent = 4, width = 60))
         ch <- c(ch, "\n\\vspace{2em}\n")
         ch
       })
@@ -2929,33 +2933,85 @@ text_roundrect <- function(str, collapse = "\n") {
 # wrapper for dplyr tools
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# mutate <- dplyr::mutate
-# filter <- dplyr::filter
-# arrange <- dplyr::arrange
-# distinct <- dplyr::distinct
-# select <- dplyr::select
-# rename <- dplyr::rename
-# relocate <- dplyr::relocate
-# slice <- dplyr::slice
-# slice_max <- dplyr::slice_max
-# slice_min <- dplyr::slice_min
-# group_by <- dplyr::group_by
+setGeneric("mutate", 
+  function(x, ...) standardGeneric("mutate"))
 
-lapply(c("mutate", "filter", "arrange", "distinct",
-    "select", "rename", "relocate", "slice", "slice_max",
-    "slice_min", "group_by"),
-  function(name) {
-    setGeneric(name, function(DF_object, ...) DF_object)
-    setMethod(name, signature = c(DF_object = "df"),
-      function(DF_object, ..., fun_name = name){
-        fun <- get_fun(fun_name, asNamespace("dplyr"))
-        if (!is(DF_object, "tbl_df")) {
-          DF_object <- tibble::as_tibble(DF_object)
-        }
-        object <- fun(DF_object, ...)
-        object
-      })
+setMethod("mutate", signature = c(x = "df"),
+  function(x, ...){
+    dplyr::mutate(x, ...)
   })
+
+setGeneric("filter", 
+  function(x, ...) standardGeneric("filter"))
+
+setMethod("filter", signature = c(x = "df"),
+  function(x, ...){
+    dplyr::filter(x, ...)
+  })
+
+setGeneric("arrange", 
+  function(x, ...) standardGeneric("arrange"))
+
+setMethod("arrange", signature = c(x = "df"),
+  function(x, ...){
+    dplyr::arrange(x, ...)
+  })
+
+setGeneric("distinct", 
+  function(x, ...) standardGeneric("distinct"))
+
+setMethod("distinct", signature = c(x = "df"),
+  function(x, ...){
+    dplyr::distinct(x, ...)
+  })
+
+setGeneric("select", 
+  function(x, ...) standardGeneric("select"))
+
+setMethod("select", signature = c(x = "df"),
+  function(x, ...){
+    dplyr::select(x, ...)
+  })
+
+setGeneric("rename", 
+  function(x, ...) standardGeneric("rename"))
+
+setMethod("rename", signature = c(x = "df"),
+  function(x, ...){
+    dplyr::rename(x, ...)
+  })
+
+setGeneric("relocate", 
+  function(x, ...) standardGeneric("relocate"))
+
+setMethod("relocate", signature = c(x = "df"),
+  function(x, ...){
+    dplyr::relocate(x, ...)
+  })
+
+setGeneric("slice", 
+  function(x, ...) standardGeneric("slice"))
+
+setMethod("slice", signature = c(x = "df"),
+  function(x, ...){
+    dplyr::slice(x, ...)
+  })
+
+# lapply(c("mutate", "filter", "arrange", "distinct",
+#     "select", "rename", "relocate", "slice", "slice_max",
+#     "slice_min", "group_by"),
+#   function(name) {
+#     setGeneric(name, function(DF_object, ...) DF_object)
+#     setMethod(name, signature = c(DF_object = "df"),
+#       function(DF_object, ..., fun_name = name){
+#         fun <- get_fun(fun_name, asNamespace("dplyr"))
+#         if (!is(DF_object, "tbl_df")) {
+#           DF_object <- tibble::as_tibble(DF_object)
+#         }
+#         object <- fun(DF_object, ...)
+#         object
+#       })
+#   })
 
 setGeneric("as_tibble", 
   function(x) standardGeneric("as_tibble"))
@@ -3049,8 +3105,8 @@ new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T) 
     function(set) {
       ifelse(data$members %in% set, 1L, 0L)
     })
-  data <- do.call(mutate, c(list(data), lst))
-  data <- .upset(data, params = namel(trunc, width))
+  data <- do.call(dplyr::mutate, c(list(data), lst))
+  data <- .upset(as_tibble(data), params = namel(trunc, width))
   if (convert) {
     show(data)
     recordPlot()

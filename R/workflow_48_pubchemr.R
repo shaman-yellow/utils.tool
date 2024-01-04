@@ -50,7 +50,7 @@ setMethod("step1", signature = c(x = "job_pubchemr"),
   })
 
 setMethod("map", signature = c(x = "job_pubchemr", ref = "character"),
-  function(x, ref, extra, only = T){
+  function(x, ref, extra = NULL, only = T){
     names <- c(unique(ref), extra)
     names <- tolower(names)
     finds <- lapply(x$synonyms,
@@ -71,11 +71,32 @@ setMethod("map", signature = c(x = "job_pubchemr", ref = "character"),
   })
 
 setMethod("map", signature = c(x = "job_tcmsp", ref = "job_pubchemr"),
-  function(x, ref, name_recode = NULL, filter = T){
+  function(x, ref, name_recode = NULL, filter = T, merge = T)
+  {
     if (x@step < 2L) {
       stop("x@step < 2L")
     }
-    if (name_recode) {
-      fun_recode <- function() {}
+    if (!is.null(name_recode)) {
+      fun_recode <- function(data) {
+        data <- dplyr::mutate(data,
+          `Molecule Name` = dplyr::recode(`Molecule Name`, !!!as.list(name_recode),
+            .default = `Molecule Name`)
+        )
+        data
+      }
+      x@tables$step2$compounds_targets %<>% fun_recode
+      x@tables$step2$ingredients %<>% fun_recode
     }
+    if (filter) {
+      finds <- map(ref, x@tables$step2$ingredients$`Molecule Name`)
+      x <- filter(x, tolower(`Molecule Name`) %in% rm.no(finds))
+    }
+    if (merge) {
+      finds <- map(ref, x@tables$step2$ingredients$`Molecule Name`)
+      lst <- nl(unname(finds), names(finds))
+      x@tables$step2$ingredients <- dplyr::mutate(x@tables$step2$ingredients,
+        cid = dplyr::recode(tolower(`Molecule Name`), !!!lst, .default = NA_character_),
+        smiles = dplyr::recode(cid, !!!ref$smiles, .default = NA_character_))
+    }
+    return(x)
   })

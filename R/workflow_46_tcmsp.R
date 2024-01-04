@@ -126,10 +126,12 @@ setMethod("step2", signature = c(x = "job_tcmsp"),
     }
     compounds_info <- dplyr::select(compounds_info, `Mol ID` = .id, InChIKey)
     data <- tbmerge(data, compounds_info, by = "Mol ID")
-    targets <- dplyr::select(x@tables$step1$targets, `Mol ID`, `Target name`)
+    ## there is a terreble name rule break !!!  `Molecule Name` <-> `Molecule name`
+    message("For `compounds_targets`: switch colname of `Molecule name` to `Molecule Name`.")
+    targets <- dplyr::select(x@tables$step1$targets, `Mol ID`,
+      `Molecule Name` = `Molecule name`, `Target name`)
     targets <- dplyr::distinct(targets)
-    compounds_targets <- tbmerge(data, targets, by = "Mol ID", all.x = T)
-    x@tables[[ 2 ]] <- namel(compounds_info, ingredients = data, compounds_targets)
+    x@tables[[ 2 ]] <- namel(compounds_info, ingredients = data, compounds_targets = targets)
     return(x)
   })
 
@@ -140,14 +142,16 @@ setMethod("step3", signature = c(x = "job_tcmsp"),
     step_message("Query genes (symbol) for target proteins, and do step3 similar to `job_herb`...")
     ########################
     ########################
-    cli::cli_alert_info("UniprotKB")
     compounds_targets <- x@tables$step2$compounds_targets
-    kb <- job_uniprotkb(compounds_targets[[ "Target name" ]], db_uniprot)
-    kb <- suppressMessages(step1(kb))
-    .add_internal_job(kb)
-    res <- kb@tables$step1$format_results
-    compounds_targets <- tbmerge(compounds_targets, res, by.x = "Target name", by.y = "query",
-      all.x = T, allow.cartesian = T)
+    if (!any(colnames(compounds_targets) == "symbols")) {
+      cli::cli_alert_info("UniprotKB")
+      kb <- job_uniprotkb(compounds_targets[[ "Target name" ]], db_uniprot)
+      kb <- suppressMessages(step1(kb))
+      .add_internal_job(kb)
+      res <- kb@tables$step1$format_results
+      compounds_targets <- tbmerge(compounds_targets, res, by.x = "Target name", by.y = "query",
+        all.x = T, allow.cartesian = T)
+    }
     ########################
     ########################
     cli::cli_alert_info("step3: job_herb")
@@ -168,10 +172,13 @@ setMethod("step3", signature = c(x = "job_tcmsp"),
     hb@object$herb <- hb@params$herbs_info
     hb <- suppressMessages(step3(hb, disease = disease, HLs = HLs))
     x@plots[[ 3 ]] <- c(kb@plots$step1, hb@plots$step3)
-    easyRead <- dplyr::relocate(compounds_targets,
-      Herb_pinyin_name, compounds = `Molecule Name`)
+    easyRead <- tbmerge(
+      dplyr::select(x@tables$step2$ingredients, `Mol ID`, Herb_pinyin_name, `Molecule Name`),
+      compounds_targets, by = "Mol ID"
+    )
     x@tables[[ 3 ]] <- namel(easyRead,
       disease_targets_annotation = hb@tables$step3$disease_targets_annotation)
+    x$data.allu <- hb$data.allu
     return(x)
   })
 
@@ -196,6 +203,22 @@ setMethod("map", signature = c(x = "job_tcmsp", ref = "job_classyfire"),
     }
     x@tables$step2$compounds_targets <- data
     return(x)
+  })
+
+setClassUnion("JOB_herb", c("job_herb", "job_tcmsp"))
+
+setMethod("vis", signature = c(x = "JOB_herb"),
+  function(x, col.fill = 2, axes = 1:4, label.auto = F, label.freq = NULL, label.factor = 1)
+  {
+    symDisease <- x@tables$step3$disease_targets_annotation$hgnc_symbol
+    data <- x@params$data.allu
+    data <- dplyr::filter(data, Target.name %in% !!symDisease)
+    data <- dplyr::mutate(data, Disease =  x$disease)
+    p <- new_allu(data, col.fill, axes = axes,
+      label.auto = label.auto, label.freq = label.freq,
+      label.factor = label.factor)
+    p <- .set_lab(p, sig(x), "Targets of compounds and related disease" )
+    p
   })
 
 setMethod("asjob_classyfire", signature = c(x = "job_tcmsp"),
@@ -427,22 +450,17 @@ tryGetLink.tcmsp <- function(x, sep = " ### ", ...) {
   lst
 }
 
-setMethod("filter", signature = c(DF_object = "job_tcmsp"),
-  function(DF_object, ..., cutoff = 30){
-    if (DF_object@step != 2L) {
-      stop("DF_object@step != 2L")
+setMethod("filter", signature = c(x = "job_tcmsp"),
+  function(x, ..., cutoff = 30){
+    if (x@step < 2L) {
+      stop("x@step < 2L")
     }
     message("Only `ingredients` data in `step1` was modified.")
-    if (F) {
-      DF_object@tables$step1$ingredients <- dplyr::filter(
-        DF_object@tables$step1$ingredients, ...
-      )
-    }
-    data <- DF_object@tables$step2$compounds_targets <- dplyr::filter(
-      DF_object@tables$step2$compounds_targets, ...
+    data <- x@tables$step2$ingredients <- dplyr::filter(
+      x@tables$step2$ingredients, ...
     )
-    DF_object@tables$step2$ingredients <- dplyr::filter(
-      DF_object@tables$step2$ingredients, ...
+    x@tables$step2$compounds_targets <- dplyr::filter(
+      x@tables$step2$compounds_targets, `Mol ID` %in% !!data$`Mol ID`
     )
     p <- ggplot(data) +
       geom_col(aes(x = reorder(`Molecule Name`, `OB (%)`), y = `OB (%)`, fill = DL), width = .7) +
@@ -451,7 +469,7 @@ setMethod("filter", signature = c(DF_object = "job_tcmsp"),
       labs(x = "Molecule Name", y = "OB (%)", fill = "DL") +
       theme_minimal()
     p <- wrap(p, 7, height = 2 + nrow(data) * .3)
-    p <- .set_lab(p, sig(DF_object), "Filterd ingredients")
-    DF_object$p.filtered <- p
-    DF_object
+    p <- .set_lab(p, sig(x), "Filterd ingredients")
+    x$p.filtered <- p
+    x
   })

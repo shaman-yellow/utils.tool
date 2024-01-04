@@ -21,6 +21,16 @@ job_swiss <- function(smiles)
   .job_swiss(object = smiles)
 }
 
+setGeneric("asjob_swiss", 
+  function(x, ...) standardGeneric("asjob_swiss"))
+
+setMethod("asjob_swiss", signature = c(x = "job_tcmsp"),
+  function(x){
+    data <- x@tables$step2$ingredients
+    .check_columns(data, c("Mol ID", "smiles"))
+    job_swiss(nl(data$`Mol ID`, data$smiles, F))
+  })
+
 setMethod("step0", signature = c(x = "job_swiss"),
   function(x){
     step_message("Prepare your data with function `job_swiss`.")
@@ -72,7 +82,43 @@ setMethod("step1", signature = c(x = "job_swiss"),
       db <- upd(db, data)
     }
     targets <- dplyr::filter(as_tibble(db@db), .id %in% object(x))
-    targets <- dplyr::rename(targets, smiles = .id)
+    targets <- dplyr::rename(targets, smiles = .id, symbols = `Common name`)
+    targets <- split_lapply_rbind(targets, 1:nrow(targets), args = list(fill = T),
+      function(x) {
+        if (grpl(x$symbols, " ")) {
+          symbols <- strsplit(x$symbols, " ")[[1]]
+          x$symbols <- NULL
+          data.frame(x, symbols = symbols, check.names = F)
+        } else x
+      })
     x@tables[[ 1 ]] <- namel(targets)
+    return(x)
+  })
+
+setMethod("map", signature = c(x = "job_tcmsp", ref = "job_swiss"),
+  function(x, ref){
+    refTargets <- ref@tables$step1$targets
+    meta <- x@tables$step2$ingredients
+    meta <- dplyr::select(meta, smiles, `Mol ID`, `Molecule Name`)
+    refTargets <- tbmerge(refTargets, meta, by = "smiles", all.x = T)
+    refTargets <- dplyr::select(refTargets, `Mol ID`, `Molecule Name`,
+      `Target name` = Target, symbols, probability = `Probability*`)
+    refTargets <- dplyr::filter(refTargets, `Mol ID` %in% x@tables$step2$ingredients$`Mol ID`)
+    x@tables$step2$compounds_targets <- refTargets
+    data <- split_lapply_rbind(refTargets, ~ `Molecule Name`,
+      function(x) {
+        x <- dplyr::filter(x, probability > 0)
+        x <- tibble::add_row(x, symbols = "Others.",
+          probability = 0, `Molecule Name` = x$`Molecule Name`[[1]])
+        x
+      })
+    p.targets <- ggplot(data) +
+      geom_col(aes(x = reorder(symbols, probability), y = probability, fill = probability)) +
+      labs(y = "Targets", x = "Probability") +
+      coord_flip() +
+      guides(fill = "none") +
+      facet_wrap(~ `Molecule Name`, scales = "free_y")
+    p.targets <- wrap(p.targets)
+    x$p.swissTargets <- .set_lab(p.targets, sig(x), "SwissTargetPrediction-results")
     return(x)
   })

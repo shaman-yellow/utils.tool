@@ -254,10 +254,10 @@ setMethod("asjob_monocle", signature = c(x = "job_risc"),
     return(x)
   })
 
-setMethod("mutate", signature = c(DF_object = "job_risc"),
-  function(DF_object, ...){
-    object(DF_object)@coldata <- dplyr::mutate(object(DF_object)@coldata, ...)
-    return(DF_object)
+setMethod("mutate", signature = c(x = "job_risc"),
+  function(x, ...){
+    object(x)@coldata <- dplyr::mutate(object(x)@coldata, ...)
+    return(x)
   })
 
 setMethod("asjob_gsea", signature = c(x = "job_risc"),

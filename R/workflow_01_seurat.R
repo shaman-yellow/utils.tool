@@ -598,10 +598,10 @@ setMethod("skel", signature = c(x = "job_seurat"),
 setGeneric("asjob_seurat", 
   function(x, ...) standardGeneric("asjob_seurat"))
 
-setMethod("mutate", signature = c(DF_object = "job_seurat"),
-  function(DF_object, ...){
-    object(DF_object)@meta.data <- dplyr::mutate(object(DF_object)@meta.data, ...)
-    return(DF_object)
+setMethod("mutate", signature = c(x = "job_seurat"),
+  function(x, ...){
+    object(x)@meta.data <- dplyr::mutate(object(x)@meta.data, ...)
+    return(x)
   })
 
 setMethod("cal_corp", signature = c(x = "job_seurat", y = "NULL"),
