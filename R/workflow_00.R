@@ -6,7 +6,6 @@
 .job <- setClass("job", 
   contains = c(),
   representation = representation(
-    "VIRTUAL",
     object = "ANY",
     params = "ANY",
     plots = "ANY",
@@ -836,14 +835,17 @@ backup_jobs <- function(alls, time = Sys.time(),
     lubridate::year(belong) == !!year
   )
   thedir <- .thedir_job(month, year)
+  num <- 0L
+  dir.create(thedir, F)
   lapply(data$.dir,
     function(dir) {
+      num <<- num + 1L
       files <- list.files(dir, ".*\\.zip", full.names = T)
       if (length(files) > 1) {
         n <- menu(get_filename(files), title = "Select a zip file to backup.")
         files <- files[n]
       }
-      .cp_job(files, thedir)
+      .cp_job(files, paste0(thedir, "/", num, "_", get_filename(files)))
     })
 }
 

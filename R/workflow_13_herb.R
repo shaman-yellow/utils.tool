@@ -441,14 +441,14 @@ end_drive <- function(pattern = "[0-9]\\s*java.*-jar") {
   }
 }
 
-get_table.html <- function(x) {
+get_table.html <- function(x, ...) {
   if (file.exists(x)) {
     str <- readLines(x)
   } else {
     str <- x
   }
   ht <- e(XML::htmlParse(str))
-  XML::readHTMLTable(ht)
+  XML::readHTMLTable(ht, ...)
 }
 
 moveToDir_herbs <- function(ids,

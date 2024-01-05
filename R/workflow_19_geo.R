@@ -48,8 +48,24 @@ setMethod("step1", signature = c(x = "job_geo"),
     guess <- dplyr::rename_all(guess, make.names)
     guess <- dplyr::select(guess, 1:2, dplyr::ends_with(".ch1"))
     x@params$guess <- guess
+    x@params$test <- list(
+      genes = try(as_tibble(about[[ 1 ]]@featureData@data), T),
+      counts = try(as_tibble(about[[ 1 ]]@assayData$exprs), T),
+      anno = about[[ 1 ]]@annotation,
+      anno.db = try(.get_biocPackage.gpl(about[[ 1 ]]@annotation), T)
+    )
     return(x)
   })
+
+.get_biocPackage.gpl <- function(gpl) {
+  if (!is.character(gpl) | identical(gpl, character(0))) {
+    stop("Incorrect character of gpl ID.")
+  } else {
+    data <- RCurl::getURL("https://gist.githubusercontent.com/seandavi/bc6b1b82dc65c47510c7/raw/b2027d7938896dce6145a1ebbcea75826813f6e1/platformMap.txt")
+    data <- ftibble(data)
+    dplyr::filter(data, gpl == !!gpl)$bioc_package
+  }
+}
 
 setMethod("step2", signature = c(x = "job_geo"),
   function(x, filter_regex = NULL){
@@ -112,14 +128,14 @@ get_metadata.geo <- function(lst,
     main <- lapply(res,
       function(data){
         cols <- colnames(data)
-        extra <- unlist(.find_and_sort_strings(cols, pattern))
+        extra <- unlist(.find_and_sort_strings(cols, pattern), use.names = F)
         dplyr::select(data, !!!select, dplyr::all_of(extra))
       })
     if (!is.null(abbrev)) {
       abbrev <- lapply(res,
         function(data){
           cols <- colnames(data)
-          extra <- unlist(.find_and_sort_strings(cols, abbrev))
+          extra <- unlist(.find_and_sort_strings(cols, abbrev), use.names = F)
           dplyr::distinct(data, dplyr::pick(extra))
         })
     } else abbrev <- NULL

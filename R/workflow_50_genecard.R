@@ -39,10 +39,10 @@ get_from_genecards <- function(query, score = 5, keep_drive = F) {
   link <- start_drive(browser = "firefox")
   Sys.sleep(3)
   link$open()
-  link$navigate(url)
   query <- gs(query, " ", "%20")
   url <- paste0('https://www.genecards.org/Search/Keyword?queryString=', query,
     '&pageSize=25000&startPage=0')
+  link$navigate(url)
   html <- link$getPageSource()[[1]]
   link$close()
   end_drive()
@@ -52,6 +52,15 @@ get_from_genecards <- function(query, score = 5, keep_drive = F) {
   colnames(table) %<>% gs("\\.+", "_")
   colnames(table) %<>% gs("X_|_$", "")
   table <- select(table, -1, -2)
+  if (is.null(score)) {
+    ss <- seq(1, 10, by = 2)
+    chs <- vapply(ss, FUN.VALUE = double(1),
+      function(x) {
+        length(which(table$Score > x))
+    })
+    which <- menu(paste0("Score ", ss, " Gene ", chs))
+    score <- ss[ which ]
+  }
   table <- filter(table, Score > !!score)
   return(table)
 }

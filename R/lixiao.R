@@ -148,6 +148,8 @@ get_c2_data <- function(pattern = NULL,
   names(db) <- tolower(names(db))
   if (!is.null(pattern))
     db <- db[ grep(pattern, names(db), ignore.case = T) ]
+  job <- .job(method = "Database of `MSigDB` (c2, curated gene sets) was used for signiture screening", cite = "")
+  .add_internal_job(job)
   return(db)
 }
 
@@ -612,7 +614,7 @@ esearch <- function(query = NULL, fetch.save = paste0(gsub(" ", "_", query), ".x
   res
 }
 
-split_lapply_rbind <- function(data, f, fun, ..., verbose = F, args = list(fill = F)) {
+split_lapply_rbind <- function(data, f, fun, ..., verbose = F, args = list(use.names = T)) {
   data <- split(data, f)
   if (verbose)
     data <- pbapply::pblapply(data, fun, ...)
@@ -2425,7 +2427,7 @@ auto_method <- function(class = "job", envir = .GlobalEnv, exclude = "job_publis
         if (!identical(lst$method, character(0))) {
           meth <- paste("-", lst$method)
           if (!identical(lst$cite, character(0))) {
-            meth <- paste(meth, lst$cite)
+            meth <- paste0(meth, lst$cite)
           }
           paste0(meth, ".")
         }
@@ -2437,8 +2439,13 @@ auto_method <- function(class = "job", envir = .GlobalEnv, exclude = "job_publis
   writeLines(methods)
 }
 
-.get_job_list <- function(envir, extra = getOption("internal_job")) {
+.get_job_list <- function(envir = .GlobalEnv, extra = getOption("internal_job")) {
   names <- ls(envir = envir, all.names = F)
+  names <- lapply(names,
+    function(x) {
+      if (is(get(x, envir = envir), "job")) x else NULL
+    })
+  names <- unlist(names)
   if (!is.null(extra)) {
     if (identical(class(extra), "list")) {
       names <- c(as.list(names), extra)
@@ -2464,7 +2471,8 @@ auto_method <- function(class = "job", envir = .GlobalEnv, exclude = "job_publis
     warning("Too large `job` (", size, ") add into 'internal_job' options (limit: ", limit, ").")
   }
   injobs <- getOption("internal_job", list())
-  if (!any(class(job) == names(injobs))) {
+  hasMethods <- unlist(lapply(injobs, function(x) if (is(x, "job")) x@method else NULL))
+  if (!any(job@method == hasMethods)) {
     injobs <- c(injobs, nl(class(job), list(job)))
     options(internal_job = injobs)
   }
