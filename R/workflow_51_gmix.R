@@ -104,7 +104,20 @@ setMethod("step2", signature = c(x = "job_gmix"),
 setMethod("map", signature = c(x = "job_gmix", ref = "job_gmix"),
   function(x, ref, extra = NULL)
   {
-
+    fun <- function(x) rm.no(unlist(x@params$lst.genes, use.names = F))
+    gene.x <- fun(x)
+    gene.y <- fun(ref)
+    lst <- nl(c(sig(x), sig(ref)), list(gene.x, gene.y))
+    if (is.null(extra)) {
+      p <- new_venn(lst = lst)
+    } else {
+      if (!is(extra, "list") || is.null(names(extra))) {
+        stop('`extra` Show be a "list" with names')
+      }
+      lst <- c(lst, extra)
+      p <- new_upset(lst = lst)
+    }
+    namel(raw = lst, p)
   })
 
 .get_source.DisGeNet <- function(id, length) {

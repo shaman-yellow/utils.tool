@@ -43,7 +43,7 @@ setMethod("step0", signature = c(x = "job_stringdb"),
   })
 
 setMethod("step1", signature = c(x = "job_stringdb"),
-  function(x, tops = 30, mcc_layout = "circle", layout = "kk", species = 9606,
+  function(x, tops = 30, layout = "kk", species = 9606,
     network_type = "phy", input_directory = "../", version = "11.5", label = F)
   {
     step_message("Create PPI network.
@@ -77,7 +77,7 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     ## hub genes
     hub_genes <- cal_mcc.str(res.str, "hgnc_symbol", F)
     graph_mcc <- get_subgraph.mcc(res.str$graph, hub_genes, top = tops)
-    graph_mcc <- fast_layout(graph_mcc, layout = mcc_layout)
+    graph_mcc <- fast_layout(graph_mcc, layout = "linear", circular = T)
     p.mcc <- plot_networkFill.str(graph_mcc, label = "hgnc_symbol")
     x@plots[[1]] <- namel(p.ppi, p.mcc)
     x@tables[[1]] <- c(list(mapped = relocate(res.str$mapped, hgnc_symbol, STRING_id)),
@@ -195,7 +195,7 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   label = "genes")
 {
   p <- ggraph(graph) +
-    geom_edge_fan(aes(x = x, y = y),
+    geom_edge_arc(aes(x = x, y = y),
       start_cap = circle(sc, 'mm'),
       end_cap = circle(ec, 'mm'),
       # arrow = arrow(length = unit(arr.len, 'mm')),

@@ -3106,7 +3106,7 @@ new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T) 
   if (is.null(lst)) {
     lst <- list(...)
   }
-  lst <- lapply(lst, unique)
+  raw.lst <- lst <- lapply(lst, unique)
   members <- unique(unlist(lst, use.names = F))
   data <- data.frame(members = members)
   lst <- lapply(lst,
@@ -3117,7 +3117,10 @@ new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T) 
   data <- .upset(as_tibble(data), params = namel(trunc, width))
   if (convert) {
     show(data)
-    recordPlot()
+    p <- wrap(recordPlot())
+    p$ins <- ins(lst = raw.lst)
+    p$lich <- new_lich(list(All_intersection = p$ins))
+    p
   } else {
     data
   }
@@ -3331,4 +3334,8 @@ get_layout <- function(edges = NULL, layout = "grid", nodes = NULL, ...) {
 
 ink2d <- function(inchikey) {
   stringr::str_extract(inchikey, "^[A-Z]{14}")
+}
+
+strx <- function(...) {
+  stringr::str_extract(...)
 }

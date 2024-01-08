@@ -20,6 +20,12 @@
 job_limma_normed <- function(data, metadata) {
   .check_columns(metadata, c("sample", "group"))
   metadata <- dplyr::slice(metadata, match(colnames(data), sample))
+  if (is(data, "tbl_df")) {
+    message("Convert as data.frame, and use the first column set as rownames.")
+    rownames <- data[[1]]
+    data <- data.frame(data)
+    rownames(data) <- rownames
+  }
   data <- dplyr::select(data, dplyr::all_of(metadata$sample))
   if (!identical(colnames(data), metadata$sample)) {
     stop("!identical(colnames(data), metadata$sample)")
@@ -219,9 +225,9 @@ plot_valcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val", fc
     geom_vline(xintercept = c(-abs(fc), abs(fc)), linetype = 4, size = 0.8) + 
     labs(x = "log2(FC)", y = paste0("-log10(", use, ")")) + 
     ggrepel::geom_text_repel(
-      data = distinct(rbind(
-        slice_min(data, !!rlang::sym(use), n = 10),
-        slice_max(data, abs(logFC), n = 20)
+      data = dplyr::distinct(rbind(
+        dplyr::slice_min(data, !!rlang::sym(use), n = 10),
+        dplyr::slice_max(data, abs(logFC), n = 20)
         )), 
       aes(label = !!rlang::sym(label)), size = 3) +
     geom_blank()

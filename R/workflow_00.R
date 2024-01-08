@@ -791,10 +791,16 @@ pg_remote_recode <- function() {
 }
 
 setMethod("map", signature = c(x = "df"),
-  function(x, ref, y, y.ref, y.get, rename = T){
-    x[[ ref ]] <- y[[ y.get ]][match(x[[ ref ]], y[[ y.ref ]])]
-    if (rename)
-      colnames(x)[ colnames(x) == ref ] <- y.get
+  function(x, ref, y, y.ref, y.get, rename = T, col = NULL)
+  {
+    if (is.null(col)) {
+      x[[ ref ]] <- y[[ y.get ]][match(x[[ ref ]], y[[ y.ref ]])]
+      if (rename) {
+        colnames(x)[ colnames(x) == ref ] <- y.get
+      }
+    } else {
+      x[[ col ]] <- y[[ y.get ]][match(x[[ ref ]], y[[ y.ref ]])]
+    }
     x
   })
 

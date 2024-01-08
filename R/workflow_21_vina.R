@@ -106,7 +106,7 @@ setMethod("step3", signature = c(x = "job_vina"),
   function(x, cl = 10, pattern = "ORGANISM_SCIENTIFIC: HOMO SAPIENS",
     extra_pdb.files = NULL, extra_layouts = NULL, extra_symbols = NULL)
   {
-    step_message("Dowload pdb files for targets.")
+    step_message("Dowload pdb files for Receptors.")
     pdb.files <- get_pdb(unique(unlist(x$dock_layout, use.names = F)), cl = cl)
     if (!is.null(extra_layouts)) {
       if (is(extra_layouts, "character")) {
