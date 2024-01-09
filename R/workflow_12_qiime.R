@@ -376,7 +376,11 @@ try_fqs_meta <- function(metadata, filepath, filter = F) {
   if (any(duplicated(metadata[[ "dirs" ]]))) {
     filepath <- mapply(get_realname(metadata$reports), filepath, SIMPLIFY = F,
       FUN = function(name, files) {
-        files[ grpl(files, name, fixed = T) ]
+        files <- files[ grpl(files, name, fixed = T) ]
+        if (length(files) > 2) {
+          files <- files[ grpl(files, paste0("/", name, "[^/]+$")) ]
+        }
+        files
       })
   }
   fun <- function(lst, n) {

@@ -25,6 +25,7 @@ job_herb <- function(herbs, db = get_herb_data())
   print(herbs_info)
   message("Got the herbs:\n\n\t", paste0(herbs_info$Herb_cn_name, collapse = ", "),
       "\n\n", "\tTotal: ", colSum(herbs_info$Herb_cn_name))
+  message("By modify `x@params$herbs_info` to filter the results.")
   x
 }
 
@@ -607,5 +608,3 @@ get_tcm.base <- function(id, link_prefix) {
   data <- strsplit(data, "\r\n")[[1]]
   data
 }
-
-

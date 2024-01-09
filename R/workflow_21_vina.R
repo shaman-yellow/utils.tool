@@ -107,7 +107,12 @@ setMethod("step3", signature = c(x = "job_vina"),
     extra_pdb.files = NULL, extra_layouts = NULL, extra_symbols = NULL)
   {
     step_message("Dowload pdb files for Receptors.")
-    pdb.files <- get_pdb(unique(unlist(x$dock_layout, use.names = F)), cl = cl)
+    ids <- unique(unlist(x$dock_layout, use.names = F))
+    if (length(ids)) {
+      pdb.files <- get_pdb(ids, cl = cl)
+    } else {
+      pdb.files <- NULL
+    }
     if (!is.null(extra_layouts)) {
       if (is(extra_layouts, "character")) {
         extra_layouts <- as.list(extra_layouts)
@@ -118,6 +123,9 @@ setMethod("step3", signature = c(x = "job_vina"),
       pdb.files <- c(pdb.files, extra_pdb.files)
       if (is.null(extra_symbols)) {
         extra_symbols <- nl(toupper(names(extra_pdb.files)), names(extra_pdb.files), F)
+      }
+      if (!nrow(x@params$targets_annotation)) {
+        x@params$targets_annotation <- dplyr::mutate(x@params$targets_annotation, pdb = character(0))
       }
       x@params$targets_annotation %<>%
         tibble::add_row(hgnc_symbol = names(extra_symbols), pdb = unname(extra_symbols))

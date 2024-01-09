@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("https://lzerd.kiharalab.org/"),
+    info = paste0("https://lzerd.kiharalab.org/upload/upload/", "\n",
+      "http://cadd.zju.edu.cn/hawkdock/"),
     cite = "[@LzerdWebserverChrist2021]",
     method = "`LZerD` webserver used for protein–protein docking"
     ))
