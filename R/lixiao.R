@@ -1911,7 +1911,8 @@ plot_orders_summary <- function(data) {
     p <- ggplot(data, aes(x = 1:nrow(data), y = sum_coef)) +
       geom_line() +
       geom_area(fill = 'grey90', alpha = .5) +
-      scale_x_continuous(labels = gs(data$belong, "-01$", "")) +
+      scale_x_continuous(labels = gs(data$belong, "-01$", ""),
+        breaks = unique(as.integer(data$belong))) +
       coord_cartesian(ylim = zoRange(data$sum_coef, 5)) +
       labs(x = "Month", y = "Coef") +
       theme_minimal()
@@ -2543,8 +2544,11 @@ autosv <- function(x, name, ...) {
     else if (file.exists(x)) {
       file <- as.character(x)
       if (is(x, "file_fig")) {
-        file.copy(file, dir <- get_savedir("figs"), T)
-        file <- paste0(dir, "/", get_filename(file))
+        .dir <- get_savedir("figs")
+        if (get_path(file) != .dir) {
+          file.copy(file, .dir, T)
+        }
+        file <- paste0(.dir, "/", get_filename(file))
       }
     } else {
       stop("file.exists(x) == F")
@@ -3210,7 +3214,7 @@ new_pie <- function(x, title = NULL, use.ggplot = T, fun_text = ggrepel::geom_la
     data <- data.frame(var = names(x), value = unname(x))
     data <- dplyr::arrange(data, dplyr::desc(var))
     data <- dplyr::mutate(data,
-      label = paste0("(", value, ", ", round(value / sum(value) * 100, 1), "%)"),
+      label = paste0("(", round(value / sum(value) * 100, 1), "%, ", value, ")"),
       label = paste0(var, " ", label), lab.x = .2,
       lab.y = value / 2 + c(0, cumsum(value)[ -length(value) ])
     )

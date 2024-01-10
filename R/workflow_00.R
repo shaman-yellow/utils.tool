@@ -901,8 +901,18 @@ view_obj_for_vim <- function(x, y) {
   }
 }
 
-plot_workflow_summary <- function(data) {
-  fun <- function() {
+get_workflow_news <- function(..., data = get_orders()) {
+  lst <- as.Date(unlist(list(...)))
+  later <- dplyr::filter(data, belong <= max(!!lst))
+  former <- dplyr::filter(data, belong < min(!!lst))
+  fun <- function(x) unique(x$name)
+  x <- fun(plot_workflow_summary(later, T))
+  y <- fun(plot_workflow_summary(former, T))
+  x[ !x %in% y ]
+}
+
+plot_workflow_summary <- function(data, get_jobs_used = F) {
+  fun.co_job <- function() {
     alls <- available_signatures("step1")
     name <- gs(alls, "^job_", "")
     nodes <- data.frame(name = name)
@@ -935,10 +945,9 @@ plot_workflow_summary <- function(data) {
       theme(text = element_text(family = "Times"))
     wrap(p, 8, 6)
   }
-  p.co_job <- fun()
   ###################################
   ###################################
-  fun <- function(alls) {
+  fun.use_freq <- function(alls) {
     used <- lapply(alls$.dir,
       function(dir) {
         file <- paste0(dir, "/index.Rmd")
@@ -950,12 +959,13 @@ plot_workflow_summary <- function(data) {
     alls <- dplyr::mutate(alls,
       .type = dplyr::recode(type,
         `备单业务` = "BI", `固定业务` = "IN", "其他业务" = "Others"))
-    names(used) <- paste0(alls$receive_date, "##", alls$.type)
+    names(used) <- paste0(alls$receive_date, "_", 1:length(used), "##", alls$.type)
     used <- lst_clear0(used)
     used <- as_df.lst(used)
     used <- dplyr::mutate(used, value = 1,
       order = paste0("Order ", gs(type, "##.*$", "")),
-      rank = as.integer(as.Date(type)), name = gs(name, "^job_", ""),
+      rank = as.integer(as.Date(type)),
+      name = gs(name, "^job_", ""),
       type = gs(type, ".*##(.*)$", "\\1")
     )
     data <- as_tibble(used)
@@ -966,7 +976,7 @@ plot_workflow_summary <- function(data) {
         aes(reorder(order, rank, decreasing = T), y = -3, shape = type, color = type),
         size = 5) +
       coord_flip() +
-      labs(y = "Order (Date)", x = "Frequence", fill = "Name",
+      labs(y = "Order (Date + N)", x = "Frequence", fill = "Name",
         color = "Type", shape = "Type") +
       scale_fill_manual(values = color_set()) +
       scale_color_manual(values = rstyle("pal", seed = 6)) +
@@ -975,10 +985,9 @@ plot_workflow_summary <- function(data) {
     p.alls <- wrap(p.alls, 8, 6)
     namel(p.ind.pop, p.alls)
   }
-  p.use_freq <- fun(data)
   ###################################
   ###################################
-  fun <- function() {
+  fun.jobde <- function() {
     omit <- circleGrob(seq(.2, .8, , 3), .5, .07, gp = gpar(fill = "grey20"),
       vp = viewport(, , u(1.5, line), u(1.5, line)))
     ids <- n(n, 5)
@@ -1049,7 +1058,13 @@ plot_workflow_summary <- function(data) {
     p.jobde <- wrap(job_de, 5, 4)
     p.jobde
   }
-  p.jobde <- fun()
+  p.use_freq <- fun.use_freq(data)
+  if (get_jobs_used) {
+    jobs_used <- p.use_freq$p.ind.pop$data
+    return(jobs_used)
+  }
+  p.co_job <- fun.co_job()
+  p.jobde <- fun.jobde()
   p.fr1 <- frame_col(c(p.jobde = 1, p.co_job = 1.5),
     list(p.jobde = ggather(p.jobde@data, vp = viewport(, , .9, .8)),
       p.co_job = as_grob(p.co_job@data)))
@@ -1058,7 +1073,10 @@ plot_workflow_summary <- function(data) {
     list(p.alls = ggather(p.use_freq$p.alls@data, vp = viewport(, , .9, .9)),
       p.ind.pop = as_grob(p.use_freq$p.ind.pop)))
   p.fr2 <- wrap(p.fr2, 14, 7)
-  c(namel(p.co_job, p.jobde), p.use_freq, namel(p.fr1, p.fr2))
+  lst <- c(namel(p.co_job, p.jobde), p.use_freq, namel(p.fr1, p.fr2))
+  jobs_used <- p.use_freq$p.ind.pop$data
+  attr(lst, "jobs_used") <- jobs_used
+  lst
 }
 
 # ==========================================================================
