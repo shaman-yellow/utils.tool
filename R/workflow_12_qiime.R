@@ -311,7 +311,7 @@ ancom_test <- function(level = 6, table = "table.qza", path = "./sra_data", x) {
       " --o-visualization ", res <- paste0("ancom_test_group_level_", level, ".qzv"),
       path = path
       ))
-  paste0(path, "/", res)
+  paste0(res)
 }
 
 qiime_vis <- function(file) {

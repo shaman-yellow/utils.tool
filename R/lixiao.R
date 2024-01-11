@@ -3343,3 +3343,66 @@ ink2d <- function(inchikey) {
 strx <- function(...) {
   stringr::str_extract(...)
 }
+
+search.scopus <- function(data, try_format = T, sleep = 3) {
+  if (try_format) {
+    data <- dplyr::mutate(data,
+      last.name = strx(name, "^[^,]+"),
+      first.name = gs(name, "[^,]*, (.*?)", "\\1")
+    )
+  }
+  .check_columns(data, c("last.name", "first.name"))
+  #######################
+  #######################
+  fun_input <- function(xpath, x) {
+    ele <- link$findElement("xpath", xpath)
+    ele$clearElement()
+    Sys.sleep(.1)
+    ele$sendKeysToElement(list(x))
+    Sys.sleep(.1)
+  }
+  fun_search <- function(xpath) {
+    ele <- link$findElement("xpath", xpath)
+    ele$sendKeysToElement(list(key = "enter"))
+  }
+  fun_format <- function(x) {
+    x <- as_tibble(x[[1]])
+    colnames(x) <- gs(make.names(gs(colnames(x), "\n", "")), "^([^.]+\\.[^.]+).*", "\\1")
+    x <- dplyr::select(x, Author, Documents, h.index, Affiliation, City, Country.Territory)
+    x <- dplyr::filter(x, !is.na(h.index))
+    x <- dplyr::mutate_all(x, function(x) gs(strx(x, "^[^\n]+"), "^\\s*", ""))
+    x <- dplyr::mutate(x, Documents = as.double(Documents), h.index = as.double(h.index))
+    x
+  }
+  #######################
+  #######################
+  link <- start_drive()
+  link$open()
+  #######################
+  #######################
+  res <- apply(data, 1, simplify = F,
+    function(x) {
+      x <- as.list(x)
+      link$navigate("https://www.scopus.com/freelookup/form/author.uri?zone=TopNavBar&origin=NO%20ORIGIN%20DEFINED")
+      fun_input("//div//input[@id='lastname']", x$last.name)
+      fun_input("//div//input[@id='firstname']", x$first.name)
+      fun_input("//div//input[@id='institute']", x$inst)
+      Sys.sleep(1)
+      fun_search("//div//button[@id='authorSubmitBtn']")
+      Sys.sleep(3)
+      html <- link$getPageSource()[[1]]
+      table <- get_table.html(html)
+      if (length(table)) {
+        table <- fun_format(table)
+      } else {
+        table <- data.frame()
+      }
+      Sys.sleep(sleep)
+      table
+    })
+  names(res) <- paste0(data$last.name, ", ", data$first.name)
+  res <- frbind(res, fill = T)
+  link$close()
+  end_drive()
+  return(res)
+}

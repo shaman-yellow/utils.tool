@@ -219,11 +219,17 @@ setMethod("step4", signature = c(x = "job_mp"),
     ## extract results
     tree <- e(MicrobiotaProcess::mp_extract_tree(object(x), type = "taxatree"))
     sign <- paste0("Sign_", x@params$group)
-    top_table <- e(MicrobiotaProcess::select(tree, label, nodeClass,
-        pvalue, fdr, LDAupper, LDAmean, LDAlower, !!rlang::sym(sign)))
-    top_table <- dplyr::filter(top_table, !is.na(fdr))
-    top_table <- dplyr::arrange(top_table, fdr)
-    x@tables[[ 4 ]] <- namel(top_table)
+    tryPvalue <- try(MicrobiotaProcess::select(tree, pvalue), T)
+    if (inherits(tryPvalue, "try-error")) {
+      message("\n\tNo significant features found.")
+      Sys.sleep(3)
+    } else {
+      top_table <- e(MicrobiotaProcess::select(tree, label, nodeClass,
+          pvalue, fdr, LDAupper, LDAmean, LDAlower, !!rlang::sym(sign)))
+      top_table <- dplyr::filter(top_table, !is.na(fdr))
+      top_table <- dplyr::arrange(top_table, fdr)
+      x@tables[[ 4 ]] <- namel(top_table)
+    }
     return(x)
   })
 
