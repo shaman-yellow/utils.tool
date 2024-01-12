@@ -61,6 +61,7 @@ setMethod("step1", signature = c(x = "job_mp"),
       p2 <- e(MicrobiotaProcess::mp_plot_rarecurve(object(x), .rare = RareAbundanceRarecurve,
           .group = !!rlang::sym(x@params$group), plot.group = T))
       p.rarefaction <- wrap(p1 + p2, 15, 5)
+      p.rarefaction <- .set_lab(p.rarefaction, sig(x), "alpha rarefaction")
     } else {
       p.rarefaction <- NULL
     }
@@ -73,6 +74,7 @@ setMethod("step1", signature = c(x = "job_mp"),
         .alpha = c(Observe, Chao1, ACE, Shannon, Simpson, Pielou)
         ))
     p.alpha_index <- wrap(p.alpha_index, 15, 5)
+    p.alpha_index <- .set_lab(p.alpha_index, sig(x), "alpha diversity")
     x@plots[[ 1 ]] <- namel(p.rarefaction, p.alpha_index)
     return(x)
   })
@@ -101,6 +103,7 @@ setMethod("step2", signature = c(x = "job_mp"),
           else width <- 14
           wrap(p, width)
         }), text = "For alluvium")
+    p.rel_abundance <- .set_lab(p.rel_abundance, sig(x), names(p.rel_abundance), "abundance")
     if (FALSE) {
       p.heatmap_abundance <- e(sapply(x@params$ontology, simplify = F,
           function(class) {
@@ -149,11 +152,14 @@ setMethod("step3", signature = c(x = "job_mp"),
         group.test = TRUE, textsize = 3), text = "Boxplot")
     p.group_test <- set_palette(p.group_test)
     p.group_test <- wrap(p.group_test, 4)
+    p.group_test <- .set_lab(p.group_test, sig(x), "Beta diversity group test")
     p.pcoa <- e(MicrobiotaProcess::mp_plot_ord(
         object(x), .ord = pcoa, .group = !!rlang::sym(x@params$group),
         .color = !!rlang::sym(x@params$group),
         .size = Observe, .alpha = Shannon, ellipse = TRUE))
+    p.pcoa <- p.pcoa + ggrepel::geom_label_repel(aes(label = Sample), fill = "white", alpha = 1, size = 5)
     p.pcoa <- set_palette(p.pcoa)
+    p.pcoa <- .set_lab(wrap(p.pcoa), sig(x), "PCoA")
     ## hierarchy
     data_hier <- e(MicrobiotaProcess::mp_extract_internal_attr(object(x), name = 'SampleClust'))
     require(ggtree)
@@ -175,8 +181,10 @@ setMethod("step3", signature = c(x = "job_mp"),
             orientation = "y", pwidth = 3
           )
           p <- p + guides(fill = guide_legend(ncol = 1))
-          wrap(as_grob(p), 12, nrow(object(x)@colData) * .13 + 2)
+          width <- nrow(object(x)@colData) * .13 + 2
+          wrap(as_grob(p), 12, if (width < 8) 8 else width)
         }))
+    p.hier <- .set_lab(p.hier, sig(x), names(p.hier), "hierarchy")
     x@plots[[ 3 ]] <- namel(p.sample_dist, p.group_test, p.pcoa, p.hier)
     return(x)
   })
@@ -198,8 +206,6 @@ setMethod("step4", signature = c(x = "job_mp"),
         values = ggsci::pal_npg()(10),
         guide = guide_legend(title = NULL)
       )
-    } else {
-      p.box <- NULL
     }
     ## plot radical tree
     p.tree <- try(e(MicrobiotaProcess::mp_plot_diff_cladogram(object(x),

@@ -31,20 +31,28 @@ setMethod("asjob_swiss", signature = c(x = "job_tcmsp"),
     job_swiss(nl(data$`Mol ID`, data$smiles, F))
   })
 
+setMethod("asjob_swiss", signature = c(x = "job_pubchemr"),
+  function(x){
+    if (x@step < 1L) {
+      stop("x@step < 1L")
+    }
+    job_swiss(unlist(x@params$smiles))
+  })
+
 setMethod("step0", signature = c(x = "job_swiss"),
   function(x){
     step_message("Prepare your data with function `job_swiss`.")
   })
 
 setMethod("step1", signature = c(x = "job_swiss"),
-  function(x, db_file = "../swissTargetPrediction/targets.rds", tempdir = "download", sleep = 5)
+  function(x, db_file = "../swissTargetPrediction/targets.rds", tempdir = "download", sleep = 5, port = 4444)
   {
     step_message("Touch the online tools.")
     x$tempdir <- tempdir
     db <- new_db(db_file, ".id")
     db <- not(db, object(x))
     if (length(db@query)) {
-      link <- start_drive(download.dir = x$tempdir)
+      link <- start_drive(download.dir = x$tempdir, port = port)
       Sys.sleep(3)
       link$open()
       lapply(db@query,
@@ -70,6 +78,7 @@ setMethod("step1", signature = c(x = "job_swiss"),
           }
           Sys.sleep(1)
           Sys.sleep(sleep)
+          Sys.sleep(20)
         })
       link$close()
       end_drive()

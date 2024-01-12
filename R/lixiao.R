@@ -3344,14 +3344,18 @@ strx <- function(...) {
   stringr::str_extract(...)
 }
 
-search.scopus <- function(data, try_format = T, sleep = 3) {
+search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 10, db = "scopus.rds")
+{
   if (try_format) {
+    .check_columns(data, c("name", "inst"))
     data <- dplyr::mutate(data,
       last.name = strx(name, "^[^,]+"),
-      first.name = gs(name, "[^,]*, (.*?)", "\\1")
+      first.name = gs(name, "[^,]*, (.*?)", "\\1"),
+      first.name = gs(first.name, "^([A-Z])([A-Z])$", "\\1 \\2"),
+      .id = paste0(last.name, ", ", first.name)
     )
   }
-  .check_columns(data, c("last.name", "first.name"))
+  .check_columns(data, c("last.name", "first.name", ".id"))
   #######################
   #######################
   fun_input <- function(xpath, x) {
@@ -3374,35 +3378,56 @@ search.scopus <- function(data, try_format = T, sleep = 3) {
     x <- dplyr::mutate(x, Documents = as.double(Documents), h.index = as.double(h.index))
     x
   }
+  db <- new_db(db, ".id")
+  db <- not(db, data$.id)
+  query <- dplyr::filter(data, .id %in% db@query)
   #######################
   #######################
-  link <- start_drive()
-  link$open()
-  #######################
-  #######################
-  res <- apply(data, 1, simplify = F,
-    function(x) {
-      x <- as.list(x)
-      link$navigate("https://www.scopus.com/freelookup/form/author.uri?zone=TopNavBar&origin=NO%20ORIGIN%20DEFINED")
-      fun_input("//div//input[@id='lastname']", x$last.name)
-      fun_input("//div//input[@id='firstname']", x$first.name)
-      fun_input("//div//input[@id='institute']", x$inst)
-      Sys.sleep(1)
-      fun_search("//div//button[@id='authorSubmitBtn']")
-      Sys.sleep(3)
-      html <- link$getPageSource()[[1]]
-      table <- get_table.html(html)
-      if (length(table)) {
-        table <- fun_format(table)
-      } else {
-        table <- data.frame()
-      }
+  if (nrow(query)) {
+    link <- start_drive()
+    Sys.sleep(3)
+    link$open()
+    if (is.numeric(n)) {
+      group <- grouping_vec2list(1:nrow(query), n)
+      group <- rep(1:length(group), lengths(group))
+      lst <- split(query, group)
+    } else {
+      lst <- list(query)
+    }
+    N <- 0L
+    for (query in lst) {
+      N <- N + 1L
+      cli::cli_h1(paste0("Group: ", N, " (", length(lst), ")"))
       Sys.sleep(sleep)
-      table
-    })
-  names(res) <- paste0(data$last.name, ", ", data$first.name)
-  res <- frbind(res, fill = T)
-  link$close()
-  end_drive()
+      res <- apply(query, 1, simplify = F,
+        function(x) {
+          x <- as.list(x)
+          link$navigate("https://www.scopus.com/freelookup/form/author.uri?zone=TopNavBar&origin=NO%20ORIGIN%20DEFINED")
+          fun_input("//div//input[@id='lastname']", x$last.name)
+          fun_input("//div//input[@id='firstname']", x$first.name)
+          fun_input("//div//input[@id='institute']", x$inst)
+          Sys.sleep(1)
+          fun_search("//div//button[@id='authorSubmitBtn']")
+          Sys.sleep(3)
+          html <- link$getPageSource()[[1]]
+          table <- get_table.html(html)
+          if (length(table)) {
+            table <- fun_format(table)
+          } else {
+            table <- data.frame()
+          }
+          Sys.sleep(sleep)
+          table
+        })
+      names(res) <- paste0(query$last.name, ", ", query$first.name)
+      res <- frbind(res, fill = T, idcol = T)
+      db <- upd(db, res)
+    }
+    link$close()
+    end_drive()
+  }
+  res <- dplyr::filter(db@db, .id %in% !!data$.id)
+  ################################
+  ################################
   return(res)
 }
