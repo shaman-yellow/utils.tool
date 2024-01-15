@@ -2404,12 +2404,17 @@ auto_material <- function(class = "job_PUBLISH", envir = .GlobalEnv) {
   showThat("publish", "Other data obtained from published article (e.g., supplementary tables):")
 }
 
-auto_method <- function(class = "job", envir = .GlobalEnv, exclude = "job_publish")
+auto_method <- function(rm = NULL, class = "job", envir = .GlobalEnv, exclude = "job_publish")
 {
   names <- .get_job_list(envir)
   info <- lapply(names,
     function(name) {
       obj <- .obtain_job(name, envir, class)
+      if (!is.null(rm)) {
+        if (any(class(obj) == rm)) {
+          return(NULL)
+        }
+      }
       if (is(obj, exclude)) {
         NULL
       } else if (is(obj, class)) {
@@ -3344,7 +3349,7 @@ strx <- function(...) {
   stringr::str_extract(...)
 }
 
-search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 10, db = "scopus.rds")
+search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 10, db = "scopus.rds", port = 7777)
 {
   if (try_format) {
     .check_columns(data, c("name", "inst"))
@@ -3384,7 +3389,7 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
   #######################
   #######################
   if (nrow(query)) {
-    link <- start_drive()
+    link <- start_drive(port = port)
     Sys.sleep(3)
     link$open()
     if (is.numeric(n)) {

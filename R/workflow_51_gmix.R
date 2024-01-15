@@ -161,3 +161,13 @@ get_disgenet_data <- function(file_disease = "../database/DisGeNet_disease_assoc
   data <- ftibble(file_disease)
   data
 }
+
+setMethod("merge", signature = c(x = "job_gmix", y = "job_gmix"),
+  function(x, y, ...){
+    lst <- c(list(x), list(y), list(...))
+    lst <- lapply(lst, function(x) x@params$lst.genes)
+    lst <- unlist(lst, recursive = F)
+    p.cols <- new_col(lst = lst)
+    p.cols <- .set_lab(p.cols, "All diseases", "Overall targets number of datasets")
+    namel(p.cols, lst)
+  })

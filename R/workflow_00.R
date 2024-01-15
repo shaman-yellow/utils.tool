@@ -666,6 +666,9 @@ setMethod("not", signature = c(x = "job"),
     invisible(x)
   })
 
+setGeneric("merge", 
+  function(x, y, ...) standardGeneric("merge"))
+
 setMethod("upd", signature = c(x = "ANY"),
   function(x){
     new <- new(class(x))

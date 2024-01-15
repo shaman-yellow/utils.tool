@@ -120,6 +120,12 @@ setMethod("step2", signature = c(x = "job_limma"),
     plots <- list()
     if (!is.null(contr)) {
       tops <- extract_tops(object(x), use = use, use.cut = use.cut, cut.fc = cut.fc)
+      if (x$normed) {
+        tops <- lapply(tops,
+          function(obj) {
+            map(obj, colnames(obj)[1], x$genes, colnames(obj)[1], label, col = label)
+          })
+      }
       tops <- .set_lab(tops, sig(x), paste("data", gs(names(tops), "-", "vs")), "DEGs")
       lab(tops) <- paste(sig(x), "data", "DEGs")
       if (length(tops) >= 2) {

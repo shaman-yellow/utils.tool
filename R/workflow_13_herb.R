@@ -202,6 +202,17 @@ setMethod("step3", signature = c(x = "job_herb"),
     return(x)
   })
 
+setMethod("map", signature = c(x = "job_herb", ref = "list"),
+  function(x, ref, HLs = NULL){
+    data <- x$data.allu
+    data <- dplyr::filter(data, Target.name %in% !!unlist(ref, use.names = F))
+    p.venn2dis <- new_venn(Diseases = unlist(ref, use.names = F), Targets = data$Target.name)
+    x$p.venn2dis <- .set_lab(p.venn2dis, sig(x), "Targets intersect with targets of diseases")
+    p.pharm <- plot_network.pharm(data, HLs = HLs)
+    x$p.pharm2dis <- .set_lab(p.pharm, sig(x), "network pharmacology with disease")
+    return(x)
+  })
+
 rstyle <- function(get = "pal", seed = NULL, n = 1L) {
   if (get == "pal") {
     set <- lapply(ggsci:::ggsci_db[1:19], function(x) unname(x[[1]]))

@@ -100,23 +100,3 @@ setMethod("map", signature = c(x = "job_tcmsp", ref = "job_pubchemr"),
     }
     return(x)
   })
-
-setGeneric("asjob_herb", 
-  function(x, ...) standardGeneric("asjob_herb"))
-
-setMethod("asjob_herb", signature = c(x = "job_pubchemr"),
-  function(x, names = NULL){
-    if (is.null(names)) {
-      names <- object(x)
-      if (is.null(names)) {
-        stop("is.null(names)")
-      }
-    }
-    data <- tibble::tibble(
-      Herb_pinyin_name = "PseudoHerb",
-      herb_id = "PseudoHerb_id",
-      Ingredient.id = object(x),
-      Ingredient.name = names,
-    )
-    hb <- .job_herb()
-  })

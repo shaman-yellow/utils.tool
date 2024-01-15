@@ -18,6 +18,9 @@
 
 job_swiss <- function(smiles)
 {
+  if (any(nchar(smiles) > 200)) {
+    stop("any(nchar(smiles) > 200)")
+  }
   .job_swiss(object = smiles)
 }
 
