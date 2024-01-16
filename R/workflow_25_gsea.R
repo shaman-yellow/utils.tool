@@ -352,10 +352,14 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
     rstyle("theme") +
     theme(axis.text.y = element_blank()) +
     scale_fill_gradient2(low = "#3182BDFF", high = "#A73030FF") +
-    scale_color_gradientn(colours = c(sample(ggsci:::ggsci_db$uchicago$dark, 1), sample(color_set()[1:10], 1))) +
+    scale_color_gradientn(colours = color_set2()) +
     scale_x_continuous(breaks = round(seq(0, max(data$GeneRatio), length.out = 4), 3),
       limits = c(-max(data$GeneRatio) * (1 + shift) * 1.2, max(data$GeneRatio))) +
     geom_blank()
   p <- wrap(p, 12, 8)
   p
+}
+
+color_set2 <- function() {
+  c(sample(ggsci:::ggsci_db$uchicago$dark, 1), sample(color_set()[1:10], 1))
 }

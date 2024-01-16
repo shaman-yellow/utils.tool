@@ -213,6 +213,12 @@ setMethod("map", signature = c(x = "job_herb", ref = "list"),
     return(x)
   })
 
+setMethod("slice", signature = c(x = "job_herb"),
+  function(x, ...){
+    x@params$herbs_info <- dplyr::slice(x@params$herbs_info, ...)
+    return(x)
+  })
+
 rstyle <- function(get = "pal", seed = NULL, n = 1L) {
   if (get == "pal") {
     set <- lapply(ggsci:::ggsci_db[1:19], function(x) unname(x[[1]]))

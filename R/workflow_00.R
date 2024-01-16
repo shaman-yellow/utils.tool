@@ -820,61 +820,6 @@ setMethod("gname", signature = c(x = "character"),
     gs(x, "\\.[0-9]", "")
   })
 
-.thedir_job <- function(month, year = 2023, path = "~/disk_sdb1/my_job") {
-  month <- as.character(month)
-  if (nchar(month) < 2) {
-    month <- paste0("0", month)
-  }
-  paste0(path, "/", year, month)
-}
-
-.cp_job <- function(from, to) {
-  if (!dir.exists(to)) {
-    dir.create(to)
-  }
-  file.copy(from, to, T, T)
-}
-
-backup_jobs <- function(alls, time = Sys.time(),
-  month = lubridate::month(time),
-  year = lubridate::year(time))
-{
-  data <- dplyr::filter(alls,
-    lubridate::month(belong) == !!month,
-    lubridate::year(belong) == !!year
-  )
-  thedir <- .thedir_job(month, year)
-  num <- 0L
-  dir.create(thedir, F)
-  lapply(data$.dir,
-    function(dir) {
-      num <<- num + 1L
-      files <- list.files(dir, ".*\\.zip", full.names = T)
-      if (length(files) > 1) {
-        n <- menu(get_filename(files), title = "Select a zip file to backup.")
-        files <- files[n]
-      }
-      .cp_job(files, paste0(thedir, "/", num, "_", get_filename(files)))
-    })
-}
-
-move_rds <- function(from, to, exclude = ".items.rds") {
-  lapply(from,
-    function(path) {
-      dirname <- get_filename(gs(path, "/$", ""))
-      target <- paste0(to, "/", dirname)
-      dir.create(target, F)
-      files <- list.files(path, pattern = ".rds$|.RData$|.Rdata$", full.names = T, all.files = T)
-      thefilenames <- get_filename(files)
-      files <- files[ !thefilenames %in% exclude ]
-      lapply(files,
-        function(file) {
-          system(paste0("cp ", file, " -t ", target))
-          file.remove(file)
-        })
-    })
-}
-
 activate_celldancer <- function(env_pattern = "cellDancer", conda = "~/miniconda3/bin/conda") {
   activate_base(env_pattern, conda = conda)
 }
@@ -1105,6 +1050,7 @@ new_db <- function(db_file, idcol) {
 
 setMethod("not", signature = c(x = "local_db"),
   function(x, ids, force = F){
+    ids <- unique(ids)
     if (nrow(x@db) & !force) {
       stop("The `x` is not an empty data object.")
     }

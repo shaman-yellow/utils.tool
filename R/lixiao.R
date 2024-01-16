@@ -1709,6 +1709,96 @@ summary_month <- function(
   browseURL(normalizePath(targets[[ "ass" ]]))
 }
 
+.thedir_job <- function(month, year = 2023, path = "~/disk_sdb1/my_job") {
+  month <- as.character(month)
+  if (nchar(month) < 2) {
+    month <- paste0("0", month)
+  }
+  paste0(path, "/", year, month)
+}
+
+.cp_job <- function(from, to) {
+  if (!dir.exists(to)) {
+    dir.create(to)
+  }
+  file.copy(from, to, T, T)
+}
+
+backup_jobs <- function(alls, time = Sys.time(),
+  month = lubridate::month(time),
+  year = lubridate::year(time))
+{
+  data <- dplyr::filter(alls,
+    lubridate::month(belong) == !!month,
+    lubridate::year(belong) == !!year
+  )
+  thedir <- .thedir_job(month, year)
+  num <- 0L
+  dir.create(thedir, F)
+  lapply(data$.dir,
+    function(dir) {
+      num <<- num + 1L
+      files <- list.files(dir, ".*\\.zip", full.names = T)
+      if (length(files) > 1) {
+        n <- menu(get_filename(files), title = "Select a zip file to backup.")
+        files <- files[n]
+      }
+      .cp_job(files, paste0(thedir, "/", num, "_", get_filename(files)))
+    })
+}
+
+move_rds_all <- function(alls, time, to = "~/disk_sdb1")
+{
+  if (!dir.exists(to)) {
+    stop("dir.exists(to)")
+  }
+  data <- dplyr::filter(alls, belong %in% as.Date(time))
+  lapply(data$.dir, function(x) move_rds(x, to))
+}
+
+move_raw_all <- function(alls, time, before = F, to = "~/disk_sdb1",
+  prefix = c("GDC", "GSE", "qiime", "sra"))
+{
+  if (before)
+    data <- dplyr::filter(alls, belong <= as.Date(time))
+  else
+    data <- dplyr::filter(alls, belong %in% as.Date(time))
+  pbapply::pblapply(data$.dir,
+    function(dir) {
+      path <- grpf(list.dirs(dir), paste0(paste0(prefix, "[^/]+$"), collapse = "|"))
+      path <- path[ !get_path(path) %in% path ]
+      if (length(path)) {
+        target <- paste0(to, "/", get_filename(gs(dir, "/$", "")))
+        if (!dir.exists(target)) {
+          dir.create(target)
+        }
+        res <- file.copy(path, target, T, T)
+        if (all(unlist(res)))
+          unlink(path, recursive = T, force = T)
+      }
+    })
+}
+
+move_rds <- function(from, to, exclude = ".items.rds") {
+  lapply(from,
+    function(path) {
+      dirname <- get_filename(gs(path, "/$", ""))
+      target <- paste0(to, "/", dirname)
+      dir.create(target, F)
+      files <- list.files(path, pattern = ".rds$|.RData$|.Rdata$", full.names = T, all.files = T)
+      thefilenames <- get_filename(files)
+      files <- files[ !thefilenames %in% exclude ]
+      lapply(files,
+        function(file) {
+          if (.Platform$OS.type == "unix") {
+            system(paste0("cp ", file, " -t ", target))
+            file.remove(file)
+          }
+        })
+    })
+}
+
+
 .di <- setClass("di", 
   contains = c("list"),
   representation = representation(),
@@ -3186,13 +3276,17 @@ new_allu <- function(data, col.fill = 1, axes = 1:2, label.auto = F, label.freq 
     geom_stratum(fill = "lightyellow") +
     geom_text(stat = "stratum") +
     labs(fill = "", y = "") +
-    scale_fill_manual(values = color_set()) +
-    theme_minimal() +
-    theme(axis.text.y = element_blank(),
-      axis.title = element_blank(),
-      legend.position = "none") +
-    geom_blank()
-  p.alluvial
+    if (is.numeric(data[[ fill ]])) {
+      scale_fill_gradientn(colors = color_set2())
+    } else {
+      scale_fill_manual(values = color_set())
+    } +
+      theme_minimal() +
+      theme(axis.text.y = element_blank(),
+        axis.title = element_blank(),
+        legend.position = "none") +
+      geom_blank()
+    p.alluvial
 }
 
 new_col <- function(..., lst = NULL, fun = function(x) x[ !is.na(x) & x != ""]) {
@@ -3269,9 +3363,9 @@ plot_median_expr_line <- function(data) {
   spiralize::spiral_lines(seq, lst[[2]]$v3, gp = gpar(col = "blue"))
   grid.text("Median Expression line", y = .97, gp = gpar(cex = 2))
   lgd <- e(ComplexHeatmap::packLegend(
-    ComplexHeatmap::Legend(title = "From", type = "lines", legend_gp = gpar(col = c("blue", "red"), lwd = 2),
-      at = c("Raw", "Normalized"))
-  ))
+      ComplexHeatmap::Legend(title = "From", type = "lines", legend_gp = gpar(col = c("blue", "red"), lwd = 2),
+        at = c("Raw", "Normalized"))
+      ))
   ComplexHeatmap::draw(lgd)
   p <- recordPlot()
   dev.off()

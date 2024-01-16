@@ -37,7 +37,7 @@ setMethod("step1", signature = c(x = "job_superpred"),
       link <- start_drive(download.dir = x$tempdir, port = port)
       Sys.sleep(3)
       link$open()
-      lapply(db@query,
+      pbapply::pblapply(db@query,
         function(query) {
           link$navigate("https://prediction.charite.de/subpages/target_prediction.php")
           ele <- link$findElement("xpath", "//form//div//input[@id='smiles_string']")
@@ -58,6 +58,8 @@ setMethod("step1", signature = c(x = "job_superpred"),
           }
           if (!inherits(ele, "try-error")) {
             ele$clickElement()
+          } else {
+            writeLines(c("Target Name,Probability", ","), paste0(x$tempdir, "/", timeName("Targets"), ".csv"))
           }
           Sys.sleep(5)
         })
@@ -97,7 +99,7 @@ setGeneric("do_herb",
   function(x, ref, ...) standardGeneric("do_herb"))
 
 setMethod("do_herb", signature = c(x = "job_pubchemr", ref = "job_superpred"),
-  function(x, ref, disease = NULL, disease.score = 5, HLs = NULL, names = NULL)
+  function(x, ref, disease = NULL, disease.score = 5, HLs = NULL, names = NULL, run_step3 = T)
   {
     if (is.null(names)) {
       names <- object(x)
@@ -156,8 +158,10 @@ setMethod("do_herb", signature = c(x = "job_pubchemr", ref = "job_superpred"),
       Herb_, Herb_pinyin_name, Herb_cn_name
     )
     hb@object$herb <- hb@params$herbs_info
-    hb <- suppressMessages(step3(hb, disease = disease, HLs = HLs))
-    hb@plots[[ 3 ]] <- c(plots, hb@plots$step3)
-    hb@tables[[ 3 ]] <- namel(disease_targets_annotation = hb@tables$step3$disease_targets_annotation)
+    if (run_step3) {
+      hb <- suppressMessages(step3(hb, disease = disease, HLs = HLs))
+      hb@plots[[ 3 ]] <- c(plots, hb@plots$step3)
+      hb@tables[[ 3 ]] <- namel(disease_targets_annotation = hb@tables$step3$disease_targets_annotation)
+    }
     return(hb)
   })

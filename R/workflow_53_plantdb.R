@@ -16,9 +16,9 @@
     method = "The Database `PlantaeDB` <https://plantaedb.com/> used for collating data of herbal ingredients"
     ))
 
-job_plantdb <- function(url)
+job_plantdb <- function(query)
 {
-  .job_plantdb(object = url)
+  .job_plantdb(object = query)
 }
 
 setMethod("step0", signature = c(x = "job_plantdb"),
@@ -28,20 +28,73 @@ setMethod("step0", signature = c(x = "job_plantdb"),
 
 setMethod("step1", signature = c(x = "job_plantdb"),
   function(x){
-    step_message("Collating data from URLs.")
-    t.data <- lapply(object(x), function(x) get_plantaedb_data(x)$compounds)
-    names(t.data) <- get_realname(object(x))
-    t.data <- frbind(t.data, idcol = T)
-    x@tables[[ 1 ]] <- namel(t.data)
+    step_message("Query plants.")
+    res <- sapply(object(x), simplify = F,
+      function(query) {
+        url <- paste0("https://plantaedb.com/search?src=", gs(query, " ", "%20"), "&tab=taxa")
+        res <- RCurl::getURL(url)
+        res <- try(get_table.html(res, elFun = tryGetLink.plantaedb), T)
+        if (!inherits(res, "try-error")) {
+          trySepCols.tcmsp(as_tibble(res[[1]]))
+        } else {
+          data.frame()
+        }
+      })
+    res <- frbind(res, fill = T, idcol = T)
+    x$herbs_info <- dplyr::relocate(res, .id, Result, Authority, Rank)
+    return(x)
+  })
+
+setMethod("slice", signature = c(x = "job_plantdb"),
+  function(x, ...){
+    x@params$herbs_info <- dplyr::slice(x@params$herbs_info, ...)
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_plantdb"),
   function(x){
-    step_message("Obtaining targets.")
-    # https://go.drugbank.com/releases/latest
+    step_message("Collating data from URLs.")
+    t.data <- lapply(x$herbs_info$Result.link,
+      function(x) {
+        x <- paste0("https://plantaedb.com", x)
+        get_plantaedb_data(x)$compounds
+      })
+    names(t.data) <- x$herbs_info$Result
+    t.data <- frbind(t.data, idcol = T)
+    x@tables[[ 2 ]] <- namel(t.data)
     return(x)
   })
+
+setMethod("step3", signature = c(x = "job_plantdb"),
+  function(x){
+    step_message("Use PubChemR to obtain compounds information.")
+    data <- x@tables$step2$t.data
+    query <- nl(data$Name, data$`PubChem ID`, F)
+    if (!identical(duplicated(query), duplicated(names(query)))) {
+      warning("identical(duplicated(query), duplicated(names(query))) == F")
+    }
+    query <- query[ !duplicated(query) ]
+    pr <- job_pubchemr(query)
+    x$pr <- suppressMessages(step1(pr))
+    .add_internal_job(pr)
+    return(x)
+  })
+
+setMethod("step4", signature = c(x = "job_plantdb"),
+  function(x, ...){
+    step_message("Use Super-Pred to get compounds targets.")
+    sp <- asjob_superpred(x$pr)
+    x$sp <- suppressMessages(step1(sp, ...))
+    .add_internal_job(sp)
+    return(x)
+  })
+
+# setMethod("step2", signature = c(x = "job_plantdb"),
+#   function(x){
+#     step_message("Obtaining targets.")
+#     # https://go.drugbank.com/releases/latest
+#     return(x)
+#   })
 
 get_plantaedb_data <- function(url) {
   html <- RCurl::getURL(url)
@@ -82,6 +135,21 @@ get_plantaedb_data <- function(url) {
   if (nrow(tables$compounds))
     tables$compounds <- fun_format(tables$compounds)
   tables
+}
+
+tryGetLink.plantaedb <- function(x, sep = " ### ", ...) {
+  val <- XML::xmlValue(x)
+  children <- XML::xmlChildren(x)
+  if (any(names(children) == "a")) {
+    attrs <- XML::xmlAttrs(children$a)
+    if (any(names(attrs) == "href")) {
+      paste0(val, sep, attrs[[ "href" ]])
+    } else {
+      val
+    }
+  } else {
+    val
+  }
 }
 
 get_bindingdb_data <- function(url = "https://www.bindingdb.org/bind/downloads/BindingDB_All_202401_tsv.zip",
