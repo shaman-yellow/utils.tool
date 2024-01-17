@@ -66,7 +66,8 @@ setMethod("step2", signature = c(x = "job_plantdb"),
   })
 
 setMethod("step3", signature = c(x = "job_plantdb"),
-  function(x){
+  function(x, hob_filter = F, ...)
+  {
     step_message("Use PubChemR to obtain compounds information.")
     data <- x@tables$step2$t.data
     query <- nl(data$Name, data$`PubChem ID`, F)
@@ -76,17 +77,47 @@ setMethod("step3", signature = c(x = "job_plantdb"),
     query <- query[ !duplicated(query) ]
     pr <- job_pubchemr(query)
     x$pr <- suppressMessages(step1(pr))
+    tables <- list()
+    plots <- list()
+    if (hob_filter) {
+      ho <- asjob_hob(x$pr)
+      x$ho <- suppressMessages(step1(ho, ...))
+      res <- x$ho@tables$step1$t.hob
+      x$pr <- filter(x$pr, as.logical(res$prediction))
+      # tables <- c(tables, list(t.hob = res))
+      # plots <- c(plots, list(p.hob = x$ho@plots$step1$p.hob))
+      .add_internal_job(ho)
+    }
     .add_internal_job(pr)
+    if (length(tables))
+      x@tables[[ 3 ]] <- tables
+    if (length(plots))
+      x@plots[[ 3 ]] <- plots
     return(x)
   })
 
 setMethod("step4", signature = c(x = "job_plantdb"),
-  function(x, ...){
+  function(x, db_file = "../superPred/targets.rds", tempdir = "download", port = 4444)
+  {
     step_message("Use Super-Pred to get compounds targets.")
     sp <- asjob_superpred(x$pr)
-    x$sp <- suppressMessages(step1(sp, ...))
+    x$sp <- suppressMessages(step1(sp, db_file = db_file, tempdir = tempdir, port = port))
     .add_internal_job(sp)
     return(x)
+  })
+
+setMethod("step5", signature = c(x = "job_plantdb"),
+  function(x, vis = F){
+    step_message("Network pharmacology preparation.")
+    x$hb <- do_herb(x$pr, x$sp, run_step3 = vis)
+    return(x)
+  })
+
+setMethod("map", signature = c(x = "job_herb", ref = "job_plantdb"),
+  function(x, ref){
+    if (ref@step < 5L) {
+      stop("ref@step < 5L")
+    }
   })
 
 # setMethod("step2", signature = c(x = "job_plantdb"),
@@ -163,3 +194,18 @@ get_bindingdb_data <- function(url = "https://www.bindingdb.org/bind/downloads/B
     utils::unzip(save, exdir = get_path(save))
   }
 }
+
+get_drugbank_data <- function(url = "https://go.drugbank.com/releases/5-1-11/downloads/all-full-database",
+  user = c("202011113511016@zcmu.edu.cn", "qiu23224856"),
+  save = "../drugbank/drugbank_all_full_database.xml.zip",
+  file_unzip = paste0(get_path(save), "/full database.xml"))
+{
+  if (!file.exists(file_unzip)) {
+    if (!file.exists(save)) {
+      dir.create(get_path(save), F)
+      cdRun("wget ", " --http-user=", user[1], " --http-passwd=", user[2], " ", url, " -O ", save)
+    }
+    utils::unzip(save, exdir = get_path(save))
+  }
+}
+

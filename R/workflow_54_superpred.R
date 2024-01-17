@@ -37,41 +37,55 @@ setMethod("step1", signature = c(x = "job_superpred"),
       link <- start_drive(download.dir = x$tempdir, port = port)
       Sys.sleep(3)
       link$open()
-      pbapply::pblapply(db@query,
-        function(query) {
-          link$navigate("https://prediction.charite.de/subpages/target_prediction.php")
-          ele <- link$findElement("xpath", "//form//div//input[@id='smiles_string']")
-          ele$sendKeysToElement(list(query))
-          Sys.sleep(3)
-          ele <- link$findElement("xpath", "//form//div//input[@id='smiles_string']/../div[@class='input-group-append']/button")
-          ele$sendKeysToElement(list("Search", key = "enter"))
-          Sys.sleep(3)
-          ele <- link$findElement("xpath", "//table//td/button[@type='submit']")
-          ele$sendKeysToElement(list("Start Calculation", key = "enter"))
-          ele <- F
-          n <- 0L
-          while ((is.logical(ele) | inherits(ele, "try-error")) & n < 20L) {
-            Sys.sleep(1)
-            n <- n + 1L
-            ele <- try(link$findElement("xpath",
-                "//div[@id='targets_wrapper']//div/button[@class='dt-button buttons-csv buttons-html5']"), T)
-          }
-          if (!inherits(ele, "try-error")) {
-            ele$clickElement()
-          } else {
-            writeLines(c("Target Name,Probability", ","), paste0(x$tempdir, "/", timeName("Targets"), ".csv"))
-          }
-          Sys.sleep(5)
+      ##########################
+      ##########################
+      # The function
+      fun_get <- function(query) {
+        link$navigate("https://prediction.charite.de/subpages/target_prediction.php")
+        ele <- link$findElement("xpath", "//form//div//input[@id='smiles_string']")
+        ele$sendKeysToElement(list(query))
+        Sys.sleep(3)
+        ele <- link$findElement("xpath",
+          "//form//div//input[@id='smiles_string']/../div[@class='input-group-append']/button")
+        ele$sendKeysToElement(list("Search", key = "enter"))
+        Sys.sleep(3)
+        ele <- link$findElement("xpath", "//table//td/button[@type='submit']")
+        ele$sendKeysToElement(list("Start Calculation", key = "enter"))
+        ele <- F
+        n <- 0L
+        while ((is.logical(ele) | inherits(ele, "try-error")) & n < 20L) {
+          Sys.sleep(1)
+          n <- n + 1L
+          ele <- try(link$findElement("xpath",
+              "//div[@id='targets_wrapper']//div/button[@class='dt-button buttons-csv buttons-html5']"), T)
+        }
+        if (!inherits(ele, "try-error")) {
+          ele$clickElement()
+        } else {
+          writeLines(c("Target Name,Probability", ","), paste0(x$tempdir, "/", timeName("Targets"), ".csv"))
+        }
+        Sys.sleep(5)
+      }
+      ##########################
+      ##########################
+      ## running body
+      groups <- grouping_vec2list(db@query, 5, T)
+      pbapply::pblapply(groups,
+        function(queries) {
+          lapply(queries, fun_get)
+          ids <- paste0("query", 1:length(queries))
+          files <- moveToDir(ids, "Targets.*csv", from = x$tempdir, to = x$tempdir,
+            suffix = ".csv")
+          data <- ftibble(files)
+          names(data) <- queries
+          data <- frbind(data, idcol = T, fill = T)
+          db <<- upd(db, data)
+          unlink(files, T, T)
         })
+      ##########################
+      ##########################
       link$close()
       end_drive()
-      ids <- paste0("query", 1:length(db@query))
-      files <- moveToDir(ids, "Targets.*csv", from = x$tempdir, to = x$tempdir,
-        suffix = ".csv")
-      data <- ftibble(files)
-      names(data) <- db@query
-      data <- frbind(data, idcol = T, fill = T)
-      db <- upd(db, data)
     }
     targets <- dplyr::filter(as_tibble(db@db), .id %in% object(x))
     symbols <- e(UniProt.ws::mapUniProt(

@@ -449,13 +449,15 @@ start_drive <- function(command = "java -jar ~/operation/selenium.jar",
 }
 
 end_drive <- function(pattern = "[0-9]\\s*java.*-jar") {
-  if (Sys.info()[["sysname"]] == "Linux") {
-    tmp <- tempfile(fileext = ".txt")
-    system(paste0("ps aux > ", tmp))
-    text <- readLines(tmp)
-    text <- text[ grepl(pattern, text) ]
-    pid <- stringr::str_extract(text, "(?<=\\s)[0-9]{1,}(?=\\s)")
-    system(paste("kill", paste0(pid, collapse = " ")))
+  if (.Platform$OS.type == "unix") {
+    if (getOption("end_drive", F)) {
+      tmp <- tempfile(fileext = ".txt")
+      system(paste0("ps aux > ", tmp))
+      text <- readLines(tmp)
+      text <- text[ grepl(pattern, text) ]
+      pid <- stringr::str_extract(text, "(?<=\\s)[0-9]{1,}(?=\\s)")
+      system(paste("kill", paste0(pid, collapse = " ")))
+    }
   }
 }
 

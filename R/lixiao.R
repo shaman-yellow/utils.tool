@@ -3518,9 +3518,9 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
           Sys.sleep(sleep)
           table
         })
-      names(res) <- paste0(query$last.name, ", ", query$first.name)
+      .names <- names(res) <- paste0(query$last.name, ", ", query$first.name)
       res <- frbind(res, fill = T, idcol = T)
-      db <- upd(db, res)
+      db <- upd(db, res, .names)
     }
     link$close()
     end_drive()

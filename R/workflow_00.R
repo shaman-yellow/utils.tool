@@ -1067,8 +1067,16 @@ setMethod("not", signature = c(x = "local_db"),
   })
 
 setMethod("upd", signature = c(x = "local_db"),
-  function(x, data){
+  function(x, data, ids = NULL){
     idcol <- x@idcol
+    if (!is.null(ids)) {
+      if (nrow(data)) {
+        data <- do.call(tibble::add_row,
+          c(list(res), nl(idcol, list(ids[ !ids %in% data[[ idcol ]] ]))))
+      } else {
+        data <- do.call(tibble::tibble, nl(idcol, list(ids)))
+      }
+    }
     if (nrow(data)) {
       data <- dplyr::filter(data, !(!!rlang::sym(idcol) %in% !!x@db[[ idcol ]]))
     }

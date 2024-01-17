@@ -49,6 +49,19 @@ setMethod("step1", signature = c(x = "job_pubchemr"),
     return(x)
   })
 
+setMethod("filter", signature = c(x = "job_pubchemr"),
+  function(x, log){
+    if (length(object(x)) != length(log)) {
+      stop("length(object(x)) != length(log)")
+    }
+    fun <- function(x) x[ log ]
+    object(x) <- fun(object(x))
+    x$smiles <- fun(x$smiles)
+    x$inks <- fun(x$inks)
+    x$synonyms <- fun(x$synonyms)
+    return(x)
+  })
+
 setMethod("map", signature = c(x = "job_pubchemr", ref = "character"),
   function(x, ref, extra = NULL, only = T){
     names <- c(unique(ref), extra)
