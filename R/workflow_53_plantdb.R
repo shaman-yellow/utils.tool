@@ -109,7 +109,8 @@ setMethod("step4", signature = c(x = "job_plantdb"),
 setMethod("step5", signature = c(x = "job_plantdb"),
   function(x, vis = F){
     step_message("Network pharmacology preparation.")
-    x$hb <- do_herb(x$pr, x$sp, run_step3 = vis)
+    metadata <- dplyr::distinct(x@tables[[2]]$t.data, herb = .id, cid = `PubChem ID`)
+    x$hb <- do_herb(x$pr, x$sp, run_step3 = vis, metadata = metadata)
     return(x)
   })
 
@@ -118,6 +119,16 @@ setMethod("map", signature = c(x = "job_herb", ref = "job_plantdb"),
     if (ref@step < 5L) {
       stop("ref@step < 5L")
     }
+    fun_add <- function(x, y) {
+      dplyr::bind_rows(x, y)
+    }
+    x@tables$step1$herbs_compounds %<>% fun_add(ref$hb@tables$step1$herbs_compounds)
+    x@tables$step2$compounds_targets %<>% fun_add(ref$hb@tables$step2$compounds_targets)
+    x@params$herbs_info %<>% fun_add(ref$hb@params$herbs_info)
+    x@object$herb %<>% fun_add(ref$hb@object$herb)
+    x@step <- 2L
+    message("Set `step` to 2L")
+    return(x)
   })
 
 # setMethod("step2", signature = c(x = "job_plantdb"),

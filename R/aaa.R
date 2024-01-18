@@ -61,8 +61,7 @@ get_signature <-
            })
   }
 
-.fresh_param2 <- 
-  function(default, args){
+.fresh_param2 <- function(default, args){
     if (missing(args))
       return(default)
     if (length(args) == 0)
@@ -70,13 +69,11 @@ get_signature <-
     .fresh_param(default, args)
   }
 
-.fresh_param2f <- 
-  function(default, args, class = "gpar"){
+.fresh_param2f <- function(default, args, class = "gpar"){
     structure(.fresh_param2(default, args), class = class)
   }
 
-.check_columns <- 
-  function(obj, lst, tip){
+.check_columns <- function(obj, lst, tip = "`obj`"){
     if (!is.data.frame(obj))
       stop(paste0("'", tip, "' must be a 'data.frame'."))
     lapply(lst, function(col){
@@ -85,19 +82,16 @@ get_signature <-
            })
   }
 
-.message_info_viewport <- 
-  function(info = "info"){
+.message_info_viewport <- function(info = "info"){
     .message_info(info, "current.viewport:",
                   paste0("\n\t", paste0(grid::current.viewport())))
   }
 
-.message_info <- 
-  function(main, sub, arg = NULL, sig = "##"){
+.message_info <- function(main, sub, arg = NULL, sig = "##"){
     message(sig, " ", main, ": ", sub, " ", arg)
   }
 
-.suggest_bio_package <- 
-  function(pkg){
+.suggest_bio_package <- function(pkg){
     if (!requireNamespace(pkg, quietly = T))
       stop("package '", pkg, "' not installed. use folloing to install:\n",
            '\nif (!require("BiocManager", quietly = TRUE))',

@@ -113,7 +113,8 @@ setGeneric("do_herb",
   function(x, ref, ...) standardGeneric("do_herb"))
 
 setMethod("do_herb", signature = c(x = "job_pubchemr", ref = "job_superpred"),
-  function(x, ref, disease = NULL, disease.score = 5, HLs = NULL, names = NULL, run_step3 = T)
+  function(x, ref, disease = NULL, disease.score = 5, HLs = NULL, names = NULL, run_step3 = T,
+    metadata = NULL)
   {
     if (is.null(names)) {
       names <- object(x)
@@ -152,13 +153,24 @@ setMethod("do_herb", signature = c(x = "job_pubchemr", ref = "job_superpred"),
       p.targets <- .set_lab(p.targets, sig(x), "SuperPred-results")
       plots <- c(plots, namel(p.targets))
     }
-    data <- tibble::tibble(
-      Herb_pinyin_name = "PseudoHerb",
-      herb_id = "PseudoHerb_id",
-      Herb_cn_name = "PseudoHerb_cn",
-      Ingredient.id = unname(object(x)),
-      Ingredient.name = names(object(x))
-    )
+    if (is.null(metadata)) {
+      data <- tibble::tibble(
+        Herb_pinyin_name = "PseudoHerb",
+        herb_id = "PseudoHerb_id",
+        Herb_cn_name = "PseudoHerb_cn",
+        Ingredient.id = unname(object(x)),
+        Ingredient.name = names(object(x))
+      )
+    } else {
+      metadata <- dplyr::select(metadata, herb, cid)
+      data <- tibble::tibble(cid = unname(object(x)), name = names(object(x)))
+      ## the data maybe filtered in step3 (HOB), so not set 'all.x'
+      data <- tbmerge(metadata, data, by = "cid", allow.cartesian = T)
+      data <- dplyr::mutate(data, herb_id = herb, Herb_cn_name = herb)
+      data <- dplyr::rename(data, Herb_pinyin_name = herb,
+        Ingredient.id = cid, Ingredient.name = name
+      )
+    }
     hb <- .job_herb(step = 2L)
     hb@tables$step1$herbs_compounds <- dplyr::select(
       data, herb_id, Ingredient.id, Ingredient.name
@@ -167,9 +179,9 @@ setMethod("do_herb", signature = c(x = "job_pubchemr", ref = "job_superpred"),
       Ingredient_id = pubchem_id, Target.name = symbols,
       Target.protein = `Target Name`
     )
-    hb@params$herbs_info <- dplyr::select(
-      dplyr::mutate(data, Herb_ = Herb_pinyin_name),
-      Herb_, Herb_pinyin_name, Herb_cn_name
+    hb@params$herbs_info <- dplyr::mutate(
+      dplyr::distinct(data, Herb_pinyin_name, Herb_cn_name),
+      Herb_ = Herb_pinyin_name
     )
     hb@object$herb <- hb@params$herbs_info
     if (run_step3) {

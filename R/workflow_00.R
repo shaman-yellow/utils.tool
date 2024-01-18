@@ -835,6 +835,59 @@ activate_base <- function(env_pattern = "base", env_path = "~/miniconda3/envs/",
   e(reticulate::import("platform"))
 }
 
+treeObj <- function(obj, stops = c("gg", "wrap"), maxdepth = 10L) {
+  depth <- 0L
+  subsL1 <- ""
+  form <- function(x) {
+    ifelse(grpl(x, "^[a-zA-Z.][a-zA-Z0-9_.]*$"), x, paste0("`", x, "`"))
+  }
+  rapp <- function(names) {
+    if (depth > maxdepth) {
+      return(names)
+    }
+    depth <<- depth + 1L
+    lst <- lapply(names,
+      function(oname) {
+        obj <- eval(parse(text = oname))
+        isThats <- vapply(stops, function(x) is(obj, x), logical(1))
+        if (any(isThats)) {
+          names <- NULL
+        } else if (isS4(obj)) {
+          subs <- form(slotNames(obj))
+          names <- paste0(oname, "@", subs)
+          if (depth == 1L) {
+            subsL1 <<- names
+          }
+          nowDepth <- depth
+          names <- rapp(names)
+          depth <<- nowDepth
+        } else if (is.list(obj)) {
+          subs <- form(names(obj))
+          names <- ifelse(names(obj) == "",
+            paste0(oname, "[[", 1:length(obj), "]]"),
+            paste0(oname, "$", subs))
+          if (depth == 1L) {
+            subsL1 <<- names
+          }
+          nowDepth <- depth
+          names <- rapp(names)
+          depth <<- nowDepth
+        } else {
+          names <- NULL
+        }
+        c(oname, names)
+      })
+    unlist(lst)
+  }
+  res <- rapp(obj)
+  res <- res[!is.na(res)]
+  unlist(lapply(res,
+      function(x) {
+        if (any(x == subsL1)) c("", x)
+        else x
+      }))
+}
+
 .view_obj <- function(x, howto = "vsplit") {
   nvimcom:::nvim_viewobj(x, howto = howto)
 }
@@ -848,6 +901,28 @@ view_obj_for_vim <- function(x, y) {
     .view_obj(x)
   }
 }
+
+.vimShow_complete <- function(obj, ...) {
+  .vimShow(treeObj(obj), ...)
+}
+
+.vimShow <- function(text, name = "SelectCompletion", howto = "vsplit") {
+  if (is.null(text)) {
+    message("The `text` is NULL.")
+  }
+  .prepare_vimShow <- function(text) {
+    file <- paste0(Sys.getenv("NVIMR_TMPDIR"), "/Rinsert")
+    writeLines(text, file)
+  }
+  .vimPre <- function(name = "Content", howto = "vsplit") {
+    .C("nvimcom_msg_to_nvim",
+      paste0("ShowRObj(\"", howto, "\", \"", name, "\", \"r\")"),
+      PACKAGE = "nvimcom")
+  }
+  .prepare_vimShow(text)
+  invisible(.vimPre(name, howto))
+}
+
 
 get_workflow_news <- function(..., data = get_orders()) {
   lst <- as.Date(unlist(list(...)))
@@ -1069,10 +1144,16 @@ setMethod("not", signature = c(x = "local_db"),
 setMethod("upd", signature = c(x = "local_db"),
   function(x, data, ids = NULL){
     idcol <- x@idcol
+    if (!is(data, "df")) {
+      stop('is(data, "df") == F')
+    }
     if (!is.null(ids)) {
       if (nrow(data)) {
-        data <- do.call(tibble::add_row,
-          c(list(res), nl(idcol, list(ids[ !ids %in% data[[ idcol ]] ]))))
+        notIn <- ids[ !ids %in% data[[ idcol ]] ]
+        if (length(notIn)) {
+          args <- c(list(data), nl(idcol, list(notIn)))
+          data <- do.call(tibble::add_row, args)
+        }
       } else {
         data <- do.call(tibble::tibble, nl(idcol, list(ids)))
       }
