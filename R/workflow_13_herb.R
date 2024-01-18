@@ -150,6 +150,7 @@ setMethod("step3", signature = c(x = "job_herb"),
     )
     x@params$herbs_targets <- herbs_targets
     easyRead <- map(x@params$herbs_targets, "herb_id", object(x)$herb, "Herb_", "Herb_pinyin_name")
+    easyRead <- .set_lab(easyRead, sig(x), "Herbs compounds and targets")
     x@params$easyRead <- easyRead
     if (length(unique(herbs_targets$herb_id)) > 1) {
       ## plot upset of herbs targets
@@ -158,10 +159,12 @@ setMethod("step3", signature = c(x = "job_herb"),
       fun <- function(sets) x@params$herbs_info$Herb_pinyin_name[match(names(sets), x@params$herbs_info$Herb_)]
       names(sets) <- fun(sets)
       p.herbs_targets <- new_upset(lst = sets)
+      p.herbs_targets <- .set_lab(p.herbs_targets, sig(x), "Intersection of herbs all targets")
       ## plot upset of herbs ingredient
       sets <- split(herbs_compounds$Ingredient.id, herbs_compounds$herb_id)
       names(sets) <- fun(sets)
       p.herbs_compounds <- new_upset(lst = sets)
+      p.herbs_compounds <- .set_lab(p.herbs_compounds, sig(x), "Intersection of herbs compounds")
     } else {
       p.herbs_targets <- NULL
       p.herbs_compounds <- NULL
