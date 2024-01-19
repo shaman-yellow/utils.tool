@@ -651,6 +651,9 @@ setGeneric("active",
 setGeneric("skel", 
   function(x, ...) standardGeneric("skel"))
 
+setGeneric("res", 
+  function(x, ...) standardGeneric("res"))
+
 setGeneric("fill", 
   function(x, ...) standardGeneric("fill"))
 
@@ -1134,7 +1137,7 @@ setMethod("not", signature = c(x = "local_db"),
       if (!is(x@db, "tbl_df")) {
         x@db <- dplyr::as_tibble(x@db)
       }
-      x@query <- ids[ !ids %in% x@db[[ ".id" ]] ]
+      x@query <- ids[ !ids %in% x@db[[ x@idcol ]] ]
     } else {
       x@query <- ids
     }

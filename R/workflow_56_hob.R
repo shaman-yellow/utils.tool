@@ -99,6 +99,14 @@ setMethod("step1", signature = c(x = "job_hob"),
     return(x)
   })
 
+setMethod("res", signature = c(x = "job_hob"),
+  function(x){
+    if (x@step < 1L) {
+      stop("x@step < 1L")
+    }
+    x@tables$step1$t.hob
+  })
+
 .is.cid <- function(x) {
   all(grpl(x, "^[0-9]+$"))
 }

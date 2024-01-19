@@ -191,3 +191,88 @@ setMethod("do_herb", signature = c(x = "job_pubchemr", ref = "job_superpred"),
     }
     return(hb)
   })
+
+setMethod("asjob_superpred", signature = c(x = "job_herb"),
+  function(x, hob_filter = F, ..., tmp = "PubChemR.rds"){
+    db <- object(x)$component
+    cpds <- x@tables$step1$herbs_compounds
+    cpds <- map(cpds, "Ingredient.id", db, "Ingredient_id", "Ingredient_Smile", col = "smile")
+    message("Use Smiles to query CIDs.")
+    query <- cpds$smile %>% .[!is.na(.) & !grpl(., "Not")]
+    if (!is.null(tmp)) {
+      db <- new_db(tmp, "Identifier")
+      db <- not(db, query)
+      if (length(db@query)) {
+        info <- try_get_cids.smile(db@query)
+        db <- upd(db, info, db@query)
+      }
+      info <- dplyr::filter(db@db, Identifier %in% !!query)
+    } else {
+      info <- try_get_cids.smile(query)
+    }
+    info <- dplyr::distinct(info, Identifier, .keep_all = T)
+    if (T) {
+      if (!all(query %in% info$Identifier)) {
+        print(table(query %in% info$Identifier))
+        isThat <- usethis::ui_yeah("Not all smiles got CIDs, continue?")
+        if (!isThat) {
+          stop("...")
+        }
+      }
+    }
+    cpds <- map(cpds, "smile", info, "Identifier", "CID", col = "cid")
+    query <- nl(info$CID, info$Identifier, F)
+    if (hob_filter) {
+      ho <- job_hob(query)
+      ho <- suppressMessages(step1(ho, ...))
+      ifUse <- as.logical(res(ho)$prediction)
+      query <- query[ ifUse ]
+      .add_internal_job(.job_hob())
+    }
+    x <- job_superpred(query)
+    if (hob_filter) {
+      x$ho <- ho
+    }
+    x$from_herb <- cpds
+    return(x)
+  })
+
+setMethod("map", signature = c(x = "job_herb", ref = "job_superpred"),
+  function(x, ref){
+    cpds <- ref$from_herb
+    data <- dplyr::select(ref@tables$step1$targets,
+      smile = .id, Target.name = symbols)
+    data <- map(data, "smile", cpds, "smile", "Ingredient.id")
+    data <- dplyr::rename(data, Ingredient_id = Ingredient.id)
+    x@tables$step2$compounds_targets %<>% dplyr::bind_rows(data)
+    x@tables$step2$compounds_targets %<>% dplyr::distinct(Ingredient_id, Target.name, .keep_all = T)
+    message("Set `step` to 2L.")
+    x@step <- 2L
+    return(x)
+  })
+
+try_get_cids.smile <- function(smiles, max = 20L) {
+  if (any(duplicated(smiles))) {
+    message("The query is duplicated. Unique that herein.")
+  }
+  res <- pbapply::pblapply(smiles,
+    function(smile) {
+      run <- 0L
+      n <- 0L
+      while ((!run || inherits(data, "try-error")) & n < max) {
+        run <- 1L
+        n <- n + 1L
+        if (n > 1) {
+          message("\nRetrying...")
+        }
+        data <- try(PubChemR::get_cids(smile, "smiles"))
+      }
+      if (inherits(data, "try-error")) {
+        message("\nMore than the largest trying. Escape")
+        NULL
+      } else {
+        data
+      }
+    })
+  frbind(res, fill = T)
+}

@@ -210,7 +210,7 @@ ftibble <- function(files, ...) {
     }
     tibble::as_tibble(data)
   }
-  if (length(files) > 1) {
+  if (length(files) > 1 || is(files, "list")) {
     lapply(files, fun, ...)
   } else {
     fun(files, ...)
@@ -3450,7 +3450,8 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
     data <- dplyr::mutate(data,
       last.name = strx(name, "^[^,]+"),
       first.name = gs(name, "[^,]*, (.*?)", "\\1"),
-      first.name = gs(first.name, "^([A-Z])([A-Z])$", "\\1 \\2"),
+      first.name = gs(first.name, "([A-Z])", " \\1"),
+      first.name = gs(first.name, "^\\s", ""),
       .id = paste0(last.name, ", ", first.name)
     )
   }

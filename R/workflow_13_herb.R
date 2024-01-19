@@ -78,7 +78,10 @@ setMethod("step2", signature = c(x = "job_herb"),
       Sys.sleep(3)
       lst <- pbapply::pblapply(all_ids,
         function(ids) {
-          to <- paste0("compounds_target", "/", attr(ids, "name"))
+          if (file.exists(.dir <- "compounds_target")) {
+            .dir <- timeName("compounds_target")
+          }
+          to <- paste0(.dir, "/", attr(ids, "name"))
           if (!file.exists(to)) {
             download_compoundTargets(link, ids, tempdir = x$tempdir)
           } else {
@@ -504,10 +507,10 @@ moveToDir_herbs <- function(ids,
   } else {
     names(data) <- get_realname(files)
   }
-  data <- tibble::as_tibble(data.table::rbindlist(data, idcol = T, fill = T))
-  cols <- colnames(data)
-  data <- dplyr::relocate(data, .id)
-  colnames(data)[ which(cols == ".id") ] <- .id
+  data <- frbind(data, idcol = .id, fill = T)
+  if (nrow(data)) {
+    data <- dplyr::relocate(data, !!rlang::sym(.id))
+  }
   data
 }
 
