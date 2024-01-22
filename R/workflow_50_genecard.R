@@ -39,10 +39,13 @@ get_from_genecards <- function(query, score = 5, keep_drive = F) {
   link <- start_drive(browser = "firefox")
   Sys.sleep(3)
   link$open()
-  query <- gs(query, " ", "%20")
+  if (grpl(query, " ")) {
+    query <- paste0("\"", gs(query, " ", "%20"), "\"")
+  }
   url <- paste0('https://www.genecards.org/Search/Keyword?queryString=', query,
     '&pageSize=25000&startPage=0')
   link$navigate(url)
+  Sys.sleep(5)
   html <- link$getPageSource()[[1]]
   link$close()
   end_drive()

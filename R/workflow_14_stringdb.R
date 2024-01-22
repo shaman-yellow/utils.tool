@@ -18,6 +18,10 @@
 
 job_stringdb <- function(data)
 {
+  if (is.character(data)) {
+    data <- data.frame(hgnc_symbol = data)
+  }
+  data <- dplyr::distinct(data, hgnc_symbol)
   .job_stringdb(object = data)
 }
 
@@ -44,7 +48,7 @@ setMethod("step0", signature = c(x = "job_stringdb"),
 
 setMethod("step1", signature = c(x = "job_stringdb"),
   function(x, tops = 30, layout = "kk", species = 9606,
-    network_type = "phy", input_directory = "../", version = "11.5", label = F)
+    network_type = "phy", input_directory = "../", version = "11.5", label = F, HLs = NULL)
   {
     step_message("Create PPI network.
       "
@@ -77,8 +81,8 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     ## hub genes
     hub_genes <- cal_mcc.str(res.str, "hgnc_symbol", F)
     graph_mcc <- get_subgraph.mcc(res.str$graph, hub_genes, top = tops)
-    graph_mcc <- fast_layout(graph_mcc, layout = "linear", circular = T)
-    p.mcc <- plot_networkFill.str(graph_mcc, label = "hgnc_symbol")
+    x$graph_mcc <- graph_mcc <- fast_layout(graph_mcc, layout = "linear", circular = T)
+    p.mcc <- plot_networkFill.str(graph_mcc, label = "hgnc_symbol", HLs = HLs)
     x@plots[[1]] <- namel(p.ppi, p.mcc)
     x@tables[[1]] <- c(list(mapped = relocate(res.str$mapped, hgnc_symbol, STRING_id)),
       namel(hub_genes)
@@ -91,6 +95,28 @@ setMethod("asjob_enrich", signature = c(x = "job_stringdb"),
   function(x, tops = x@params$tops){
     ids <- head(x@tables$step1$hub_genes$hgnc_symbol, tops)
     job_enrich(list(hub_genes = ids), x@tables$step1$hub_genes)
+  })
+
+setMethod("vis", signature = c(x = "job_stringdb"),
+  function(x, HLs){
+    p <- ggraph(x@params$graph_mcc) +
+      geom_edge_arc(
+        aes(color = ifelse(node1.hgnc_symbol == !!HLs | node2.hgnc_symbol == !!HLs,
+            paste0(node1.hgnc_symbol, " <-> ", node2.hgnc_symbol), "...Others"))) +
+      geom_node_point(aes(x = x, y = y, fill = ifelse(is.na(MCC_score), 0, MCC_score)),
+        size = 12, shape = 21, stroke = .3) +
+      geom_node_text(aes(x = x * 1.2, y = y * 1.2, label = hgnc_symbol,
+          angle = -((-node_angle(x,  y) + 90) %% 180) + 90), size = 4) +
+      scale_fill_gradient(low = "lightyellow", high = "red") +
+      scale_edge_color_manual(values = c("grey92", color_set())) +
+      labs(edge_color = "Link", fill = "MCC score") +
+      theme_void()
+    p <- wrap(p, 12, 9)
+    p <- .set_lab(p, sig(x), "MCC score of PPI top feature")
+    data <- get_edges()(x@params$graph_mcc)
+    data <- dplyr::filter(data, node1.hgnc_symbol %in% !!HLs | node2.hgnc_symbol %in% !!HLs)
+    data <- dplyr::select(data, node1.hgnc_symbol, node2.hgnc_symbol)
+    namel(p.mcc = p, data)
   })
 
 new_stringdb <- function(
@@ -192,10 +218,10 @@ plot_network.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
 plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   label.size = 4, node.size = 12, sc = 5, ec = 5, 
   arr.len = 2, edge.color = 'lightblue', edge.width = 1, lab.fill = "MCC score",
-  label = "genes")
+  label = "genes", HLs = NULL)
 {
   p <- ggraph(graph) +
-    geom_edge_arc(aes(x = x, y = y),
+    geom_edge_arc(
       start_cap = circle(sc, 'mm'),
       end_cap = circle(ec, 'mm'),
       # arrow = arrow(length = unit(arr.len, 'mm')),

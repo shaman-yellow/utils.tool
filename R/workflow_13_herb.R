@@ -208,6 +208,30 @@ setMethod("step3", signature = c(x = "job_herb"),
     return(x)
   })
 
+setMethod("intersect", signature = c(x = "job_herb", y = "job_herb"),
+  function(x, y, names)
+  {
+    lst <- list(unique(x$data.allu$Target.name),
+      unique(y$data.allu$Target.name))
+    names(lst) <- names
+    venn <- new_venn(lst = lst)
+    venn <- .set_lab(venn, "intersected targets of ", paste0(names, collapse = " and "))
+    if (length(venn$ins)) {
+      lst <- list(x, y)
+      names(lst) <- names
+      lst <- lapply(lst,
+        function(obj) {
+          dplyr::filter(obj$data.allu, Target.name %in% !!venn$ins)
+        })
+      lst <- frbind(lst, idcol = "From")
+      p.pharm <- plot_network.pharm(lst[, -1])
+      list(p.venn = venn, p.pharm = p.pharm, data = lst)
+    } else {
+      message("No intersection.")
+      venn
+    }
+  })
+
 setMethod("map", signature = c(x = "job_herb", ref = "list"),
   function(x, ref, HLs = NULL){
     data <- x$data.allu

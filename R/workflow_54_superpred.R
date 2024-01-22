@@ -13,7 +13,7 @@
   prototype = prototype(
     info = c("https://prediction.charite.de/subpages/target_prediction.php"),
     cite = "[@SuperpredUpdaNickel2014]",
-    method = "Web tool of `Super-PRED` used for drug-targets prediction"
+    method = "Web tool of `Super-PRED` used for drug-targets relationship prediction"
     ))
 
 job_superpred <- function(smiles)
@@ -94,6 +94,7 @@ setMethod("step1", signature = c(x = "job_superpred"),
         query = list(ids = unique(targets[[ 'UniProt ID' ]]))
         ))
     targets <- map(targets, "UniProt ID", symbols, "From", "To", col = "symbols")
+    targets <- .set_lab(targets, sig(x), "targets predicted by Super-Pred")
     x@tables[[ 1 ]] <- namel(targets)
     return(x)
   })
@@ -227,7 +228,7 @@ setMethod("asjob_superpred", signature = c(x = "job_herb"),
       ho <- suppressMessages(step1(ho, ...))
       ifUse <- as.logical(res(ho)$prediction)
       query <- query[ ifUse ]
-      .add_internal_job(.job_hob())
+      qadd_internal_job(.job_hob())
     }
     x <- job_superpred(query)
     if (hob_filter) {

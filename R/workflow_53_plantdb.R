@@ -61,6 +61,7 @@ setMethod("step2", signature = c(x = "job_plantdb"),
       })
     names(t.data) <- x$herbs_info$Result
     t.data <- frbind(t.data, idcol = T)
+    t.data <- .set_lab(t.data, sig(x), "Compounds from plantaeDb")
     x@tables[[ 2 ]] <- namel(t.data)
     return(x)
   })

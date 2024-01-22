@@ -654,6 +654,9 @@ setGeneric("skel",
 setGeneric("res", 
   function(x, ...) standardGeneric("res"))
 
+setGeneric("intersect", 
+  function(x, y, ...) standardGeneric("intersect"))
+
 setGeneric("fill", 
   function(x, ...) standardGeneric("fill"))
 
@@ -662,6 +665,11 @@ setGeneric("upd",
 
 setGeneric("not", 
   function(x, ...) standardGeneric("not"))
+
+setMethod("intersect", signature = c(x = "ANY", y = "ANY"),
+  function(x, y){
+    base::intersect(x, y)
+  })
 
 setMethod("not", signature = c(x = "job"),
   function(x){
@@ -1171,4 +1179,37 @@ setMethod("upd", signature = c(x = "local_db"),
     return(x)
   })
 
+setMethod("vis", signature = c(x = "df"),
+  function(x, width = 200, n = 100){
+    print(x, n = n, width = width)
+  })
+
+setMethod("res", signature = c(x = "local_db"),
+  function(x, what){
+    dplyr::filter(as_tibble(x@db), !!rlang::sym(x@idcol) %in% !!what)
+  })
+
+saves <- function(file = "workflow.rds", ...) {
+  injobs <- getOption("internal_job")
+  if (!is.null(injobs)) {
+    saveRDS(injobs, ".injobs.rds")
+  }
+  if (file.exists(file)) {
+    isThat <- usethis::ui_yeah("The `file` exists, overwrite that?")
+    if (!isThat) {
+      return(NULL)
+    }
+  }
+  save.image(file, ...)
+}
+
+loads <- function(file = "workflow.rds", ...) {
+  if (file.exists(file)) {
+    load(file, envir = .GlobalEnv)
+  }
+  if (file.exists(".injobs.rds")) {
+    injobs <- readRDS(".injobs.rds")
+    options(internal_job = injobs)
+  }
+}
 
