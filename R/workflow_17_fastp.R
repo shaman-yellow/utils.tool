@@ -30,9 +30,7 @@ setMethod("step0", signature = c(x = "job_fastp"),
 
 setMethod("step1", signature = c(x = "job_fastp"),
   function(x, f1_r2 = c("f1", "r2"), suffix = ".fastq.gz", workers = 7){
-    step_message("Quality control (QC).
-      "
-    )
+    step_message("Quality control (QC).")
     if (is.remote(x)) {
       fqs <- list.remote_rf(object(x), paste0(suffix, "$"))
     } else {
@@ -104,7 +102,7 @@ set_remote.default <- function(x, tmpdir, map_local, remote) {
 setMethod("set_remote", signature = c(x = "job_fastp"),
   function(x, tmpdir = "/data/hlc/tmp", map_local = "fastp_local", remote = "remote")
   {
-    set_remotejdefault(x, tmpdir, map_local, remote)
+    set_remote.default(x, tmpdir, map_local, remote)
     x@params$postfix <- function(x) {
       x[1] <- gs(x[1], "^fastp", "~/miniconda3/bin/conda run -n base fastp")
       x
@@ -129,56 +127,6 @@ list.remote_rf <- function(path, pattern, remote) {
     remote <- x@params$remote
   }
   list.remote(path, pattern, remote, recursive = T, full.names = T)
-}
-
-list.remote <- function(path, pattern, remote = "remote",
-  all.files = F, full.names = F, recursive = F, x)
-{
-  if (missing(x))
-    x <- get("x", envir = parent.frame(1))
-  if (missing(remote)) {
-    remote <- x@params$remote
-  }
-  options <- " -mindepth 1 "
-  if (!recursive) {
-    options <- paste0(options, " -maxdepth 1 ")
-  }
-  if (!all.files) {
-    options <- paste0(options, " -not -name \".*\" ")
-  }
-  before <- paste0("cd ", x@params$wd, ";")
-  if (length(path) == 1) {
-    if (!full.names) {
-      before <- paste0("cd ", path, ";")
-      path <- "."
-    }
-    files <- system(paste0("ssh ", remote, " '", before,
-        " find ", path, " ", options, "'"),
-      intern = T)
-    files[ grepl(pattern, get_filename(files)) ]
-  } else if (length(path) > 1) {
-    if (!full.names) {
-      files <- system(paste0("ssh ", remote, " ",
-          "'", before, " for i in ", paste0(path, collapse = " "),
-          "; do cd $i; find . ", options, "; echo -----; done'"),
-        intern = T)
-    } else {
-      files <- system(paste0("ssh ", remote, " ",
-          "'", before, " for i in ", paste0(path, collapse = " "),
-          "; do find $i ", options, "; echo -----; done'"),
-        intern = T)
-    }
-    files <- sep_list(files, "^-----$")
-    files <- lapply(files,
-      function(files) {
-        files <- files[ -length(files) ]
-        files[ grepl(pattern, get_filename(files)) ]
-      })
-    names(files) <- path
-    files
-  } else {
-    stop("The path may be character(0).")
-  }
 }
 
 fastp_pair <- function(path, suffix = ".fastq.gz", pattern = paste0(".[1-2]", suffix, "$"),

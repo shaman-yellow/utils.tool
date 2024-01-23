@@ -139,13 +139,27 @@ setMethod("pg", signature = c(x = "job"),
   function(x, recode = getOption("pg_remote_recode", pg_remote_recode())){
     if (is.remote(x)) {
       recode <- recode[[ x@pg ]]
-      if (is.null(recode))
-        stop("No program running command obtained.")
-      recode
+      if (is.null(recode)) {
+        # stop("No program running command obtained.")
+        x@pg
+      } else {
+        recode
+      }
     } else {
       x@pg
     }
   })
+
+pg_remote_recode <- function() {
+  list(
+    qiime = "~/miniconda3/bin/conda run -n qiime2 qiime",
+    fastp = "~/miniconda3/bin/conda run -n base fastp",
+    bcftools = "~/miniconda3/bin/conda run -n base bcftools",
+    elprep = "~/miniconda3/bin/conda run -n base elprep",
+    # biobakery_workflows = "~/miniconda3/bin/conda run -n biobakery biobakery_workflows",
+    bowtie2 = "~/miniconda3/bin/conda run -n base bowtie2"
+  )
+}
 
 #' @exportMethod object
 setMethod("object", signature = c(x = "job"),
@@ -724,42 +738,6 @@ set_palette <- function(x, values = color_set()) {
     scale_fill_manual(values = values)
 }
 
-remoteRun <- function(..., path, run_after_cd = NULL,
-  postfix = NULL, remote = "remote", tmpdir = "/data/hlc/tmp", x)
-{
-  expr <- paste0(unlist(list(...)), collapse = "")
-  if (missing(x)) {
-    x <- get("x", parent.frame(1))
-  }
-  if (missing(remote)) {
-    remote <- x@params$remote
-  }
-  if (missing(postfix)) {
-    postfix <- x@params$postfix
-  }
-  if (!is.null(postfix)) {
-    expr <- postfix(expr)
-  }
-  if (missing(tmpdir)) {
-    tmpdir <- x@params$tmpdir
-  }
-  if (!is.null(tmpdir))
-    expr <- c(paste0("export TMPDIR=", tmpdir), expr)
-  if (missing(path)) {
-    path <- x@params$wd
-  }
-  if (!is.null(run_after_cd)) {
-    expr <- c(run_after_cd, expr)
-  }
-  if (!is.null(path)) {
-    expr <- c(paste0("cd ", path), expr)
-  }
-  script <- tempfile("remote_Script_", fileext = ".sh")
-  writeLines(expr, script)
-  writeLines(crayon::yellow(paste0("The script file for remote is: ", script)))
-  system(paste0("ssh ", remote, " < ", script))
-}
-
 setGeneric("is.remote", 
   function(x, ...) standardGeneric("is.remote"))
 
@@ -793,16 +771,6 @@ setMethod("$<-", signature = c(x = "job"),
     x[[ name ]] <- value
     return(x)
   })
-
-pg_remote_recode <- function() {
-  list(
-    qiime = "~/miniconda3/bin/conda run -n qiime2 qiime",
-    fastp = "conda run -n base fastp",
-    bcftools = "conda run -n base bcftools",
-    elprep = "conda run -n base elprep",
-    biobakery_workflows = "conda run -n biobakery biobakery_workflows"
-  )
-}
 
 setMethod("map", signature = c(x = "df"),
   function(x, ref, y, y.ref, y.get, rename = T, col = NULL)
@@ -1211,5 +1179,9 @@ loads <- function(file = "workflow.rds", ...) {
     injobs <- readRDS(".injobs.rds")
     options(internal_job = injobs)
   }
+}
+
+remotejob <- function(wd, remote = "remote") {
+  .job(params = list(set_remote = T, wd = wd, remote = remote))
 }
 

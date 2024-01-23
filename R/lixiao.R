@@ -3451,7 +3451,7 @@ strx <- function(...) {
   stringr::str_extract(...)
 }
 
-search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 10, db = "scopus.rds", port = 7777)
+search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 10, db = "scopusV2.rds", port = 7777)
 {
   if (try_format) {
     .check_columns(data, c("name", "inst"))
@@ -3460,7 +3460,7 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
       first.name = gs(name, "[^,]*, (.*?)", "\\1"),
       first.name = gs(first.name, "([A-Z])", " \\1"),
       first.name = gs(first.name, "^\\s", ""),
-      .id = paste0(last.name, ", ", first.name)
+      .id = paste0(last.name, ", ", first.name, "#", inst)
     )
   }
   .check_columns(data, c("last.name", "first.name", ".id"))
@@ -3489,6 +3489,7 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
   db <- new_db(db, ".id")
   db <- not(db, data$.id)
   query <- dplyr::filter(data, .id %in% db@query)
+  query <- dplyr::distinct(query, .id, .keep_all = T)
   #######################
   #######################
   if (nrow(query)) {
@@ -3527,7 +3528,7 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
           Sys.sleep(sleep)
           table
         })
-      .names <- names(res) <- paste0(query$last.name, ", ", query$first.name)
+      .names <- names(res) <- query$.id
       res <- frbind(res, fill = T, idcol = T)
       db <- upd(db, res, .names)
     }

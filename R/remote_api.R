@@ -28,7 +28,7 @@ rem_list.files <- function(path, pattern,
     x <- get("x", envir = parent.frame(1))
     list.remote(path, pattern, all.files = all.files,
       full.names = full.names, recursive = recursive,
-      remote = x@params$remote
+      remote = x@params$remote, x = x
     )
   }
 }
@@ -107,7 +107,7 @@ rem_file.exists <- function(file) {
     file.exists(file)
   } else {
     x <- get("x", envir = parent.frame(1))
-    res <- system(paste0("ssh ", remote, " '",
+    res <- system(paste0("ssh ", x$remote, " '",
         "cd ", x$wd, "; ",
         expr_sys.file.exists(file), "'"),
       intern = T)
@@ -168,3 +168,91 @@ set_if_null <- function(object, value) {
   else
     object
 }
+
+list.remote <- function(path, pattern, remote = "remote",
+  all.files = F, full.names = F, recursive = F, x)
+{
+  if (missing(x))
+    x <- get("x", envir = parent.frame(1))
+  if (missing(remote)) {
+    remote <- x@params$remote
+  }
+  options <- " -mindepth 1 "
+  if (!recursive) {
+    options <- paste0(options, " -maxdepth 1 ")
+  }
+  if (!all.files) {
+    options <- paste0(options, " -not -name \".*\" ")
+  }
+  before <- paste0("cd ", x@params$wd, ";")
+  if (length(path) == 1) {
+    if (!full.names) {
+      before <- paste0(before, " cd ", path, ";")
+      path <- "."
+    }
+    files <- system(paste0("ssh ", remote, " '", before,
+        " find ", path, " ", options, "'"),
+      intern = T)
+    files[ grepl(pattern, get_filename(files)) ]
+  } else if (length(path) > 1) {
+    if (!full.names) {
+      files <- system(paste0("ssh ", remote, " ",
+          "'", before, " for i in ", paste0(path, collapse = " "),
+          "; do cd $i; find . ", options, "; echo -----; done'"),
+        intern = T)
+    } else {
+      files <- system(paste0("ssh ", remote, " ",
+          "'", before, " for i in ", paste0(path, collapse = " "),
+          "; do find $i ", options, "; echo -----; done'"),
+        intern = T)
+    }
+    files <- sep_list(files, "^-----$")
+    files <- lapply(files,
+      function(files) {
+        files <- files[ -length(files) ]
+        files[ grepl(pattern, get_filename(files)) ]
+      })
+    names(files) <- path
+    files
+  } else {
+    stop("The path may be character(0).")
+  }
+}
+
+remoteRun <- function(..., path, run_after_cd = NULL,
+  postfix = NULL, remote = "remote", tmpdir = "/data/hlc/tmp", x)
+{
+  expr <- paste0(unlist(list(...)), collapse = "")
+  if (missing(x)) {
+    x <- get("x", parent.frame(1))
+  }
+  if (missing(remote)) {
+    remote <- x@params$remote
+  }
+  if (missing(postfix)) {
+    postfix <- x@params$postfix
+  }
+  if (!is.null(postfix)) {
+    expr <- postfix(expr)
+  }
+  if (missing(tmpdir)) {
+    tmpdir <- x@params$tmpdir
+  }
+  if (!is.null(tmpdir))
+    expr <- c(paste0("export TMPDIR=", tmpdir), expr)
+  if (missing(path)) {
+    path <- x@params$wd
+  }
+  if (!is.null(run_after_cd)) {
+    expr <- c(run_after_cd, expr)
+  }
+  if (!is.null(path)) {
+    expr <- c(paste0("cd ", path), expr)
+  }
+  script <- tempfile("remote_Script_", fileext = ".sh")
+  writeLines(expr, script)
+  writeLines(crayon::yellow(paste0("The script file for remote is: ", script)))
+  system(paste0("ssh ", remote, " < ", script))
+}
+
+
