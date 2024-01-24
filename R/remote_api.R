@@ -109,10 +109,9 @@ rem_file.exists <- function(file) {
     x <- get("x", envir = parent.frame(1))
     res <- system(paste0("ssh ", x$remote, " '",
         "cd ", x$wd, "; ",
-        expr_sys.file.exists(file), "'"),
+        paste0(expr_sys.file.exists(file), collapse = "; "), "'"),
       intern = T)
-    if (res == "T") T
-    else F
+    ifelse(res == "T", T, F)
   }
 }
 

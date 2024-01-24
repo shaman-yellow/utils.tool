@@ -150,6 +150,21 @@ setMethod("pg", signature = c(x = "job"),
     }
   })
 
+setMethod("pg", signature = c(x = "character"),
+  function(x, is.remote, recode = getOption("pg_remote_recode", pg_remote_recode()))
+  {
+    if (is.remote) {
+      recode <- recode[[ x ]]
+      if (is.null(recode)) {
+        x
+      } else {
+        recode
+      }
+    } else {
+      x
+    }
+  })
+
 pg_remote_recode <- function() {
   list(
     qiime = "~/miniconda3/bin/conda run -n qiime2 qiime",
@@ -157,7 +172,9 @@ pg_remote_recode <- function() {
     bcftools = "~/miniconda3/bin/conda run -n base bcftools",
     elprep = "~/miniconda3/bin/conda run -n base elprep",
     # biobakery_workflows = "~/miniconda3/bin/conda run -n biobakery biobakery_workflows",
-    bowtie2 = "~/miniconda3/bin/conda run -n base bowtie2"
+    bowtie2 = "~/miniconda3/bin/conda run -n base bowtie2",
+    samtools = "~/miniconda3/bin/conda run -n base samtools",
+    metaphlan = "~/miniconda3/bin/conda run -n mpa metaphlan"
   )
 }
 

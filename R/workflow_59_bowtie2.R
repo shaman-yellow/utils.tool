@@ -36,18 +36,54 @@ setMethod("step1", signature = c(x = "job_bowtie2"),
       rem_run("gunzip ", path_ref, "hg38.fa.gz")
     }
     x$index <- paste0(path_ref, "/", file_index)
-    rem_run(pg(x), "-build --large-index ",
-      " ", x$ref,
-      " ", x$index
-    )
+    if (!rem_file.exists(paste0(x$index, ".1.bt2l"))) {
+      rem_run(pg(x), "-build --large-index ",
+        " --threads ", x$workers,
+        " ", x$ref,
+        " ", x$index)
+    }
+    return(x)
+  })
+
+setMethod("step2", signature = c(x = "job_bowtie2"),
+  function(x, mode = c("notHost", "host")){
+    step_message("Alignment to reference genome.")
+    mode <- match.arg(mode)
+    res <- pbapply::pbapply(object(x), 1,
+      function(vec) {
+        name <- get_realname(vec[[ "forward-absolute-filepath" ]])
+        notHost <- paste0(name, "_rmHost")
+        output <- paste0(name, ".bam")
+        notHost_file <- paste0(notHost, ".", 1:2, ".fq.gz")
+        if (!any(rem_file.exists(c(output, notHost_file)))) {
+          rem_run(pg(x),
+            " -x ", x$index,
+            " -1 ", vec[[ "forward-absolute-filepath" ]],
+            " -2 ", vec[[ "reverse-absolute-filepath" ]],
+            if (mode == "notHost") {
+              paste0(" --un-conc-gz ", notHost)
+            } else NULL,
+            " --threads ", x$workers,
+            " | ", pg("samtools", is.remote(x)), " view -Sb - > ", output
+            # " -S ", output
+          )
+        }
+        if (mode == "notHost") {
+          vec[[ "f_notHost" ]] <- notHost_file[1]
+          vec[[ "r_notHost" ]] <- notHost_file[2]
+        } else {
+          vec[[ "host" ]] <- output
+        }
+      })
+    x$res <- res
     return(x)
   })
 
 setMethod("set_remote", signature = c(x = "job_bowtie2"),
-  function(x, wd, command = "~/miniconda3/bin/conda run -n base bowtie2")
+  function(x, wd)
   {
-    x@pg <- command
     x$wd <- wd
+    x$set_remote <- T
     return(x)
   })
 

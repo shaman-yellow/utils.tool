@@ -35,5 +35,6 @@ setMethod("step1", signature = c(x = "job_seurat"),
 setMethod("set_remote", signature = c(x = "job_seurat"),
   function(x, wd, postfix = NULL, run_after_cd = NULL, tmpdir = NULL){
     x$wd <- wd
+    x$set_remote <- T
     return(x)
   })
