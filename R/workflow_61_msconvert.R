@@ -56,6 +56,7 @@ setMethod("step1", signature = c(x = "job_msconvert"),
       )
     }
     x$metadata <- try_metadata(x$mzmls)
+    x$ion <- ion
     return(x)
   })
 

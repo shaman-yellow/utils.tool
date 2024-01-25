@@ -29,6 +29,22 @@ setMethod("step0", signature = c(x = "job_xcms"),
 setMethod("step1", signature = c(x = "job_xcms"),
   function(x){
     step_message("LC-MS run.")
+    if (nrow(x$metadata) < 2) {
+      # remove the steps which needs Theplural samples
+      object(x)@detectFlow %<>% MCnebula2::delete_layers(3)
+    }
+    object(x) <- MCnebula2::run_lcms(object(x))
+    return(x)
+  })
+
+setMethod("step2", signature = c(x = "job_xcms"),
+  function(x, savepath = timeName(x$ion))
+  {
+    step_message("Output the mgf file.")
+    dir.create(savepath, F)
+    x$mgf <- paste0(savepath, "/msms.mgf")
+    object(x) <- e(MCnebula2::run_export(object(x), saveMgf = x$mgf))
+    x$quant <- e(MCnebula2::features_quantification(object(x)))
     return(x)
   })
 
@@ -39,9 +55,13 @@ setMethod("asjob_xcms", signature = c(x = "job_msconvert"),
   function(x, snthresh = 5, noise = 50000, peakwidth = c(3, 30),
     ppm = 20, minFraction = 0.1)
   {
-    mcm <- e(MCnebula2::new_mcmass(x$metadata, snthresh = snthresh,
+    metadata <- x$metadata
+    ion <- x$ion
+    mcm <- e(MCnebula2::new_mcmass(metadata, snthresh = snthresh,
         noise = noise, peakwidth = peakwidth, ppm = ppm,
         minFraction = minFraction))
     x <- .job_xcms(object = mcm)
+    x$metadata <- metadata
+    x$ion <- ion
     return(x)
   })

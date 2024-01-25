@@ -43,11 +43,25 @@ rem_readLines <- function(file, ...) {
   }
 }
 
-get_file_from_remote <- function(file, wd, remote = "remote")
+rem_get <- function(file) {
+  if (!check_remote()) {
+    file
+  } else {
+    x <- get("x", envir = parent.frame(1))
+    dir.create(x$map_local, F)
+    local <- paste0(x$map_local, "/", file)
+    get_file_from_remote(file, x$wd, local)
+    local
+  }
+}
+
+get_file_from_remote <- function(file, wd, to = NULL, remote = "remote")
 {
-  tempfile <-  tempfile()
-  cdRun("scp ", remote, ":", wd, "/", file, " ", tempfile)
-  tempfile
+  if (is.null(to)) {
+    to <- tempfile()
+  }
+  cdRun("scp ", remote, ":", wd, "/", file, " ", to)
+  to
 }
 
 rem_ftibble <- function(file, ...) {

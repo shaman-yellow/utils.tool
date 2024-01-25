@@ -67,18 +67,32 @@ setMethod("step2", signature = c(x = "job_mpa"),
           )
         }
         vec[[ "mpa_output" ]] <- output
+        depth <- gs(rem_readLines(output, n = 3)[3], "^#([0-9]+) reads processed.*", "\\1")
+        vec[[ "depth" ]] <- depth
         vec
       })
-    x$res <- res
+    x$metadata <- as_tibble(t(res))
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_mpa"),
-  function(x){
+  function(x, pattern_filter = NULL, ...)
+  {
+    files <- x$metadata$mpa_output
+    if (!is.null(pattern_filter)) {
+      files <- files[ grpl(files, pattern_filter, ...) ]
+    }
+    merged <- "merged_abundance_table.txt"
     rem_run(
-      "merge_metaphlan_tables.py",
-      " ", paste0(files),
-      "> output/merged_abundance_table.txt")
+      pg("merge_metaphlan_tables.py", is.remote(x)),
+      " ", paste0(files, collapse = " "),
+      " > ", merged
+    )
+    x$merged <- rem_get(merged)
+    t.abundance <- ftibble(x$merged)
+    t.abundance <- .set_lab(t.abundance, sig(x), "merged abundance table")
+    x@tables[[ 3 ]] <- namel(t.abundance)
+    return(x)
   })
 
 setMethod("set_remote", signature = c(x = "job_mpa"),
@@ -102,6 +116,27 @@ setMethod("asjob_mpa", signature = c(x = "job_fastp"),
     x@pg <- "metaphlan"
     x$wd <- wd
     x$workers <- workers
+    x$map_local <- "mpa_local"
     return(x)
   })
 
+setMethod("asjob_mp", signature = c(x = "job_mpa"),
+  function(x, pattern)
+  {
+    dic <- dplyr::select(x$metadata, mpa_output, depth)
+    dic <- dplyr::mutate(dic, Sample = gs(mpa_output, "\\.txt$", ""))
+    metadata <- group_strings(colnames(x@tables$step3$t.abundance)[-1], pattern, "Sample")
+    metadata <- map(metadata, "Sample", dic, "Sample", "depth", col = "depth")
+    print(metadata)
+    dic.group <- nl(metadata$Sample, metadata$group)
+    obj <- e(MicrobiotaProcess::mp_import_metaphlan(x$merged))
+    obj <- dplyr::mutate(obj, group = dplyr::recode(Sample, !!!dic.group))
+    # https://github.com/YuLab-SMU/MicrobiotaProcess/issues/38
+    # the relative abundance convert...
+    dic.depth <- nl(metadata$Sample, metadata$depth)
+    obj <- dplyr::mutate(obj, mpa_relativeAbundance = Abundance,
+      Abundance = round(Abundance * as.double(dplyr::recode(Sample, !!!dic.depth))),
+      Abundance = ifelse(Abundance == 0, 1, Abundance)
+    )
+    .job_mp(object = obj, params = list(relative = T))
+  })

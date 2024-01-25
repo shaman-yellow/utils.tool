@@ -66,7 +66,8 @@ setGeneric("object",
 
 setGeneric("pg", 
   function(x, ...) standardGeneric("pg"))
-
+setGeneric("relative", 
+  function(x, ...) standardGeneric("relative"))
 setGeneric("object<-", 
   function(x, value) standardGeneric("object<-"))
 setGeneric("plots<-", 
@@ -137,6 +138,7 @@ setReplaceMethod("sig", signature = c(x = "job"),
 #' @exportMethod pg
 setMethod("pg", signature = c(x = "job"),
   function(x, recode = getOption("pg_remote_recode", pg_remote_recode())){
+    cli::cli_alert_info(x@pg)
     if (is.remote(x)) {
       recode <- recode[[ x@pg ]]
       if (is.null(recode)) {
@@ -153,6 +155,7 @@ setMethod("pg", signature = c(x = "job"),
 setMethod("pg", signature = c(x = "character"),
   function(x, is.remote, recode = getOption("pg_remote_recode", pg_remote_recode()))
   {
+    cli::cli_alert_info(x)
     if (is.remote) {
       recode <- recode[[ x ]]
       if (is.null(recode)) {
@@ -174,7 +177,8 @@ pg_remote_recode <- function() {
     # biobakery_workflows = "~/miniconda3/bin/conda run -n biobakery biobakery_workflows",
     bowtie2 = "~/miniconda3/bin/conda run -n base bowtie2",
     samtools = "~/miniconda3/bin/conda run -n base samtools",
-    metaphlan = "~/miniconda3/bin/conda run -n mpa metaphlan"
+    metaphlan = "~/miniconda3/bin/conda run -n mpa metaphlan",
+    merge_metaphlan_tables.py = "~/miniconda3/bin/conda run -n mpa merge_metaphlan_tables.py"
   )
 }
 
