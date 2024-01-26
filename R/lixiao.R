@@ -3251,7 +3251,9 @@ setdev <- function(width, height) {
     dev.new(width = width, height = height)
 }
 
-new_allu <- function(data, col.fill = 1, axes = 1:2, label.auto = F, label.freq = NULL, label.factor = 1) {
+new_allu <- function(data, col.fill = 1, axes = 1:2,
+  label.auto = F, label.freq = NULL, label.factor = 1, shiny = F)
+{
   require(ggalluvial)
   fill <- colnames(data)[col.fill]
   data <- dplyr::mutate(data, fill = !!rlang::sym(fill))
@@ -3271,22 +3273,28 @@ new_allu <- function(data, col.fill = 1, axes = 1:2, label.auto = F, label.freq 
     data <- dplyr::mutate(data, label = stratum)
   }
   aes <- aes(x = Types, y = 1, label = label, stratum = stratum, alluvium = alluvium)
+  scale_fill <- if (is.numeric(data[[ fill ]])) {
+    scale_fill_gradientn(colors = color_set2())
+  } else {
+    scale_fill_manual(values = color_set(T))
+  }
+  geom_stratum <- if (shiny) {
+    geom_stratum(aes(fill = fill))
+  } else {
+    geom_stratum(fill = "lightyellow")
+  }
   p.alluvial <- ggplot(data, aes) +
     geom_alluvium(aes(fill = fill)) +
-    geom_stratum(fill = "lightyellow") +
+    geom_stratum +
     geom_text(stat = "stratum") +
     labs(fill = "", y = "") +
-    if (is.numeric(data[[ fill ]])) {
-      scale_fill_gradientn(colors = color_set2())
-    } else {
-      scale_fill_manual(values = color_set())
-    } +
-      theme_minimal() +
-      theme(axis.text.y = element_blank(),
-        axis.title = element_blank(),
-        legend.position = "none") +
-      geom_blank()
-    p.alluvial
+    scale_fill +
+    theme_minimal() +
+    theme(axis.text.y = element_blank(),
+      axis.title = element_blank(),
+      legend.position = "none") +
+    geom_blank()
+  p.alluvial
 }
 
 new_col <- function(..., lst = NULL, fun = function(x) x[ !is.na(x) & x != ""]) {
@@ -3536,6 +3544,10 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
     end_drive()
   }
   res <- dplyr::filter(db@db, .id %in% !!data$.id)
+  # keep the first search result
+  res <- dplyr::distinct(res, .id, .keep_all = T)
+  res <- res[match(data$.id, res$.id), ]
+  res <- dplyr::rename(res, `query (Name + Affiliation)` = .id)
   ################################
   ################################
   return(res)

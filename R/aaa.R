@@ -586,14 +586,22 @@ wgcna_colors <- function() {
     "gold1")
 }
 
-color_set <- function() {
-  c("#9EDAE5FF", "#DBDB8DFF", "#F7B6D2FF", "#C49C94FF", "#C5B0D5FF", "#FF9896FF",
+color_set <- function(more = F) {
+  shiny <- c("#9EDAE5FF", "#DBDB8DFF", "#F7B6D2FF", "#C49C94FF", "#C5B0D5FF", "#FF9896FF",
     "#98DF8AFF", "#FFBB78FF", "#AEC7E8FF", "#17BECFFF", "#BCBD22FF", "#7F7F7FFF",
     "#E377C2FF", "#8C564BFF", "#9467BDFF", "#D62728FF", "#2CA02CFF", "#FF7F0EFF",
     "#1F77B4FF", "#FED439FF", "#709AE1FF", "#D2AF81FF", "#FD7446FF", "#D5E4A2FF",
     "#197EC0FF", "#F05C3BFF", "#46732EFF", "#71D0F5FF", "#370335FF", "#075149FF",
     "#C80813FF", "#91331FFF", "#1A9993FF", "#FD8CC1FF", "#FF0000FF", "#FF9900FF",
     "#FFCC00FF", "#00FF00FF", "#6699FFFF", "#CC33FFFF")
+  if (more) {
+    cols <- c(shiny, wgcna_colors())
+    cols <- t(col2rgb(cols))
+    cols <- cols[ !duplicated(cols), ]
+    apply(cols, 1, function(x) rgb(x[1], x[2], x[3], maxColorValue = 255))
+  } else {
+    shiny
+  }
 }
 
 draw_smile <- function(smile, file, pdf = T) {

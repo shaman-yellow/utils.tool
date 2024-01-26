@@ -46,3 +46,8 @@ get_data.cacc2021 <- function(file = "~/outline/lixiao/published_data/ChangesAnd
   x
 }
 
+get_data.pmb2023 <- function(file = "~/outline/lixiao/published_data/ProteinMetabolBenson2023.csv") {
+  # https://github.com/aeisman/protein-metabolite
+  # https://mbenson.shinyapps.io/protein-metabolite/
+  x <- .job_publish(cite = "[@ProteinMetabolBenson2023]")
+}

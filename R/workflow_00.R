@@ -88,6 +88,8 @@ setGeneric("lab",
   function(x, ...) standardGeneric("lab"))
 setGeneric("lab<-", 
   function(x, value) standardGeneric("lab<-"))
+setGeneric("pattern", 
+  function(x, ...) standardGeneric("pattern"))
 
 setMethod("lab", signature = c(x = "ANY"),
   function(x, ...){

@@ -175,9 +175,10 @@ setMethod("step3", signature = c(x = "job_mp"),
           ))
       x@params$mp_cal_clust <- T
     }
-    p.sample_dist <- try(e(MicrobiotaProcess::mp_plot_dist(object(x),
+    p.sample_dist <- try(wrap(e(MicrobiotaProcess::mp_plot_dist(object(x),
         .distmethod = bray, .group = !!rlang::sym(x@params$group)),
-      text = "Heatmap"), T)
+      text = "Heatmap")), T)
+    p.sample_dist <- .set_lab(p.sample_dist, sig(x), "Sampe distance")
     p.group_test <- e(MicrobiotaProcess::mp_plot_dist(object(x), .distmethod = bray,
         .group = !!rlang::sym(x@params$group),
         group.test = TRUE, textsize = 3), text = "Boxplot")
@@ -216,28 +217,21 @@ setMethod("step3", signature = c(x = "job_mp"),
           wrap(as_grob(p), 12, if (width < 8) 8 else width)
         }))
     p.hier <- .set_lab(p.hier, sig(x), names(p.hier), "hierarchy")
+    lab(p.hier) <- paste0(sig(x), " all hierarchy data")
     x@plots[[ 3 ]] <- namel(p.sample_dist, p.group_test, p.pcoa, p.hier)
     return(x)
   })
 
 setMethod("step4", signature = c(x = "job_mp"),
-  function(x){
+  function(x, legend.color = F)
+  {
     step_message("Biomarker discovery.")
     if (is.null(x@params$mp_diff_analysis)) {
       object(x) <- e(MicrobiotaProcess::mp_diff_analysis(
           object(x), .abundance = !!rlang::sym(x$use),
           .group = !!rlang::sym(x@params$group), force = x$force))
       x@params$mp_diff_analysis <- T
-    }
-    ## plot boxplot
-    p.box <- try(e(MicrobiotaProcess::mp_plot_diff_boxplot(object(x),
-        .group = !!rlang::sym(x@params$group))), T)
-    if (!inherits(p.box, "try-error")) {
-      p.box <- MicrobiotaProcess::set_diff_boxplot_color(p.box,
-        values = ggsci::pal_npg()(10),
-        guide = guide_legend(title = NULL)
-      )
-    }
+    } 
     ## plot radical tree
     p.tree <- try(e(MicrobiotaProcess::mp_plot_diff_cladogram(object(x),
         .group = !!rlang::sym(x@params$group),
@@ -259,20 +253,57 @@ setMethod("step4", signature = c(x = "job_mp"),
     if (inherits(tryPvalue, "try-error")) {
       message("\n\tNo significant features found.")
       Sys.sleep(3)
+      tryPvalue <- F
     } else {
       top_table <- e(MicrobiotaProcess::select(tree, label, nodeClass,
           pvalue, fdr, LDAupper, LDAmean, LDAlower, !!rlang::sym(sign)))
       top_table <- dplyr::filter(top_table, !is.na(fdr))
       top_table <- dplyr::arrange(top_table, fdr)
+      top_table <- .set_lab(top_table, sig(x), "statistic of all difference microbiota")
       x@tables[[ 4 ]] <- namel(top_table)
       if (get_tree) {
-        tol <- length(unique(dplyr::filter(top_table, fdr < .01)$label))
-        h <- ceiling(sqrt(tol * 30))
-        p.tree <- p.tree + guides(color = guide_legend(nrow = h))
-        print(p.tree)
-        p.tree <- recordPlot()
-        p.tree <- wrap(p.tree, 12 + h * .2, 7 + h * .12)
+        if (legend.color) {
+          tol <- length(unique(dplyr::filter(top_table, pvalue < .01)$label))
+          if (tol) {
+            h <- ceiling(sqrt(tol * 15))
+            p.tree <- p.tree + guides(color = guide_legend(nrow = h))
+          } else {
+            h <- 0
+          }
+          print(p.tree)
+          p.tree <- recordPlot()
+          p.tree <- wrap(p.tree, 12 + h * .12, 7 + h * .06)
+        } else {
+          p.tree <- p.tree + guides(color = "none")
+          print(p.tree)
+          p.tree <- recordPlot()
+          p.tree <- wrap(p.tree, 12, 11)
+        }
+        p.tree <- .set_lab(p.tree, sig(x), "The cladogram of differential species")
       }
+      tryPvalue <- T
+    }
+    ## plot boxplot
+    if (tryPvalue) {
+      classes <- c("Phylum", "Class", "Order", "Family", "Genus", "Species")
+      fun_test <- function(classes) {
+        max <- 50
+        data <- dplyr::filter(top_table, pvalue < .01)
+        stats <- table(data$nodeClass)
+        stats <- stats[ match(classes, names(stats)) ]
+        classes[ cumsum(stats) <= max ]
+      }
+      classes <- fun_test(classes)
+      p.box <- e(MicrobiotaProcess::mp_plot_diff_boxplot(object(x),
+          taxa.class = !!classes,
+          .group = !!rlang::sym(x@params$group)))
+      p.box <- MicrobiotaProcess::set_diff_boxplot_color(p.box,
+        values = ggsci::pal_npg()(10),
+        guide = guide_legend(title = NULL)
+      )
+      p.box <- wrap(p.box, 10, 10)
+      p.box <- .set_lab(p.box, sig(x), "The abundance and LDA ",
+        paste0("from ", classes[1], " to ", tail(classes, n = 1)))
     }
     x@plots[[ 4 ]] <- namel(p.box, p.tree)
     return(x)
@@ -328,6 +359,26 @@ setMethod("step5", signature = c(x = "job_mp"),
     return(x)
   })
 
+setMethod("pattern", signature = c(x = "job_mp"),
+  function(x, use = c("pvalue", "fdr"), cutoff = .05, not = c("GB", "^un$", "^bacterium$"))
+  {
+    if (x@step < 4L) {
+      stop("x@step < 4L")
+    }
+    data <- x@tables$step4$top_table
+    if (is.null(data) || !nrow(data)) {
+      stop("No significant microbiota found.")
+    }
+    use <- match.arg(use)
+    data <- dplyr::filter(data, !!rlang::sym(use) < !!cutoff)
+    lst <- data$label
+    # onto <- strx(lst, "^[a-z]")
+    lst <- gs(lst, "^.__([^_]+).*", "\\1")
+    # names(lst) <- onto
+    lst <- lst[ !grpl(lst, paste0(not, collapse = "|")) ]
+    lst[ !duplicated(lst) ]
+  })
+
 .create_mt_pattern <- function(strings) {
   mt.pattern <- stringr::str_extract_all(strings, "(?<=__|^).*?(?=__|$)")
   mt.pattern <- unique(unlist(mt.pattern))
@@ -336,10 +387,10 @@ setMethod("step5", signature = c(x = "job_mp"),
   mt.pattern
 }
 
-matchThats <- function(x, patterns) {
+matchThats <- function(x, patterns, ignore.case = T) {
   patterns <- patterns[ !is.na(patterns) ]
   if (length(patterns)) {
-    matched <- .find_and_sort_strings(unique(x), patterns)
+    matched <- .find_and_sort_strings(unique(x), patterns, ignore.case = ignore.case)
     matched <- nl(patterns, matched)
     matched <- lst_clear0(matched)
     matched
