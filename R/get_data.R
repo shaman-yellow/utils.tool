@@ -46,8 +46,16 @@ get_data.cacc2021 <- function(file = "~/outline/lixiao/published_data/ChangesAnd
   x
 }
 
-get_data.pmb2023 <- function(file = "~/outline/lixiao/published_data/ProteinMetabolBenson2023.csv") {
+get_data.pmb2023 <- function(file = "~/outline/lixiao/published_data/ProteinMetabolBenson2023_mmc5_small.rds")
+{
   # https://github.com/aeisman/protein-metabolite
   # https://mbenson.shinyapps.io/protein-metabolite/
-  x <- .job_publish(cite = "[@ProteinMetabolBenson2023]")
+  data <- readRDS(file)
+  data <- dplyr::filter(data, META_Q < .05)
+  x <- .job_publish(object = data, cite = "[@ProteinMetabolBenson2023]")
+  object(x) <- .set_lab(object(x), "PUBLISHED-ProteinMetabolBenson2023-significant-correlation")
+  x
 }
+
+
+

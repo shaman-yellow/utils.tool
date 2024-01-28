@@ -269,8 +269,8 @@ rstyle <- function(get = "pal", seed = NULL, n = 1L) {
   res
 }
 
-plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed = 1,
-  HLs = NULL)
+plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed = 1, HLs = NULL,
+  ax1 = "Herb", ax2 = "Compound", ax3 = "Target", less.label = T)
 {
   if (length(unique(data[[1]])) == 1) {
     sherb <- 1L
@@ -278,19 +278,19 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
     sherb <- 0L
   }
   prepare_data <- function(data) {
-    colnames(data) <- c("Herb", "Compound", "Target")
+    colnames(data) <- c(ax1, ax2, ax3)
     nodes <- tidyr::gather(data, type, value)
     nodes <- dplyr::distinct(nodes)
     nodes <- dplyr::relocate(nodes, name = value, type)
     nodes <- dplyr::mutate(nodes, name = ifelse(duplicated(name), paste0(type, ":", name), name))
     ed.12 <- dplyr::distinct(data, dplyr::pick(1:2))
     if (sherb) {
-      ComMul <- ed.12$Compound
+      ComMul <- ed.12[[ ax2 ]]
     } else {
-      freq12 <- table(ed.12$Compound)
+      freq12 <- table(ed.12[[ ax2 ]])
       ComSin <- names(freq12[ freq12 == 1 ])
       ComMul <- names(freq12[ freq12 > 1 ])
-      ed.12sin <- dplyr::filter(ed.12, Compound %in% !!ComSin)
+      ed.12sin <- dplyr::filter(ed.12, !!rlang::sym(ax2) %in% !!ComSin)
     }
     resize <- function(data, f) {
       data$x <- data$x * f
@@ -302,13 +302,13 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
       data$y <- data$y + y
       data
     }
-    crds.Tgt <- get_layout(NULL, "grid", nodes = dplyr::filter(nodes, type == "Target"))
+    crds.Tgt <- get_layout(NULL, "grid", nodes = dplyr::filter(nodes, type == !!ax3))
     crds.Tgt <- shift(crds.Tgt, -max(crds.Tgt$x) / 2, -max(crds.Tgt$y) / 2)
     f.rsz <- max(crds.Tgt$x) * f.f
     if (!sherb) {
-      crds.Hrb <- get_layout(NULL, "circle", nodes = dplyr::filter(nodes, type == "Herb"))
+      crds.Hrb <- get_layout(NULL, "circle", nodes = dplyr::filter(nodes, type == !!ax1))
       crds.Hrb <- resize(crds.Hrb, f.rsz)
-      lst <- split(ed.12sin, ~Herb)
+      lst <- split(ed.12sin, ed.12sin[[ ax1 ]])
       crds.ComSin <- mapply(lst, names(lst), SIMPLIFY = F,
         FUN = function(ed, nm) {
           lay <- resize(get_layout(ed, "star"), f.rsz * f.f.sin)
@@ -339,8 +339,8 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
     edges <- do.call(dplyr::bind_rows, edges)
     if (!sherb) {
       nodes <- dplyr::mutate(nodes,
-        type = ifelse(name %in% !!ComSin, "Compound Unique",
-          ifelse(name %in% !!ComMul, "Compound Sharing", type)))
+        type = ifelse(name %in% !!ComSin, paste0(ax2, " Unique"),
+          ifelse(name %in% !!ComMul, paste0(ax2, " Sharing"), type)))
     }
     nodes <- dplyr::filter(nodes, name %in% !!crds$name)
     crds <- crds[ match(nodes$name, crds$name), ]
@@ -355,13 +355,13 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
   x <- prepare_data(data)
   data <- as_tibble(data.frame(x))
   data <- dplyr::mutate(
-    data, cent = ifelse(type == "Herb", cent * 150,
-      ifelse(grpl(type, "Compound", ignore.case = T), cent * 20, cent)))
-  data.tgt <- dplyr::filter(data, type == "Target")
+    data, cent = ifelse(type == !!ax1, cent * 150,
+      ifelse(grpl(type, !!ax2, ignore.case = T), cent * 20, cent)))
+  data.tgt <- dplyr::filter(data, type == !!ax3)
   set.seed(seed)
   minSize <- .5
   if (is.null(HLs)) {
-    if (nrow(dplyr::filter(data, type == "Compound")) > 10L) {
+    if (nrow(dplyr::filter(data, type == !!ax2)) > 10L) {
       width <- .1
     } else {
       width <- 1
@@ -371,14 +371,22 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
   } else {
     geom_edge <- geom_edge_link(aes(edge_color = highlight, edge_width = highlight), alpha = .2)
   }
+  if (less.label) {
+    geom_label_1 <- ggrepel::geom_label_repel(
+      data = dplyr::filter(data, cent > if (sherb) 100 else 1000),
+      aes(x = x, y = y, label = name, color = type))
+    geom_label_2 <- ggrepel::geom_label_repel(
+      data = dplyr::filter(data.tgt, cent >= sort(cent, T)[10]),
+      aes(x = x, y = y, label = name, color = type))
+  } else {
+    geom_label_1 <- ggrepel::geom_label_repel(
+      data = data, aes(x = x, y = y, label = name, color = type))
+    geom_label_2 <- geom_blank()
+  }
   p <- ggraph(x) + geom_edge +
     geom_node_point(data = data, aes(x = x, y = y, color = type, size = cent, shape = type)) +
-    ggrepel::geom_label_repel(
-      data = dplyr::filter(data, cent > if (sherb) 100 else 1000),
-      aes(x = x, y = y, label = name, color = type)) +
-    ggrepel::geom_label_repel(
-      data = dplyr::filter(data.tgt, cent >= sort(cent, T)[10]),
-      aes(x = x, y = y, label = name, color = type)) +
+    geom_label_1 +
+    geom_label_2 +
     scale_size(range = c(minSize, 15)) +
     guides(size = "none", shape = "none") +
     scale_color_manual(values = rstyle("pal", seed)) +

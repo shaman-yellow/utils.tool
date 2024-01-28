@@ -73,3 +73,74 @@ setMethod("step1", signature = c(x = "job_gutmd"),
     x@tables <- tables
     return(x)
   })
+
+setMethod("map", signature = c(x = "job_gutmd", ref = "job_publish"),
+  function(x, ref)
+  {
+    if (ref@cite == "[@ProteinMetabolBenson2023]") {
+      message("Gut.Microbiota (previous filtered) => Metabolite (or Substrate) => Protein")
+      ## Gut.Microbiota related data
+      data <- x@params$res_micro$db_matched
+      data <- dplyr::select(data, Gut.Microbiota,
+        Substrate, Substrate.PubChem.CID,
+        Metabolite, Metabolite.PubChem.CID
+      )
+      ref.cids <- rm.no(object(ref)$pubchem_cid)
+      data <- dplyr::filter(data,
+        Substrate.PubChem.CID %in% !!ref.cids | Metabolite.PubChem.CID %in% !!ref.cids
+      )
+      data1 <- dplyr::mutate(data, .id = Substrate.PubChem.CID, .id_from = "Substrate")
+      data2 <- dplyr::mutate(data, .id = Metabolite.PubChem.CID, .id_from = "Metabolite")
+      main <- dplyr::bind_rows(data1, data2)
+      main <- dplyr::filter(main, !is.na(.id))
+      ##############
+      ##############
+      ## ref data to Genes
+      cids <- rm.no(c(data$Substrate.PubChem.CID, data$Metabolite.PubChem.CID))
+      ref.data <- dplyr::filter(object(ref), pubchem_cid %in% !!cids, !is.na(pubchem_cid))
+      ##############
+      ##############
+      matched <- tbmerge(main, ref.data, by.x = ".id", by.y = "pubchem_cid", allow.cartesian = T)
+      matched <- dplyr::relocate(matched, .id, .id_from, Substrate, Metabolite, Gut.Microbiota)
+      matched <- dplyr::select(matched, -dplyr::ends_with("PubChem.CID"))
+      matched <- dplyr::mutate(matched, Target_Gene = gs(Target_Gene, "\\s*,\\s*|\\s+", " "))
+      fun_format <- function(data) {
+        data1 <- dplyr::filter(data, grpl(Target_Gene, " "))
+        data1 <- split_lapply_rbind(data1, 1:nrow(data1),
+          function(x) {
+            genes <- x$Target_Gene
+            x <- dplyr::select(x, -Target_Gene)
+            data.frame(x, Target_Gene = strsplit(genes, " ")[[1]])
+          })
+        data <- dplyr::filter(data, !grpl(Target_Gene, " "))
+        dplyr::bind_rows(data, data1)
+      }
+      matched <- fun_format(matched)
+      matched <- .set_lab(matched, sig(x), "Discover relationship between Microbiota with Host genes by matching metabolites")
+      x$ProteinMetabolBenson2023 <- namel(matched)
+    }
+    return(x)
+  })
+
+setMethod("map", signature = c(x = "job_limma", ref = "job_gutmd"),
+  function(x, ref, tops, use = "hgnc_symbol", plot_max = 1000)
+  {
+    if (is.null(data <- ref$ProteinMetabolBenson2023$matched)) {
+      stop("is.null(ref$ProteinMetabolBenson2023$matched) == T")
+    }
+    sigs <- rm.no(tops[[ use ]])
+    lst <- list(Microbiota_associated = data$Target_Gene, DEGs = sigs)
+    p.venn <- new_venn(lst = lst)
+    p.venn <- .set_lab(p.venn, sig(x), "Intersection of Microbiota associated Genes with DEGs")
+    data <- dplyr::filter(data, Target_Gene %in% p.venn$ins)
+    data <- dplyr::arrange(data, dplyr::desc(abs(META_Rho)))
+    data <- .set_lab(data, sig(x), "Microbiota associated Genes filtered by DEGs")
+    data.network <- dplyr::select(head(data, n = plot_max), Gut.Microbiota, Metabolite, Target_Gene)
+    data.network <- .set_lab(data.network, sig(x), paste0("Top ", plot_max, " relationship data"))
+    p.network <- plot_network.pharm(data.network,
+      ax1 = "Microbiota", ax2 = "Metabolite", ax3 = "DEGs", less.label = F
+    )
+    p.network <- .set_lab(p.network, sig(x), paste0("Top ", plot_max, " relationship network"))
+    namel(p.venn, data, p.network, data.network)
+  })
+
