@@ -43,6 +43,9 @@ get_data.cacc2021 <- function(file = "~/outline/lixiao/published_data/ChangesAnd
   x$heatmap <- .set_lab(x$heatmap, "PUBLISHED-ChangesAndCorChen2021-correlation-heatmap")
   object(x) <- dplyr::filter(data, pvalue < .05)
   object(x) <- .set_lab(object(x), "PUBLISHED-ChangesAndCorChen2021-significant-correlation")
+  ids <- PubChemR::get_cids(unique(object(x)$metabolite))
+  ids <- dplyr::mutate(ids, CID = as.integer(CID))
+  object(x) <- map(object(x), "metabolite", ids, "Identifier", "CID", col = "cid")
   x
 }
 

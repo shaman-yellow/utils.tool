@@ -90,6 +90,8 @@ setGeneric("lab<-",
   function(x, value) standardGeneric("lab<-"))
 setGeneric("pattern", 
   function(x, ...) standardGeneric("pattern"))
+setGeneric("ping", 
+  function(x, ...) standardGeneric("ping"))
 
 setMethod("lab", signature = c(x = "ANY"),
   function(x, ...){
@@ -180,7 +182,8 @@ pg_remote_recode <- function() {
     bowtie2 = "~/miniconda3/bin/conda run -n base bowtie2",
     samtools = "~/miniconda3/bin/conda run -n base samtools",
     metaphlan = "~/miniconda3/bin/conda run -n mpa metaphlan",
-    merge_metaphlan_tables.py = "~/miniconda3/bin/conda run -n mpa merge_metaphlan_tables.py"
+    merge_metaphlan_tables.py = "~/miniconda3/bin/conda run -n mpa merge_metaphlan_tables.py",
+    `~/operation/sirius/bin/sirius` = "~/operation/sirius/bin/sirius"
   )
 }
 

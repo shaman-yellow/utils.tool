@@ -44,6 +44,7 @@ setMethod("step2", signature = c(x = "job_xcms"),
     dir.create(savepath, F)
     x$mgf <- paste0(savepath, "/msms.mgf")
     object(x) <- e(MCnebula2::run_export(object(x), saveMgf = x$mgf))
+    x$mgf <- format_mgf.xcms(x$mgf, x$ion)
     x$quant <- e(MCnebula2::features_quantification(object(x)))
     return(x)
   })
@@ -65,3 +66,17 @@ setMethod("asjob_xcms", signature = c(x = "job_msconvert"),
     x$ion <- ion
     return(x)
   })
+
+format_mgf.xcms <- function(mgf, ion, rm.title = T, revise.charge = T) {
+  lines <- readLines(mgf)
+  if (rm.title) {
+    lines <- lines[ !grpl(lines, "TITLE") ]
+  }
+  if (revise.charge) {
+    ion <- match.arg(ion, c("negative", "positive"))
+    lines[ grpl(lines, "^CHARGE") ] <- paste0("CHARGE=1", switch(ion, negative = "-", positive = "+"))
+  }
+  new.mgf <- gs(mgf, "\\.mgf$", "Format.mgf")
+  writeLines(lines, new.mgf)
+  return(new.mgf)
+}

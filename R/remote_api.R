@@ -4,6 +4,10 @@
 
 rem_run <- function(...) {
   x <- get("x", envir = parent.frame(1))
+  if (is.null(x$wd)) {
+    message("Use `x$wd` as '.'")
+    x$wd <- "."
+  }
   if (!check_remote()) {
     cdRun(..., path = x$wd)
   } else {
