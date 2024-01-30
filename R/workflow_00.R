@@ -92,6 +92,8 @@ setGeneric("pattern",
   function(x, ...) standardGeneric("pattern"))
 setGeneric("ping", 
   function(x, ...) standardGeneric("ping"))
+setGeneric("login", 
+  function(x, ...) standardGeneric("login"))
 
 setMethod("lab", signature = c(x = "ANY"),
   function(x, ...){

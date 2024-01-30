@@ -631,3 +631,6 @@ draw_smile <- function(smile, file, pdf = T) {
                            position, theme, p$guides, p$labels)
   }
 
+.pattern.cn <- function() {
+  "[\u4e00-\u9fa5]"
+}

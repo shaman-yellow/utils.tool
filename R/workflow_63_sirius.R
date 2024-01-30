@@ -32,12 +32,12 @@ setMethod("step0", signature = c(x = "job_sirius"),
   })
 
 setMethod("step1", signature = c(x = "job_sirius"),
-  function(x, tryLog = T, account = "202011113511016@zcmu.edu.cn", password = "Qiu!23224856")
+  function(x, tryLog = T, account = getOption("sirius_account", NULL),
+    password = getOption("sirius_password", NULL))
   {
     step_message("Login, if not.")
     if (tryLog) {
-      rem_run(pg(x), " login -u ", account, " -p <<EOF",
-        "\n", password, "\nEOF")
+      x <- login(x, account, password)
     }
     return(x)
   })
@@ -65,8 +65,8 @@ setMethod("step2", signature = c(x = "job_sirius"),
       pg(x), " --input ", input,
       " --output ", x$output,
       " --cores ", x$workers,
-      " formula -p orbitrap fingerprint structure compound-classes write-summaries",
       if (!is.null(x$maxmz)) paste0(" --maxmz=", x$maxmz) else NULL,
+      " formula -p orbitrap fingerprint structure compound-classes write-summaries",
       " --output ", x$output
     )
     return(x)
@@ -115,6 +115,18 @@ setMethod("asjob_sirius", signature = c(x = "job_xcms"),
   {
     params <- x@params
     x <- .job_sirius(params = params, pg = pg)
+    return(x)
+  })
+
+setMethod("login", signature = c(x = "job_sirius"),
+  function(x, account = getOption("sirius_account", NULL),
+    password = getOption("sirius_password", NULL))
+  {
+    if (is.null(account)) {
+      stop("The `account` can not be NULL.")
+    }
+    rem_run(pg(x), " login -u ", account, " -p <<EOF",
+      "\n", password, "\nEOF")
     return(x)
   })
 
