@@ -75,8 +75,13 @@ setMethod("step2", signature = c(x = "job_classyfire"),
     }
     x$rd.class <- query_classification(query, savedir,
       inchikey.rdata = x$rd.inchi)
-    db_class <- frbind(extract_rdata_list(x$rd.class, query), idcol = T)
-    db_class <- dplyr::rename(db_class, inchikey2d = .id)
+    if (x$type == "cid") {
+      query <- unique(x$db_inchi$inchikey2d)
+    }
+    db_class <- frbind(extract_rdata_list(x$rd.class, query), idcol = "inchikey2d")
+    if (x$type == "cid") {
+      db_class <- map(db_class, "inchikey2d", x$db_inchi, "inchikey2d", "CID", col = "cid")
+    }
     x$db_class <- db_class
     plot_fun <- function(data, pattern_match = NULL) {
       nodes <- dplyr::summarize(dplyr::group_by(data, Classification),

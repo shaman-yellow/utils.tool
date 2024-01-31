@@ -180,9 +180,9 @@ setMethod("do_herb", signature = c(x = "job_pubchemr", ref = "job_superpred"),
       Ingredient_id = pubchem_id, Target.name = symbols,
       Target.protein = `Target Name`
     )
-    hb@params$herbs_info <- dplyr::mutate(
-      dplyr::distinct(data, Herb_pinyin_name, Herb_cn_name),
-      Herb_ = Herb_pinyin_name
+    hb@params$herbs_info <- dplyr::rename(
+      dplyr::distinct(data, Herb_pinyin_name, Herb_cn_name, herb_id),
+      Herb_ = herb_id
     )
     hb@object$herb <- hb@params$herbs_info
     if (run_step3) {
@@ -228,7 +228,7 @@ setMethod("asjob_superpred", signature = c(x = "job_herb"),
       ho <- suppressMessages(step1(ho, ...))
       ifUse <- as.logical(res(ho)$prediction)
       query <- query[ ifUse ]
-      qadd_internal_job(.job_hob())
+      .add_internal_job(.job_hob())
     }
     x <- job_superpred(query)
     if (hob_filter) {

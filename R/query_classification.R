@@ -24,27 +24,40 @@ query_classification <- function(query, dir,
   classyfire_cl = NULL, gather_as_rdata = T, ...)
 {
   rdata <- paste0(dir, "/", rdata.name)
-  classes <- extract_rdata_list(rdata)
-  if (!is.null(classes))
-    query <- query[!query %in% names(classes)]
+  db_classes <- extract_rdata_list(rdata)
+  fun_format.dbInchi <- function(sets) {
+    sets <- lapply(sets,
+      function(df){
+        if("InChIKey" %in% colnames(df))
+          return(df)
+      })
+    sets <- data.table::rbindlist(sets)
+    sets <- dplyr::mutate(sets, inchikey2d = stringr::str_extract(InChIKey, "^[A-Z]{1,}"))
+    sets
+  }
+  if (all(grpl(query, "^[0-9]+$"))) {
+    ## CID to inchikey2d
+    inchikey_set <- extract_rdata_list(inchikey.rdata, as.character(query))
+    inchikey_set <- fun_format.dbInchi(inchikey_set)
+    query <- inchikey_set$inchikey2d[ match(as.integer(query), as.integer(inchikey_set$CID)) ]
+  }
+  if (!is.null(db_classes))
+    query <- query[!query %in% names(db_classes)]
   if (!length(query))
     return(paste0(dir, "/", rdata.name))
-  inchikey_set <- extract_rdata_list(inchikey.rdata, query)
-  if (is.null(inchikey_set))
-    stop("is.null(inchikey_set) == T. File `inchikey.rdata` may not exists.")
-  sets <- lapply(inchikey_set, function(df){
-    if("InChIKey" %in% colnames(df))
-      return(df)
-  })
-  sets <- data.table::rbindlist(sets)
-  sets <- dplyr::mutate(sets, inchikey2d = stringr::str_extract(InChIKey, "^[A-Z]{1,}"))
+  if (!exists("inchikey_set")) {
+    inchikey_set <- extract_rdata_list(inchikey.rdata, query)
+    sets <- fun_format.dbInchi(inchikey_set)
+  } else {
+    sets <- dplyr::filter(inchikey_set, inchikey2d %in% !!query)
+  }
   l <- classyfire_get_classification(sets, dir, classyfire_cl = classyfire_cl, ...)
   if (is.logical(l))
     return(paste0(dir, "/", rdata.name))
   if (gather_as_rdata) {
     cat("## gather data\n")
     packing_as_rdata_list(dir, pattern = "^[A-Z]{14}$",
-      rdata = rdata.name, extra = classes)
+      rdata = rdata.name, extra = db_classes)
   }
   return(paste0(dir, "/", rdata.name))
 }

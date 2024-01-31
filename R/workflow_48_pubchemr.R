@@ -18,6 +18,7 @@
 
 job_pubchemr <- function(cids)
 {
+  cids <- cids[ !is.na(cids) ]
   x <- .job_pubchemr(object = cids)
   x
 }
@@ -113,3 +114,12 @@ setMethod("map", signature = c(x = "job_tcmsp", ref = "job_pubchemr"),
     }
     return(x)
   })
+
+try_get_cids.name <- function(name) {
+  db <- PubChemR::get_cids(name)
+  db <- dplyr::distinct(db, Identifier, .keep_all = T)
+  db <- dplyr::mutate(db, CID = ifelse(grpl(CID, "^No"), NA_integer_, as.integer(CID)))
+  db
+}
+
+

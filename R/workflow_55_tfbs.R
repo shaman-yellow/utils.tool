@@ -63,6 +63,7 @@ setMethod("step1", signature = c(x = "job_tfbs"),
         db <- new_db(db_anno, ".id")
         db <- not(db, ids)
         if (length(db@query)) {
+          message("Need query: ", length(db@query), " (total: ", length(unique(res$Motif)), ")")
           anno <- pbapply::pbsapply(db@query, simplify = F, cl = cl,
             function(id) {
               url <- paste0("https://tfbsdb.systemsbiology.net/searchtf?searchterm=", id)

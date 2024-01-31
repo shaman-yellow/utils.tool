@@ -136,6 +136,7 @@ setMethod("step3", signature = c(x = "job_herb"),
       mart <- x@params$mart
     }
     ## annotate compounds targets
+    message("Annotate compounds targets")
     compounds_targets <- x@tables$step2$compounds_targets
     targets <- unique(compounds_targets$Target.name)
     targets_annotation <- filter_biomart(mart, general_attrs(), "hgnc_symbol", targets)
@@ -145,7 +146,13 @@ setMethod("step3", signature = c(x = "job_herb"),
       by.x = "Target.name", by.y = "hgnc_symbol", all.x = T
     )
     ## create data: herbs_target
+    message("Create data: herbs_target")
     herbs_compounds <- x@tables$step1$herbs_compounds
+    if (!identical(class(herbs_compounds$Ingredient.id), class(compounds_targets$Ingredient_id))) {
+      message("'ID' not identical in class, convert as character.")
+      herbs_compounds$Ingredient.id %<>% as.character()
+      compounds_targets$Ingredient_id %<>% as.character()
+    }
     herbs_targets <- tbmerge(
       herbs_compounds, compounds_targets,
       by.x = "Ingredient.id", by.y = "Ingredient_id", all.x = T,
@@ -233,13 +240,19 @@ setMethod("intersect", signature = c(x = "job_herb", y = "job_herb"),
   })
 
 setMethod("map", signature = c(x = "job_herb", ref = "list"),
-  function(x, ref, HLs = NULL){
+  function(x, ref, HLs = NULL, levels = NULL, lab.level = "Level"){
     data <- x$data.allu
-    data <- dplyr::filter(data, Target.name %in% !!unlist(ref, use.names = F))
-    p.venn2dis <- new_venn(Diseases = unlist(ref, use.names = F), Targets = data$Target.name)
-    x$p.venn2dis <- .set_lab(p.venn2dis, sig(x), "Targets intersect with targets of diseases")
-    p.pharm <- plot_network.pharm(data, HLs = HLs)
-    x$p.pharm2dis <- .set_lab(p.pharm, sig(x), "network pharmacology with disease")
+    if (length(ref)) {
+      data <- dplyr::filter(data, Target.name %in% !!unlist(ref, use.names = F))
+      p.venn2dis <- new_venn(Diseases = unlist(ref, use.names = F), Targets = data$Target.name)
+      x$p.venn2dis <- .set_lab(p.venn2dis, sig(x), "Targets intersect with targets of diseases")
+    }
+    p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels, lab.fill = lab.level)
+    if (length(ref)) {
+      x$p.pharm2dis <- .set_lab(p.pharm, sig(x), "network pharmacology with disease")
+    } else {
+      x$p.pharmMap <-  .set_lab(p.pharm, sig(x), "network pharmacology")
+    }
     return(x)
   })
 
@@ -270,12 +283,24 @@ rstyle <- function(get = "pal", seed = NULL, n = 1L) {
 }
 
 plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed = 1, HLs = NULL,
-  ax1 = "Herb", ax2 = "Compound", ax3 = "Target", less.label = T)
+  ax1 = "Herb", ax2 = "Compound", ax3 = "Target", less.label = T,
+  ax2.level = NULL, lab.fill = "")
 {
   if (length(unique(data[[1]])) == 1) {
     sherb <- 1L
   } else {
     sherb <- 0L
+  }
+  spiral <- F
+  if (!is.null(ax2.level)) {
+    if (ncol(ax2.level) > 2) {
+      message("Too many columns found in `ax2.level`, try select `name` and `level`")
+      ax2.level <- dplyr::select(ax2.level, name, level)
+    }
+    if (!identical(colnames(ax2.level), c("name", "level"))) {
+      message("Rename colnames of `ax2.level` with 'name', 'level'")
+      colnames(ax2.level) <- c("name", "level")
+    }
   }
   prepare_data <- function(data) {
     colnames(data) <- c(ax1, ax2, ax3)
@@ -309,6 +334,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
       crds.Hrb <- get_layout(NULL, "circle", nodes = dplyr::filter(nodes, type == !!ax1))
       crds.Hrb <- resize(crds.Hrb, f.rsz)
       lst <- split(ed.12sin, ed.12sin[[ ax1 ]])
+      # coords for compounds from sigle herb
       crds.ComSin <- mapply(lst, names(lst), SIMPLIFY = F,
         FUN = function(ed, nm) {
           lay <- resize(get_layout(ed, "star"), f.rsz * f.f.sin)
@@ -320,7 +346,24 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
       crds.Hrb <- NULL
       crds.ComSin <- NULL
     }
+    ## deside spiral
     crds.ComMul <- get_layout(NULL, "circle", nodes = data.frame(name = ComMul))
+    if (sherb & length(ComMul) > 50) {
+      ## coords for spiral nodes
+      if (!is.null(ax2.level)) {
+        ax2.level <- dplyr::arrange(ax2.level, dplyr::desc(level))
+        if (!all(isIn <- crds.ComMul$name %in% ax2.level$name)) {
+          message("!all(crds.ComMul %in% ax2.level$name), fill with NA")
+          ax2.level <- tibble::add_row(ax2.level,
+            name = crds.ComMul$name[ !isIn ])
+        }
+        ax2.level <- dplyr::filter(ax2.level, name %in% !!crds.ComMul$name)
+        ## reorder by level
+        crds.ComMul <- crds.ComMul[ match(ax2.level$name, crds.ComMul$name), ]
+      }
+      crds.ComMul[, c("x", "y")] <- get_coords.spiral(nrow(crds.ComMul))
+      spiral <<- T
+    }
     crds.ComMul <- resize(crds.ComMul, f.rsz * f.f.mul)
     crds <- lst_clear0(list(crds.Hrb, crds.ComSin, crds.ComMul, crds.Tgt))
     crds <- do.call(dplyr::bind_rows, crds)
@@ -337,10 +380,11 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
         edges
       })
     edges <- do.call(dplyr::bind_rows, edges)
+    nodes <- dplyr::mutate(nodes, .type = type)
     if (!sherb) {
       nodes <- dplyr::mutate(nodes,
-        type = ifelse(name %in% !!ComSin, paste0(ax2, " Unique"),
-          ifelse(name %in% !!ComMul, paste0(ax2, " Sharing"), type)))
+        type = ifelse(name %in% !!ComSin, paste0(!!ax2, " Unique"),
+          ifelse(name %in% !!ComMul, paste0(!!ax2, " Sharing"), type)))
     }
     nodes <- dplyr::filter(nodes, name %in% !!crds$name)
     crds <- crds[ match(nodes$name, crds$name), ]
@@ -383,17 +427,32 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
       data = data, aes(x = x, y = y, label = name, color = type))
     geom_label_2 <- geom_blank()
   }
+  if (is.null(ax2.level)) {
+    geom_node_1 <- geom_node_point(data = data, aes(x = x, y = y, color = type, size = cent, shape = type))
+    geom_node_2 <- geom_blank()
+    scale_fill_gradient <- geom_blank()
+  } else {
+    data.level <- dplyr::filter(data, .type == !!ax2)
+    data.level <- map(data.level, "name", ax2.level, "name", "level", col = "level")
+    geom_node_1 <- geom_node_point(data = data.level,
+      aes(x = x, y = y, fill = level, size = cent), shape = 21
+    )
+    data.nonlevel <- dplyr::filter(data, .type != !!ax2)
+    geom_node_2 <- geom_node_point(data = data.nonlevel,
+      aes(x = x, y = y, color = type, size = cent, shape = type))
+    scale_fill_gradient <- scale_fill_gradientn(colors = rev(color_set2()))
+  }
   p <- ggraph(x) + geom_edge +
-    geom_node_point(data = data, aes(x = x, y = y, color = type, size = cent, shape = type)) +
-    geom_label_1 +
-    geom_label_2 +
+    geom_node_1 + geom_node_2 +
+    geom_label_1 + geom_label_2 +
     scale_size(range = c(minSize, 15)) +
     guides(size = "none", shape = "none") +
     scale_color_manual(values = rstyle("pal", seed)) +
     scale_edge_color_manual(values = c("Highlight" = "red", "Non-highlight" = "lightblue")) +
     scale_edge_width_manual(values = c("Highlight" = 1, "Non-highlight" = .1)) +
+    scale_fill_gradient +
     theme_minimal() +
-    labs(color = "Type", edge_color = "Highlight", edge_width = "Highlight") +
+    labs(color = "Type", edge_color = "Highlight", edge_width = "Highlight", fill = lab.fill) +
     theme(axis.text = element_blank(),
       axis.title = element_blank()) +
     geom_blank()
@@ -404,7 +463,11 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
         size = 7, color = "black")
   }
   if (sherb) {
-    wrap(p, 10, 8)
+    if (spiral) {
+      wrap(p, 15, 12)
+    } else {
+      wrap(p, 10, 8)
+    }
   } else {
     wrap(p, 15, 12)
   }
@@ -665,3 +728,10 @@ get_tcm.base <- function(id, link_prefix) {
   data <- strsplit(data, "\r\n")[[1]]
   data
 }
+
+get_coords.spiral <- function(num = 100, nCir = 3, minRad = 1, maxRad = 3) {
+  ang <- seq(0, by = 2 * pi * nCir / num, length.out = num)
+  rad <- seq(minRad, maxRad, length.out = num)
+  tibble::tibble(x = sin(ang) * rad, y = cos(ang) * rad)
+}
+

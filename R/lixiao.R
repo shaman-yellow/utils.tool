@@ -2167,8 +2167,10 @@ items <- function(
 {
   if (!missing(coef)) {
     if (!is.na(coef)) {
-      if (coef == .25) {
-        type <- "固定业务"
+      if (missing(type)) {
+        if (coef == .25) {
+          type <- "固定业务"
+        }
       }
     }
   }
@@ -3551,4 +3553,75 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
   ################################
   ################################
   return(res)
+}
+
+read_from_compoundDiscovery <- function(file_xlsx, exdir = "compound_discovery") {
+  db <- openxlsx::read.xlsx(file_xlsx, colNames = F)
+  fun_format <- function(x) {
+    x <- dplyr::filter(x, !is.na(X2))
+    x <- dplyr::select_if(x, function(x) !all(is.na(x)))
+    x <- dplyr::select(x, name = X2, rt.min = X5, formula = X6, mw = X8)
+    x <- dplyr::filter(x, name != "Name")
+    pos.na <- which(is.na(x$rt.min))
+    pos.napre <- pos.na - 1
+    str.na <- x$name[ pos.na ]
+    x$name[ pos.napre ] <- paste0(x$name[ pos.napre ], x$name[ pos.na ])
+    x <- dplyr::filter(x, !is.na(rt.min))
+    x <- dplyr::mutate(x, en.name = gs(name, "([^\u4e00-\u9fa5]*).*", "\\1"),
+      cn.name = gs(name, ".*?([\u4e00-\u9fa5].*)$", "\\1"),
+      tail = strx(en.name, " [^ ]+-$"),
+      tail = ifelse(is.na(tail), "", tail),
+      en.name = substr(en.name, 1, nchar(en.name) - nchar(tail)),
+      en.name = gs(en.name, "\\s*$", ""),
+      cn.name = gs(paste0(tail, cn.name), "^\\s*", ""),
+      formula = gs(formula, "\\s", ""),
+      rt.min = round(as.double(rt.min), 2),
+      mw = round(as.double(mw), 4)
+    )
+    x <- dplyr::select(x, -tail, -name)
+    dplyr::relocate(x, en.name, cn.name)
+  }
+  table <- as_tibble(fun_format(db))
+  ## peak area image
+  dir.create(exdir, F)
+  unzip(file_xlsx, exdir = exdir)
+  fun <- function(dir) {
+    files <- list.files(dir, ".png$", full.names = T)
+    scale <- sapply(files, simplify = F,
+      function(x) {
+        try(bitmap_info(x))
+      })
+    scale <- frbind(scale, idcol = "file")
+    scale <- dplyr::filter(scale, width > height * 15)
+    scale <- dplyr::mutate(scale, order = as.integer(gs(file, ".*?([0-9]+).png", "\\1")))
+    scale <- dplyr::arrange(scale, order)
+  }
+  scales <- fun(paste0(exdir, "/xl/media/"))
+  if (nrow(table) == nrow(scales)) {
+    message("Images of Peak area matched number.")
+    table$file_area <- scales$file
+  }
+  lst <- namel(table, scales)
+}
+
+try_get_area.compoundDiscovery <- function(lstcd, res_ocr) {
+  res_ocr <- lapply(res_ocr,
+    function(x) {
+      obj <- x$pages[[1]]$blocks[[1]]$lines[[1]]$words[[1]]
+      data.frame(value = obj$value, confidence = obj$confidence)
+    })
+  res_ocr <- frbind(res_ocr)
+  res_ocr <- dplyr::mutate(res_ocr,
+    format = gs(value, "^([0-9])\\.?", "\\1."),
+    format = gs(format, "B$", "8"),
+    format = as.double(format))
+  if (all(!is.na(res_ocr$format)) & identical(sort(res_ocr$format, decreasing = T), res_ocr$format)) {
+    message("Got the expected value.")
+  } else {
+    Terror <<- res_ocr
+    stop("Not the expected value")
+  }
+  lstcd$table$peak_area <- res_ocr$format
+  lab(lstcd$table) <- "Identified compounds records in table CompoundDiscovery"
+  lstcd
 }

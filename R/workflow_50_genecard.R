@@ -56,7 +56,7 @@ get_from_genecards <- function(query, score = 5, keep_drive = F) {
   colnames(table) %<>% gs("X_|_$", "")
   table <- select(table, -1, -2)
   if (is.null(score)) {
-    ss <- seq(1, 10, by = 2)
+    ss <- seq(1, 10, by = 1)
     chs <- vapply(ss, FUN.VALUE = double(1),
       function(x) {
         length(which(table$Score > x))

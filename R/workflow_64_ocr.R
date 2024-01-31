@@ -57,7 +57,7 @@ setMethod("map", signature = c(x = "job_ocr", ref = "character"),
       stop("all(file.exists(`ref`)) == F")
     }
     ref <- normalizePath(ref)
-    res <- lapply(ref,
+    res <- pbapply::pblapply(ref,
       function(img) {
         obj <- x$parse(img)
         that <- x$model(x$format(obj))
