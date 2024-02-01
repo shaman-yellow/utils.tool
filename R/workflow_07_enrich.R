@@ -77,6 +77,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
     res.go <- lapply(res.go,
       function(data) {
         data <- as_tibble(data.table::rbindlist(data, idcol = T))
+        data <- dplyr::mutate(data, geneName_list = fun(geneID_list))
         dplyr::relocate(data, ont = .id)
       })
     res.go <- .set_lab(res.go, sig(x), names(res.go), "GO enrichment data")
@@ -172,6 +173,20 @@ setMethod("asjob_enrich", signature = c(x = "job_seurat"),
     job_enrich(ids, anno)
   })
 
+setMethod("focus", signature = c(x = "job_enrich"),
+  function(x, symbols, data = x@tables$step1$res.kegg[[1]])
+  {
+    if (x@step < 1L) {
+      stop("x@step < 1L")
+    }
+    isThat <- vapply(data$geneName_list, FUN.VALUE = logical(1),
+      function(genes) {
+        any(genes %in% symbols)
+      })
+    data <- dplyr::filter(data, !!isThat)
+    data
+  })
+
 multi_enrichKEGG <- function(lst.entrez_id, organism = 'hsa')
 {
   res <- pbapply::pblapply(lst.entrez_id,
@@ -202,6 +217,7 @@ multi_enrichGO <- function(lst.entrez_id, orgDb = 'org.Hs.eg.db', cl = NULL)
             return(value)
           }
           res.path <- tibble::as_tibble(res.res)
+          res.path <- dplyr::mutate(res.path, geneID_list = lapply(strsplit(geneID, "/"), as.integer))
           res.path
         })
     })

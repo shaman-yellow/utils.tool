@@ -22,12 +22,12 @@ job_edqtl <- function(mode = c("edqtl", "eqtl"))
   mode <- match.arg(mode)
   lst <- list(
     edqtl = list(
-      path = "../gtex/edqtl",
+      path = .prefix("gtex/edqtl", "db"),
       file = "bulk-qtl_v8_editing-qtl_GTEx_Analysis_v8_edQTL.tar",
       patterns = c("edsite", "signif_variant_site_pairs"),
       anno_file = "bulk-qtl_v8_editing-qtl_GTEx_Analysis_v8_edQTL.README.txt"),
     eqtl = list(
-      path = "../gtex/eqtl",
+      path = .prefix("gtex/eqtl", "db"),
       file = "bulk-qtl_v8_single-tissue-cis-qtl_GTEx_Analysis_v8_eQTL.tar",
       patterns = c("egenes", "signif_variant_gene_pairs"),
       anno_file = "bulk-qtl_v8_single-tissue-cis-qtl_README_eQTL_v8.txt"

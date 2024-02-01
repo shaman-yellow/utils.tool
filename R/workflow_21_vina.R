@@ -12,8 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("Tutorials: https://autodock-vina.readthedocs.io/en/latest/docking_basic.html"),
-    cite = "[@AutodockVina1Eberha2021]",
-    method = "`AutoDock vina` used for molecular docking"
+    cite = "[@AutodockVina1Eberha2021; @AutogridfrImpZhang2019; @AutodockCrankpZhang2019; @AutositeAnAuRavind2016; @AutodockfrAdvRavind2015]",
+    method = "The CLI tools of `AutoDock vina` and `ADFR` software used for auto molecular docking"
     ))
 
 job_vina <- function(cids, hgnc_symbols)
@@ -52,7 +52,8 @@ setMethod("step0", signature = c(x = "job_vina"),
   })
 
 setMethod("step1", signature = c(x = "job_vina"),
-  function(x, bdb = "../BindingDB_All.tsv", each_target = 3, pdbs = NULL){
+  function(x, bdb = NULL, each_target = 1, pdbs = NULL)
+  {
     step_message("Prepare Docking Combination.
       "
     )
@@ -99,6 +100,9 @@ setMethod("step2", signature = c(x = "job_vina"),
     sdfFile <- query_sdfs(unique(names(x$dock_layout)), curl_cl = cl)
     res.pdbqt <- sdf_as_pdbqts(sdfFile) 
     x$res.ligand <- nl(res.pdbqt$pdbqt.cid, res.pdbqt$pdbqt)
+    message("Got: ", length(x$res.ligand))
+    alls <- as.character(object(x)$cid)
+    message("Not got:", paste0(alls[!alls %in% names(x$res.ligand)], collapse = ", "))
     return(x)
   })
 
@@ -132,6 +136,10 @@ setMethod("step3", signature = c(x = "job_vina"),
     }
     pdb.files <- filter_pdbs(pdb.files, pattern)
     x$res.receptor <- prepare_receptor(pdb.files)
+    names <- names(x$res.receptor)
+    gotSymbols <- x$targets_annotation$hgnc_symbol[ match(tolower(names), tolower(x$targets_annotation$pdb)) ]
+    x$res.receptor.symbol <- gotSymbols
+    message("Not got: ", object(x)$hgnc_symbol %>% .[ !. %in% gotSymbols ])
     return(x)
   })
 

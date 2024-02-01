@@ -27,7 +27,7 @@ setMethod("step0", signature = c(x = "job_superpred"),
   })
 
 setMethod("step1", signature = c(x = "job_superpred"),
-  function(x, db_file = "../superPred/targets.rds", tempdir = "download", port = 4444)
+  function(x, db_file = .prefix("superPred/targets.rds", "db"), tempdir = "download", port = 4444)
   {
     step_message("Touch the online tools.")
     x$tempdir <- tempdir

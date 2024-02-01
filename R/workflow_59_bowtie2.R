@@ -27,7 +27,7 @@ setMethod("step0", signature = c(x = "job_bowtie2"),
   })
 
 setMethod("step1", signature = c(x = "job_bowtie2"),
-  function(x, path_ref = "../ref", file_ref = "hg38.fa", file_index = gs(file_ref, "\\.fa$", ""))
+  function(x, path_ref = .prefix("ref", "db"), file_ref = "hg38.fa", file_index = gs(file_ref, "\\.fa$", ""))
   {
     step_message("Prepare index file")
     x$ref <- paste0(path_ref, "/", file_ref)

@@ -55,7 +55,7 @@ setMethod("step1", signature = c(x = "job_herb"),
   })
 
 setMethod("step2", signature = c(x = "job_herb"),
-  function(x, group_number = 50, group_sleep = 3, db = "../", removeExistsTemp = F)
+  function(x, group_number = 50, group_sleep = 3, db = .prefix(), removeExistsTemp = F)
   {
     step_message("Dowload targets of compounds")
     all_ids <- unique(x@tables$step1$herbs_compounds$Ingredient.id)
@@ -240,16 +240,20 @@ setMethod("intersect", signature = c(x = "job_herb", y = "job_herb"),
   })
 
 setMethod("map", signature = c(x = "job_herb", ref = "list"),
-  function(x, ref, HLs = NULL, levels = NULL, lab.level = "Level"){
+  function(x, ref, HLs = NULL, levels = NULL, lab.level = "Level", name = "dis", compounds = NULL, ...)
+  {
     data <- x$data.allu
+    if (!is.null(compounds)) {
+      data <- dplyr::filter(data, Ingredient.name %in% !!compounds)
+    }
     if (length(ref)) {
       data <- dplyr::filter(data, Target.name %in% !!unlist(ref, use.names = F))
       p.venn2dis <- new_venn(Diseases = unlist(ref, use.names = F), Targets = data$Target.name)
-      x$p.venn2dis <- .set_lab(p.venn2dis, sig(x), "Targets intersect with targets of diseases")
+      x[[ paste0("p.venn2", name) ]] <- .set_lab(p.venn2dis, sig(x), "Targets intersect with targets of diseases")
     }
-    p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels, lab.fill = lab.level)
+    p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels, lab.fill = lab.level, ...)
     if (length(ref)) {
-      x$p.pharm2dis <- .set_lab(p.pharm, sig(x), "network pharmacology with disease")
+      x[[ paste0("p.pharm2", name) ]] <- .set_lab(p.pharm, sig(x), "network pharmacology with disease")
     } else {
       x$p.pharmMap <-  .set_lab(p.pharm, sig(x), "network pharmacology")
     }
@@ -284,7 +288,7 @@ rstyle <- function(get = "pal", seed = NULL, n = 1L) {
 
 plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed = 1, HLs = NULL,
   ax1 = "Herb", ax2 = "Compound", ax3 = "Target", less.label = T,
-  ax2.level = NULL, lab.fill = "")
+  ax2.level = NULL, lab.fill = "", edge_width = .1)
 {
   if (length(unique(data[[1]])) == 1) {
     sherb <- 1L
@@ -292,6 +296,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
     sherb <- 0L
   }
   spiral <- F
+  spiral_order <- NULL
   if (!is.null(ax2.level)) {
     if (ncol(ax2.level) > 2) {
       message("Too many columns found in `ax2.level`, try select `name` and `level`")
@@ -363,6 +368,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
       }
       crds.ComMul[, c("x", "y")] <- get_coords.spiral(nrow(crds.ComMul))
       spiral <<- T
+      spiral_order <<- crds.ComMul$name
     }
     crds.ComMul <- resize(crds.ComMul, f.rsz * f.f.mul)
     crds <- lst_clear0(list(crds.Hrb, crds.ComSin, crds.ComMul, crds.Tgt))
@@ -405,11 +411,15 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
   set.seed(seed)
   minSize <- .5
   if (is.null(HLs)) {
-    if (nrow(dplyr::filter(data, type == !!ax2)) > 10L) {
-      width <- .1
+    if (missing(edge_width)) {
+      if (nrow(dplyr::filter(data, type == !!ax2)) > 10L) {
+        width <- .1
+      } else {
+        width <- 1
+        minSize <- 3
+      }
     } else {
-      width <- 1
-      minSize <- 3
+      width <- edge_width
     }
     geom_edge <- geom_edge_link(color = sample(color_set()[1:6], 1), alpha = .2, width = width)
   } else {
@@ -464,7 +474,9 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
   }
   if (sherb) {
     if (spiral) {
-      wrap(p, 15, 12)
+      p <- wrap(p, 15, 12)
+      p$spiral_order <- spiral_order
+      p
     } else {
       wrap(p, 10, 8)
     }
@@ -473,9 +485,9 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
   }
 }
 
-get_herb_data <- function(herb = "../HERB_herb_info.txt",
-  component = "../HERB_ingredient_info.txt",
-  target = "../HERB_target_info.txt")
+get_herb_data <- function(herb = .prefix("HERB_herb_info.txt", "db"),
+  component = .prefix("HERB_ingredient_info.txt", "db"),
+  target = .prefix("HERB_target_info.txt", "db"))
 {
   db <- lapply(namel(herb, component, target),
     function(file) {
@@ -542,7 +554,7 @@ download_herbCompounds <- function(link, ids,
   link$close()
 }
 
-start_drive <- function(command = "java -jar ~/operation/selenium.jar",
+start_drive <- function(command = paste0("java -jar ", .prefix("/selenium.jar", "op")),
   port = 4444, extra = NULL, browser = c("firefox", "chrome"), download.dir = "download", ...)
 {
   system(paste(command, "-port", port, extra), wait = F)

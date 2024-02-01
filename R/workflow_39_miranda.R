@@ -187,7 +187,7 @@ setMethod("step2", signature = c(x = "job_miranda"),
 }
 
 .get_mature_miRNA.mirbase <- function(url = "https://mirbase.org/download/mature.fa",
-  save = "../mature_miRNA_miRBase.fa")
+  save = .prefix("mature_miRNA_miRBase.fa", "db"))
 {
   if (!file.exists(save)) {
     ch <- e(RCurl::getURL(url))

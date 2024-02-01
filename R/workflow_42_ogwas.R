@@ -32,7 +32,7 @@ setMethod("step0", signature = c(x = "job_ogwas"),
 
 setMethod("step1", signature = c(x = "job_ogwas"),
   function(x, ids, ref_genome = "GRCH38",
-    vcf_dir = "../ogwas_vcf", save_dir = "../ogwas_data")
+    vcf_dir = .prefix("ogwas_vcf", "db"), save_dir = .prefix("ogwas_data", "db"))
   {
     step_message("Import gwas summary data")
     if (!dir.exists(vcf_dir)) {

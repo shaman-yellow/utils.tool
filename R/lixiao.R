@@ -135,9 +135,9 @@ get_c2_data <- function(pattern = NULL,
 {
   mode <- match.arg(mode)
   path <- if (mode == "hsa") {
-    "../human_c2_v5p2.rdata"
+    .prefix("human_c2_v5p2.rdata", "db")
   } else if (mode == "mmu"){
-    "../mouse_c2_v5p2.rdata"
+    .prefix("mouse_c2_v5p2.rdata", "db")
   }
   if (!file.exists(path)) {
     ## download_url <- "https://bioinf.wehi.edu.au/software/MSigDB/human_c2_v5p2.rdata"
@@ -232,8 +232,8 @@ fxlsx2 <- function(file, ..., .id = "sheet") {
   as_tibble(dplyr::rename(data, !!!nl(.id, ".id")))
 }
 
-get_nci60_data <- function(comAct = "../comAct_nci60/DTP_NCI60_ZSCORE.xlsx",
-  rna = "../rna_nci60/RNA__RNA_seq_composite_expression.xls")
+get_nci60_data <- function(comAct = .prefix("comAct_nci60/DTP_NCI60_ZSCORE.xlsx", "db"),
+  rna = .prefix("rna_nci60/RNA__RNA_seq_composite_expression.xls", "db"))
 {
   comAct <- readxl::read_xlsx(comAct, skip = 8)
   rna <- readxl::read_xls(rna, skip = 10)
@@ -1516,7 +1516,7 @@ send_eval <- function(to,
   time = Sys.time(),
   month = lubridate::month(time),
   year = lubridate::year(time),
-  path_summary = paste0("~/outline/lixiao/", "summary_", paste0(year, "-", month)),
+  path_summary = paste0(.prefix(), "summary_", paste0(year, "-", month)),
   atts = paste0(path_summary, "/", "need_eval.xlsx"))
 {
   send_that(to, subject, content, atts)
@@ -1528,7 +1528,7 @@ send_registers <- function(to,
   time = Sys.time(),
   month = lubridate::month(time),
   year = lubridate::year(time),
-  path_summary = paste0("~/outline/lixiao/", "summary"),
+  path_summary = paste0(.prefix(), "summary"),
   atts = paste0(path_summary, "/", "生信组表格登记-黄礼闯.xlsx"))
 {
   send_that(to, subject, content, atts)
@@ -1540,7 +1540,7 @@ send_prin <- function(to,
   time = Sys.time(),
   month = lubridate::month(time),
   year = lubridate::year(time),
-  path_summary = paste0("~/outline/lixiao/", "summary_", paste0(year, "-", month)),
+  path_summary = paste0(.prefix(), "summary_", paste0(year, "-", month)),
   atts = paste0(path_summary, "/", "2023年行为准则考核表.xlsx"))
 {
   send_that(to, subject, content, atts)
@@ -1552,7 +1552,7 @@ send_summary <- function(to,
   time = Sys.time(),
   month = lubridate::month(time),
   year = lubridate::year(time),
-  path_summary = paste0("~/outline/lixiao/", "summary_", paste0(year, "-", month)),
+  path_summary = paste0(.prefix(), "summary_", paste0(year, "-", month)),
   atts = paste0(path_summary, "/", "assess_绩效+软性考核表.xlsx"))
 {
   send_that(to, subject, content, atts)
@@ -1582,10 +1582,10 @@ send_that <- function(to, subject, content, atts = NULL, from = "huanglichuang@w
 }
 
 update_registers <- function(orders = get_orders(),
-  path = "~/outline/lixiao/summary",
+  path = .prefix("summary"),
   name = "黄礼闯",
   register = paste0(path, "/", "生信组表格登记-", name, ".xlsx"),
-  templ_dir = "~/outline/lixiao/performance_templ/")
+  templ_dir = .prefix("performance_templ/"))
 {
   target <- paste0(templ_dir, "/", "生信组表格登记-XX.xlsx")
   if (!dir.exists(path)) {
@@ -1621,8 +1621,8 @@ summary_month <- function(
   orders = get_orders(),
   month = lubridate::month(time),
   year = lubridate::year(time),
-  path = "~/outline/lixiao",
-  templ_dir = "~/outline/lixiao/performance_templ/",
+  path = .prefix(),
+  templ_dir = .prefix("performance_templ/"),
   rm = F)
 {
   dir <- paste0(path, "/", "summary_", paste0(year, "-", month))
@@ -1735,16 +1735,27 @@ backup_jobs <- function(alls, time = Sys.time(),
   thedir <- .thedir_job(month, year)
   num <- 0L
   dir.create(thedir, F)
-  lapply(data$.dir,
+  res <- lapply(data$.dir,
     function(dir) {
-      num <<- num + 1L
       files <- list.files(dir, ".*\\.zip", full.names = T)
       if (length(files) > 1) {
         n <- menu(get_filename(files), title = "Select a zip file to backup.")
         files <- files[n]
       }
-      .cp_job(files, paste0(thedir, "/", num, "_", get_filename(files)))
+      if (!length(files)) {
+        message("No zip files found in dir: ", dir)
+        isThat <- usethis::ui_yeah("Select other files?")
+        if (isThat) {
+          files <- list.files(dir, full.names = T)
+          files <- files[ menu(files, title = "All available files") ]
+        }
+      }
+      if (length(files)) {
+        num <<- num + 1L
+        .cp_job(files, paste0(thedir, "/", num, "_", get_filename(files)))
+      }
     })
+  unlist(res)
 }
 
 move_rds_all <- function(alls, time, to = "~/disk_sdb1")
@@ -1779,13 +1790,13 @@ move_raw_all <- function(alls, time, before = F, to = "~/disk_sdb1",
     })
 }
 
-move_rds <- function(from, to, exclude = ".items.rds") {
+move_rds <- function(from, to, exclude = c(".items.rds", ".injobs.rds")) {
   lapply(from,
     function(path) {
       dirname <- get_filename(gs(path, "/$", ""))
       target <- paste0(to, "/", dirname)
       dir.create(target, F)
-      files <- list.files(path, pattern = ".rds$|.RData$|.Rdata$", full.names = T, all.files = T)
+      files <- list.files(path, pattern = ".rds$|.RData$|.Rdata$|.rdata$", full.names = T, all.files = T)
       thefilenames <- get_filename(files)
       files <- files[ !thefilenames %in% exclude ]
       lapply(files,
@@ -1928,7 +1939,7 @@ odate <- function(month, year = format(Sys.time(), "%Y")) {
 }
 
 get_orders <- function(
-  dir = "~/outline/lixiao/", pattern = ".items.rds",
+  dir = .prefix(), pattern = ".items.rds",
   base_wage = list("2023-07-01" = 3000, "2023-08-01" = 4500, "2023-09-01" = 6000),
   setFill = .setFill.orders())
 {
@@ -2070,7 +2081,7 @@ plot_task_summary <- function() {
   namel(p.each, p.month, p.alls)
 }
 
-plot_report_summary <- function(cover_file = "~/outline/lixiao/cover_page.pdf")
+plot_report_summary <- function(cover_file = .prefix("cover_page.pdf"))
 {
   outline <- function(name) {
     grecti(name, tfill = "black",
@@ -2163,11 +2174,13 @@ items <- function(
   score = od_get_score(),
   member = "黄礼闯",
   save = ".items.rds",
-  isLatest = F)
+  tags = c(),
+  isLatest = F,
+  lock = F)
 {
-  if (!missing(coef)) {
-    if (!is.na(coef)) {
-      if (missing(type)) {
+  if (missing(type)) {
+    if (!missing(coef)) {
+      if (!is.na(coef)) {
         if (coef == .25) {
           type <- "固定业务"
         }
@@ -2192,7 +2205,11 @@ items <- function(
       items$date <- info$date
     }
   }
-  saveRDS(items, save)
+  if (is.null(lock) || !lock) {
+    saveRDS(items, save)
+  } else {
+    warning("This object has been manually modified, can not update automatically.")
+  }
   items
 }
 
@@ -2337,6 +2354,36 @@ odk <- function(key, fresh = F, file = "./mailparsed/part_1.md")
   } else {
     NULL
   }
+}
+
+revise_items <- function(data, records = NULL) {
+  owd <- getwd()
+  fun <- function(dirs) {
+    lapply(dirs,
+      function(dir) {
+        setwd(dir)
+        browseURL("output.pdf")
+        item <- readRDS(".items.rds")
+        item$lock <- T
+        if (is.null(item$tags)) {
+          item$tags <- ""
+        }
+        item <- edit(item)
+        saveRDS(item, ".items.rds")
+      })
+  }
+  tryCatch(fun(data$.dir), finally = setwd(owd))
+}
+
+get_tags <- function(data) {
+  tags <- unlist(lapply(data$.dir,
+      function(dir) {
+        obj <- try(readRDS(paste0(dir, "/.items.rds")), T)
+        if (!inherits(obj, "try-error")) {
+          gs(strsplit(obj$tags, ",")[[1]], "\\s", "")
+        } else NULL
+      }))
+  unique(tags)
 }
 
 od_get <- function(file = "./mailparsed/part_1.md", key = "id",
@@ -2577,7 +2624,7 @@ auto_method <- function(rm = NULL, class = "job", envir = .GlobalEnv, exclude = 
 }
 
 set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
-  coverpage = "../cover_page.pdf", institution = "@立效研究院")
+  coverpage = .prefix("cover_page.pdf"), institution = "@立效研究院")
 {
   options(title = title)
   content <- strwrap(paste0("\\begin{titlepage}
@@ -3392,7 +3439,7 @@ rm.no <- function(x) {
 }
 
 get_fe_data <- function(use.symbol = T, for_gsea = F,
-  path = "../ferroptosis_2023-10-24.rds", add_internal_job = T)
+  path = .prefix("ferroptosis_2023-10-24.rds", "db"), add_internal_job = T)
 {
   if (F) {
     # <http://www.zhounan.org/ferrdb/current/>
@@ -3405,7 +3452,7 @@ get_fe_data <- function(use.symbol = T, for_gsea = F,
       disease = "~/Downloads/ferroptosis_disease.csv"
     )
     fe_db <- lapply(fe_db, ftibble)
-    saveRDS(fe_db, "../ferroptosis_2023-10-24.rds")
+    saveRDS(fe_db, .prefix("ferroptosis_2023-10-24.rds", "db"))
   }
   data <- readRDS(path)
   if (use.symbol) {

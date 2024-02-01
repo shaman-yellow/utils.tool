@@ -120,7 +120,8 @@ setMethod("step2", signature = c(x = "job_biblio"),
   })
 
 setMethod("step3", signature = c(x = "job_biblio"),
-  function(x, n = 30, rank.by = "C/Y", journal_info = fxlsx("../2022-if.xlsx")){
+  function(x, n = 30, rank.by = "C/Y", journal_info = fxlsx(.prefix("2022-if.xlsx")))
+    {
     step_message("Network analysis.")
     require(bibliometrix)
     object(x) <- e(bibliometrix::metaTagExtraction(object(x), Field = "AU_CO"),

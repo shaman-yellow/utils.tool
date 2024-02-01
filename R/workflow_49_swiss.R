@@ -48,7 +48,7 @@ setMethod("step0", signature = c(x = "job_swiss"),
   })
 
 setMethod("step1", signature = c(x = "job_swiss"),
-  function(x, db_file = "../swissTargetPrediction/targets.rds", tempdir = "download", sleep = 5, port = 4444)
+  function(x, db_file = .prefix("swissTargetPrediction/targets.rds", "db"), tempdir = "download", sleep = 5, port = 4444)
   {
     step_message("Touch the online tools.")
     x$tempdir <- tempdir

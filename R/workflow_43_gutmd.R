@@ -16,7 +16,7 @@
     method = "Database `gutMDisorder` used for finding associations between gut microbiota and metabolites"
     ))
 
-job_gutmd <- function(db = "../Gut Microbe and Metabolite-human.txt")
+job_gutmd <- function(db = .prefix("Gut Microbe and Metabolite-human.txt", "db"))
 {
   if (!file.exists(db)) {
     data <- e(RCurl::getURL("http://bio-annotation.cn/gutmgene/public/res/Gut%20Microbe%20and%20Metabolite-human.txt"))

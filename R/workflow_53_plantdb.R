@@ -61,7 +61,6 @@ setMethod("step2", signature = c(x = "job_plantdb"),
       })
     names(t.data) <- x$herbs_info$Result
     t.data <- frbind(t.data, idcol = T)
-    t.data <- .set_lab(t.data, sig(x), "Compounds from plantaeDb")
     x@tables[[ 2 ]] <- namel(t.data)
     return(x)
   })
@@ -85,8 +84,6 @@ setMethod("step3", signature = c(x = "job_plantdb"),
       x$ho <- suppressMessages(step1(ho, ...))
       res <- x$ho@tables$step1$t.hob
       x$pr <- filter(x$pr, as.logical(res$prediction))
-      # tables <- c(tables, list(t.hob = res))
-      # plots <- c(plots, list(p.hob = x$ho@plots$step1$p.hob))
       .add_internal_job(ho)
     }
     .add_internal_job(pr)
@@ -98,7 +95,7 @@ setMethod("step3", signature = c(x = "job_plantdb"),
   })
 
 setMethod("step4", signature = c(x = "job_plantdb"),
-  function(x, db_file = "../superPred/targets.rds", tempdir = "download", port = 4444)
+  function(x, db_file = .prefix("superPred/targets.rds", "db"), tempdir = "download", port = 4444)
   {
     step_message("Use Super-Pred to get compounds targets.")
     sp <- asjob_superpred(x$pr)
@@ -196,7 +193,7 @@ tryGetLink.plantaedb <- function(x, sep = " ### ", ...) {
 }
 
 get_bindingdb_data <- function(url = "https://www.bindingdb.org/bind/downloads/BindingDB_All_202401_tsv.zip",
-  save = paste0("../", get_filename(url)),
+  save = paste0(.prefix(name = "db"), get_filename(url)),
   file_unzip = gs(gs(save, ".zip$", ""), "_tsv$", ".tsv"))
 {
   if (!file.exists(file_unzip)) {
@@ -209,7 +206,7 @@ get_bindingdb_data <- function(url = "https://www.bindingdb.org/bind/downloads/B
 
 get_drugbank_data <- function(url = "https://go.drugbank.com/releases/5-1-11/downloads/all-full-database",
   user = c("202011113511016@zcmu.edu.cn", "qiu23224856"),
-  save = "../drugbank/drugbank_all_full_database.xml.zip",
+  save = .prefix("drugbank/drugbank_all_full_database.xml.zip", "db"),
   file_unzip = paste0(get_path(save), "/full database.xml"))
 {
   if (!file.exists(file_unzip)) {

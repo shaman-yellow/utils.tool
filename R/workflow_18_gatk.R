@@ -42,12 +42,12 @@ setMethod("step0", signature = c(x = "job_gatk"),
   })
 
 setMethod("step1", signature = c(x = "job_gatk"),
-  function(x, geneRef_file = "../hg38.fa",
-    knownSites = c("../resources_broad_hg38_v0_1000G_phase1.snps.high_confidence.hg38.vcf",
-      "../resources_broad_hg38_v0_Mills_and_1000G_gold_standard.indels.hg38.vcf"),
+  function(x, geneRef_file = .prefix("hg38.fa", "db"),
+    knownSites = c(.prefix("resources_broad_hg38_v0_1000G_phase1.snps.high_confidence.hg38.vcf", "db"),
+      .prefix("resources_broad_hg38_v0_Mills_and_1000G_gold_standard.indels.hg38.vcf", "db")),
     vqsr_resource = knownSites,
-    gatk = "~/operation/gatk4/gatk",
-    picard = "~/operation/picard.jar",
+    gatk = .prefix("/gatk4/gatk", "op"),
+    picard = .prefix("/picard.jar", "op"),
     java = "/usr/lib/jvm/java-18-openjdk-amd64/bin/java",
     tmpdir = "~/disk_sdb1") 
   {

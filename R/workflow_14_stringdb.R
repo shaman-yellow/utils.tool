@@ -48,7 +48,7 @@ setMethod("step0", signature = c(x = "job_stringdb"),
 
 setMethod("step1", signature = c(x = "job_stringdb"),
   function(x, tops = 30, layout = "kk", species = 9606,
-    network_type = "phy", input_directory = "../", version = "11.5", label = F, HLs = NULL)
+    network_type = "phy", input_directory = .prefix(name = "db"), version = "11.5", label = F, HLs = NULL)
   {
     step_message("Create PPI network.
       "
@@ -123,7 +123,7 @@ new_stringdb <- function(
   score_threshold = 200,
   species = 9606,
   network_type = c("physical", "full"),
-  input_directory = "../",
+  input_directory = .prefix(name = "db"),
   version = "11.5")
 {
   e(STRINGdb::STRINGdb$new(score_threshold = score_threshold,

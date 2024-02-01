@@ -2,7 +2,7 @@
 # extend of lixiao.R
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-kall_index <- function(file, index = "../hg38_mrna.idx") {
+kall_index <- function(file, index = .prefix("hg38_mrna.idx", "db")) {
   cdRun("kallisto index",
     " -i ", index,
     " ", file)
@@ -10,7 +10,7 @@ kall_index <- function(file, index = "../hg38_mrna.idx") {
 
 kall_quant <- function(path, pattern = "[1-2]\\.QC\\.fastq\\.gz$",
   names = unique(gs(list.files(path, pattern), pattern, "")), workers = 7,
-  index = "~/outline/lixiao/hg38_mrna.idx", output_dir = paste0("quant_", get_realname(index)),
+  index = .prefix("hg38_mrna.idx", "db"), output_dir = paste0("quant_", get_realname(index)),
   copy_report = T)
 {
   if (!file.exists(index)) {

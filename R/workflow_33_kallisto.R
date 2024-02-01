@@ -36,7 +36,8 @@ setMethod("step0", signature = c(x = "job_kall"),
   })
 
 setMethod("step1", signature = c(x = "job_kall"),
-  function(x, idx = "../hg38_mrna.idx", ref_file = "../Homo_sapiens.GRCh38.cdna.all.fa.gz"){
+  function(x, idx = .prefix("hg38_mrna.idx", "db"), ref_file = .prefix("Homo_sapiens.GRCh38.cdna.all.fa.gz", "db"))
+    {
     step_message("Prepare kallisto gene reference index file.")
     if (!file.exists(idx)) {
       kall_index(ref_file, idx)

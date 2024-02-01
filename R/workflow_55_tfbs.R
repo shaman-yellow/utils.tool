@@ -27,8 +27,8 @@ setMethod("step0", signature = c(x = "job_tfbs"),
   })
 
 setMethod("step1", signature = c(x = "job_tfbs"),
-  function(x, db = "../tfbs/tfbs.rds", db_anno = "../tfbs/anno.rds",
-    file_anno = "../tfbs/humanTFMotifEntrezMappings.xlsx", cl = NULL)
+  function(x, db = .prefix("tfbs/tfbs.rds", "db"), db_anno = .prefix("tfbs/anno.rds", "db"),
+    file_anno = .prefix("tfbs/humanTFMotifEntrezMappings.xlsx", "db"), cl = NULL)
   {
     step_message("Obtain Transcription Factor.")
     db <- new_db(db, ".id")

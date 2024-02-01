@@ -2,7 +2,7 @@
 # function for getting published data (tables)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-get_data.mrlx2022 <- function(file = "~/outline/lixiao/published_data/MendelianRandoLiuX2022_s1.xlsx")
+get_data.mrlx2022 <- function(file = .prefix("published_data/MendelianRandoLiuX2022_s1.xlsx"))
 {
   fun <- function(data) {
     data <- dplyr::mutate(data,
@@ -30,11 +30,12 @@ get_data.mrlx2022 <- function(file = "~/outline/lixiao/published_data/MendelianR
   x
 }
 
-get_data.aaog2014 <- function(file = "~/outline/lixiao/published_data/AnAtlasOfGenShin2014_s1.xlsx") {
+get_data.aaog2014 <- function(file = .prefix("published_data/AnAtlasOfGenShin2014_s1.xlsx")) {
   .job_publish(object, cite = "[@AnAtlasOfGenShin2014]")
 }
 
-get_data.cacc2021 <- function(file = "~/outline/lixiao/published_data/ChangesAndCorChen2021_s2.xlsx") {
+get_data.cacc2021 <- function(file = .prefix("published_data/ChangesAndCorChen2021_s2.xlsx"))
+{
   data <- fxlsx(file)
   data <- dplyr::select(data, metabolite = 1, microbiota = 2, cor = 3, pvalue = 4, AdjPvalue)
   data <- add_anno(.corp(data))
@@ -49,7 +50,7 @@ get_data.cacc2021 <- function(file = "~/outline/lixiao/published_data/ChangesAnd
   x
 }
 
-get_data.pmb2023 <- function(file = "~/outline/lixiao/published_data/ProteinMetabolBenson2023_mmc5_small.rds")
+get_data.pmb2023 <- function(file = .prefix("published_data/ProteinMetabolBenson2023_mmc5_small.rds"))
 {
   # https://github.com/aeisman/protein-metabolite
   # https://mbenson.shinyapps.io/protein-metabolite/

@@ -235,7 +235,7 @@ setMethod("step5", signature = c(x = "job_qiime"),
   })
 
 setMethod("step6", signature = c(x = "job_qiime"),
-  function(x, classifier = "../weighted_silva_2023_07.qza")
+  function(x, classifier = .prefix("weighted_silva_2023_07.qza", "db"))
   {
     step_message("Time consumed steps.")
     if (!file.exists(classifier)) {

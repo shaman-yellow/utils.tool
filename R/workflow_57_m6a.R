@@ -27,7 +27,7 @@ setMethod("step0", signature = c(x = "job_m6a"),
   })
 
 setMethod("step1", signature = c(x = "job_m6a"),
-  function(x, genes, save = "../m6a_Atlas", sleep = .1)
+  function(x, genes, save = .prefix("m6a_Atlas", "db"), sleep = .1)
   {
     step_message("Get data from the website.")
     dir.create(save, F)

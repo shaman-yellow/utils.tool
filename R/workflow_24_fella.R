@@ -42,7 +42,7 @@ setMethod("step0", signature = c(x = "job_fella"),
   })
 
 setMethod("step1", signature = c(x = "job_fella"),
-  function(x, org = "hsa", db_fella = "../"){
+  function(x, org = "hsa", db_fella = .prefix(name = "db")){
     step_message("Use KEGG ID to perform FELLA.
       "
     )

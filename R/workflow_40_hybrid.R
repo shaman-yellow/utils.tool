@@ -187,7 +187,7 @@ setMethod("step2", signature = c(x = "job_hybrid"),
 
 .get_spliced_circRNA.circBase <- function(
   url = "http://www.circbase.org/download/human_hg19_circRNAs_putative_spliced_sequence.fa.gz",
-  save = "../splice_circRNA_circBase.fa.gz")
+  save = .prefix("splice_circRNA_circBase.fa.gz", "db"))
 {
   if (!file.exists(save)) {
     cdRun("wget ", url, " -O ", save)

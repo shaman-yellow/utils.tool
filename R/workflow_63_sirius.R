@@ -16,7 +16,7 @@
     method = "`SIRIUS` 5 (`SIRIUS`, `CSI:FingerID`, `CANOPUS`, `COSMIC`) used for compounds identification and prediction with MASS spectra."
     ))
 
-job_sirius <- function(mgf, ion = c("mix", "pos", "neg"), pg = "~/operation/sirius/bin/sirius")
+job_sirius <- function(mgf, ion = c("mix", "pos", "neg"), pg = .prefix("sirius/bin/sirius", "op"))
 {
   ion <- match.arg(ion)
   x <- .job_sirius()
@@ -111,7 +111,7 @@ setGeneric("asjob_sirius",
   function(x, ...) standardGeneric("asjob_sirius"))
 
 setMethod("asjob_sirius", signature = c(x = "job_xcms"),
-  function(x, pg = "~/operation/sirius/bin/sirius")
+  function(x, pg = .prefix("sirius/bin/sirius", "op"))
   {
     params <- x@params
     x <- .job_sirius(params = params, pg = pg)

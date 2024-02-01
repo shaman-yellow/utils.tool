@@ -16,7 +16,7 @@
     method = "The `BindingDB` database was used for discovering association between Ligands and Receptors"
     ))
 
-job_bindingdb <- function(file_db = "../BindingDB_All_202401.tsv")
+job_bindingdb <- function(file_db = .prefix("BindingDB_All_202401.tsv", "db"))
 {
   if (!file.exists(file_db)) {
     stop("file.exists(file_db) == F")

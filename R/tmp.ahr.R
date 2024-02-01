@@ -1,7 +1,10 @@
-set.sig.wd <- 
-  function(gse)
+# ==========================================================================
+# 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+set.sig.wd <- function(gse)
   {
-    path.work <- "~/operation/geo_db/ahr_sig"
+    path.work <- .prefix("geo_db/ahr_sig", "db")
     path.de.1 <- "/ftp.ncbi.nlm.nih.gov/geo/series/"
     gse.dir <- gsub("[0-9]{3}$", "nnn", gse)
     wd <- paste0(path.work, path.de.1, gse.dir, "/", gse, "/suppl")
@@ -11,15 +14,12 @@ set.sig.wd <-
     cat("## Done\n")
   }
  
-set.initial.wd <- 
-  function(
-    wd = "~/operation/geo_db/ahr_sig"
-    )
+set.initial.wd <- function(wd = .prefix("geo_db/ahr_sig", "db"))
   {
     setwd(wd)
   }
-decomp_tar2txt <- 
-  function(){
+
+decomp_tar2txt <- function(){
     list.files(pattern = "_RAW\\.tar$") %>%
       utils::untar(exdir = ".")
     list.files(pattern = "\\.gz$") %>%

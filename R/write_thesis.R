@@ -194,7 +194,7 @@ as_code_list <- function(names, value = rep("", length(names)), prefix = "c"){
   lapply(1:length(names),
     function(n) {
       end <- if (n == length(names)) "\"" else "\","
-      writeLines(paste0("  ", names[[ n ]], " = \"", value[[ n ]], end))
+      writeLines(paste0("  `", names[[ n ]], "` = \"", value[[ n ]], end))
     })
   writeLines(")")
 }

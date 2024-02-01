@@ -22,7 +22,7 @@ setMethod("step0", signature = c(x = "job_mpa"),
   })
 
 setMethod("step1", signature = c(x = "job_mpa"),
-  function(x, path_db = "../bowtie2db")
+  function(x, path_db = .prefix("bowtie2db", "db"))
   {
     step_message("Dowload (prepare) the database files.")
     if (!rem_file.exists(path_db)) {

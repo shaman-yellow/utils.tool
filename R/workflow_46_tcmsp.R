@@ -37,7 +37,8 @@ setMethod("step0", signature = c(x = "job_tcmsp"),
   })
 
 setMethod("step1", signature = c(x = "job_tcmsp"),
-  function(x, savedir = "../tcmsp/largedata"){
+  function(x, savedir = .prefix("tcmsp/largedata", "db"))
+  {
     step_message("Dowload detail information of herbs.")
     if (!dir.exists(savedir)) {
       dir.create(savedir)
@@ -137,7 +138,7 @@ setMethod("step2", signature = c(x = "job_tcmsp"),
 
 setMethod("step3", signature = c(x = "job_tcmsp"),
   function(x, disease = NULL, disease.score = 5, HLs = NULL,
-    db_uniprot = "../tcmsp/largedata/uniprotkb.rds")
+    db_uniprot = .prefix("tcmsp/largedata/uniprotkb.rds", "db"))
   {
     step_message("Query genes (symbol) for target proteins, and do step3 similar to `job_herb`...")
     ########################
@@ -278,7 +279,7 @@ setMethod("asjob_classyfire", signature = c(x = "job_tcmsp"),
 }
 # UniProt.ws::mapUniProt
 
-get_tcmsp_data <- function(update = F, savedir = "../tcmsp") {
+get_tcmsp_data <- function(update = F, savedir = .prefix("tcmsp", "db")) {
   if (!dir.exists(savedir)) {
     dir.create(savedir)
   }

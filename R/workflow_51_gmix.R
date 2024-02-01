@@ -17,8 +17,8 @@
     ))
 
 job_gmix <- function(disease, fuzzy = NULL,
-  db_PharmGKB = get_pharmgkb_data("../database/PharmGKB_relationships.tsv.gz"),
-  db_DisGeNet = get_disgenet_data("../database/DisGeNet_disease_associations.tsv.gz"))
+  db_PharmGKB = get_pharmgkb_data(.prefix("database/PharmGKB_relationships.tsv.gz", "db")),
+  db_DisGeNet = get_disgenet_data(.prefix("database/DisGeNet_disease_associations.tsv.gz", "db")))
 {
   x <- .job_gmix(object = disease)
   x$fuzzy <- fuzzy
@@ -139,7 +139,8 @@ setMethod("map", signature = c(x = "job_gmix", ref = "job_gmix"),
   fun_format(data)
 }
 
-get_pharmgkb_data <- function(file_relation = "../database/PharmGKB_relationships.tsv.gz") {
+get_pharmgkb_data <- function(file_relation = .prefix("database/PharmGKB_relationships.tsv.gz", "db"))
+  {
   data <- ftibble(file_relation)
   data <- dplyr::filter(data, (Entity1_type == "Gene" & Entity2_type == "Disease") |
     (Entity2_type == "Gene" & Entity1_type == "Disease"))
@@ -157,7 +158,7 @@ get_pharmgkb_data <- function(file_relation = "../database/PharmGKB_relationship
   fun_format(data)
 }
 
-get_disgenet_data <- function(file_disease = "../database/DisGeNet_disease_associations.tsv.gz") {
+get_disgenet_data <- function(file_disease = .prefix("database/DisGeNet_disease_associations.tsv.gz", "db")) {
   data <- ftibble(file_disease)
   data
 }

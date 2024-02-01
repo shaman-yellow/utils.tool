@@ -99,6 +99,11 @@ setMethod("step1", signature = c(x = "job_hob"),
     return(x)
   })
 
+setMethod("map", signature = c(x = "job_pubchemr", ref = "job_hob"),
+  function(x, ref){
+    object(x)[as.logical(res(ref)$prediction)]
+  })
+
 setMethod("res", signature = c(x = "job_hob"),
   function(x){
     if (x@step < 1L) {

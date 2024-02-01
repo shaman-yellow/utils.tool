@@ -175,7 +175,7 @@ setMethod("pg", signature = c(x = "character"),
   })
 
 pg_remote_recode <- function() {
-  list(
+  lst <- list(
     qiime = "~/miniconda3/bin/conda run -n qiime2 qiime",
     fastp = "~/miniconda3/bin/conda run -n base fastp",
     bcftools = "~/miniconda3/bin/conda run -n base bcftools",
@@ -184,9 +184,9 @@ pg_remote_recode <- function() {
     bowtie2 = "~/miniconda3/bin/conda run -n base bowtie2",
     samtools = "~/miniconda3/bin/conda run -n base samtools",
     metaphlan = "~/miniconda3/bin/conda run -n mpa metaphlan",
-    merge_metaphlan_tables.py = "~/miniconda3/bin/conda run -n mpa merge_metaphlan_tables.py",
-    `~/operation/sirius/bin/sirius` = "~/operation/sirius/bin/sirius"
+    merge_metaphlan_tables.py = "~/miniconda3/bin/conda run -n mpa merge_metaphlan_tables.py"
   )
+  c(lst, nl(.prefix("sirius/bin/sirius", "op"), "~/operation/sirius/bin/sirius"))
 }
 
 #' @exportMethod object
@@ -1211,5 +1211,24 @@ loads <- function(file = "workflow.rds", ...) {
 
 remotejob <- function(wd, remote = "remote") {
   .job(params = list(set_remote = T, wd = wd, remote = remote))
+}
+
+set_prefix <- function(wd, db) {
+  options(wd_prefix = wd, db_prefix = db)
+}
+
+.prefix <- function(path, name = c("wd", "db", "op"), warning = T)
+{
+  name <- match.arg(name)
+  pr <- getOption(paste0(name, "_prefix"))
+  if (missing(path)) {
+    res <- pr
+  } else {
+    res <- paste0(pr, "/", path)
+  }
+  if (!file.exists(res) & warning) {
+    warning("The file not exists in local")
+  }
+  res
 }
 
