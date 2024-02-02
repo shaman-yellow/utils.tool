@@ -76,9 +76,11 @@ setMethod("step1", signature = c(x = "job_enrich"),
     p.go <- .set_lab(p.go, sig(x), names(p.go), "GO enrichment")
     res.go <- lapply(res.go,
       function(data) {
-        data <- as_tibble(data.table::rbindlist(data, idcol = T))
-        data <- dplyr::mutate(data, geneName_list = fun(geneID_list))
-        dplyr::relocate(data, ont = .id)
+        if (all(vapply(data, is.data.frame, logical(1)))) {
+          data <- as_tibble(data.table::rbindlist(data, idcol = T))
+          data <- dplyr::mutate(data, geneName_list = fun(geneID_list))
+          dplyr::relocate(data, ont = .id)
+        }
       })
     res.go <- .set_lab(res.go, sig(x), names(res.go), "GO enrichment data")
     x@tables[[ 1 ]] <- namel(res.kegg, res.go)

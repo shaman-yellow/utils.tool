@@ -100,7 +100,7 @@
     `scrna:integrate` = "不同来源的 scRNA-seq 数据整合:RISC整合消除批次效应",
     `rnaedit:edqtl` = "RNA 编辑位点信息挖掘:gtex数据库etqtl挖掘",
     `lite:bib` = "常规文献计量分析和可视化",
-    `link:micro+meta+1` = "肠道菌群和代谢物关联分析:需来自于同一批样本",
+    `link:micro+meta+1` = "肠道菌群和代谢物常规关联分析 (如 Pearson) :需来自于同一批样本",
     `tcga:snp` = "TCGA 变异数据挖掘和常规分析",
     `scrna:anno:sub` = "单细胞数据细胞注释到具体细胞亚群:如 Treg 细胞",
     `link:rna+rna` = "结合不同 (如疾病) 条件下 RNA-seq DEGs 筛选基因",
@@ -127,6 +127,10 @@
     `dis:dis` = "疾病相关基因集:DisGeNet 数据库挖掘",
     `tf` = "调控该基因的相关转录因子 (TF) 数据获取",
     `cpd:class` = "化合物系统分类注释 (ClassyFire) ",
-    `link:meta+genes+0` = "蛋白质或基因和代谢物数据联合分析:通过公共数据挖掘建立联系"
+    `link:meta+genes+0` = "蛋白质或基因和代谢物数据联合分析:通过公共数据挖掘建立联系",
+    `lcms` = "从头开始的 LC-MS/MS 数据处理:数据格式转换、峰检测、化合物鉴定等",
+    `lcms:sirius` = "LC-MS/MS 数据以尖端预测工具鉴定更多化合物 (费时)",
+    `lcms:deep` = "LC-MS/MS 数据深入分析:差异代谢物筛选、分子网络可视化、富集分析等",
+    `ocr` = "批量 OCR 识别图片中文字并整理结果"
   )
 }

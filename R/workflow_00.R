@@ -1213,14 +1213,17 @@ remotejob <- function(wd, remote = "remote") {
   .job(params = list(set_remote = T, wd = wd, remote = remote))
 }
 
-set_prefix <- function(wd, db) {
-  options(wd_prefix = wd, db_prefix = db)
+set_prefix <- function(wd, db, op) {
+  options(wd_prefix = wd, db_prefix = db, op_prefix = op)
 }
 
 .prefix <- function(path, name = c("wd", "db", "op"), warning = T)
 {
   name <- match.arg(name)
-  pr <- getOption(paste0(name, "_prefix"))
+  pr <- getOption(That <- paste0(name, "_prefix"), NULL)
+  if (is.null(pr)) {
+    stop("`", That, "` not set. Use `set_prefix` or `options` to set that.")
+  }
   if (missing(path)) {
     res <- pr
   } else {

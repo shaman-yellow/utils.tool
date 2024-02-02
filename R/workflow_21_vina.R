@@ -54,9 +54,7 @@ setMethod("step0", signature = c(x = "job_vina"),
 setMethod("step1", signature = c(x = "job_vina"),
   function(x, bdb = NULL, each_target = 1, pdbs = NULL)
   {
-    step_message("Prepare Docking Combination.
-      "
-    )
+    step_message("Prepare Docking Combination.")
     if (is.null(x$mart)) {
       mart <- new_biomart()
     } else {
@@ -65,6 +63,12 @@ setMethod("step1", signature = c(x = "job_vina"),
     x$targets_annotation <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
       object(x)$hgnc_symbols, distinct = F)
     x$targets_annotation <- dplyr::filter(x$targets_annotation, pdb != "")
+    if (any(isThat <- !object(x)$hgnc_symbols %in% x$targets_annotation$hgnc_symbol)) {
+      message("PDB not found:\n\t", paste0(object(x)$hgnc_symbols[ isThat ], collapse = ", "))
+      if (!usethis::ui_yeah("Continue?")) {
+        stop("Consider other ways to found PDB files for docking.")
+      }
+    }
     if (!is.null(pdbs)) {
       pdbs <- list(hgnc_symbol = names(pdbs), pdb = unname(pdbs))
       if (!is.character(x$targets_annotation$pdb)) {
@@ -117,12 +121,6 @@ setMethod("step3", signature = c(x = "job_vina"),
     } else {
       pdb.files <- NULL
     }
-    if (!is.null(extra_layouts)) {
-      if (is(extra_layouts, "character")) {
-        extra_layouts <- as.list(extra_layouts)
-      }
-      x$dock_layout <- c(x$dock_layout, extra_layouts)
-    }
     if (!is.null(extra_pdb.files)) {
       pdb.files <- c(pdb.files, extra_pdb.files)
       if (is.null(extra_symbols)) {
@@ -133,6 +131,17 @@ setMethod("step3", signature = c(x = "job_vina"),
       }
       x@params$targets_annotation %<>%
         tibble::add_row(hgnc_symbol = names(extra_symbols), pdb = unname(extra_symbols))
+      layoutNeedRevise <- T
+    } else {
+      layoutNeedRevise <- F
+    }
+    if (!is.null(extra_layouts)) {
+      if (is(extra_layouts, "character")) {
+        extra_layouts <- as.list(extra_layouts)
+      }
+      x$dock_layout <- c(x$dock_layout, extra_layouts)
+    } else if (layoutNeedRevise) {
+      x$dock_layout %<>% lapply(function(x) c(x, names(extra_pdb.files)))
     }
     pdb.files <- filter_pdbs(pdb.files, pattern)
     x$res.receptor <- prepare_receptor(pdb.files)
@@ -201,11 +210,11 @@ setMethod("step5", signature = c(x = "job_vina"),
       geom_col(aes(x = reorder(hgnc_symbol, Affinity, decreasing = T), y = Affinity, fill = Affinity), width = .7) +
       labs(x = "", y = "Affinity (kcal/mol)") +
       coord_flip() +
-      ylim(zoRange(c(-1, data$Affinity), 1.4)) +
+      ylim(zoRange(c(-1, data$Affinity, 1), 1.4)) +
       facet_wrap(as.formula(paste0("~ Hmisc::capitalize(paste0(", facet, "))")),
         ncol = 1, scales = "free_y") +
       theme()
-    p.res_vina <- wrap(p.res_vina)
+    p.res_vina <- wrap(p.res_vina, 7, nrow(data) + 1)
     p.res_vina <- .set_lab(p.res_vina, sig(x), "Overall combining Affinity")
     x@tables[[ 5 ]] <- namel(res_dock, unique_tops = data)
     x@plots[[ 5 ]] <- namel(p.res_vina)

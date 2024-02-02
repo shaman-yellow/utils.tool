@@ -1524,12 +1524,13 @@ send_eval <- function(to,
 
 send_registers <- function(to,
   subject = "业务表格更新",
-  content = "Hello, 慧姐\n\n这是每月末需提交的更新的业务登记表。\n\nBest wishes!",
+  content = "Hello, 慧姐\n\n这是每月末需提交的更新的业务登记表，以及可做业务类型细节清单更新。\n\nBest wishes!",
   time = Sys.time(),
   month = lubridate::month(time),
   year = lubridate::year(time),
   path_summary = paste0(.prefix(), "summary"),
-  atts = paste0(path_summary, "/", "生信组表格登记-黄礼闯.xlsx"))
+  atts = c(paste0(path_summary, "/", "生信组表格登记-黄礼闯.xlsx"),
+    paste0(path_summary, "/", "type_list.xlsx")))
 {
   send_that(to, subject, content, atts)
 }
@@ -1581,6 +1582,21 @@ send_that <- function(to, subject, content, atts = NULL, from = "huanglichuang@w
   message("Done")
 }
 
+update_tagsTable <- function(tags = .tag_anno(),
+  path = .prefix("summary"), file = "type_list.xlsx")
+{
+  tags.cn <- unique(tags)
+  data <- tibble::tibble(Seq = 1:length(tags.cn), Name = tags.cn)
+  data <- tibble::add_row(data,
+    Name = c("...",
+      paste0("Last update: ", Sys.time()),
+      "Author: Huang LiChuang")
+  )
+  file <- paste0(path, "/", file)
+  openxlsx::write.xlsx(data, file)
+  browseURL(normalizePath(file))
+}
+
 update_registers <- function(orders = get_orders(),
   path = .prefix("summary"),
   name = "黄礼闯",
@@ -1598,7 +1614,7 @@ update_registers <- function(orders = get_orders(),
   pos <- list(2, 1)
   ## base
   data <- dplyr::filter(orders, type != "备单业务")
-  data <- dplyr::mutate(data, seq = 1:nrow(data), note = "")
+  data <- dplyr::mutate(data, seq = 1:nrow(data), note = as.note.tags(tags.cn))
   data <- dplyr::select(data,
     date, seq, info, id, score, member, receive_date, status, title, note
   )
@@ -1606,7 +1622,7 @@ update_registers <- function(orders = get_orders(),
     dims = do.call(openxlsx2::wb_dims, pos))
   ## extra
   data <- dplyr::filter(orders, type == "备单业务")
-  data <- dplyr::mutate(data, seq = 1:nrow(data), note = "")
+  data <- dplyr::mutate(data, seq = 1:nrow(data), note = as.note.tags(tags.cn))
   data <- dplyr::select(data,
     date, seq, info, id, score, member, receive_date, status, title, note
   )
@@ -1650,7 +1666,10 @@ summary_month <- function(
   if (T) {
     pos.data_ass <- list(7, 1)
     data_ass <- dplyr::mutate(orders,
-      seq = 1:nrow(orders), num = 1, title.en = "", note = "", coef = round(coef, 3))
+      seq = 1:nrow(orders), num = 1, title.en = "",
+      note = as.note.tags(tags.cn),
+      coef = round(coef, 3)
+    )
     data_ass <- dplyr::select(data_ass,
       member, seq, id, type, score, num, title, title.en, status, note, coef
     )
@@ -1959,7 +1978,9 @@ get_orders <- function(
         coef = as.double(coef),
         date = as.Date(date),
         receive_date = as.Date(receive_date),
-        .dir = get_path(file)
+        .dir = get_path(file),
+        tags.list = lapply(strsplit(tags, ","), gs, "\\s", ""),
+        tags.cn = recode_tags(tags.list)
       )
       data
     })
@@ -1984,6 +2005,41 @@ get_orders <- function(
   data <- dplyr::relocate(data, belong, id, title, remuneration)
   print(data, n = Inf)
   invisible(data)
+}
+
+recode_tags <- function(lst) {
+  fun <- function(tags) {
+    dic <- as.list(.tag_anno())
+    tags <- vapply(tags, function(x) if (identical(x, character(0))) "" else x, character(1))
+    notIn <- (!tags %in% names(dic)) & (tags != "")
+    if (any(notIn)) {
+      message("Function: .tag_anno()")
+      stop("Some tags without annotation:\n\t", paste0(tags[ notIn ], collapse = ", "))
+    }
+    res <- dplyr::recode(tags, !!!dic, .default = character(1))
+    res
+  }
+  if (is(lst, "list")) {
+    lapply(lst, fun)
+  } else {
+    fun(lst)
+  }
+}
+
+as.note.tags <- function(tags) {
+  fun <- function(x) {
+    x <- x[ x != "" ]
+    if (length(x)) {
+      paste0(paste0("(", 1:length(x), ") ", x), collapse = "; ")
+    } else {
+      ""
+    }
+  }
+  if (is(tags, "list")) {
+    vapply(tags, fun, character(1))
+  } else {
+    fun(tags)
+  }
 }
 
 plot_orders_summary <- function(data) {
@@ -2174,7 +2230,7 @@ items <- function(
   score = od_get_score(),
   member = "黄礼闯",
   save = ".items.rds",
-  tags = c(),
+  tags = character(0),
   isLatest = F,
   lock = F)
 {
@@ -2268,6 +2324,9 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
       idn <- paste0(idn, "+", theme)
     } else {
       theme <- odk("analysis")
+      if (is.null(theme)) {
+        stop("No 'analysis[[...]] tags found.'")
+      }
       if (!grpl(idn, theme))
         idn <- paste0(idn, "+", theme)
     }
@@ -2375,16 +2434,16 @@ revise_items <- function(data, records = NULL) {
   tryCatch(fun(data$.dir), finally = setwd(owd))
 }
 
-get_tags <- function(data) {
-  tags <- unlist(lapply(data$.dir,
-      function(dir) {
-        obj <- try(readRDS(paste0(dir, "/.items.rds")), T)
-        if (!inherits(obj, "try-error")) {
-          gs(strsplit(obj$tags, ",")[[1]], "\\s", "")
-        } else NULL
-      }))
-  unique(tags)
-}
+# get_tags <- function(data) {
+#   tags <- unlist(lapply(data$.dir,
+#       function(dir) {
+#         obj <- try(readRDS(paste0(dir, "/.items.rds")), T)
+#         if (!inherits(obj, "try-error")) {
+#           gs(strsplit(obj$tags, ",")[[1]], "\\s", "")
+#         } else NULL
+#       }))
+#   unique(tags)
+# }
 
 od_get <- function(file = "./mailparsed/part_1.md", key = "id",
   pattern = paste0("(?<=", key, "\\{\\{).*?(?=\\}\\})"))
@@ -3279,7 +3338,7 @@ new_venn <- function(..., lst = NULL, wrap = T, fun_pre = rm.no) {
     lst <- list(...)
   }
   lst <- lapply(lst, fun_pre)
-  p <- ggVennDiagram::ggVennDiagram(lst) +
+  p <- ggVennDiagram::ggVennDiagram(lst, label_percent_digit = 1) +
     scale_fill_gradient(low = "grey95", high = sample(color_set(), 1)) +
     theme_void() +
     theme(axis.text = element_blank(),
@@ -3672,3 +3731,6 @@ try_get_area.compoundDiscovery <- function(lstcd, res_ocr) {
   lab(lstcd$table) <- "Identified compounds records in table CompoundDiscovery"
   lstcd
 }
+
+
+

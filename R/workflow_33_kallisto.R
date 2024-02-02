@@ -74,7 +74,7 @@ setMethod("step2", signature = c(x = "job_kall"),
 setMethod("step3", signature = c(x = "job_kall"),
   function(x, path = x$output){
     step_message("Collate all quantification results.")
-    res <- read_kall_quant(path)
+    res <- as_tibble(read_kall_quant(path))
     x@tables[[ 3 ]] <- res
     return(x)
   })

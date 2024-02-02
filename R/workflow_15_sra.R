@@ -31,7 +31,7 @@ setMethod("step0", signature = c(x = "job_sra"),
 
 setMethod("step1", signature = c(x = "job_sra"),
   function(x){
-    step_message("Prepare for dowloading SRA data (16s rRNA data).")
+    step_message("Prepare for dowloading SRA data (e.g., 16s rRNA data).")
     cli::cli_alert_info("esearch -db sra -query")
     cdRun("esearch -db sra -query ", x@object,
         " | efetch -format runinfo > ", x@params$wd, "/info.csv")
@@ -57,11 +57,12 @@ setMethod("step2", signature = c(x = "job_sra"),
   })
 
 setMethod("step3", signature = c(x = "job_sra"),
-  function(x, pattern = "fastq\\.gz$"){
-    step_message("Format as fastq file")
+  function(x, workers = 6, pattern = "fastq\\.gz$")
+  {
+    step_message("Format as fastq file (pair-end)")
     x@params$pattern <- pattern
     cli::cli_alert_info("fastq-dump --gzip --split-3")
-    pbapply::pblapply(x@params$all_sra,
+    pbapply::pblapply(x@params$all_sra, cl = workers,
         function(file) {
           path <- get_path(file)
           if (length(list.files(path, pattern)) == 0)
