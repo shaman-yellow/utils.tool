@@ -11,12 +11,13 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
+    pg = "sirius",
     info = c("https://boecker-lab.github.io/docs.sirius.github.io/"),
     cite = "[@Sirius4ARapDuhrko2019; @SearchingMolecDuhrko2015; @SystematicClasDuhrko2021; @AssigningConfiHoffma2021]",
     method = "`SIRIUS` 5 (`SIRIUS`, `CSI:FingerID`, `CANOPUS`, `COSMIC`) used for compounds identification and prediction with MASS spectra."
     ))
 
-job_sirius <- function(mgf, ion = c("mix", "pos", "neg"), pg = .prefix("sirius/bin/sirius", "op"))
+job_sirius <- function(mgf, ion = c("mix", "pos", "neg"), pg = "sirius")
 {
   ion <- match.arg(ion)
   x <- .job_sirius()
@@ -111,7 +112,7 @@ setGeneric("asjob_sirius",
   function(x, ...) standardGeneric("asjob_sirius"))
 
 setMethod("asjob_sirius", signature = c(x = "job_xcms"),
-  function(x, pg = .prefix("sirius/bin/sirius", "op"))
+  function(x, pg = "sirius")
   {
     params <- x@params
     x <- .job_sirius(params = params, pg = pg)

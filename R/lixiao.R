@@ -2817,7 +2817,7 @@ setMethod("autor", signature = c(x = "can_be_draw", name = "character"),
 
 ## autor for data.frame
 setMethod("autor", signature = c(x = "df", name = "character"),
-  function(x, name, ..., asis = T){
+  function(x, name, ..., asis = getOption("autor_asis", T)){
     x <- dplyr::select_if(x,
       function(x) is.character(x) | is.numeric(x) | is.logical(x) | is.factor(x))
     file <- autosv(x, name, ...)
@@ -2828,7 +2828,7 @@ setMethod("autor", signature = c(x = "df", name = "character"),
 
 ## autor for figures of file
 setMethod("autor", signature = c(x = "fig", name = "character"),
-  function(x, name, ..., asis = T){
+  function(x, name, ..., asis = getOption("autor_asis", T)){
     file <- autosv(x, name, ...)
     if (asis)
       abstract(x, name, ...)
@@ -2836,7 +2836,7 @@ setMethod("autor", signature = c(x = "fig", name = "character"),
   })
 
 setMethod("autor", signature = c(x = "files", name = "character"),
-  function(x, name, ..., asis = T){
+  function(x, name, ..., asis = getOption("autor_asis", T)){
     file <- autosv(x, name, ...)
     if (asis)
       abstract(x, name, ...)

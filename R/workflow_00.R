@@ -22,12 +22,12 @@
     params = list(wd = ".", remote = "remote")
     ))
 
-setValidity("job", 
-  function(object){
-    class <- class(object)
-    options(method_name = class)
-    if (is(object, "job")) T else F
-  })
+# setValidity("job", 
+#   function(object){
+#     class <- class(object)
+#     options(method_name = class)
+#     if (is(object, "job")) T else F
+#   })
 
 setClass("hclust")
 ## cutree, the tree higher, the sort number lower
@@ -143,36 +143,37 @@ setReplaceMethod("sig", signature = c(x = "job"),
 
 #' @exportMethod pg
 setMethod("pg", signature = c(x = "job"),
-  function(x, recode = getOption("pg_remote_recode", pg_remote_recode())){
-    cli::cli_alert_info(x@pg)
-    if (is.remote(x)) {
-      recode <- recode[[ x@pg ]]
-      if (is.null(recode)) {
-        # stop("No program running command obtained.")
-        x@pg
-      } else {
-        recode
-      }
-    } else {
-      x@pg
-    }
+  function(x,
+    recode.remote = getOption("pg_remote_recode", pg_remote_recode()),
+    recode.local = getOption("pg_local_recode", pg_local_recode()))
+  {
+    pg(x@pg, is.remote(x), recode.remote, recode.local)
   })
 
 setMethod("pg", signature = c(x = "character"),
-  function(x, is.remote, recode = getOption("pg_remote_recode", pg_remote_recode()))
+  function(x, is.remote,
+    recode.remote = getOption("pg_remote_recode", pg_remote_recode()),
+    recode.local = getOption("pg_local_recode", pg_local_recode()))
   {
     cli::cli_alert_info(x)
     if (is.remote) {
-      recode <- recode[[ x ]]
-      if (is.null(recode)) {
-        x
-      } else {
-        recode
-      }
+      recode <- recode.remote[[ x ]]
     } else {
+      recode <- recode.local[[ x ]]
+    }
+    if (is.null(recode)) {
       x
+    } else {
+      recode
     }
   })
+
+pg_local_recode <- function() {
+  lst <- list(
+    qiime = "~/miniconda3/bin/conda run -n qiime2 qiime",
+    sirius = .prefix("sirius/bin/sirius", "op")
+  )
+}
 
 pg_remote_recode <- function() {
   lst <- list(
@@ -184,9 +185,9 @@ pg_remote_recode <- function() {
     bowtie2 = "~/miniconda3/bin/conda run -n base bowtie2",
     samtools = "~/miniconda3/bin/conda run -n base samtools",
     metaphlan = "~/miniconda3/bin/conda run -n mpa metaphlan",
-    merge_metaphlan_tables.py = "~/miniconda3/bin/conda run -n mpa merge_metaphlan_tables.py"
+    merge_metaphlan_tables.py = "~/miniconda3/bin/conda run -n mpa merge_metaphlan_tables.py",
+    sirius = "~/operation/sirius/bin/sirius"
   )
-  c(lst, nl(.prefix("sirius/bin/sirius", "op"), "~/operation/sirius/bin/sirius"))
 }
 
 #' @exportMethod object
@@ -715,7 +716,7 @@ setMethod("intersect", signature = c(x = "ANY", y = "ANY"),
 
 setMethod("not", signature = c(x = "job"),
   function(x){
-    validObject(x)
+    options(method_name = class(x))
     invisible(x)
   })
 

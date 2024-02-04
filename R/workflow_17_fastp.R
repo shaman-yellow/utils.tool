@@ -191,13 +191,14 @@ fastp_pair.remote <- function(path, suffix = ".fastq.gz", pattern = paste0(".[1-
 }
 
 setMethod("asjob_qiime", signature = c(x = "job_fastp"),
-  function(x, metadata = x@params$metadata, wd = "qiime_data"){
+  function(x, metadata = x@params$metadata, wd = "qiime_data", export = "qiime_export")
+  {
     .check_columns(metadata, c("SampleName", "group"))
     metadata <- rename(metadata, `sample-id` = SampleName)
     if (!file.exists(wd)) {
       dir.create(wd)
     }
-    x <- job_qiime(metadata, wd)
+    x <- job_qiime(metadata, wd, export = export)
     x@params$pattern_fq <- "QC.fastq.gz$"
     x
   })

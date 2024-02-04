@@ -22,7 +22,7 @@ header-includes:
   \renewenvironment{figure}
   {\def\@captype{figure}}
   \makeatother
-  \newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+  \renewenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
   \definecolor{shadecolor}{RGB}{230,230,230}
   \usepackage{xeCJK}
   \usepackage{setspace}

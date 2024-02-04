@@ -11,6 +11,7 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
+    pg = "seurat",
     info = c("Tutorial: https://github.com/satijalab/seurat/wiki"),
     cite = "",
     method = ""

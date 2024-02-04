@@ -229,9 +229,9 @@ setMethod("step4", signature = c(x = "job_mp"),
     if (is.null(x@params$mp_diff_analysis)) {
       object(x) <- e(MicrobiotaProcess::mp_diff_analysis(
           object(x), .abundance = !!rlang::sym(x$use),
-          .group = !!rlang::sym(x@params$group), force = x$force))
+          .group = !!rlang::sym(x@params$group), force = x$force, filter.p = "fdr"))
       x@params$mp_diff_analysis <- T
-    } 
+    }
     ## plot radical tree
     p.tree <- try(e(MicrobiotaProcess::mp_plot_diff_cladogram(object(x),
         .group = !!rlang::sym(x@params$group),
@@ -304,6 +304,8 @@ setMethod("step4", signature = c(x = "job_mp"),
       p.box <- wrap(p.box, 10, 10)
       p.box <- .set_lab(p.box, sig(x), "The abundance and LDA ",
         paste0("from ", classes[1], " to ", tail(classes, n = 1)))
+    } else {
+      p.box <- NULL
     }
     x@plots[[ 4 ]] <- namel(p.box, p.tree)
     return(x)

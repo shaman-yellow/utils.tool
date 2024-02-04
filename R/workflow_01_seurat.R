@@ -131,7 +131,6 @@ setMethod("step4", signature = c(x = "job_seurat"),
   function(x, use = "SingleR", use.level = c("label.main", "label.fine"),
     ref = celldex::HumanPrimaryCellAtlasData())
   {
-    use <- "SingleR"
     if (use == "scAnno") {
       ## PMID: 37183449
       ## https://github.com/liuhong-jia/scAnno
@@ -178,7 +177,8 @@ setMethod("step4", signature = c(x = "job_seurat"),
   })
 
 setMethod("step5", signature = c(x = "job_seurat"),
-  function(x, workers = 3){
+  function(x, workers = NULL)
+  {
     step_message("Find all Marders for Cell Cluster.")
     fun <- function(x) {
       markers <- as_tibble(
@@ -193,7 +193,7 @@ setMethod("step5", signature = c(x = "job_seurat"),
     }
     all_markers_no_filter <- markers
     markers <- dplyr::filter(markers, p_val_adj < .05)
-    tops <- slice_max(group_by(markers, cluster), avg_log2FC, n = 10)
+    tops <- dplyr::slice_max(dplyr::group_by(markers, cluster), avg_log2FC, n = 10)
     if (F) {
       p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = T))
       p.toph <- wrap(p.toph, 14, 12)

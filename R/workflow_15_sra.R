@@ -91,9 +91,9 @@ setGeneric("asjob_qiime",
   function(x, ...) standardGeneric("asjob_qiime"))
 
 setMethod("asjob_qiime", signature = c(x = "job_sra"),
-  function(x, wd = "qiime_data"){
+  function(x, wd = "qiime_data", export = "qiime_export"){
     dir.create(wd)
-    job_qiime(x@params$metadata, wd)
+    job_qiime(x@params$metadata, wd, export = export)
   })
 
 setGeneric("asjob_sra", 

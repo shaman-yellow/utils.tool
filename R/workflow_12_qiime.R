@@ -11,6 +11,7 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
+    pg = "qiime",
     info = paste0("Tutorial: ",
       "https://docs.qiime.org/2023.7/tutorials/moving-pictures-usage/",
       "https://docs.qiime.org/2023.7/tutorials/importing/#sequence-data-with-sequence-quality-information-i-e-fastq",
@@ -22,17 +23,26 @@
 
 .qzv <- setClass("qzv", 
   contains = c("character"),
-  representation = representation(),
-  prototype = NULL)
+  representation = representation(pg = "character"),
+  prototype = prototype(pg = "qiime"))
 
-new_qzv <- function(..., lst = NULL, path) {
+new_qzv <- function(..., lst = NULL, path, x, pg = NULL) {
+  if (missing(x)) {
+    x <- get("x", envir = parent.frame(1))
+  }
+  if (!is(x, "job")) {
+    if (is.null(pg)) {
+      stop("Do not know how to run Qiime2. At least `pg` or `x` (job) should passsed one.")
+    }
+  } else {
+    pg <- pg(x)
+  }
   if (is.null(lst))
     files <- unlist(list(...))
   else 
     files <- unlist(lst)
   if (missing(path)) {
-    x <- get("x", envir = parent.frame(1))
-    if (!is.null(x@params$set_remote)) {
+    if (is.remote(x)) {
       path <- x@params$map_local
       pbapply::pblapply(files,
         function(file) {
@@ -56,19 +66,20 @@ new_qzv <- function(..., lst = NULL, path) {
   names(files) <- get_realname(files)
   sapply(files, simplify = F,
     function(file) {
-      .qzv(file)
+      .qzv(file, pg = pg)
     })
 }
 
 setMethod("show", signature = c(object = "qzv"),
   function(object){
-    system(paste0("qiime tools view ", as.character(object)))
+    cdRun(object@pg, " tools view ", as.character(object))
   })
 
-job_qiime <- function(metadata, wd = "qiime_data")
+job_qiime <- function(metadata, wd = "qiime_data", export = "qiime_export")
 {
   x <- .job_qiime(object = metadata)
   x@params$wd <- wd
+  x@params$export <- export
   write_tsv(metadata, meta_file <- paste0(x@params$wd, "/metadata.tsv"))
   x@params$meta_file <- meta_file
   return(x)
@@ -82,16 +93,17 @@ setMethod("step0", signature = c(x = "job_qiime"),
   })
 
 setMethod("step1", signature = c(x = "job_qiime"),
-  function(x, env_pattern = "qiime", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda")
+  function(x)
+    # env_pattern = "qiime", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda"
   {
     step_message("Standby Qiime2 environment, and import data")
-    x@params$platform <- activate_qiime(env_pattern, env_path, conda)
+    # x@params$platform <- activate_qiime(env_pattern, env_path, conda)
     if (is.null(x@params$cdRun)) {
       x@params$cdRun <- cdRun
     }
     if (!is_qiime_file_exists("demux.qza")) {
       E(x@params$cdRun(
-          "qiime tools import",
+          pg(x), " tools import",
           " --type 'SampleData[PairedEndSequencesWithQuality]'",
           " --input-format PairedEndFastqManifestPhred33V2",
           " --input-path metadata.tsv",
@@ -101,7 +113,7 @@ setMethod("step1", signature = c(x = "job_qiime"),
     }
     if (!is_qiime_file_exists("demux.qzv")) {
       E(x@params$cdRun(
-          "qiime demux summarize ",
+          pg(x), " demux summarize ",
           " --i-data demux.qza ",
           " --o-visualization demux.qzv",
           path = x@params$wd)
@@ -116,7 +128,7 @@ setMethod("step2", signature = c(x = "job_qiime"),
     step_message("Time consumed running.")
     if (!is_qiime_file_exists("table.qza")) {
       E(x@params$cdRun(
-          "qiime dada2 denoise-paired ",
+          pg(x), " dada2 denoise-paired ",
           " --i-demultiplexed-seqs demux.qza ",
           " --p-n-threads ", workers,
           " --p-trim-left-f ", left_f, " --p-trim-left-r ", left_r,
@@ -135,27 +147,27 @@ setMethod("step3", signature = c(x = "job_qiime"),
   function(x){
     step_message("Some visualization and 'align-to-tree-mafft-fasttree'")
     E(x@params$cdRun(
-        "qiime metadata tabulate ",
+        pg(x), " metadata tabulate ",
         " --m-input-file denoising-stats.qza ",
         " --o-visualization denoising-stats.qzv",
         path = x@params$wd)
     )
     E(x@params$cdRun(
-        "qiime feature-table summarize ",
+        pg(x), " feature-table summarize ",
         " --i-table table.qza ",
         " --m-sample-metadata-file metadata.tsv ",
         " --o-visualization table.qzv",
         path = x@params$wd)
     )
     E(x@params$cdRun(
-        "qiime feature-table tabulate-seqs ",
+        pg(x), " feature-table tabulate-seqs ",
         " --i-data rep-seqs.qza ",
         " --o-visualization rep-seqs.qzv",
         path = x@params$wd)
     )
     if (!is_qiime_file_exists("tree")) {
       E(x@params$cdRun(
-          "qiime phylogeny align-to-tree-mafft-fasttree ",
+          pg(x), " phylogeny align-to-tree-mafft-fasttree ",
           " --i-sequences rep-seqs.qza ",
           " --output-dir tree",
           path = x@params$wd)
@@ -171,7 +183,7 @@ setMethod("step4", signature = c(x = "job_qiime"),
     x@params$min <- min
     if (!is_qiime_file_exists("diversity")) {
       E(x@params$cdRun(
-          "qiime diversity core-metrics-phylogenetic ",
+          pg(x), " diversity core-metrics-phylogenetic ",
           " --i-phylogeny tree/rooted_tree.qza ",
           " --i-table table.qza ",
           " --p-sampling-depth ", x@params$min,
@@ -194,7 +206,7 @@ setMethod("step5", signature = c(x = "job_qiime"),
     E(pbapply::pblapply(c("faith_pd", "shannon", "observed_features", "evenness"),
         function(method) {
           x@params$cdRun(
-            "qiime diversity alpha-group-significance ",
+            pg(x), " diversity alpha-group-significance ",
             " --i-alpha-diversity diversity/", method, "_vector.qza ",
             " --m-metadata-file metadata.tsv ",
             " --o-visualization diversity_alpha_", group, "_significant/", method, ".qzv",
@@ -203,7 +215,7 @@ setMethod("step5", signature = c(x = "job_qiime"),
         })
     )
     E(x@params$cdRun(
-        "qiime diversity alpha-rarefaction ",
+        pg(x), " diversity alpha-rarefaction ",
         " --i-table table.qza ",
         " --i-phylogeny tree/rooted_tree.qza ",
         " --p-max-depth ", max,
@@ -215,7 +227,7 @@ setMethod("step5", signature = c(x = "job_qiime"),
     E(pbapply::pblapply(c("unweighted_unifrac", "bray_curtis", "weighted_unifrac", "jaccard"),
         function(index) {
           x@params$cdRun(
-            "qiime diversity beta-group-significance ",
+            pg(x), " diversity beta-group-significance ",
             " --i-distance-matrix diversity/", index, "_distance_matrix.qza ",
             " --m-metadata-file metadata.tsv ",
             " --m-metadata-column ", group,
@@ -245,7 +257,7 @@ setMethod("step6", signature = c(x = "job_qiime"),
     classifier <- normalizePath(classifier)
     if (!is_qiime_file_exists("taxonomy.qza")) {
       E(x@params$cdRun(
-          "qiime feature-classifier classify-sklearn ",
+          pg(x), " feature-classifier classify-sklearn ",
           " --i-classifier ", classifier,
           " --i-reads rep-seqs.qza ",
           " --o-classification taxonomy.qza",
@@ -253,14 +265,14 @@ setMethod("step6", signature = c(x = "job_qiime"),
       )
     }
     E(x@params$cdRun(
-        "qiime metadata tabulate ",
+        pg(x), " metadata tabulate ",
         " --m-input-file taxonomy.qza ",
         " --o-visualization taxonomy.qzv",
         path = x@params$wd
       )
     )
     E(x@params$cdRun(
-        "qiime taxa barplot ",
+        pg(x), " taxa barplot ",
         " --i-table table.qza ",
         " --i-taxonomy taxonomy.qza ",
         " --m-metadata-file metadata.tsv ",
@@ -279,16 +291,58 @@ setMethod("step7", signature = c(x = "job_qiime"),
     files <- pbapply::pblapply(levels,
       function(level) {
         message()
+        # The explanation about the test results:
+        # https://forum.qiime2.org/t/how-to-interpret-ancom-results/1958
+        # https://forum.qiime2.org/t/specify-w-cutoff-for-anacom/1844
         ancom_test(level, table, path = x@params$wd, x = x)
       })
-    x@plots[[ 7 ]] <- new_qzv(lst = files)
+    qzv_raw <- new_qzv(lst = files)
+    p.export <- lapply(qzv_raw,
+      function(qzv) {
+        dir <- write(qzv, output_dir = x$export, pg = suppressMessages(pg(x)))
+        data <- ftibble(paste0(dir, "/data.tsv"))
+        res <- ftibble(paste0(dir, "/ancom.tsv"))
+        plot_volcano.ancom(data, res)
+      })
+    t.ancom <- lapply(p.export, function(x) as_tibble(x$data))
+    t.ancom <- .set_lab(t.ancom, sig(x), names(t.ancom))
+    p.export <- lapply(p.export, wrap)
+    p.export <- .set_lab(p.export, sig(x), names(p.export), "volcano")
+    x@plots[[ 7 ]] <- namel(qzv_raw, p.export)
+    x@tables[[ 7 ]] <- namel(t.ancom)
     return(x)
   })
 
-ancom_test <- function(level = 6, table = "table.qza", path = "./sra_data", x) {
+plot_volcano.ancom <- function(data, res) {
+  data <- map(data, "id", res, "V1", "Reject null hypothesis", col = "significant")
+  data <- dplyr::mutate(data, label = stringr::str_trunc(id, 30, side = "left"))
+  p <- ggplot(data, aes(x = clr, y = W)) +
+    geom_point(aes(size = W, color = significant), alpha = .5, stroke = 0) +
+    ggrepel::geom_text_repel(aes(label = label)) +
+    guides(color = guide_legend(override.aes = list(size = 5))) +
+    scale_color_manual(values = color_set()) +
+    labs(x = "F-statistic (clr)", y = "W-value")
+  p
+}
+
+setMethod("write", signature = c(x = "qzv"),
+  function(x, output = NULL, output_dir = "qiime_export", pg = get_fun("pg")("qiime", F), overwrite = T)
+  {
+    file <- as.character(x)
+    if (is.null(output)) {
+      output <- get_realname(file)
+    }
+    dir.create(output_dir, F)
+    cdRun(pg, " tools export ",
+    " --input-path ", file,
+    " --output-path ", name <- paste0(output_dir, "/", output))
+    return(name)
+  })
+
+ancom_test <- function(level = 6, table = "table.qza", path = "./qiime_data", x) {
   if (!is.null(level)) {
     E(x@params$cdRun(
-        "qiime taxa collapse ",
+        pg(x), " taxa collapse ",
         " --i-table ", table,
         " --i-taxonomy taxonomy.qza ",
         " --p-level ", level,
@@ -298,20 +352,20 @@ ancom_test <- function(level = 6, table = "table.qza", path = "./sra_data", x) {
     table <- ntable
   }
   E(x@params$cdRun(
-      "qiime composition add-pseudocount ",
+      pg(x), " composition add-pseudocount ",
       " --i-table ", table,
       " --o-composition-table ", com_table <- paste0("comp_table_level_", level, ".qza"),
       path = path
       ))
   E(x@params$cdRun(
-      "qiime composition ancom ",
+      pg(x), " composition ancom ",
       " --i-table ", com_table,
       " --m-metadata-file metadata.tsv ",
       " --m-metadata-column ", "group",
       " --o-visualization ", res <- paste0("ancom_test_group_level_", level, ".qzv"),
       path = path
       ))
-  paste0(res)
+  return(res)
 }
 
 qiime_vis <- function(file) {
@@ -363,10 +417,10 @@ setMethod("set_remote", signature = c(x = "job_qiime"),
     x@params$cdRun <- remoteRun
     x@params$set_remote <- T
     x@params$map_local <- map_local
-    x@params$postfix <- function(x) {
-      x[1] <- gs(x[1], "^qiime", "~/miniconda3/bin/conda run -n qiime2 qiime")
-      x
-    }
+    # x@params$postfix <- function(x) {
+      # x[1] <- gs(x[1], "^qiime", "~/miniconda3/bin/conda run -n qiime2 qiime")
+      # x
+    # }
     x@params$wd <- wd
     x@params$tmpdir <- tmpdir
     return(x)
