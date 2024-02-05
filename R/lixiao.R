@@ -2301,6 +2301,9 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
   client <- ext("客户")
   if (is.na(client)) {
     client <- odk("client")
+    if (is.null(client)) {
+      client <- .guess_client(od_get(pattern = NULL))
+    }
   }
   if (!is.null(client)) {
     if (identical(idn, character(0))) {
@@ -2362,6 +2365,9 @@ od_get_score <- function(...) {
       res[ nchar(res) == max(nchar(res)) ][1]
     }
     it <- ext("分值")
+    if (grpl(it, "^0[7-9]-")) {
+      it <- ""
+    }
   }
   if (is.null(it) || !length(it)) {
     it <- odk("score")
@@ -2455,13 +2461,83 @@ od_get <- function(file = "./mailparsed/part_1.md", key = "id",
     } else {
       res <- stringr::str_extract(paste0(lines, collapse = " "), pattern)
       if (is.na(res)) {
-        ""
+        if (key == "info") {
+          return(paste0(.guess_info(lines), collapse = " "))
+        } else if (key == "id") {
+          return(.guess_id(lines))
+        } else {
+          return("")
+        }
       } else {
-        res
+        return(res)
       }
     }
   } else {
     return()
+  }
+}
+
+.guess_client <- function(lines, excludes = c("生信", "新单", "标书"))
+{
+  its <- lines[ grpl(lines, "主题") ]
+  its <- gs(its, ".*主题(.*)", "\\1")
+  maybes <- unlist(stringr::str_extract_all(its, "[\u4e00-\u9fa5]+"))
+  maybes <- unique(maybes)
+  maybes <- maybes[ nchar(maybes) >= 2 & nchar(maybes) <= 4 ]
+  maybes <- maybes[ !grpl(maybes, paste0(excludes, collapse = "|")) ]
+  if (length(maybes) > 1) {
+    which <- menu(c("None", maybes), title = "Which is the client name?")
+    if (which == 1) {
+      client <- NULL
+    } else {
+      client <- maybes[ which - 1 ]
+    }
+  } else {
+    client <- maybes
+  }
+  client
+}
+
+.guess_id <- function(lines) {
+  res <- stringr::str_extract_all(lines, "[A-Z]+[0-9]{6,10}")
+  res <- unlist(res)
+  res <- res[ !is.na(res) ]
+  stat <- table(res)
+  names(stat[ stat == max(stat) ])
+}
+
+.guess_info <- function(lines) {
+  raw_numlst <- as.integer(strx(lines, "^[0-9]+"))
+  numlst <- raw_numlst[ !is.na(raw_numlst) ]
+  if (length(numlst)) {
+    isThat <- numlst[ -length(numlst) ] + 1 == numlst[-1]
+    if (table(isThat)[[ "TRUE" ]] > 3) {
+      n <- 0L
+      j <- 0L
+      for (i in isThat) {
+        j <- j + 1L
+        if (n > 3) {
+          break
+        } else if (i) {
+          n <- n + 1L
+        } else {
+          n <- 0L
+        }
+      }
+      start <- which(!is.na(raw_numlst))[ j - 4 ]
+      numlst <- ifelse(is.na(raw_numlst), 0, raw_numlst)
+      maybeEnd <- which(numlst == max(numlst))[1]
+      n <- maybeEnd + 1L
+      cont <- lines[ n ]
+      while (cont != "") {
+        n <- n + 1L
+        cont <- lines[ n ]
+      }
+      end <- n
+    }
+    return(lines[ start:end ])
+  } else {
+    return("")
   }
 }
 
@@ -3733,4 +3809,16 @@ try_get_area.compoundDiscovery <- function(lstcd, res_ocr) {
 }
 
 
+code <- function(lines, lang = "bash", color = "red") {
+  lines <- unlist(strsplit(lines, "\n"))
+  lines <- gs(lines, "^\\s+", "")
+  begin <- c(
+    paste0("\\begin{tcolorbox}[colback = gray!10,",
+      " colframe = ", color, "!50, width = 16cm,",
+      " arc = 1mm, auto outer arc, title = {", lang, " input}]"),
+    "\\begin{verbatim}")
+  end <- c("\\end{verbatim}",
+    "\\end{tcolorbox}")
+  writeLines(c(begin, lines, end))
+}
 

@@ -68,6 +68,8 @@ setMethod("step1", signature = c(x = "job_vina"),
       if (!usethis::ui_yeah("Continue?")) {
         stop("Consider other ways to found PDB files for docking.")
       }
+    } else {
+      message("Got PDB for all `hgnc_symbol`.")
     }
     if (!is.null(pdbs)) {
       pdbs <- list(hgnc_symbol = names(pdbs), pdb = unname(pdbs))
@@ -102,7 +104,7 @@ setMethod("step2", signature = c(x = "job_vina"),
   function(x, cl = 10){
     step_message("Download sdf files and convert as pdbqt for ligands.")
     sdfFile <- query_sdfs(unique(names(x$dock_layout)), curl_cl = cl)
-    res.pdbqt <- sdf_as_pdbqts(sdfFile) 
+    res.pdbqt <- mk_prepare_ligand.sdf(sdfFile) 
     x$res.ligand <- nl(res.pdbqt$pdbqt.cid, res.pdbqt$pdbqt)
     message("Got: ", length(x$res.ligand))
     alls <- as.character(object(x)$cid)
@@ -111,7 +113,7 @@ setMethod("step2", signature = c(x = "job_vina"),
   })
 
 setMethod("step3", signature = c(x = "job_vina"),
-  function(x, cl = 10, pattern = "ORGANISM_SCIENTIFIC: HOMO SAPIENS",
+  function(x, cl = 10, pattern = NULL,
     extra_pdb.files = NULL, extra_layouts = NULL, extra_symbols = NULL)
   {
     step_message("Dowload pdb files for Receptors.")
@@ -143,7 +145,9 @@ setMethod("step3", signature = c(x = "job_vina"),
     } else if (layoutNeedRevise) {
       x$dock_layout %<>% lapply(function(x) c(x, names(extra_pdb.files)))
     }
-    pdb.files <- filter_pdbs(pdb.files, pattern)
+    if (!is.null(pattern)) {
+      pdb.files <- filter_pdbs(pdb.files, pattern)
+    }
     x$res.receptor <- prepare_receptor(pdb.files)
     names <- names(x$res.receptor)
     gotSymbols <- x$targets_annotation$hgnc_symbol[ match(tolower(names), tolower(x$targets_annotation$pdb)) ]
@@ -358,7 +362,7 @@ ld_cutRead <- function(file, cols, abnum = T, sep = "\t", tmp = "/tmp/ldtmp.txt"
   ftibble(tmp)
 }
 
-sdf_as_pdbqts <- function(sdf_file, mkdir.pdbqt = "pdbqt", check = F) {
+mk_prepare_ligand.sdf <- function(sdf_file, mkdir.pdbqt = "pdbqt", check = F) {
   dir.create(mkdir.pdbqt, F)
   check_sdf_validity <- function(file) {
     lst <- sep_list(readLines(file), "^\\${4,}$")
@@ -382,7 +386,8 @@ sdf_as_pdbqts <- function(sdf_file, mkdir.pdbqt = "pdbqt", check = F) {
   } else {
     lst <- list(file = sdf_file)
   }
-  system(paste0("mk_prepare_ligand.py -i ", sdf_file, " --multimol_outdir ", mkdir.pdbqt))
+  cdRun("mk_prepare_ligand.py -i ", sdf_file,
+    " --multimol_outdir ", mkdir.pdbqt)
   lst$file <- sdf_file
   lst$pdbqt <- list.files(mkdir.pdbqt, "\\.pdbqt$", full.names = T)
   lst$pdbqt.num <- length(lst$pdbqt)

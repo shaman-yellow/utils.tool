@@ -72,6 +72,7 @@
     `raw:16s` = "从公共数据库挖掘可用的 16s RNA 肠道菌群数据",
     `raw:meta` = "从公共数据库挖掘可用的代谢物数据",
     `dock:vina` = "全自动批量分子对接",
+    `dock:pep` = "分子对接肽与蛋白",
     `enrich:fella` = "代谢物富集分析",
     `wes:raw` = "从头开始的WES数据分析:从fastq开始质控、注释等",
     `wes:filter` = "WES 变异筛选",
