@@ -3809,7 +3809,7 @@ try_get_area.compoundDiscovery <- function(lstcd, res_ocr) {
 }
 
 
-code <- function(lines, lang = "bash", color = "red") {
+code <- function(lines, lang = "Bash", color = "red") {
   lines <- unlist(strsplit(lines, "\n"))
   lines <- gs(lines, "^\\s+", "")
   begin <- c(

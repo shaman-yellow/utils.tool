@@ -114,7 +114,8 @@ setMethod("step1", signature = c(x = "job_monocle"),
             group_label_size = 4, graph_label_size = 2,
             cell_size = x$pt.size, cell_stroke = 0, alpha = .7
           )
-          p + scale_color_manual(values = palette)
+          p <- wrap(p + scale_color_manual(values = palette))
+          p <- .set_lab(p, sig(x), "trajectories of", group)
         }))
     p.prin <- monocle3::plot_cells(
       object(x), color_cells_by = groups[1],
@@ -124,6 +125,7 @@ setMethod("step1", signature = c(x = "job_monocle"),
     )
     p.prin <- p.prin + scale_color_manual(values = palette)
     p.prin <- wrap(p.prin, 10, 7)
+    p.prin <- .set_lab(p.prin, sig(x), "principal points")
     x@plots[[ 1 ]] <- namel(p.traj, p.prin)
     return(x)
   })
