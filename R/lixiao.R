@@ -2785,12 +2785,14 @@ set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
   writeLines(content)
 }
 
-set_index <- function() {
+set_index <- function(fig = T, tab = T) {
   if (knitr::is_latex_output()) {
     cat("\\pagenumbering{roman}\n\n")
     cat("\\tableofcontents\n\n")
-    cat("\\listoffigures\n\n")
-    cat("\\listoftables\n\n")
+    if (fig)
+      cat("\\listoffigures\n\n")
+    if (tab)
+      cat("\\listoftables\n\n")
     cat("\\newpage\n\n")
     cat("\\pagenumbering{arabic}\n\n")
   }

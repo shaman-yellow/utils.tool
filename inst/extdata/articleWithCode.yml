@@ -22,6 +22,8 @@ header-includes:
   \renewenvironment{figure}
   {\def\@captype{figure}}
   \makeatother
+  \@ifundefined{Shaded}{\newenvironment{Shaded}}
+  \@ifundefined{snugshade}{\newenvironment{snugshade}}
   \renewenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
   \definecolor{shadecolor}{RGB}{230,230,230}
   \usepackage{xeCJK}
