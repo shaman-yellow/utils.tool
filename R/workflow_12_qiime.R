@@ -306,8 +306,10 @@ setMethod("step7", signature = c(x = "job_qiime"),
       })
     t.ancom <- lapply(p.export, function(x) as_tibble(x$data))
     t.ancom <- .set_lab(t.ancom, sig(x), names(t.ancom))
+    lab(t.ancom) <- "Ancom test results"
     p.export <- lapply(p.export, wrap)
     p.export <- .set_lab(p.export, sig(x), names(p.export), "volcano")
+    lab(p.export) <- "Ancom test visualization"
     x@plots[[ 7 ]] <- namel(qzv_raw, p.export)
     x@tables[[ 7 ]] <- namel(t.ancom)
     return(x)

@@ -2346,7 +2346,7 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
 
 od_get_id <- function(...) {
   it <- od_get(..., key = "id")
-  if (it == "") {
+  if (is.null(it) || it == "") {
     it <- odk("id")
     if (is.null(it))
       it <- odb("client", "analysis")
@@ -2356,7 +2356,7 @@ od_get_id <- function(...) {
 
 od_get_score <- function(...) {
   it <- od_get(..., key = "score")
-  if (it == "") {
+  if (is.null(it) || it == "") {
     lines <- od_get(..., key = "info", pattern = NULL)
     ext <- function(key) {
       res <- unlist(stringr::str_extract_all(lines, paste0("(?<=", key, "：)", ".+")),
