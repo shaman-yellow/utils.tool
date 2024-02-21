@@ -39,7 +39,8 @@ setMethod("step0", signature = c(x = "job_kat"),
   })
 
 setMethod("step1", signature = c(x = "job_kat"),
-  function(x, workers = 5, path = "copykat", test = F){
+  function(x, workers = 5, path = timeName("copykat"), test = F)
+  {
     step_message("Run copyKAT.")
     x$savepath <- path
     if (is.null(x$res_copykat)) {

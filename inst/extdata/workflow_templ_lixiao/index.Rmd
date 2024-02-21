@@ -1,0 +1,136 @@
+---
+---
+
+```{r include = F}
+#| setup
+if (!requireNamespace("utils.tool"))
+  devtools::load_all("~/utils.tool/")
+autor_preset(echo = T)
+## the package are available at <https://github.com/shaman-yellow/utils.tool>
+## if you want to run codes of this Rmarkdown,
+## please install the package `utils.tool` and other related packages (run
+## install.R)
+options(savedir = list(figs = "Figure+Table", tabs = "Figure+Table"), autor_asis = F)
+```
+
+```{r eval = T, echo = F, results = "asis"}
+set_cover(title <- "Step 系列：scRNA-seq 癌细胞鉴定")
+```
+
+```{r eval = T, echo = F, results = "asis"}
+set_index()
+```
+
+```{r, echo = F}
+dic(di("差异表达基因", "Differential Expressed Genes", "DEGs"))
+```
+
+# 摘要 {#abstract}
+
+## 目的
+
+
+## 解决的问题 (技术性的) 
+
+不同的 R 包或其他工具之间的数据转换和衔接。
+
+# 前情资料
+
+如果你还不知道 Step 系列的基本特性以及一些泛用的提取和存储方法，请先阅读：
+
+- 《Step 系列：Prologue and Get-start》
+
+# 适配性
+
+# 方法
+
+以下是我在这个工作流中涉及的方法和程序：
+
+```{r eval = T, echo = F, results = "asis"}
+auto_method()
+```
+
+# 安装 (首次使用)
+
+## 安装依赖
+
+### 一些额外可能需要的系统依赖工具
+
+如果你使用的是 Ubuntu 发行版，据我的经验，安装 `devtools`, `BiocManager` 等工具之前，
+需要先安装以下：
+
+```{r eval = T, echo = F, results = "asis"}
+code("
+  ## Libraries for installing 'usethis' and 'devtools'.
+  sudo apt install -y libssl-dev libcurl4-openssl-dev libblas-dev
+  sudo apt install -y liblapack-dev libgfortran-11-dev gfortran libharfbuzz-dev libfribidi-dev
+  ## Libraries for installing 'BiocManager' and its some packages.
+  sudo apt install -y libnetcdf-dev libopenbabel-dev libeigen3-dev
+  ## Libraries For installing other graphic packages.
+  sudo apt install -y libfontconfig1-dev librsvg2-dev libmagick++-dev
+  ")
+```
+
+### 其它程序 {#installOthers}
+
+以下可能是其它需要安装的程序：
+
+```{r}
+install.packages("reticulate")
+reticulate::install_miniconda()
+```
+
+## 安装主体
+
+```{r eval = T, echo = F, results = "asis"}
+code("
+  git clone https://github.com/shaman-yellow/utils.tool.git ~/utils.tool
+  ")
+```
+
+`utils.tool` 是标准的 R 包结构形式，这意味着，即使你不用 `git` 获取它，
+单纯用：
+
+- `remotes::install_github("shaman-yellow/utils.tool")`
+
+也能成功获取并 直接安装完成。但是，这包里面大多数的方法都没有导出 (export) 到用户层次
+(这是因为，这个包的改动情形太多了，我一直在创建新的方法或者调整旧的方法) ，
+你即使 `library(utils.tool)` 加载了它，也会出现使用不了许多方法的情况。
+万无一失的做法是：
+
+```{r}
+if (!requireNamespace("devtools", quietly = TRUE))
+  install.packages("devtools")
+# 前提当然是，你已经 git 获取了这个包了
+devtools::load_all("~/utils.tool")
+```
+
+# 示例分析
+
+## 数据准备
+
+### 快速获取示例数据 {#obtain}
+
+运行以下代码获取数据：
+
+## 分析流程
+
+### 单细胞数据的质控、聚类、Marker 鉴定、细胞注释等
+
+#### Job-seurat 从 Seurat 开始
+#### Step1 数据质控
+#### Step2 根据上一步 QC 作图过滤数据并标准化
+#### Step3 完成降围、聚类和 Marker 筛选
+#### Step4 使用 SingleR 注释细胞类
+#### Step5 计算各细胞类的 Marker 基因 (差异分析) 
+#### Step6 使用 SCSA 注释细胞类 {#run-scsa}
+
+### 拟时分析
+
+#### As-job-monocle 对选定的细胞进行拟时分析
+#### Step1 构建拟时轨迹
+#### Step2 选择拟时起点
+#### Step3 拟时分析基础上的差异分析和基因表达模块
+#### (进阶) 根据拟时分析结果重新划分细胞群体
+
+## 完整示例代码
