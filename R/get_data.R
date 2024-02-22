@@ -23,8 +23,18 @@ get_data.mrlx2022 <- function(file = .prefix("published_data/MendelianRandoLiuX2
   )
   snp_metabolite <- fxlsx(file, sheet = 7, startRow = 4)
   snp_metabolite <- fun(snp_metabolite)
-  lst <- namel(snp_microbiota, snp_metabolite)
-  lst <- lapply(lst, function(x) dplyr::select(x, -Gene))
+  observational_correlation <- fxlsx(file, sheet = 10, startRow = 3)
+  fun <- function(data) {
+    which <- which(is.na(data$X2))
+    x1 <- dplyr::mutate(data[ (which[1] + 1):(which[2] - 1), ], type = data$X1[which[1]])
+    x2 <- dplyr::mutate(data[ (which[2] + 1):nrow(data), ], type = data$X1[which[2]])
+    x2[, 1:2] <- x2[, 2:1]
+    dplyr::bind_rows(x1, x2)
+  }
+  one_sample_mr <- fun(fxlsx(file, sheet = 11, startRow = 4))
+  two_sample_mr <- fun(fxlsx(file, sheet = 12, startRow = 4))
+  lst <- namel(snp_microbiota, snp_metabolite, observational_correlation, one_sample_mr, two_sample_mr)
+  lst[1:2] <- lapply(lst[1:2], function(x) dplyr::select(x, -Gene))
   x <- .job_publish(object = lst, cite = "[@MendelianRandoLiuX2022]")
   x$get_pattern <- get_pattern
   x

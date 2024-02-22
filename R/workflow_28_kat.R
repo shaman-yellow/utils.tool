@@ -66,7 +66,7 @@ setMethod("step1", signature = c(x = "job_kat"),
         e(copykat::copykat(rawmat = object(x),
             genome = "hg20", n.cores = workers)), finally = setwd(wd)
       )
-      try(rm(list = list("full.anno", "cyclegenes", "DNA.hg20"), envir = .GlobalEnv), silent = T)
+      try(rm(list = c("full.anno", "cyclegenes", "DNA.hg20"), envir = .GlobalEnv), silent = T)
       x$res_copykat <- res_copykat
     }
     return(x)

@@ -134,3 +134,10 @@ devtools::load_all("~/utils.tool")
 #### (进阶) 根据拟时分析结果重新划分细胞群体
 
 ## 完整示例代码
+
+
+## Session Info
+
+```{r eval = T, echo = T}
+sessionInfo()
+```

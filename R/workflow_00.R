@@ -110,7 +110,7 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
   })
 
 .lab_out <- function(x) {
-  writeLines(Hmisc::capitalize(gs(lab(x), " |_|\\.", "-")))
+  writeLines(Hmisc::capitalize(gs(gs(lab(x), "^ids[ \\-]?", ""), " |_|\\.", "-")))
 }
 
 .set_lab <- function(x, sig, group = NULL, body = NULL, suffix = NULL) {

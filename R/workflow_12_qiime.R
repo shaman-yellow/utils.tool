@@ -315,6 +315,24 @@ setMethod("step7", signature = c(x = "job_qiime"),
     return(x)
   })
 
+setMethod("pattern", signature = c(x = "job_qiime"),
+  function(x, level = c("6", "5", "4", "3"), not = c("GB", "^un$", "^bacterium$", "^bacteria$"))
+  {
+    if (x@step < 7L) {
+      stop("x@step < 7L")
+    }
+    level <- match.arg(level)
+    data <- x@tables$step7$t.ancom[[ paste0("ancom_test_group_level_", level) ]]
+    data <- dplyr::filter(data, significant)
+    if (!nrow(data)) {
+      stop("No significant microbiota found.")
+    }
+    lst <- unlist(strsplit(data$id, ";"))
+    lst <- gs(lst, "^.__([^_]+).*", "\\1")
+    lst <- lst[ !grpl(lst, paste0(not, collapse = "|"), T) ]
+    lst[ !duplicated(lst) ]
+  })
+
 plot_volcano.ancom <- function(data, res) {
   data <- map(data, "id", res, "V1", "Reject null hypothesis", col = "significant")
   data <- dplyr::mutate(data, label = stringr::str_trunc(id, 30, side = "left"))

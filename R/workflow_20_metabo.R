@@ -32,22 +32,30 @@ setMethod("step1", signature = c(x = "job_metabo"),
   function(x, cpds, libname = "kegg_pathway"){
     step_message("Enrichment analysis.")
     require(MetaboAnalystR)
-    mSet <- InitDataObjects("conc", "msetora", FALSE)
-    mSet <- Setup.MapData(mSet, cpds)
-    mSet <- CrossReferencing(mSet, "name")
-    mSet <- CreateMappingResultTable(mSet)
-    mSet <- SetMetabolomeFilter(mSet, F)
-    mSet <- SetCurrentMsetLib(mSet, libname, 2)
-    mSet <- CalculateHyperScore(mSet)
-    mtfig <- .mtb_file("metabolites_ORA_dot_", libname)
-    mSet <- PlotEnrichDotPlot(mSet, "ora", mtfig$pn, "pdf", width = NA)
-    ## plots
-    x@plots[[ 1 ]] <- c(mtfig$file_fig)
+    mSet <- e(MetaboAnalystR::InitDataObjects("conc", "msetora", FALSE))
+    mSet <- e(MetaboAnalystR::Setup.MapData(mSet, cpds))
+    mSet <- e(MetaboAnalystR::CrossReferencing(mSet, "name"))
+    mSet <- e(MetaboAnalystR::CreateMappingResultTable(mSet))
+    mSet <- e(MetaboAnalystR::SetMetabolomeFilter(mSet, F))
+    mSet <- e(MetaboAnalystR::SetCurrentMsetLib(mSet, libname, 2))
+    if (T) {
+      mSet <- e(MetaboAnalystR::CalculateHyperScore(mSet))
+      mtfig <- .mtb_file("metabolites_ORA_dot_", libname)
+      mSet <- e(MetaboAnalystR::PlotEnrichDotPlot(mSet, "ora", mtfig$pn, "pdf", width = NA))
+      ## plots
+      x@plots[[ 1 ]] <- c(mtfig$file_fig)
+    } else {
+      mtfig <- list(name = "Name")
+    }
     ## tables
-    mapped <- dplyr::as_tibble(mSet$dataSet$map.table)
+    mapped <- tibble::as_tibble(data.frame(mSet$dataSet$map.table))
     mapped <- dplyr::filter(mapped, KEGG != "NA")
-    table <- as_tibble(mSet$analSet$ora.mat)
-    x@tables[[ 1 ]] <- c(n.l(mtfig$name, table), namel(mapped))
+    if (!is.null(mSet$analSet$ora.mat)) {
+      table <- as_tibble(mSet$analSet$ora.mat)
+    } else {
+      table <- c()
+    }
+    x@tables[[ 1 ]] <- c(n.l(mtfig$name, list(table)), namel(mapped))
     ## params
     hits <- n.l(mtfig$name, mSet$analSet$ora.hits)
     x$hits <- hits

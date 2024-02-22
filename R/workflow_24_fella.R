@@ -55,8 +55,12 @@ setMethod("step1", signature = c(x = "job_fella"),
     obj.lst <- enrich_fella(x$ids.lst, db)
     names(obj.lst) <- names(x$ids.lst)
     x$graph.lst <- graph_fella(obj.lst, db)
-    p.enrich <- lapply(x$graph.lst, plotGraph_fella)
+    p.enrich <- lapply(x$graph.lst, function(x) wrap(plotGraph_fella(x)))
+    p.enrich <- .set_lab(p.enrich, sig(x), names(p.enrich), "enrichment with algorithm PageRank")
     x@plots[[ 1 ]] <- namel(p.enrich)
+    t.enrich <- lapply(x$graph.lst, tibble::as_tibble)
+    t.enrich <- .set_lab(t.enrich, sig(x), names(t.enrich), "data of enrichment with algorithm PageRank")
+    x@tables[[ 1 ]] <- namel(t.enrich)
     x$org <- org
     x$db_dir <- db_dir
     x$db <- db

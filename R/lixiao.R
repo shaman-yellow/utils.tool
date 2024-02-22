@@ -813,6 +813,18 @@ show_lst.ch <- function(lst, width = 60) {
   prototype = NULL)
 
 new_lich <- function(lst) {
+  if (!is(lst, "list")) {
+    message("Not 'list', try format as 'list'.")
+    lst <- list(Content = lst)
+  }
+  if (length(lst) == 1) {
+    if (is.null(names(lst))) {
+      names(lst) <- "Content"
+    }
+  }
+  if (is.null(names(lst))) {
+    stop("The `lst` without names.")
+  }
   lst <- lapply(lst, paste0, collapse = ", ")
   .lich(lst)
 }
@@ -2195,6 +2207,13 @@ plot_report_summary <- function(cover_file = .prefix("cover_page.pdf"))
   cover <- into(outline("Cover"), cover)
   p.rep <- xf(cover = 1, null = .1, lst = 1, null = .1, tab = 1, null = .1, fig = 1)
   wrap(p.rep, 9, 5)
+}
+
+workflow_publish <- function(file = "index.Rmd", output = "output.Rmd", title = "",
+  fun = write_articlePdf)
+{
+  browseURL(path <- fun(file, output, title))
+  file.copy(path, paste0(getOption("title"), ".pdf"), T)
 }
 
 order_publish <- function(file = "index.Rmd", output = "output.Rmd", title = "",

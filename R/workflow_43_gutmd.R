@@ -26,6 +26,7 @@ job_gutmd <- function(db = .prefix("Gut Microbe and Metabolite-human.txt", "db")
     db_data <- ftibble(db)
   }
   db_data <- dplyr::rename_all(db_data, make.names)
+  db_data <- .set_lab(db_data, "", "gutMDisorder database")
   .job_gutmd(object = db_data)
 }
 
@@ -42,20 +43,24 @@ setMethod("step1", signature = c(x = "job_gutmd"),
     if (!is.null(micro_patterns)) {
       res <- list()
       res$matches <- matchThats(object(x)[[1]], micro_patterns)
-      db_matched <- dplyr::filter(object(x),
-        Gut.Microbiota %in% unlist(!!res$matches, use.names = F)
-      )
-      dic <- as_df.lst(res$matches)
-      dic <- nl(dic$name, dic$type)
-      db_matched <- dplyr::mutate(db_matched, Query = dplyr::recode(Gut.Microbiota, !!!dic))
-      db_matched <- dplyr::relocate(db_matched, Query)
-      db_matched <- .set_lab(db_matched, sig(x), "Matched data in gutMDisorder")
-      res$db_matched <- db_matched
-      data <- dplyr::select(db_matched, Query, Gut.Microbiota, Substrate, Metabolite)
-      p.allu <- new_allu(data, axes = 1:4, label.auto = label.auto, shiny = T)
-      res$p.allu <- .set_lab(wrap(p.allu), sig(x), "alluvium plot of Matched data in gutMDisorder")
-      res$data <- dplyr::distinct(data)
-      x$res_micro <- res
+      if (length(res$matches)) {
+        db_matched <- dplyr::filter(object(x),
+          Gut.Microbiota %in% unlist(!!res$matches, use.names = F)
+        )
+        dic <- as_df.lst(res$matches)
+        dic <- nl(dic$name, dic$type)
+        db_matched <- dplyr::mutate(db_matched, Query = dplyr::recode(Gut.Microbiota, !!!dic))
+        db_matched <- dplyr::relocate(db_matched, Query)
+        db_matched <- .set_lab(db_matched, sig(x), "Matched data in gutMDisorder")
+        res$db_matched <- db_matched
+        data <- dplyr::select(db_matched, Query, Gut.Microbiota, Substrate, Metabolite)
+        p.allu <- new_allu(data, axes = 1:4, label.auto = label.auto, shiny = T)
+        res$p.allu <- .set_lab(wrap(p.allu), sig(x), "alluvium plot of Matched data in gutMDisorder")
+        res$data <- dplyr::distinct(data)
+        x$res_micro <- res
+      } else {
+        message("No matched Metabolites for the `micro_patterns`")
+      }
     }
     if (!is.null(metab_patterns)) {
       res <- list()
