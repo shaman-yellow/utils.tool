@@ -361,5 +361,5 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
 }
 
 color_set2 <- function() {
-  c(sample(ggsci:::ggsci_db$uchicago$dark, 1), sample(color_set()[1:10], 1))
+  unname(c(sample(ggsci:::ggsci_db$uchicago$dark, 1), sample(color_set()[1:10], 1)))
 }

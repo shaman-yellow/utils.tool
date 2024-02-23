@@ -286,37 +286,98 @@ setMethod("step6", signature = c(x = "job_qiime"),
   })
 
 setMethod("step7", signature = c(x = "job_qiime"),
-  function(x, levels = 4:6, table = "table.qza"){
+  function(x, levels = 2:6, table = "table.qza", force = F)
+  {
     step_message("Differential analysis.")
-    files <- pbapply::pblapply(levels,
-      function(level) {
-        message()
-        # The explanation about the test results:
-        # https://forum.qiime2.org/t/how-to-interpret-ancom-results/1958
-        # https://forum.qiime2.org/t/specify-w-cutoff-for-anacom/1844
-        ancom_test(level, table, path = x@params$wd, x = x)
-      })
-    qzv_raw <- new_qzv(lst = files)
-    p.export <- lapply(qzv_raw,
+    if (force || is.null(x@plots$step7$qzv_raw)) {
+      files <- pbapply::pblapply(levels,
+        function(level) {
+          message()
+          # The explanation about the test results:
+          # https://forum.qiime2.org/t/how-to-interpret-ancom-results/1958
+          # https://forum.qiime2.org/t/specify-w-cutoff-for-anacom/1844
+          ancom_test(level, table, path = x@params$wd, x = x)
+        })
+      qzv_raw <- new_qzv(lst = files)
+    } else {
+      qzv_raw <- x@plots$step7$qzv_raw
+    }
+    lst <- lapply(qzv_raw,
       function(qzv) {
         dir <- write(qzv, output_dir = x$export, pg = suppressMessages(pg(x)))
         data <- ftibble(paste0(dir, "/data.tsv"))
         res <- ftibble(paste0(dir, "/ancom.tsv"))
-        plot_volcano.ancom(data, res)
+        p <- plot_volcano.ancom(data, res)
+        quant <- ftibble(paste0(dir, "/percent-abundances.tsv"))
+        namel(p, quant)
       })
+    t.quant <- lapply(lst,
+      function(x) {
+        data <- x$quant
+        metadata <- data[1:2, ]
+        data <- data[-(1:2), ]
+        colnames(data) <- c("taxon", paste0(metadata[2, ], "_", metadata[1, ])[-1])
+        data <- tidyr::gather(data, "group_percent", "value", -taxon)
+        data <- tidyr::separate(data, group_percent, c("group", "percentile"), sep = "_")
+        data <- dplyr::mutate(data, percentile = as.double(percentile),
+          value = as.double(value))
+        data
+      })
+    p.export <- lapply(lst, function(x) x$p)
     t.ancom <- lapply(p.export, function(x) as_tibble(x$data))
     t.ancom <- .set_lab(t.ancom, sig(x), names(t.ancom))
     lab(t.ancom) <- "Ancom test results"
     p.export <- lapply(p.export, wrap)
     p.export <- .set_lab(p.export, sig(x), names(p.export), "volcano")
     lab(p.export) <- "Ancom test visualization"
-    x@plots[[ 7 ]] <- namel(qzv_raw, p.export)
-    x@tables[[ 7 ]] <- namel(t.ancom)
+    ## plot Percentile
+    n <- 0L
+    p.quant <- lapply(t.quant,
+      function(data) {
+        n <<- n + 1L
+        sigs <- dplyr::filter(t.ancom[[ n ]], significant)$id
+        data <- dplyr::mutate(data,
+          significant = ifelse(taxon %in% !!sigs, "Sig.", "Non."),
+          taxon = stringr::str_trunc(taxon, 50, "left"),
+          group = paste0("Group: ", group),
+          percentile = paste0("Percentile: ", percentile, "%"),
+          percentile = factor(percentile, levels = unique(percentile))
+        )
+        if (length(unique(data$taxon)) > 30) {
+          data <- dplyr::filter(data, significant == "Sig.")
+        }
+        if (nrow(data)) {
+          p <- ggplot(data) +
+            geom_col(aes(x = taxon, y = value, fill = significant)) +
+            coord_flip() +
+            labs(x = "Abundance", y = "Taxonomy", fill = "Significance") +
+            facet_grid(group ~ percentile) +
+            scale_fill_manual(values = rev(color_set2())) +
+            theme_minimal()
+          wrap(p, 14, 10)
+        }
+      })
+    p.quant <- .set_lab(p.quant, sig(x), names(p.quant), "Percentile abundance")
+    t.quant <- .set_lab(t.quant, sig(x), names(t.quant), "data Percentile abundance")
+    x@plots[[ 7 ]] <- namel(qzv_raw, p.export, p.quant)
+    x@tables[[ 7 ]] <- namel(t.ancom, t.quant)
     return(x)
   })
 
+setMethod("res", signature = c(x = "job_qiime"),
+  function(x, level = c("6", "5", "4", "3", "2"))
+  {
+    if (x@step < 7L) {
+      stop("x@step < 7L")
+    }
+    level <- match.arg(level)
+    data <- x@tables$step7$t.ancom[[ paste0("ancom_test_group_level_", level) ]]
+    data <- dplyr::filter(data, significant)
+    data$id
+  })
+
 setMethod("pattern", signature = c(x = "job_qiime"),
-  function(x, level = c("6", "5", "4", "3"), not = c("GB", "^un$", "^bacterium$", "^bacteria$"))
+  function(x, level = c("6", "5", "4", "3", "2"), not = c("GB", "^un$", "^bacterium$", "^bacteria$"))
   {
     if (x@step < 7L) {
       stop("x@step < 7L")

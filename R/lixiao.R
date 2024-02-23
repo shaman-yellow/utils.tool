@@ -1979,8 +1979,10 @@ get_orders <- function(
     function(file) {
       lst <- readRDS(file)
       maybeMulti <- c("coef", "belong", "id", "type")
+      maybeMulti <- names(lst[ names(lst) %in% maybeMulti & lengths(lst) > 1 ])
       lst.m <- lst[ names(lst) %in% maybeMulti ]
       lst <- lst[ !names(lst) %in% maybeMulti ]
+      lst <- lapply(lst, function(x) if (identical(x, character(0))) character(1) else x)
       data <- do.call(tibble::tibble, lst)
       if (length(lst.m$coef) > 1) {
         data <- do.call(rbind, rep(list(data), length(lst.m$coef)))
@@ -2255,10 +2257,8 @@ items <- function(
 {
   if (missing(type)) {
     if (!missing(coef)) {
-      if (!is.na(coef)) {
-        if (coef == .25) {
-          type <- "固定业务"
-        }
+      if (!all(is.na(coef))) {
+        type <- ifelse(coef == .25, "固定业务", "其他业务")
       }
     }
   }

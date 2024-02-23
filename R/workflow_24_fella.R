@@ -63,7 +63,6 @@ setMethod("step1", signature = c(x = "job_fella"),
     x@tables[[ 1 ]] <- namel(t.enrich)
     x$org <- org
     x$db_dir <- db_dir
-    x$db <- db
     return(x)
   })
 
