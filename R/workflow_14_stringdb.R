@@ -19,7 +19,7 @@
 job_stringdb <- function(data)
 {
   if (is.character(data)) {
-    data <- data.frame(hgnc_symbol = data)
+    data <- data.frame(hgnc_symbol = rm.no(data))
   }
   data <- dplyr::distinct(data, hgnc_symbol)
   .job_stringdb(object = data)
@@ -89,6 +89,20 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     )
     x@params$tops <- tops
     return(x)
+  })
+
+setMethod("filter", signature = c(x = "job_stringdb"),
+  function(x, ref.x, ref.y, use = "preferred_name", data = sdb@params$graph)
+  {
+    message("Search and filter: ref.x in from, ref.y in to; or, reverse.")
+    data <- tibble::as_tibble(get_edges()(data))
+    data <- dplyr::select(data, dplyr::ends_with(use))
+    data <- dplyr::rename(data, from = 1, to = 2)
+    data <- dplyr::filter(data,
+      (from %in% ref.x & to %in% ref.y) | (from %in% ref.y & to %in% ref.x)
+    )
+    nodes <- data.frame(name = unique(c(data$from, data$to)))
+    namel(nodes, edges = data)
   })
 
 setMethod("asjob_enrich", signature = c(x = "job_stringdb"),

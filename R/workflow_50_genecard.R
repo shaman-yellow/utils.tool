@@ -27,10 +27,14 @@ setMethod("step0", signature = c(x = "job_genecard"),
   })
 
 setMethod("step1", signature = c(x = "job_genecard"),
-  function(x, score = 5){
+  function(x, score = NULL)
+  {
     step_message("Get from GeneCards website.")
     t.genecards <- get_from_genecards(object(x), score = score)
     t.genecards <- .set_lab(t.genecards, sig(x), "disease related targets from GeneCards")
+    attr(t.genecards, "lich") <- new_lich(
+      list("The GeneCards data was obtained by filtering:" = paste0("Score > ", attr(t.genecards, ".score")))
+    )
     x@tables[[ 1 ]] <- namel(t.genecards)
     return(x)
   })
@@ -65,5 +69,6 @@ get_from_genecards <- function(query, score = 5, keep_drive = F) {
     score <- ss[ which ]
   }
   table <- filter(table, Score > !!score)
+  attr(table, ".score") <- score
   return(table)
 }

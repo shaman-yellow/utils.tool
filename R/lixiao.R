@@ -2230,6 +2230,16 @@ order_packaging <- function(target = "output.pdf", register = autoRegisters)
   report <- paste0(idname, ".pdf")
   file.copy(target, report, T)
   package_results(head = NULL, masterZip = NULL, report = report)
+  zipfiles <- list.files(".", "[\u4e00-\u9fa5]+.*\\.zip")
+  zipfiles <- zipfiles[ zipfiles != paste0(idname, ".zip") ]
+  if (length(zipfiles)) {
+    isThat <- usethis::ui_yeah(
+      paste0("Detected exists zip files:\n\t", paste0(zipfiles, "\n\t"), "\nRemove thats?")
+    )
+    if (isThat) {
+      file.remove(zipfiles)
+    }
+  }
   file.rename("./client.zip", paste0(idname, ".zip"))
   return(idname)
 }
@@ -2498,8 +2508,8 @@ od_get <- function(file = "./mailparsed/part_1.md", key = "id",
 
 .guess_client <- function(lines, excludes = c("生信", "新单", "标书"))
 {
-  its <- lines[ grpl(lines, "主题") ]
-  its <- gs(its, ".*主题(.*)", "\\1")
+  its <- lines[ grpl(lines, "主题|Subject") ]
+  its <- gs(its, ".*Subject|.*主题", "")
   maybes <- unlist(stringr::str_extract_all(its, "[\u4e00-\u9fa5]+"))
   maybes <- unique(maybes)
   maybes <- maybes[ nchar(maybes) >= 2 & nchar(maybes) <= 4 ]
@@ -2518,7 +2528,7 @@ od_get <- function(file = "./mailparsed/part_1.md", key = "id",
 }
 
 .guess_id <- function(lines) {
-  res <- stringr::str_extract_all(lines, "[A-Z]+[0-9]{6,10}")
+  res <- stringr::str_extract_all(lines, "[A-Z]{0,2}[0-9]{6,10}")
   res <- unlist(res)
   res <- res[ !is.na(res) ]
   stat <- table(res)
@@ -2530,6 +2540,9 @@ od_get <- function(file = "./mailparsed/part_1.md", key = "id",
   numlst <- raw_numlst[ !is.na(raw_numlst) ]
   if (length(numlst)) {
     isThat <- numlst[ -length(numlst) ] + 1 == numlst[-1]
+    if (!any(isThat)) {
+      return("")
+    }
     if (table(isThat)[[ "TRUE" ]] > 3) {
       n <- 0L
       j <- 0L
@@ -2671,10 +2684,12 @@ auto_material <- function(class = "job_PUBLISH", envir = .GlobalEnv) {
     function(name) {
       obj <- .obtain_job(name, envir, class)
       if (is(obj, "job_geo")) {
-        x <- list(gse = object(obj),
-          design = obj@params$about[[1]]@experimentData@other$overall_design)
-        list(type = "geo",
-          content = c(paste0("- **", x$gse, "**: ", stringr::str_trunc(x$design, 200)), ""))
+        if (obj@step >= 1) {
+          x <- list(gse = object(obj),
+            design = obj@params$about[[1]]@experimentData@other$overall_design)
+          list(type = "geo",
+            content = c(paste0("- **", x$gse, "**: ", stringr::str_trunc(x$design, 200)), ""))
+        }
       } else if (is(obj, "job_publish")) {
         if (length(obj@cite)) {
           x <- list(cite = obj@cite, method = obj@method)
@@ -2918,8 +2933,12 @@ setMethod("autor", signature = c(x = "df", name = "character"),
     x <- dplyr::select_if(x,
       function(x) is.character(x) | is.numeric(x) | is.logical(x) | is.factor(x))
     file <- autosv(x, name, ...)
-    if (asis)
+    if (asis) {
+      if (!is.null(lich <- attr(x, "lich"))) {
+        abstract(lich, name = name)
+      }
       abstract(x, name = name, ...)
+    }
     include(x, name, ...)
   })
 
@@ -3424,6 +3443,7 @@ new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T) 
     p <- wrap(recordPlot())
     p$ins <- ins(lst = raw.lst)
     p$lich <- new_lich(list(All_intersection = p$ins))
+    p$raw <- raw.lst
     p
   } else {
     data

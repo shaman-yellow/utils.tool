@@ -37,7 +37,9 @@ job_limma <- function(DGEList)
 {
   if (!is(DGEList, 'DGEList'))
     stop("is(DGEList, 'DGEList') == F")
-  .job_limma(object = DGEList)
+  x <- .job_limma(object = DGEList)
+  x$.metadata <- tibble::as_tibble(dplyr::relocate(DGEList$samples, sample, group))
+  return(x)
 }
 
 setMethod("step0", signature = c(x = "job_limma"),
@@ -90,6 +92,7 @@ setMethod("step1", signature = c(x = "job_limma"),
     }
     x@params$group <- group
     x@params$design <- design
+    x$.metadata <- .set_lab(x$.metadata, sig(x), "metadata")
     return(x)
   })
 

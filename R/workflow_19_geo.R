@@ -41,12 +41,14 @@ setMethod("step1", signature = c(x = "job_geo"),
     about <- e(GEOquery::getGEO(object(x)))
     metas <- get_metadata.geo(about)
     prods <- get_prod.geo(metas)
+    prods <- .set_lab(prods, sig(x), object(x))
     x@params$about <- about
     x@params$metas <- metas
     x@params$prods <- prods
     guess <- metas$res[[1]]
     guess <- dplyr::rename_all(guess, make.names)
     guess <- dplyr::select(guess, 1:2, dplyr::ends_with(".ch1"))
+    guess <- .set_lab(guess, sig(x), object(x), "metadata")
     x@params$guess <- guess
     x@params$test <- list(
       genes = try(as_tibble(about[[ 1 ]]@featureData@data), T),

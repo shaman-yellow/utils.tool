@@ -348,7 +348,7 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
       aes(x = - shift * max(GeneRatio) / 2, y = path.p, label = stringr::str_wrap(Description, 50)),
       hjust = 1, size = 4) +
     geom_vline(xintercept = 0L, linetype = 4) +
-    labs(x = "", y = "", edge_width = "|log2(FC)|", fill = "log2(FC)") +
+    labs(x = "GeneRatio", y = "", edge_width = "|log2(FC)|", fill = "log2(FC)") +
     rstyle("theme") +
     theme(axis.text.y = element_blank()) +
     scale_fill_gradient2(low = "#3182BDFF", high = "#A73030FF") +
