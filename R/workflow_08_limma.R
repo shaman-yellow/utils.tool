@@ -312,7 +312,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
   } else {
     corp <- cal_corp(lst[[1]], lst[[2]], names[[1]], names[[2]], trans = T)
   }
-  sig.corp <- filter(corp, sign != "-")
+  sig.corp <- dplyr::filter(tibble::as_tibble(corp), sign != "-")
   hp <- new_heatdata(corp)
   hp <- callheatmap(hp)
   namel(corp, sig.corp, hp)

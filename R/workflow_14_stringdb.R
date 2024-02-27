@@ -78,11 +78,13 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     edges <- map(edges, "to", res.str$mapped, "STRING_id", "hgnc_symbol", rename = F)
     x$edges <- edges
     p.ppi <- plot_network.str(graph, label = label)
+    p.ppi <- .set_lab(wrap(p.ppi), sig(x), "raw PPI network")
     ## hub genes
     hub_genes <- cal_mcc.str(res.str, "hgnc_symbol", F)
     graph_mcc <- get_subgraph.mcc(res.str$graph, hub_genes, top = tops)
     x$graph_mcc <- graph_mcc <- fast_layout(graph_mcc, layout = "linear", circular = T)
     p.mcc <- plot_networkFill.str(graph_mcc, label = "hgnc_symbol", HLs = HLs)
+    p.mcc <- .set_lab(wrap(p.mcc), sig(x), paste0("Top", tops, " MCC score"))
     x@plots[[1]] <- namel(p.ppi, p.mcc)
     x@tables[[1]] <- c(list(mapped = relocate(res.str$mapped, hgnc_symbol, STRING_id)),
       namel(hub_genes)
@@ -92,17 +94,58 @@ setMethod("step1", signature = c(x = "job_stringdb"),
   })
 
 setMethod("filter", signature = c(x = "job_stringdb"),
-  function(x, ref.x, ref.y, use = "preferred_name", data = sdb@params$graph)
+  function(x, ref.x, ref.y, lab.x = "Source", lab.y = "Target",
+    use = "preferred_name", data = sdb@params$graph, level.x = NULL,
+    lab.fill = "log2FC",
+    top = 10, use.top = c("from", "to"))
   {
     message("Search and filter: ref.x in from, ref.y in to; or, reverse.")
+    use.top <- match.arg(use.top)
     data <- tibble::as_tibble(get_edges()(data))
     data <- dplyr::select(data, dplyr::ends_with(use))
     data <- dplyr::rename(data, from = 1, to = 2)
     data <- dplyr::filter(data,
       (from %in% ref.x & to %in% ref.y) | (from %in% ref.y & to %in% ref.x)
     )
-    nodes <- data.frame(name = unique(c(data$from, data$to)))
-    namel(nodes, edges = data)
+    data <- dplyr::mutate(data, needRev = ifelse(from %in% ref.x, F, T))
+    data <- apply(data, 1,
+      function(x) {
+        if (x[[ "needRev" ]]) {
+          x[2:1]
+        } else {
+          x[1:2]
+        }
+      })
+    data <- tibble::as_tibble(t(data))
+    edges <- data <- dplyr::rename(data, from = 1, to = 2)
+    nodes <- tibble::tibble(name = unique(c(data$from, data$to)))
+    nodes <- dplyr::mutate(nodes,
+      type = ifelse(name %in% ref.x, "from", "to")
+    )
+    data <- dplyr::mutate(data, id = "pseudo")
+    data <- dplyr::relocate(data, id)
+    p.ppi <- plot_network.pharm(data, edge_width = 1, ax2 = lab.x, ax3 = lab.y,
+      ax2.level = level.x, lab.fill = lab.fill, seed = x$seed)
+    p.ppi <- .set_lab(p.ppi, sig(x), "filtered and formated PPI network")
+    mcc <- cal_mcc(edges)
+    nodes <- map(nodes, "name", mcc, "name", "MCC_score", col = "MCC_score")
+    fun_tops <- function() {
+      ## tops from ref.x or ref.y
+      tops <- dplyr::filter(nodes, type == !!use.top)
+      tops <- dplyr::slice_max(tops, MCC_score, n = top)
+      edges <- dplyr::filter(edges, !!rlang::sym(use.top) %in% tops$name)
+      nodes <- dplyr::filter(nodes, name %in% edges$from | name %in% edges$to)
+      graph <- igraph::graph_from_data_frame(edges, vertices = nodes)
+      graph <- fast_layout(graph, layout = "linear", circular = T)
+      p.mcc <- plot_networkFill.str(graph, label = "name", arrow = T, shape = T)
+      p.mcc <- .set_lab(p.mcc, sig(x), "Top MCC score")
+      colnames(edges) <- c(lab.x, lab.y)
+      namel(p.mcc, nodes, edges)
+    }
+    p.mcc <- fun_tops()
+    namel(p.ppi, nodes, edges = edges,
+      p.mcc = p.mcc$p.mcc, nodes_mcc = p.mcc$nodes, edges_mcc = p.mcc$edges
+    )
   })
 
 setMethod("asjob_enrich", signature = c(x = "job_stringdb"),
@@ -232,24 +275,34 @@ plot_network.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
 plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   label.size = 4, node.size = 12, sc = 5, ec = 5, 
   arr.len = 2, edge.color = 'lightblue', edge.width = 1, lab.fill = "MCC score",
-  label = "genes", HLs = NULL)
+  label = "genes", HLs = NULL, arrow = F, shape = F)
 {
+  if (shape) {
+    geom_node_point <- geom_node_point(
+      aes(x = x, y = y, fill = ifelse(is.na(MCC_score), 0, MCC_score),  shape = type),
+      size = node.size, stroke = .3)
+  } else {
+    geom_node_point <- geom_node_point(aes(x = x, y = y, fill = ifelse(is.na(MCC_score), 0, MCC_score)),
+      size = node.size, shape = 21, stroke = .3)
+  }
   p <- ggraph(graph) +
     geom_edge_arc(
       start_cap = circle(sc, 'mm'),
       end_cap = circle(ec, 'mm'),
-      # arrow = arrow(length = unit(arr.len, 'mm')),
+      arrow = if (arrow) arrow(length = unit(arr.len, 'mm')) else NULL,
       color = edge.color, width = edge.width) +
-    geom_node_point(aes(x = x, y = y, fill = ifelse(is.na(MCC_score), 0, MCC_score)),
-      size = node.size, shape = 21, stroke = .3) +
+    geom_node_point +
     geom_node_text(aes(label = !!rlang::sym(label)), size = label.size) +
     scale_fill_gradient(low = "lightyellow", high = "red") +
     scale_x_continuous(limits = zoRange(graph$x, scale.x)) +
     scale_y_continuous(limits = zoRange(graph$y, scale.y)) +
-    labs(fill = "MCC score") +
+    labs(fill = "MCC score", shape = "Type") +
     theme_void() +
     theme(plot.margin = margin(r = .05, unit = "npc")) +
     geom_blank()
+  if (shape) {
+    p <- p + scale_shape_manual(values = c(24, 21, 22, 23))
+  }
   p
 } 
 
@@ -290,6 +343,11 @@ cal_mcc <- function(edges)
     })
   res <- data.frame(name = nodes, MCC_score = scores)
   res <- tibble::as_tibble(dplyr::arrange(res, dplyr::desc(MCC_score)))
+  if (exists(".add_internal_job")) {
+    .add_internal_job(
+      .job(method = "The MCC score was calculated referring to algorithm of `CytoHubba`",
+        cite = "[@CytohubbaIdenChin2014]"))
+  }
   res
 }
 

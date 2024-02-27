@@ -445,7 +445,8 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
     data.level <- dplyr::filter(data, .type == !!ax2)
     data.level <- map(data.level, "name", ax2.level, "name", "level", col = "level")
     geom_node_1 <- geom_node_point(data = data.level,
-      aes(x = x, y = y, fill = level, size = cent), shape = 21
+      aes(x = x, y = y, fill = level, size = cent), shape = 21,
+      stroke = 0, color = "transparent"
     )
     data.nonlevel <- dplyr::filter(data, .type != !!ax2)
     geom_node_2 <- geom_node_point(data = data.nonlevel,

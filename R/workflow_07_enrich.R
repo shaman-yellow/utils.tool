@@ -136,6 +136,7 @@ setMethod("step2", signature = c(x = "job_enrich"),
     figs <- list.files(name, search, full.names = T)
     p.pathviews <- lapply(figs, function(x) .file_fig(x))
     names(p.pathviews) <- get_realname(figs)
+    p.pathviews <- .set_lab(p.pathviews, sig(x), names(p.pathviews), "visualization")
     x@plots[[ 2 ]] <- namel(p.pathviews)
     return(x)
   })

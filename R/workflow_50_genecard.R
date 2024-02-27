@@ -59,8 +59,9 @@ get_from_genecards <- function(query, score = 5, keep_drive = F) {
   colnames(table) %<>% gs("\\.+", "_")
   colnames(table) %<>% gs("X_|_$", "")
   table <- select(table, -1, -2)
+  table <- dplyr::mutate(table, Score = as.double(Score))
   if (is.null(score)) {
-    ss <- seq(1, 10, by = 1)
+    ss <- seq(1, 15, by = 1)
     chs <- vapply(ss, FUN.VALUE = double(1),
       function(x) {
         length(which(table$Score > x))

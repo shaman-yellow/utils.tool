@@ -169,7 +169,8 @@ setMethod("step1", signature = c(x = "job_gsea"),
   })
 
 setMethod("step2", signature = c(x = "job_gsea"),
-  function(x, key, highlight = key[1], use = "res.kegg"){
+  function(x, key = head(x@tables$step1$table_kegg$ID, 3), highlight = key[1], use = "res.kegg")
+  {
     step_message("GSEA visualization for specific pathway")
     obj <- x@params[[ use ]]
     p.code <- wrap(e(enrichplot::gseaplot2(obj, key, pvalue_table = F)), 7.5, 6)

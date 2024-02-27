@@ -110,7 +110,7 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
   })
 
 .lab_out <- function(x) {
-  writeLines(Hmisc::capitalize(gs(gs(lab(x), "^ids[ \\-]?", ""), " |_|\\.", "-")))
+  writeLines(Hmisc::capitalize(gs(gs(lab(x), "(?<![a-zA-Z])ids[ \\-]?", "", perl = T), " |_|\\.", "-")))
 }
 
 .set_lab <- function(x, sig, group = NULL, body = NULL, suffix = NULL) {
@@ -123,10 +123,16 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
         if (is.na(group)) {
           stop("is.na(group)")
         }
+        if (is(obj, "can_be_draw")) {
+          obj <- wrap(obj)
+        }
         lab(obj) <- gs(gs(paste(sig, group, body, suffix), "[ ]+", " "), "^[ \\-]|[ \\-]$", "")
         return(obj)
       })
   } else {
+    if (is(x, "can_be_draw")) {
+      x <- wrap(x)
+    }
     lab(x) <- gs(gs(paste(sig, group, body, suffix), "[ ]+", " "), "^[ \\-]|[ \\-]$", "")
   }
   return(x)

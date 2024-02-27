@@ -41,6 +41,8 @@ setMethod("step1", signature = c(x = "job_geo"),
     about <- e(GEOquery::getGEO(object(x)))
     metas <- get_metadata.geo(about)
     prods <- get_prod.geo(metas)
+    ## add GSE number
+    prods <- .lich(c(list("Data Source ID" = object(x)), prods))
     prods <- .set_lab(prods, sig(x), object(x))
     x@params$about <- about
     x@params$metas <- metas

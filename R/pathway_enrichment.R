@@ -108,7 +108,7 @@ graph_fella <- function( obj.lst, data, method = c("pagerank", "diffusion", "hyp
         graph <- dplyr::select(graph, -entrez)
         graph <- dplyr::mutate(
           graph, NAME = vapply(NAME, function(c) c[1], ""),
-          abbrev.name = stringr::str_trunc(NAME, 15),
+          abbrev.name = paste0(stringr::str_trunc(NAME, 15), "\n(", name, ")"),
           input = ifelse(input, "Input", "Others"),
           type = vapply(
             name, FUN.VALUE = "", USE.NAMES = F,
@@ -162,8 +162,7 @@ plotGraph_fella <- function(
         size = type),
       stroke = 0.1) + 
     ggraph::geom_node_text(
-      aes(label = stringr::str_wrap(
-          abbrev.name, 15)),
+      aes(label = abbrev.name),
       size = 3,
       family = .font,
       color = "black") +
