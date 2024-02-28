@@ -1683,7 +1683,8 @@ summary_month <- function(
       coef = round(coef, 3)
     )
     data_ass <- dplyr::select(data_ass,
-      member, seq, id, type, score, num, title, title.en, status, note, coef
+      member, seq, id, type, score, num, title, title.en, status, note, coef,
+      remuneration, I, C, D, `T`, M
     )
     fun <- function(wb, data) {
       openxlsx2::wb_add_data(wb, 1, data, col_names = F,
@@ -1978,7 +1979,7 @@ get_orders <- function(
   lst <- lapply(files,
     function(file) {
       lst <- readRDS(file)
-      maybeMulti <- c("coef", "belong", "id", "type")
+      maybeMulti <- c("coef", "belong", "id", "type", "eval", "I", "C", "D", "T", "M")
       maybeMulti <- names(lst[ names(lst) %in% maybeMulti & lengths(lst) > 1 ])
       lst.m <- lst[ names(lst) %in% maybeMulti ]
       lst <- lst[ !names(lst) %in% maybeMulti ]
@@ -2248,9 +2249,29 @@ od_get_title <- function() {
   odb("name", "analysis")
 }
 
+cal_coef <- function(x, a = .03, k = .028) {
+  if (is(x, "ic")) {
+    x <- sum(unlist(x))
+  } else if (is(x, "list")) {
+    x <- vapply(x, function(x) sum(unlist(x)), double(1))
+  }
+  a + x * k
+}
+
+ic <- function(Inexperience = 0, Complexity = 0, Deficiency = 0, Time_consuming = 0, Massiveness = 0)
+{
+  .ic(list(I = Inexperience, C = Complexity, D = Deficiency, 'T' = Time_consuming, M = Massiveness))
+}
+
+.ic <- setClass("ic", 
+  contains = c("list"),
+  representation = representation(),
+  prototype = NULL)
+
 items <- function(
   belong = as.Date(receive_date),
-  coef = if (type == "固定业务") .25 else NA,
+  coef = cal_coef(eval),
+  eval = ic(),
   type = od_guess_type(),
   title = od_get_title(),
   status = "完成",
@@ -2272,6 +2293,16 @@ items <- function(
       }
     }
   }
+  if (!missing(coef)) {
+    if (any(is.na(coef))) {
+      which <- which(is.na(coef))
+      if (is(eval, "list")) {
+        if (is(eval[[ which ]], "ic")) {
+          coef[which] <- cal_coef(eval[[ which ]])
+        }
+      }
+    }
+  }
   if (is.null(id)) {
     stop("The `id` can not be a NULL !!!")
   }
@@ -2282,6 +2313,23 @@ items <- function(
     stop("is.null(title)")
   }
   items <- as.list(environment())
+  if (T) {
+    # new feature
+    eval <- items$eval
+    items <- items[ names(items) != "eval" ]
+    items$icEval <- T
+    if (is(eval, "ic")) {
+      items <- c(items, as.list(eval))
+    } else if (is(eval, "list")) {
+      n <- 0L
+      eval <- lapply(eval[[1]],
+        function(x) {
+          n <<- n + 1
+          vapply(1:length(eval), function(w) eval[[ w ]][[ n ]], double(1))
+        })
+      items <- c(items, as.list(eval))
+    }
+  }
   if (file.exists(save)) {
     info <- readRDS(save)
     if (is.null(info$isLatest)) {
@@ -3474,6 +3522,29 @@ setdev <- function(width, height) {
   name <- names(dev.cur())
   if (name == "null device")
     dev.new(width = width, height = height)
+}
+
+## logistic
+new_lrm <- function(data, formula) {
+  fit <- rms::lrm(formula, data = data)
+  if (T) {
+    ## `Summary` not work well with data of chinese column names.
+    sink(tmp <- tempfile())
+    rms:::print.lrm(fit)
+    sink()
+  }
+  coefs <- data.table::fread(text = sep_list(readLines(tmp))[[4]])
+  namel(fit, coefs)
+}
+
+new_roc <- function(y, x, ..., plot.thres = NULL) {
+  roc <- pROC::roc(y, x, ...)
+  thres <- pROC::coords(roc, "best")
+  pROC::plot.roc(roc, print.thres = plot.thres)
+  scale <- dev.size()
+  p.roc <- wrap(recordPlot(), scale[1], scale[2])
+  p.roc <- .set_lab(p.roc, "ROC")
+  namel(p.roc, thres)
 }
 
 new_allu <- function(data, col.fill = 1, axes = 1:2,
