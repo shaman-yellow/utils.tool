@@ -97,11 +97,11 @@ setMethod("filter", signature = c(x = "job_stringdb"),
   function(x, ref.x, ref.y, lab.x = "Source", lab.y = "Target",
     use = "preferred_name", data = sdb@params$graph, level.x = NULL,
     lab.fill = "log2FC",
-    top = 10, use.top = c("from", "to"))
+    top = 10, use.top = c("from", "to"), top_in = NULL)
   {
     message("Search and filter: ref.x in from, ref.y in to; or, reverse.")
     use.top <- match.arg(use.top)
-    data <- tibble::as_tibble(get_edges()(data))
+    data <- tibble::as_tibble(get_edges()(data), .name_repair = "minimal")
     data <- dplyr::select(data, dplyr::ends_with(use))
     data <- dplyr::rename(data, from = 1, to = 2)
     data <- dplyr::filter(data,
@@ -132,6 +132,26 @@ setMethod("filter", signature = c(x = "job_stringdb"),
     fun_tops <- function() {
       ## tops from ref.x or ref.y
       tops <- dplyr::filter(nodes, type == !!use.top)
+      if (!is.null(top_in)) {
+        fun <- function() {
+          name <- switch(use.top, from = lab.x, to = lab.y)
+          if (!is(top_in, "list")) {
+            message("`top_in` is not 'list' with names, converted as 'list'.")
+            top_in <- nl("Set", list(top_in))
+          }
+          ## venn plot
+          new_venn(lst = c(nl(name, list(tops$name)), top_in))
+        }
+        p.top_in <- fun()
+        p.top_in <- .set_lab(p.top_in, sig(x), "intersection with pre-filter data")
+        if (length(p.top_in$ins)) {
+          tops <- dplyr::filter(tops, name %in% !!unlist(top_in))
+        } else {
+          stop("length(p.top_in$ins) == 0, no features in the `top_in`.")
+        }
+      } else {
+        p.top_in <- NULL
+      }
       tops <- dplyr::slice_max(tops, MCC_score, n = top)
       edges <- dplyr::filter(edges, !!rlang::sym(use.top) %in% tops$name)
       nodes <- dplyr::filter(nodes, name %in% edges$from | name %in% edges$to)
@@ -140,10 +160,10 @@ setMethod("filter", signature = c(x = "job_stringdb"),
       p.mcc <- plot_networkFill.str(graph, label = "name", arrow = T, shape = T)
       p.mcc <- .set_lab(p.mcc, sig(x), "Top MCC score")
       colnames(edges) <- c(lab.x, lab.y)
-      namel(p.mcc, nodes, edges)
+      namel(p.mcc, nodes, edges, p.top_in)
     }
     p.mcc <- fun_tops()
-    namel(p.ppi, nodes, edges = edges,
+    namel(p.ppi, nodes, edges = edges, p.top_in = p.mcc$p.top_in,
       p.mcc = p.mcc$p.mcc, nodes_mcc = p.mcc$nodes, edges_mcc = p.mcc$edges
     )
   })

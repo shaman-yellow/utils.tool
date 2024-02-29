@@ -13,6 +13,10 @@ autor_preset(echo = T)
 options(savedir = list(figs = "Figure+Table", tabs = "Figure+Table"), autor_asis = F)
 ```
 
+```{r eval = F, echo = F}
+info <- items(belong = odate(2), coef = NA, title = title, id = "workflow")
+```
+
 ```{r eval = T, echo = F, results = "asis"}
 set_cover(title <- "Step 系列：scRNA-seq 癌细胞鉴定")
 ```

@@ -418,6 +418,10 @@ write_xlsx2 <- function(data, name, ..., file = paste0(get_realname(name), ".xls
   do.call(fwrite2, as.list(environment()))
 }
 
+set_showtext <- function() {
+  options(SHOWTEXT = T)
+}
+
 write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".pdf"), page = -1,
   mkdir = get_savedir("figs"))
 {
@@ -433,7 +437,14 @@ write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".
   } else {
     pdf(file)
   }
+  showtext <- getOption("SHOWTEXT", F)
+  if (showtext) {
+    showtext::showtext_begin()
+  }
   show(data)
+  if (showtext) {
+    showtext::showtext_end()
+  }
   dev.off()
   len <- qpdf::pdf_length(file)
   if (len > 1) {
@@ -1700,8 +1711,15 @@ summary_month <- function(
     pos.data_sum <- list(29, 6)
     data_ass <- dplyr::mutate(data_ass,
       type = ifelse(type %in% c("固定业务", "备单业务"), "base", "other"))
+    if (!any(data_ass$type == "base")) {
+      data_ass <- tibble::add_row(data_ass, type = "base")
+    }
+    data_ass <- dplyr::arrange(data_ass, type)
     data_sum <- split_lapply_rbind(data_ass, ~type,
       function(data) {
+        if (any(is.na(data$coef))) {
+          return(data.frame(num = 0, score = "", coef = 0, coef_fomu = ""))
+        }
         sum <- data.frame(
           num = nrow(data),
           score = "",
@@ -2442,9 +2460,11 @@ od_get_score <- function(...) {
       res[ nchar(res) == max(nchar(res)) ][1]
     }
     it <- ext("分值")
-    if (grpl(it, "^0[7-9]-")) {
-      it <- ""
-    }
+    if (length(it)) {
+      if (grpl(it, "^0[7-9]-")) {
+        it <- ""
+      }
+    } else it <- ""
   }
   if (is.null(it) || !length(it)) {
     it <- odk("score")
@@ -2459,6 +2479,9 @@ od_get_info <- function(...) {
 }
 
 od_get_date <- function(file = "./mailparsed/date.md") {
+  if (!file.exists(file)) {
+    return(Sys.Date())
+  }
   line <- readLines(file, n = 1)
   as.Date(line, "%A, %d %B %Y")
 }
@@ -3525,26 +3548,106 @@ setdev <- function(width, height) {
 }
 
 ## logistic
-new_lrm <- function(data, formula) {
-  fit <- rms::lrm(formula, data = data)
-  if (T) {
-    ## `Summary` not work well with data of chinese column names.
-    sink(tmp <- tempfile())
-    rms:::print.lrm(fit)
-    sink()
+new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"))
+{
+  lang <- match.arg(lang)
+  y <- as.character(formula[[ 2 ]])
+  outcome <- data[[ y ]]
+  if (rev.level) {
+    data[[ y ]] <- factor(outcome, levels = rev(levels(outcome)))
   }
-  coefs <- data.table::fread(text = sep_list(readLines(tmp))[[4]])
-  namel(fit, coefs)
+  message("Check levels: ", paste0(levels <- levels(data[[ y ]]), collapse = ", "))
+  set_rms_datadist(data)
+  fit <- rms::lrm(formula, data = data, x = T, y = T)
+  if (F) {
+    old <- getOption("prType")
+    options(prType = "html")
+    html <- paste0(print(lrm.supp$fit))
+    coefs <- get_table.html(html)
+    options(prType = old)
+  } else {
+    coefs <- NULL
+  }
+  cal <- rms::calibrate(fit, method = "boot")
+  if (lang == "cn") {
+    xlab <- paste0("预测", levels[2], "概率")
+    ylab <- paste0("实际", levels[2], "概率")
+  } else {
+    xlab <- "Predicted Probability"
+    ylab <- "observed Probability"
+  }
+  p.cal <- as_grob(
+    expression(plot(cal, xlim = c(0, 1), ylim = c(0, 1),
+        xlab = xlab, ylab = ylab, subtitle = F)), environment()
+  )
+  p.cal <- .set_lab(p.cal, "bootstrap calibration")
+  if (lang == "cn") {
+    message("Try convert English legend as Chinese.")
+    labels <- p.cal$children[[15]]$label
+    if (identical(labels, c("Apparent", "Bias-corrected", "Ideal"))) {
+      p.cal$children[[15]]$label <- c("表观状态", "误差纠正", "理想状态")
+    }
+  }
+  p.cal <- wrap(p.cal, 7, 7)
+  roc <- new_roc(data[[ y ]], predict(fit), lang = lang)
+  namel(fit, coefs, data, levels, cal, p.cal, roc, lang)
 }
 
-new_roc <- function(y, x, ..., plot.thres = NULL) {
+set_rms_datadist <- function(data) {
+  .RMS_datadist <- e(rms::datadist(data))
+  assign(".RMS_datadist", .RMS_datadist, envir = .GlobalEnv)
+  message("A global variable defined herein: `.RMS_datadist`.")
+  options(datadist = ".RMS_datadist")
+}
+
+new_nomo <- function(lrm, fun_label = lrm$levels[2], lang = lrm$lang,
+  lp = F, fun_at = seq(.1, .9, by = .1))
+{
+  if (!is(lrm, "list")) {
+    stop("the `lrm` should be object 'list' return by `new_lrm`")
+  }
+  lang <- match.arg(lang, c("cn", "en"))
+  set_rms_datadist(lrm$data)
+  fun_label <- if (lang == "en") {
+    paste0("Risk of ", fun_label)
+  } else {
+    paste0(fun_label, "风险")
+  }
+  nomo <- e(rms::nomogram(lrm$fit, fun = stats::plogis,
+      funlabel = fun_label, lp = lp, fun.at = fun_at))
+  if (lang == "en") {
+    plot(nomo, lplabel = "Linear Predictor",
+      points.label = 'Points', total.points.label = 'Total Points'
+    )
+  } else {
+    plot(nomo, lplabel = "线性预测",
+      points.label = '分数', total.points.label = '总分'
+    )
+  }
+  p.nomo <- wrap(recordPlot(), 10, .8 * length(lrm$fit$coefficients) + 1)
+  p.nomo <- .set_lab(p.nomo, "nomogram plot")
+  namel(p.nomo, nomo)
+}
+
+new_roc <- function(y, x, ..., plot.thres = NULL, lang = c("en", "cn")) {
+  lang <- match.arg(lang)
   roc <- pROC::roc(y, x, ...)
   thres <- pROC::coords(roc, "best")
-  pROC::plot.roc(roc, print.thres = plot.thres)
-  scale <- dev.size()
-  p.roc <- wrap(recordPlot(), scale[1], scale[2])
+  if (lang == "cn") {
+    xlab <- "假阳性率"
+    ylab <- "真阳性率"
+  } else {
+    xlab <- "Specificity"
+    ylab <- "Sensitivity"
+  }
+  p.roc <- as_grob(
+    expression(pROC::plot.roc(roc, print.thres = plot.thres, print.auc = T,
+        print.auc.x = .2, print.auc.y = .05,
+        xlab = xlab, ylab = ylab)), environment()
+  )
+  p.roc <- wrap(p.roc, 7, 7)
   p.roc <- .set_lab(p.roc, "ROC")
-  namel(p.roc, thres)
+  namel(p.roc, thres, roc)
 }
 
 new_allu <- function(data, col.fill = 1, axes = 1:2,
