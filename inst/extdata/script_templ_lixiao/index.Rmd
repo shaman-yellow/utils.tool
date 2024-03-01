@@ -3,7 +3,7 @@
 
 ```{r include = F, eval = F}
 deparse_mail()
-info <- items(belong = odate(2), coef = NA)
+info <- items(belong = odate(3), coef = NA, eval = ic())
 
 order_publish()
 idname <- order_packaging()

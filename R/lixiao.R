@@ -221,15 +221,18 @@ fxlsx <- function(file, ...) {
   as_tibble(data.frame(openxlsx::read.xlsx(file, ...)))
 }
 
-fxlsx2 <- function(file, ..., .id = "sheet") {
+fxlsx2 <- function(file, n = NULL, .id = "sheet", ...) {
   sheets <- openxlsx::getSheetNames(file)
-  lst <- lapply(1:length(sheets),
+  if (is.null(n)) {
+    n <- 1:length(sheets)
+  }
+  lst <- lapply(n,
     function(n) {
-      openxlsx::read.xlsx(file, sheet = n)
+      openxlsx::read.xlsx(file, sheet = n, ...)
     })
-  names(lst) <- sheets
-  data <- data.table::rbindlist(lst, idcol = T, fill = T)
-  as_tibble(dplyr::rename(data, !!!nl(.id, ".id")))
+  names(lst) <- sheets[n]
+  data <- data.table::rbindlist(lst, idcol = .id, fill = T)
+  as_tibble(data)
 }
 
 get_nci60_data <- function(comAct = .prefix("comAct_nci60/DTP_NCI60_ZSCORE.xlsx", "db"),
@@ -2820,7 +2823,10 @@ auto_method <- function(rm = NULL, class = "job", envir = .GlobalEnv, exclude = 
     })
   methods <- unique(unlist(methods))
   methods <- c("Mainly used method:", "", methods,
-  "- Other R packages (eg., `dplyr` and `ggplot2`) used for statistic analysis or data visualization.")
+    paste0("- ",
+      R.version$version.string, "; ",
+      "Other R packages (eg., `dplyr` and `ggplot2`) used for statistic analysis or data visualization.")
+  )
   writeLines(methods)
 }
 
@@ -2964,10 +2970,19 @@ setGeneric("autor",
 ## codes.
 setMethod("autor", signature = c(x = "ANY", name = "missing"),
   function(x, ...){
+    if (is(x, "rms") || is(x, "validate")) {
+      if (knitr::is_latex_output()) {
+        options(prType = "latex")
+      } else {
+        options(prType = "plain")
+      }
+      set_showtext()
+      return(x)
+    }
     name <- knitr::opts_current$get("label")
-    if (!is.null(name))
+    if (!is.null(name)) {
       autor(x, name, ...)
-    else {
+    } else {
       message("Not in knitr circumstance, show object only.")
       show(x)
     }
@@ -3548,8 +3563,30 @@ setdev <- function(width, height) {
 }
 
 ## logistic
-new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"))
+new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"), B = 500, ...)
 {
+  if (is.character(formula)) {
+    message("Detected `formula` input with 'character', use as 'y'.")
+    if (length(formula) > 1) {
+      stop("length(formula) > 1")
+    }
+    if (!formula %in% colnames(data)) {
+      stop("The 'y' not found in colnames of data.")
+    }
+    formula <- paste0(formula, " ~ ",
+      paste0(
+        paste0("`", colnames(data)[ colnames(data) != formula ], "`"),
+        collapse = " + "
+      )
+    )
+    message("Guess Formula:", formula)
+    formula <- as.formula(formula)
+  }
+  isColChar <- apply(data, 2, is.character)
+  if (any(isColChar)) {
+    message("Convert all character columns as factor.")
+    data <- dplyr::mutate(data, dplyr::across(dplyr::where(is.character), as.factor))
+  }
   lang <- match.arg(lang)
   y <- as.character(formula[[ 2 ]])
   outcome <- data[[ y ]]
@@ -3559,6 +3596,28 @@ new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"))
   message("Check levels: ", paste0(levels <- levels(data[[ y ]]), collapse = ", "))
   set_rms_datadist(data)
   fit <- rms::lrm(formula, data = data, x = T, y = T)
+  # 95\\% CL
+  # exp(confint.default(lrm.eff$fit))
+  if (T) {
+    ## use boot to calculate average C-index and 95\\% CI
+    fun_c_index <- function(data, indices) {
+      data <- data[ indices, ]
+      fit <- rms::lrm(formula, data = data)
+      fit$stats[ c("C", "P") ]
+    }
+    boot <- boot::boot(data, fun_c_index, R = B)
+    boot.ci <- boot::boot.ci(boot, .95, type = "basic")
+    fun <- function() {
+      means <- apply(boot$t, 2, mean)
+      ci <- tail(boot.ci$basic[1, ], n = 2)
+      new_lich(list(`Re-sample` = B, `C-index` = means[1],
+          `P-value` = means[2], "95\\% CI" = paste0(ci, collapse = " ~ "))
+      )
+    }
+    lich <- fun()
+    lich <- .set_lab(lich, "bootstrap others")
+    boots <- namel(boot, boot.ci, lich)
+  }
   if (F) {
     old <- getOption("prType")
     options(prType = "html")
@@ -3568,7 +3627,7 @@ new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"))
   } else {
     coefs <- NULL
   }
-  cal <- rms::calibrate(fit, method = "boot")
+  cal <- rms::calibrate(fit, method = "boot", B = B)
   if (lang == "cn") {
     xlab <- paste0("预测", levels[2], "概率")
     ylab <- paste0("实际", levels[2], "概率")
@@ -3580,7 +3639,6 @@ new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"))
     expression(plot(cal, xlim = c(0, 1), ylim = c(0, 1),
         xlab = xlab, ylab = ylab, subtitle = F)), environment()
   )
-  p.cal <- .set_lab(p.cal, "bootstrap calibration")
   if (lang == "cn") {
     message("Try convert English legend as Chinese.")
     labels <- p.cal$children[[15]]$label
@@ -3589,8 +3647,10 @@ new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"))
     }
   }
   p.cal <- wrap(p.cal, 7, 7)
-  roc <- new_roc(data[[ y ]], predict(fit), lang = lang)
-  namel(fit, coefs, data, levels, cal, p.cal, roc, lang)
+  p.cal <- .set_lab(p.cal, "bootstrap calibration")
+  roc <- new_roc(data[[ y ]], predict(fit), lang = lang, ...)
+  .add_internal_job(.job(method = "R package `rms` used for Logistic regression and nomogram visualization"))
+  namel(fit, coefs, data, levels, cal, p.cal, roc, lang, boots)
 }
 
 set_rms_datadist <- function(data) {
@@ -3624,30 +3684,58 @@ new_nomo <- function(lrm, fun_label = lrm$levels[2], lang = lrm$lang,
       points.label = '分数', total.points.label = '总分'
     )
   }
-  p.nomo <- wrap(recordPlot(), 10, .8 * length(lrm$fit$coefficients) + 1)
+  p.nomo <- wrap(recordPlot(), 10, .6 * length(lrm$fit$coefficients) + .3)
   p.nomo <- .set_lab(p.nomo, "nomogram plot")
   namel(p.nomo, nomo)
 }
 
-new_roc <- function(y, x, ..., plot.thres = NULL, lang = c("en", "cn")) {
+new_roc <- function(y, x, ..., plot.thres = NULL, lang = c("en", "cn"), cn.mode = c("zhen", "1-"))
+{
   lang <- match.arg(lang)
-  roc <- pROC::roc(y, x, ...)
+  roc <- pROC::roc(y, x, ..., ci = T)
+  if (T) {
+    # try get p-value
+    # https://stackoverflow.com/questions/61997453/how-to-get-p-value-after-roc-analysis-with-proc-package
+    fun_p <- function() {
+      v <- pROC::var(roc)
+      b <- roc$auc - .5
+      se <- sqrt(v)
+      z <- (b / se)
+      2 * pt(-abs(z), df = Inf)
+    }
+    p.value <- fun_p()
+  }
   thres <- pROC::coords(roc, "best")
   if (lang == "cn") {
-    xlab <- "假阳性率"
-    ylab <- "真阳性率"
+    cn.mode <- match.arg(cn.mode)
+    if (cn.mode == "zhen") {
+      xlab <- "假阳性率"
+      ylab <- "真阳性率"
+    } else {
+      xlab <- "1-特异性"
+      ylab <- "敏感性"
+    }
   } else {
     xlab <- "Specificity"
     ylab <- "Sensitivity"
   }
   p.roc <- as_grob(
     expression(pROC::plot.roc(roc, print.thres = plot.thres, print.auc = T,
-        print.auc.x = .2, print.auc.y = .05,
+        print.auc.x = .4, print.auc.y = .05,
         xlab = xlab, ylab = ylab)), environment()
   )
   p.roc <- wrap(p.roc, 7, 7)
   p.roc <- .set_lab(p.roc, "ROC")
-  namel(p.roc, thres, roc)
+  .add_internal_job(.job(method = "R package `pROC` used for building ROC curve"))
+  lich <- new_lich(
+    list(AUC = as.double(roc$auc),
+      "95\\% CI" = roc$ci[-2],
+      `P-value` = p.value
+    )
+  )
+  lich <- .set_lab(lich, "ROC others")
+  data <- tibble::tibble(Sensitivities = roc$sensitivities, Specificities = roc$specificities)
+  namel(p.roc, thres, roc, p.value, lich, data)
 }
 
 new_allu <- function(data, col.fill = 1, axes = 1:2,
