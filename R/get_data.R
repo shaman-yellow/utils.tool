@@ -71,5 +71,22 @@ get_data.pmb2023 <- function(file = .prefix("published_data/ProteinMetabolBenson
   x
 }
 
-
+get_data.pps2022 <- function(dir = .prefix("published_data/ProteomicsProfShao2022"))
+{
+  metadata <- fxlsx(paste0(dir, "/ProteomicsProfShao2022_s4.xlsx"))
+  metadata <- .set_lab(metadata, "PUBLISHED-ProteomicsProfShao2022-metadata")
+  data <- fxlsx(paste0(dir, "/ProteomicsProfShao2022_s1.xlsx"), startRow = 2)
+  colnames(data)[1:3] <- c("UniProt_Knowledgebase_ID", "Protein_name", "Gene_name")
+  data <- .set_lab(data, "PUBLISHED-ProteomicsProfShao2022-data")
+  obj <- namel(metadata, data)
+  x <- .job_publish(object = obj, cite = "[@ProteomicsProfShao2022]")
+  # The MS proteomics data are available on the iProX database with the project
+  # ID: IPX0001414000 and the subproject ID: IPX000141400. The raw sequence
+  # data have been uploaded to SRA with an ID: PRJNA598559.
+  x$metadata <- dplyr::rename(metadata, sample = Patient.ID)
+  x$counts <- dplyr::select(data, 1, tidyselect::matches("^P[0-9]+$"))
+  message("The `x$counts` is log2 transformed from Raw data.")
+  x$counts <- dplyr::mutate_if(x$counts, is.double, log2)
+  return(x)
+}
 

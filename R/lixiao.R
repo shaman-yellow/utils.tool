@@ -221,7 +221,7 @@ fxlsx <- function(file, ...) {
   as_tibble(data.frame(openxlsx::read.xlsx(file, ...)))
 }
 
-fxlsx2 <- function(file, n = NULL, .id = "sheet", ...) {
+fxlsx2 <- function(file, n = NULL, bind = T, .id = "sheet", ...) {
   sheets <- openxlsx::getSheetNames(file)
   if (is.null(n)) {
     n <- 1:length(sheets)
@@ -231,8 +231,12 @@ fxlsx2 <- function(file, n = NULL, .id = "sheet", ...) {
       openxlsx::read.xlsx(file, sheet = n, ...)
     })
   names(lst) <- sheets[n]
-  data <- data.table::rbindlist(lst, idcol = .id, fill = T)
-  as_tibble(data)
+  if (bind) {
+    data <- data.table::rbindlist(lst, idcol = .id, fill = T)
+    as_tibble(data)
+  } else {
+    lapply(lst, as_tibble)
+  }
 }
 
 get_nci60_data <- function(comAct = .prefix("comAct_nci60/DTP_NCI60_ZSCORE.xlsx", "db"),
@@ -2640,8 +2644,10 @@ od_get <- function(file = "./mailparsed/part_1.md", key = "id",
         cont <- lines[ n ]
       }
       end <- n
+      return(lines[ start:end ])
+    } else {
+      return("")
     }
-    return(lines[ start:end ])
   } else {
     return("")
   }

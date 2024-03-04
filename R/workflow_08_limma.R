@@ -21,10 +21,14 @@ job_limma_normed <- function(data, metadata) {
   .check_columns(metadata, c("sample", "group"))
   metadata <- dplyr::slice(metadata, match(colnames(data), sample))
   if (is(data, "tbl_df")) {
-    message("Convert as data.frame, and use the first column set as rownames.")
-    rownames <- data[[1]]
-    data <- data.frame(data)
-    rownames(data) <- rownames
+    if (is.character(data[[1]])) {
+      message("Convert as data.frame, and use the first column set as rownames.")
+      rownames <- data[[1]]
+      data <- data.frame(data)
+      rownames(data) <- rownames
+    } else {
+      stop("The first column not seems be 'ID' (character).")
+    }
   }
   data <- dplyr::select(data, dplyr::all_of(metadata$sample))
   if (!identical(colnames(data), metadata$sample)) {
