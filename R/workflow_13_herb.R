@@ -78,23 +78,13 @@ setMethod("step2", signature = c(x = "job_herb"),
       Sys.sleep(3)
       lst <- pbapply::pblapply(all_ids,
         function(ids) {
-          if (file.exists(.dir <- "compounds_target")) {
-            .dir <- timeName("compounds_target")
-          }
+          .dir <- "compounds_target"
           to <- paste0(.dir, "/", attr(ids, "name"))
-          if (!file.exists(to)) {
-            download_compoundTargets(link, ids, tempdir = x$tempdir)
-          } else {
-            if (!removeExistsTemp) {
-              isThat <- usethis::ui_yeah(paste0("Remove the exists tempdir:", to, " ?"))
-            } else {
-              isThat <- T
-            }
-            if (isThat) {
-              unlink(to, recursive = T, force = T)
-              download_compoundTargets(link, ids, tempdir = x$tempdir)
-            }
+          if (file.exists(to)) {
+            .dir <- timeName("compounds_target")
+            to <- paste0(.dir, "/", attr(ids, "name"))
           }
+          download_compoundTargets(link, ids, tempdir = x$tempdir)
           data <- moveToDir_herbs(ids, to = to, .id = "Ingredient_id", from = x$tempdir)
           cli::cli_alert_info("Sleep between groups ...")
           Sys.sleep(group_sleep)
@@ -106,9 +96,10 @@ setMethod("step2", signature = c(x = "job_herb"),
       lst <- list()
     }
     if (merge_data) {
-      if (length(lst))
-        lst <- list(lst, list(data))
-      else
+      if (length(lst)) {
+        Terror <<- lst <- list(lst, list(data))
+        message("There need revise (print `Terror`)")
+      } else
         lst <- list(data)
     }
     if (is(lst, "list")) {

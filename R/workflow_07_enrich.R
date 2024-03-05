@@ -49,13 +49,14 @@ setMethod("step0", signature = c(x = "job_enrich"),
 
 # Biological Process, Molecular Function, and Cellular Component groups
 setMethod("step1", signature = c(x = "job_enrich"),
-  function(x, organism = 'hsa', orgDb = 'org.Hs.eg.db', cl = 4, maxShow = 10){
-    step_message("Use clusterProfiler for enrichment.
-      "
-    )
+  function(x, organism = 'hsa', orgDb = 'org.Hs.eg.db', cl = 4, maxShow = 10,
+    use = c("p.adjust", "pvalue"))
+  {
+    step_message("Use clusterProfiler for enrichment.")
     cli::cli_alert_info("clusterProfiler::enrichKEGG")
+    use <- match.arg(use)
     res.kegg <- multi_enrichKEGG(object(x), organism = organism)
-    p.kegg <- vis_enrich.kegg(res.kegg, maxShow = maxShow)
+    p.kegg <- vis_enrich.kegg(res.kegg, maxShow = maxShow, use = use)
     use.p <- attr(p.kegg, "use.p")
     p.kegg <- lapply(p.kegg, function(x) wrap(x, 8, 4 * (maxShow / 10)))
     p.kegg <- .set_lab(p.kegg, sig(x), names(p.kegg), "KEGG enrichment")
@@ -94,7 +95,7 @@ setMethod("step2", signature = c(x = "job_enrich"),
   function(x, pathways, which.lst = 1, species = x$organism,
     name = paste0("pathview", gs(Sys.time(), " |:", "_")),
     search = "pathview",
-    external = F)
+    external = F, gene.level = NULL)
   {
     step_message("Use pathview to visualize reults pathway.")
     require(pathview)
@@ -103,6 +104,18 @@ setMethod("step2", signature = c(x = "job_enrich"),
       x$pathview_dir <- name
     } else {
       name <- x$pathview_dir
+    }
+    if (!is.null(gene.level)) {
+      if (is(gene.level, "data.frame")) {
+        message("Use first (symbol) and second (logFC) columns of `gene.level`.")
+        gene.level <- nl(gene.level[[1]], gene.level[[2]], F)
+      } else if (is.numeric(gene.level)) (
+        if (is.null(names(gene.level))) {
+          stop("is.null(names(gene.level))")
+        }
+      )
+      message("Note that only hgnc_symbol support for this feature: `gene.level`")
+      names(gene.level) <- x$annotation$entrezgene_id[ match(names(gene.level), x$annotation$hgnc_symbol) ]
     }
     dir.create(name, F)
     setwd(name)
@@ -118,13 +131,18 @@ setMethod("step2", signature = c(x = "job_enrich"),
             pathway <- gs(pathway, "^[a-zA-Z]*", "")
             genes <- x@object$ids
           }
+          if (!is.null(gene.level)) {
+            genes <- gene.level[ match(genes, names(gene.level)) ]
+            discrete <- F
+          } else {
+            discrete <- T
+          }
           res.pathview <- try(
             pathview::pathview(gene.data = genes,
               pathway.id = pathway, species = species,
               keys.align = "y", kegg.native = T,
-              key.pos = "topright", limit = list(gene = 1, cpd = 1),
-              bins = list(gene = 1, cpd = 1),
-              na.col = "grey90", discrete = list(gene = T))
+              key.pos = "topright",
+              na.col = "grey90", discrete = list(gene = discrete))
           )
           if (inherits(res.pathview, "try-error")) {
             try(dev.off(), silent = T)

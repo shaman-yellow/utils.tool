@@ -3559,6 +3559,7 @@ new_venn <- function(..., lst = NULL, wrap = T, fun_pre = rm.no) {
   }
   attr(p, "ins") <- ins <- intersect(lst[[1]], lst[[2]])
   attr(p, "lich") <- new_lich(list(Intersection = ins))
+  lab(p) <- paste0("Intersection of ", paste0(names(lst), collapse = " with "))
   p
 }
 

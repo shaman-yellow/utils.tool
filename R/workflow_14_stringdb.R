@@ -95,9 +95,9 @@ setMethod("step1", signature = c(x = "job_stringdb"),
 
 setMethod("filter", signature = c(x = "job_stringdb"),
   function(x, ref.x, ref.y, lab.x = "Source", lab.y = "Target",
-    use = "preferred_name", data = sdb@params$graph, level.x = NULL,
+    use = "preferred_name", data = x@params$graph, level.x = NULL,
     lab.fill = "log2FC",
-    top = 10, use.top = c("from", "to"), top_in = NULL)
+    top = 10, use.top = c("from", "to"), top_in = NULL, ...)
   {
     message("Search and filter: ref.x in from, ref.y in to; or, reverse.")
     use.top <- match.arg(use.top)
@@ -125,7 +125,7 @@ setMethod("filter", signature = c(x = "job_stringdb"),
     data <- dplyr::mutate(data, id = "pseudo")
     data <- dplyr::relocate(data, id)
     p.ppi <- plot_network.pharm(data, edge_width = 1, ax2 = lab.x, ax3 = lab.y,
-      ax2.level = level.x, lab.fill = lab.fill, seed = x$seed)
+      ax2.level = level.x, lab.fill = lab.fill, seed = x$seed, ...)
     p.ppi <- .set_lab(p.ppi, sig(x), "filtered and formated PPI network")
     mcc <- cal_mcc(edges)
     nodes <- map(nodes, "name", mcc, "name", "MCC_score", col = "MCC_score")
