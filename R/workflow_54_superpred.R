@@ -74,7 +74,7 @@ setMethod("step1", signature = c(x = "job_superpred"),
         function(queries) {
           lapply(queries, fun_get)
           ids <- paste0("query", 1:length(queries))
-          files <- moveToDir(ids, "Targets.*csv", from = x$tempdir, to = x$tempdir,
+          files <- collateFiles(ids, "Targets.*csv", from = x$tempdir, to = x$tempdir,
             suffix = ".csv")
           data <- ftibble(files)
           names(data) <- queries

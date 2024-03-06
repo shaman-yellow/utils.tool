@@ -37,7 +37,7 @@ setMethod("step1", signature = c(x = "job_biblio"),
     filter_dup = T, filter_nonEng = T, filter_naAbs = T, filter_AbsKey = T)
   {
     step_message("Re-save the obtained files from WOS.")
-    files <- unlist(moveToDir(paste0("wos_", 1:num), pattern, from = "~/Downloads",
+    files <- unlist(collateFiles(paste0("wos_", 1:num), pattern, from = "~/Downloads",
       to = to, suffix = ".txt"))
     object(x) <- e(bibliometrix::convert2df(files, dbsource = "wos", format = "plaintext"))
     dat <- alls <- as_tibble(data.frame(object(x)))

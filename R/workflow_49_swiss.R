@@ -86,7 +86,7 @@ setMethod("step1", signature = c(x = "job_swiss"),
       link$close()
       end_drive()
       ids <- paste0("query", 1:length(db@query))
-      files <- moveToDir(ids, "SwissTargetPrediction.*csv", from = x$tempdir, to = x$tempdir,
+      files <- collateFiles(ids, "SwissTargetPrediction.*csv", from = x$tempdir, to = x$tempdir,
         suffix = ".csv")
       data <- ftibble(files)
       names(data) <- db@query

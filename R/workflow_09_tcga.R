@@ -33,6 +33,11 @@ job_tcga <- function(project)
       data.type = "Masked Somatic Mutation", 
       workflow.type = "Aliquot Ensemble Somatic Variant Merging and Masking"
       ),
+    protein = list(
+      project = project,
+      data.category = "Proteome Profiling",
+      data.type = "Protein Expression Quantification"
+      ),
     clinical = list(
       project = project,
       data.category = "Clinical",
@@ -102,17 +107,29 @@ setMethod("step2", signature = c(x = "job_tcga"),
   })
 
 setMethod("step3", signature = c(x = "job_tcga"),
-  function(x, use = "vital_status", query = "RNA"){
+  function(x, use = "vital_status", query = "RNA",
+    clinical.info = c("patient", "drug", "admin", "follow_up", "radiation"))
+  {
     step_message("Prepare data for next step analysis.")
     lst.query <- object(x)[[ query ]]
     if (is.null(lst.query))
       stop("is.null(lst.query)")
     x@params$queries <- object(x)
-    object(x) <- e(TCGAbiolinks::GDCprepare(query = lst.query))
+    obj <- e(TCGAbiolinks::GDCprepare(query = lst.query))
     if (query == "RNA") {
-      p.vital <- new_pie(SummarizedExperiment::colData(object(x))[[ use ]])
+      p.vital <- new_pie(SummarizedExperiment::colData(obj)[[ use ]])
       x@plots[[ 3 ]] <- namel(p.vital)
+    } else if (query == "protein") {
+      obj <- as_tibble(obj)
+      if (!is.null(object(x)[[ "clinical" ]])) {
+        clinical.info <- match.arg(clinical.info)
+        x$metadata <- e(TCGAbiolinks::GDCprepare_clinic(
+            query = object(x)[[ "clinical" ]],
+            clinical.info = clinical.info))
+        x$metadata <- as_tibble(x$metadata)
+      }
     }
+    object(x) <- obj
     return(x)
   })
 

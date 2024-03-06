@@ -17,7 +17,7 @@
     params = list(isTcga = F, normed = F)
     ))
 
-job_limma_normed <- function(data, metadata) {
+job_limma_normed <- function(data, metadata, genes = NULL) {
   .check_columns(metadata, c("sample", "group"))
   metadata <- dplyr::slice(metadata, match(colnames(data), sample))
   if (is(data, "tbl_df")) {
@@ -34,7 +34,10 @@ job_limma_normed <- function(data, metadata) {
   if (!identical(colnames(data), metadata$sample)) {
     stop("!identical(colnames(data), metadata$sample)")
   }
-  .job_limma(object = data, params = list(metadata = metadata, isTcga = F, normed = T))
+  if (!is.null(genes)) {
+    message("Be careful, the first columns of `genes` were considered as ID columns.")
+  }
+  .job_limma(object = data, params = list(metadata = metadata, isTcga = F, normed = T, genes = genes))
 }
 
 job_limma <- function(DGEList)
@@ -128,10 +131,12 @@ setMethod("step2", signature = c(x = "job_limma"),
     if (!is.null(contr)) {
       tops <- extract_tops(object(x), use = use, use.cut = use.cut, cut.fc = cut.fc)
       if (x$normed) {
-        tops <- lapply(tops,
-          function(obj) {
-            map(obj, colnames(obj)[1], x$genes, colnames(obj)[1], label, col = label)
-          })
+        if (!is.null(x$genes)) {
+          tops <- lapply(tops,
+            function(obj) {
+              map(obj, colnames(obj)[1], x$genes, colnames(x$genes)[1], label, col = label)
+            })
+        }
       }
       tops <- .set_lab(tops, sig(x), paste("data", gs(names(tops), "-", "vs")), "DEGs")
       lab(tops) <- paste(sig(x), "data", "DEGs")
@@ -231,9 +236,10 @@ plot_valcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val", fc
     change = ifelse(logFC > abs(fc), "up",
       ifelse(logFC < -abs(fc), "down", "stable"))
   )
+  pal <- color_set2()
   p <- ggplot(data, aes(x = logFC, y = -log10(!!rlang::sym(use)), color = change)) + 
     geom_point(alpha = 0.8, stroke = 0, size = 1.5) + 
-    scale_color_manual(values = c("down" = "#4DBBD5FF", "stable" = "#8491B4FF", "up" = "#DC0000FF")) +
+    scale_color_manual(values = c("down" = pal[1], "stable" = "grey90", "up" = pal[2])) +
     geom_hline(yintercept = -log10(0.05), linetype = 4, size = 0.8) +
     geom_vline(xintercept = c(-abs(fc), abs(fc)), linetype = 4, size = 0.8) + 
     labs(x = "log2(FC)", y = paste0("-log10(", use, ")")) + 
@@ -243,6 +249,7 @@ plot_valcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val", fc
         dplyr::slice_max(data, abs(logFC), n = 20)
         )), 
       aes(label = !!rlang::sym(label)), size = 3) +
+    rstyle("theme") +
     geom_blank()
   p
 }

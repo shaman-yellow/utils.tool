@@ -17,7 +17,7 @@
     method = "The UNIfied database of TransMembrane Proteins (UniTmp) was used for transmembrane protein information retrieving"
     ))
 
-job_unitmp <- function(mode = c("htp_all", "htp_exists"), db = .prefix("unitmp"))
+job_unitmp <- function(mode = c("htp_all", "htp_exists"), db = .prefix("unitmp", "db"))
 {
   mode <- match.arg(mode)
   url <- switch(mode, htp_all = "https://htp.unitmp.org/data/HTP/data/d.2.1/sets/htp_all.xml",

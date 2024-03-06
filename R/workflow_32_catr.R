@@ -51,7 +51,7 @@ setMethod("step1", signature = c(x = "job_catr"),
 setMethod("step2", signature = c(x = "job_catr"),
   function(x, num = 1, dir = "~/Downloads/", pattern = "output_full.*\\.zip"){
     step_message("Deparse the results files. red{{Make sure the results files exists in the `dir`.}}")
-    moveToDir(paste0("candidate_", num), pattern, from = dir, to = x$wd, suffix = ".zip")
+    collateFiles(paste0("candidate_", num), pattern, from = dir, to = x$wd, suffix = ".zip")
     res <- lapply(list.files(x$wd, "\\.zip$", full.names = T),
       function(file) {
         ftibble(unzip(file, exdir = x$wd))

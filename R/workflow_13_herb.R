@@ -21,6 +21,7 @@ job_herb <- function(herbs, db = get_herb_data())
   x <- .job_herb(object = db)
   x@params$herbs <- herbs
   herbs_info <- filter(object(x)$herb, Herb_cn_name %in% !!params(x)$herbs)
+  herbs_info <- .set_lab(herbs_info, "herbs information")
   x@params$herbs_info <- herbs_info
   print(herbs_info)
   message("Got the herbs:\n\n\t", paste0(herbs_info$Herb_cn_name, collapse = ", "),
@@ -37,77 +38,103 @@ setMethod("step0", signature = c(x = "job_herb"),
   })
 
 setMethod("step1", signature = c(x = "job_herb"),
-  function(x, tempdir = "download"){
+  function(x, tempdir = "download", db = .prefix("herb/herbs_ingredient.rds", "db"))
+  {
     step_message("Dowload compounds of herbs.")
-    x$tempdir <- tempdir
-    link <- start_drive(browser = "firefox", download.dir = x$tempdir)
-    Sys.sleep(3)
-    tryCatch(
-      download_herbCompounds(link, params(x)$herbs_info$Herb_, tempdir = x$tempdir),
-      finally = end_drive()
-    )
-    if (file.exists("herbs_ingredient")) {
-      unlink("herbs_ingredient", T, T)
+    ids <- params(x)$herbs_info$Herb_
+    db <- new_db(db, "herb_id")
+    db <- not(db, ids)
+    if (length(db@query)) {
+      x$tempdir <- tempdir
+      link <- start_drive(browser = "firefox", download.dir = x$tempdir)
+      Sys.sleep(3)
+      tryCatch(
+        download_herbCompounds(link, db@query, tempdir = x$tempdir),
+        finally = end_drive()
+      )
+      fun_clear <- function() {
+        if (file.exists("herbs_ingredient")) {
+          unlink("herbs_ingredient", T, T)
+        }
+      }
+      fun_clear()
+      herbs_compounds <- collateFiles_herbs(db@query, from = x$tempdir, to = "herbs_ingredient")
+      db <- upd(db, herbs_compounds, db@query)
+      fun_clear()
+      unlink(tempdir, T, T)
     }
-    herbs_compounds <- moveToDir_herbs(params(x)$herbs_info$Herb_, from = x$tempdir)
+    herbs_compounds <- dplyr::filter(db@db, herb_id %in% ids)
+    herbs_compounds <- .set_lab(herbs_compounds, sig(x), "Components of Herbs")
     x@tables[[ 1 ]] <- namel(herbs_compounds)
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_herb"),
-  function(x, group_number = 50, group_sleep = 3, db = .prefix(), removeExistsTemp = F)
+  function(x, group_number = 50, group_sleep = 3,
+    searchDir = .prefix(), db = .prefix("herb/compounds_target.rds", "db"),
+    removeExistsTemp = F)
   {
     step_message("Dowload targets of compounds")
     all_ids <- unique(x@tables$step1$herbs_compounds$Ingredient.id)
-    merge_data <- F
-    if (!is.null(db)) {
-      dbfile <- list.files(db, "^HBIN.*.xlsx$", full.names = T, recursive = T)
-      names(dbfile) <- get_realname(dbfile)
-      dbfile <- dbfile[ !duplicated(dbfile) ]
-      has_ids <- all_ids[ all_ids %in% names(dbfile) ]
-      if (length(has_ids)) {
-        files <- dbfile[ names(dbfile) %in% has_ids ]
-        data <- moveToDir_herbs(readFrom = files, .id = "Ingredient_id", from = x$tempdir)
-        all_ids <- all_ids[ !all_ids %in% has_ids ]
-        merge_data <- T
+    db <- new_db(db, "Ingredient_id")
+    db <- not(db, all_ids)
+    if (length(db@query)) {
+      queries <- db@query
+      merge_data <- F
+      if (!is.null(searchDir)) {
+        message("The feature of `searchDir` was deprecated.")
+        dbfile <- list.files(searchDir, "^HBIN.*.xlsx$", full.names = T, recursive = T)
+        names(dbfile) <- get_realname(dbfile)
+        dbfile <- dbfile[ !duplicated(dbfile) ]
+        has_ids <- queries[ queries %in% names(dbfile) ]
+        if (length(has_ids)) {
+          files <- dbfile[ names(dbfile) %in% has_ids ]
+          data <- collateFiles_herbs(readFrom = files, .id = "Ingredient_id", from = x$tempdir)
+          queries <- queries[ !queries %in% has_ids ]
+          merge_data <- T
+        }
       }
-    }
-    if (length(all_ids)) {
-      all_ids <- grouping_vec2list(all_ids, group_number, T)
-      link <- start_drive(browser = "firefox")
-      Sys.sleep(3)
-      lst <- pbapply::pblapply(all_ids,
-        function(ids) {
-          .dir <- "compounds_target"
-          to <- paste0(.dir, "/", attr(ids, "name"))
-          if (file.exists(to)) {
-            .dir <- timeName("compounds_target")
+      if (length(queries)) {
+        queries <- grouping_vec2list(queries, group_number, T)
+        link <- start_drive(browser = "firefox")
+        Sys.sleep(3)
+        lst <- pbapply::pblapply(queries,
+          function(ids) {
+            .dir <- "compounds_target"
             to <- paste0(.dir, "/", attr(ids, "name"))
-          }
-          download_compoundTargets(link, ids, tempdir = x$tempdir)
-          data <- moveToDir_herbs(ids, to = to, .id = "Ingredient_id", from = x$tempdir)
-          cli::cli_alert_info("Sleep between groups ...")
-          Sys.sleep(group_sleep)
-          data
-        })
-      lst <- data.table::rbindlist(lst, fill = T)
-      end_drive()
-    } else {
-      lst <- list()
+            if (file.exists(to)) {
+              .dir <- timeName("compounds_target")
+              to <- paste0(.dir, "/", attr(ids, "name"))
+            }
+            download_compoundTargets(link, ids, tempdir = x$tempdir)
+            data <- collateFiles_herbs(ids, to = to, .id = "Ingredient_id", from = x$tempdir)
+            cli::cli_alert_info("Sleep between groups ...")
+            Sys.sleep(group_sleep)
+            data
+          })
+        lst <- data.table::rbindlist(lst, fill = T)
+        end_drive()
+      } else {
+        lst <- data.frame()
+      }
+      if (merge_data) {
+        if (!is(data, "list")) {
+          data <- list(data)
+        }
+        if (nrow(lst)) {
+          lst <- list(lst, data)
+        } else
+          lst <- data
+      }
+      if (is(lst, "list")) {
+        data <- data.table::rbindlist(lst, fill = T)
+      } else {
+        data <- lst
+      }
+      compounds_targets <- as_tibble(data)
+      db <- upd(db, compounds_targets, db@query)
     }
-    if (merge_data) {
-      if (length(lst)) {
-        Terror <<- lst <- list(lst, list(data))
-        message("There need revise (print `Terror`)")
-      } else
-        lst <- list(data)
-    }
-    if (is(lst, "list")) {
-      data <- data.table::rbindlist(lst, fill = T)
-    } else {
-      data <- lst
-    }
-    compounds_targets <- as_tibble(data)
+    compounds_targets <- dplyr::filter(db@db, Ingredient_id %in% !!all_ids)
     x@tables[[ 2 ]] <- namel(compounds_targets)
     return(x)
   })
@@ -196,7 +223,7 @@ setMethod("step3", signature = c(x = "job_herb"),
       )
     }
     data.allu <- dplyr::select(easyRead, Herb_pinyin_name, Ingredient.name, Target.name)
-    data.allu <- dplyr::filter(data.allu, !is.na(Target.name))
+    data.allu <- dplyr::mutate(data.allu, Target.name = ifelse(is.na(Target.name), "Unkown", Target.name))
     x$data.allu <- data.allu
     p.pharm <- plot_network.pharm(data.allu, seed = x$seed, HLs = HLs)
     p.pharm <- .set_lab(p.pharm, sig(x), "network pharmacology visualization")
@@ -233,6 +260,7 @@ setMethod("intersect", signature = c(x = "job_herb", y = "job_herb"),
 setMethod("map", signature = c(x = "job_herb", ref = "list"),
   function(x, ref, HLs = NULL, levels = NULL, lab.level = "Level", name = "dis", compounds = NULL, ...)
   {
+    message("Filter compounds targets with disease targets.")
     data <- x$data.allu
     if (!is.null(compounds)) {
       data <- dplyr::filter(data, Ingredient.name %in% !!compounds)
@@ -242,7 +270,9 @@ setMethod("map", signature = c(x = "job_herb", ref = "list"),
       p.venn2dis <- new_venn(Diseases = unlist(ref, use.names = F), Targets = data$Target.name)
       x[[ paste0("p.venn2", name) ]] <- .set_lab(p.venn2dis, sig(x), "Targets intersect with targets of diseases")
     }
-    p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels, lab.fill = lab.level, ...)
+    herbs <- unique(x$data.allu[[1]])
+    p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
+      lab.fill = lab.level, force.ax1 = herbs, ...)
     if (length(ref)) {
       x[[ paste0("p.pharm2", name) ]] <- .set_lab(p.pharm, sig(x), "network pharmacology with disease")
     } else {
@@ -279,7 +309,7 @@ rstyle <- function(get = "pal", seed = NULL, n = 1L) {
 
 plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed = 1, HLs = NULL,
   ax1 = "Herb", ax2 = "Compound", ax3 = "Target", less.label = T,
-  ax2.level = NULL, lab.fill = "", edge_width = .1)
+  ax2.level = NULL, lab.fill = "", edge_width = .1, force.ax1 = NULL)
 {
   if (length(unique(data[[1]])) == 1) {
     sherb <- 1L
@@ -327,6 +357,10 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
     crds.Tgt <- shift(crds.Tgt, -max(crds.Tgt$x) / 2, -max(crds.Tgt$y) / 2)
     f.rsz <- max(crds.Tgt$x) * f.f
     if (!sherb) {
+      if (!is.null(force.ax1)) {
+        force.ax1 <- force.ax1[ !force.ax1 %in% dplyr::filter(nodes, type == !!ax1)$name ]
+        nodes <- tibble::add_row(nodes, type = ax1, name = force.ax1)
+      }
       crds.Hrb <- get_layout(NULL, "circle", nodes = dplyr::filter(nodes, type == !!ax1))
       crds.Hrb <- resize(crds.Hrb, f.rsz)
       lst <- split(ed.12sin, ed.12sin[[ ax1 ]])
@@ -396,7 +430,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
   x <- prepare_data(data)
   data <- as_tibble(data.frame(x))
   data <- dplyr::mutate(
-    data, cent = ifelse(type == !!ax1, cent * 150,
+    data, cent = ifelse(type == !!ax1, cent * 1000 + 2000,
       ifelse(grpl(type, !!ax2, ignore.case = T), cent * 20, cent)))
   data.tgt <- dplyr::filter(data, type == !!ax3)
   set.seed(seed)
@@ -576,7 +610,7 @@ get_table.html <- function(x, ...) {
   XML::readHTMLTable(ht, ...)
 }
 
-moveToDir_herbs <- function(ids,
+collateFiles_herbs <- function(ids,
   file.pattern = "\\.xlsx$", index.pfun = file_seq.by_time,
   from = "download", to = "herbs_ingredient", suffix = ".xlsx", .id = "herb_id", readFrom = NULL)
 {
@@ -584,7 +618,7 @@ moveToDir_herbs <- function(ids,
     if (!file.exists(to)) {
       args <- as.list(environment())
       args$readFrom <- NULL
-      files <- do.call(moveToDir, args)
+      files <- do.call(collateFiles, args)
       isOrdered <- T
     } else {
       files <- list.files(to, file.pattern, full.names = T)
@@ -613,7 +647,7 @@ moveToDir_herbs <- function(ids,
   data
 }
 
-moveToDir <- function(ids,
+collateFiles <- function(ids,
   file.pattern, index.pfun = file_seq.by_time,
   from, to, suffix, ...)
 {

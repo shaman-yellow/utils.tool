@@ -134,14 +134,16 @@ setMethod("step2", signature = c(x = "job_enrich"),
           if (!is.null(gene.level)) {
             genes <- gene.level[ match(genes, names(gene.level)) ]
             discrete <- F
+            bins <- 10
           } else {
             discrete <- T
+            bins <- 1
           }
           res.pathview <- try(
             pathview::pathview(gene.data = genes,
               pathway.id = pathway, species = species,
               keys.align = "y", kegg.native = T,
-              key.pos = "topright",
+              key.pos = "topright", bins = list(gene = bins),
               na.col = "grey90", discrete = list(gene = discrete))
           )
           if (inherits(res.pathview, "try-error")) {
@@ -334,3 +336,22 @@ vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
     })
   res
 }
+
+setMethod("filter", signature = c(x = "job_enrich"),
+  function(x, pattern, ..., use = c("kegg", "go"), which = 1)
+  {
+    message("Search genes in enriched pathways.")
+    use <- match.arg(use)
+    if (use == "kegg") {
+      data <- en@tables$step1$res.kegg[[ which ]]
+    } else if (use == "go") {
+      data <- en@tables$step1$res.go[[ which ]]
+    }
+    isThat <- vapply(data$geneName_list, FUN.VALUE = logical(1),
+      function(x) {
+        any(grpl(x, pattern, ...))
+      })
+    data <- dplyr::filter(data, !!isThat)
+    data <- .set_lab(data, sig(x), "filter by match genes")
+    data
+  })
