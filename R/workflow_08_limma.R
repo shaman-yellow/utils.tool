@@ -24,7 +24,7 @@ job_limma_normed <- function(data, metadata, genes = NULL) {
     if (is.character(data[[1]])) {
       message("Convert as data.frame, and use the first column set as rownames.")
       rownames <- data[[1]]
-      data <- data.frame(data)
+      data <- data.frame(data, check.names = F)
       rownames(data) <- rownames
     } else {
       stop("The first column not seems be 'ID' (character).")
@@ -74,14 +74,18 @@ setMethod("step1", signature = c(x = "job_limma"),
       plots <- c(plots, namel(p.filter))
     }
     if (!no.norm) {
-      object(x) <- norm_genes.dge(object(x), design, norm_vis)
-      if (length(x@object$targets$sample) < 50) {
-        p.norm <- wrap(attr(object(x), "p"), 6, length(x@object$targets$sample) * .6)
+      object(x) <- norm_genes.dge(object(x), design, vis = norm_vis)
+      if (norm_vis) {
+        if (length(x@object$targets$sample) < 50) {
+          p.norm <- wrap(attr(object(x), "p"), 6, length(x@object$targets$sample) * .6)
+        } else {
+          p.norm <- wrap(attr(object(x), "p"))
+        }
+        x@params$p.norm_data <- p.norm@data$data
       } else {
-        p.norm <- wrap(attr(object(x), "p"))
+        p.norm <- NULL
       }
       plots <- c(plots, namel(p.norm))
-      x@params$p.norm_data <- p.norm@data$data
       x@params$normed_data <- object(x)
     } else {
       x$normed_data <- list(

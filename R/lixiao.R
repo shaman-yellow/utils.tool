@@ -2288,6 +2288,18 @@ ic <- function(Inexperience = 0, Complexity = 0, Deficiency = 0, Time_consuming 
   .ic(list(I = Inexperience, C = Complexity, D = Deficiency, 'T' = Time_consuming, M = Massiveness))
 }
 
+show.ic <- function(info, a = .03, k = .028, base_wage = 6000)
+{
+  data <- data.frame(I = info$I, C = info$C, D = info$D, 'T' = info$T, M = info$M)
+  print(knitr::kable(data))
+  str <- paste0("y = a + k * (I + C + D + T + M) = ",
+    a, " + ", k, " * (",
+    info$I, " + ", info$C, " + ", info$D, " + ", info$T, " + ", info$M,
+    ") = ", info$coef, "", "\n",
+    "实际金额 = ", base_wage, " * ", info$coef, " = ", base_wage * info$coef)
+  writeLines(str)
+}
+
 .ic <- setClass("ic", 
   contains = c("list"),
   representation = representation(),

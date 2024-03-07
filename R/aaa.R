@@ -634,3 +634,10 @@ draw_smile <- function(smile, file, pdf = T) {
 .pattern.cn <- function() {
   "[\u4e00-\u9fa5]"
 }
+
+replaceFunInPackage <- function(name, fun, package) {
+  nameSpace <- asNamespace(package)
+  unlockBinding(name, nameSpace)
+  assign(name, fun, envir = nameSpace)
+  lockBinding(name, nameSpace)
+}

@@ -4,6 +4,7 @@
 ```{r include = F, eval = F}
 deparse_mail()
 info <- items(belong = odate(3), eval = ic())
+show.ic(info)
 
 order_publish()
 idname <- order_packaging()
