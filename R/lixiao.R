@@ -1995,6 +1995,16 @@ odate <- function(month, year = format(Sys.time(), "%Y")) {
   list("2023-12-01" = 3800)
 }
 
+thismonth <- function(data = get_orders(),
+  month = lubridate::month(time), year = lubridate::year(time),
+  time = Sys.Date())
+{
+  month <- as.Date(paste0(year, "-", month, "-01"))
+  data <- dplyr::filter(data, belong == month)
+  writeLines(paste0("\nCoef: ", sum(data$coef), "\nRem: ", sum(data$remuneration)))
+  invisible(data)
+}
+
 get_orders <- function(
   dir = .prefix(), pattern = ".items.rds",
   base_wage = list("2023-07-01" = 3000, "2023-08-01" = 4500, "2023-09-01" = 6000),
@@ -2292,11 +2302,11 @@ show.ic <- function(info, a = .03, k = .028, base_wage = 6000)
 {
   data <- data.frame(I = info$I, C = info$C, D = info$D, 'T' = info$T, M = info$M)
   print(knitr::kable(data))
-  str <- paste0("y = a + k * (I + C + D + T + M) = ",
+  str <- paste0("\n", "y = a + k * (I + C + D + T + M) = ",
     a, " + ", k, " * (",
     info$I, " + ", info$C, " + ", info$D, " + ", info$T, " + ", info$M,
-    ") = ", info$coef, "", "\n",
-    "实际金额 = ", base_wage, " * ", info$coef, " = ", base_wage * info$coef)
+    ") = ", info$coef, "", "\n"
+  )
   writeLines(str)
 }
 
@@ -2420,8 +2430,8 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
     }
   }
   if (!is.null(client)) {
-    if (identical(idn, character(0))) {
-      idn <- odb("client", "analysis", collapse = "+")
+    if (identical(idn, character(1)) || identical(idn, character(0))) {
+      idn <- paste0(client, "订单+", odk("analysis"))
     } else {
       idn <- paste0(idn, "+客户：", client)
     }
@@ -2620,9 +2630,21 @@ od_get <- function(file = "./mailparsed/part_1.md", key = "id",
 .guess_id <- function(lines) {
   res <- stringr::str_extract_all(lines, "[A-Z]{0,2}[0-9]{6,10}")
   res <- unlist(res)
-  res <- res[ !is.na(res) ]
-  stat <- table(res)
-  names(stat[ stat == max(stat) ])
+  possibles <- res <- res[ !is.na(res) ]
+  if (length(res)) {
+    stat <- table(res)
+    id <- names(stat[ stat == max(stat) ])
+    if (strx(id, "[0-9]{2}") != "20") {
+      isThat <- usethis::ui_yeah(paste0("Detected ID: ", id, "\n\tUsethis?"))
+      if (!isThat) {
+        possibles <- c(possibles, "")
+        which <- menu(possibles, title = "Use which?")
+        possibles[ which ]
+      } else id
+    }
+  } else {
+    ""
+  }
 }
 
 .guess_info <- function(lines) {
@@ -3820,7 +3842,9 @@ new_col <- function(..., lst = NULL, fun = function(x) x[ !is.na(x) & x != ""]) 
   wrap(p, 7, nrow(data) * .5 + .5)
 }
 
-new_pie <- function(x, title = NULL, use.ggplot = T, fun_text = ggrepel::geom_label_repel) {
+new_pie <- function(x, title = NULL, use.ggplot = T, overlap = 30,
+  fun_text = function(...) ggrepel::geom_label_repel(..., max.overlaps = overlap))
+{
   x <- split(x, x)
   x <- vapply(x, length, integer(1))
   if (use.ggplot) {

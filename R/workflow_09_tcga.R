@@ -45,7 +45,7 @@ job_tcga <- function(project)
       data.format = "BCR XML"
     )
   )
-  .job_tcga(object = object)
+  .job_tcga(object = object, params = list(project = project))
 }
 
 setMethod("step0", signature = c(x = "job_tcga"),
@@ -92,6 +92,7 @@ setMethod("step1", signature = c(x = "job_tcga"),
           dplyr::slice(dplyr::all_of(cons[[ paste0(".row_", i) ]]))
       }
     }
+    res_query <- .set_lab(res_query, paste(sig(x), x$object), names(res_query), "metadata")
     x@tables[[ 1 ]] <- c(res_query, namel(cons))
     return(x)
   })

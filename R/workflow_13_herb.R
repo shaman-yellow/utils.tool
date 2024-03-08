@@ -307,7 +307,7 @@ rstyle <- function(get = "pal", seed = NULL, n = 1L) {
   res
 }
 
-plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed = 1, HLs = NULL,
+plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed = sample(1:10, 1), HLs = NULL,
   ax1 = "Herb", ax2 = "Compound", ax3 = "Target", less.label = T,
   ax2.level = NULL, lab.fill = "", edge_width = .1, force.ax1 = NULL)
 {
@@ -356,6 +356,9 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
     crds.Tgt <- get_layout(NULL, "grid", nodes = dplyr::filter(nodes, type == !!ax3))
     crds.Tgt <- shift(crds.Tgt, -max(crds.Tgt$x) / 2, -max(crds.Tgt$y) / 2)
     f.rsz <- max(crds.Tgt$x) * f.f
+    if (!f.rsz) {
+      f.rsz <- 3 * f.f
+    } 
     if (!sherb) {
       if (!is.null(force.ax1)) {
         force.ax1 <- force.ax1[ !force.ax1 %in% dplyr::filter(nodes, type == !!ax1)$name ]
@@ -364,7 +367,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
       crds.Hrb <- get_layout(NULL, "circle", nodes = dplyr::filter(nodes, type == !!ax1))
       crds.Hrb <- resize(crds.Hrb, f.rsz)
       lst <- split(ed.12sin, ed.12sin[[ ax1 ]])
-      # coords for compounds from sigle herb
+      # coords for compounds from separate herb
       crds.ComSin <- mapply(lst, names(lst), SIMPLIFY = F,
         FUN = function(ed, nm) {
           lay <- resize(get_layout(ed, "star"), f.rsz * f.f.sin)

@@ -125,7 +125,7 @@ setMethod("filter", signature = c(x = "job_stringdb"),
     data <- dplyr::mutate(data, id = "pseudo")
     data <- dplyr::relocate(data, id)
     p.ppi <- plot_network.pharm(data, edge_width = 1, ax2 = lab.x, ax3 = lab.y,
-      ax2.level = level.x, lab.fill = lab.fill, seed = x$seed, ...)
+      ax2.level = level.x, lab.fill = lab.fill, ...)
     p.ppi <- .set_lab(p.ppi, sig(x), "filtered and formated PPI network")
     mcc <- cal_mcc(edges)
     nodes <- map(nodes, "name", mcc, "name", "MCC_score", col = "MCC_score")

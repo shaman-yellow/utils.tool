@@ -185,7 +185,8 @@ setMethod("step4", signature = c(x = "job_vina"),
   })
 
 setMethod("step5", signature = c(x = "job_vina"),
-  function(x, compounds, by.y, facet = "Ingredient_name"){
+  function(x, compounds, by.y, facet = "Ingredient_name", excludes = NULL)
+  {
     step_message("Summary and visualization for results.")
     x$summary_vina <- summary_vina(x$savedir)
     res_dock <- dplyr::mutate(x$summary_vina, PubChem_id = as.integer(PubChem_id))
@@ -210,6 +211,9 @@ setMethod("step5", signature = c(x = "job_vina"),
     }
     res_dock <- dplyr::arrange(res_dock, Affinity)
     data <- dplyr::distinct(res_dock, PubChem_id, hgnc_symbol, .keep_all = T)
+    if (!is.null(excludes)) {
+      data <- dplyr::filter(data, !hgnc_symbol %in% !!excludes)
+    }
     p.res_vina <- ggplot(data) + 
       geom_col(aes(x = reorder(hgnc_symbol, Affinity, decreasing = T), y = Affinity, fill = Affinity), width = .7) +
       labs(x = "", y = "Affinity (kcal/mol)") +

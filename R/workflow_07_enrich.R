@@ -278,13 +278,13 @@ vis_enrich.kegg <- function(lst, cutoff = .1, maxShow = 10,
         geom_point(aes(x = reorder(Description, GeneRatio),
             y = GeneRatio, size = Count, fill = !!rlang::sym(use)),
           shape = 21, stroke = 0, color = "transparent") +
-        scale_fill_gradient(high = "yellow", low = "red") +
+        scale_fill_gradient(high = "grey90", low = "darkred") +
         scale_size(range = c(4, 6)) +
         labs(x = "", y = "Gene Ratio") +
         guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
         coord_flip() +
         ylim(zoRange(data$GeneRatio, 1.3)) +
-        theme_minimal()
+        rstyle("theme")
       p
     })
   if (length(lst) == 1) {
@@ -319,14 +319,13 @@ vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
       geom_point(aes(x = reorder(Description, GeneRatio),
           y = GeneRatio, size = Count, fill = !!rlang::sym(use)),
         shape = 21, stroke = 0, color = "transparent") +
-      scale_fill_gradient(high = "yellow", low = "red") +
+      scale_fill_gradient(high = "grey90", low = "darkred") +
       scale_size(range = c(4, 6)) +
       guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
       coord_flip() +
       facet_grid(.id ~ ., scales = "free") +
-      theme_minimal() +
-      theme(axis.title.y = element_blank(),
-        strip.background = element_rect(fill = "grey90", color = "grey70")) +
+      rstyle("theme") +
+      theme(axis.title.y = element_blank()) +
       geom_blank()
     p
   }
@@ -343,9 +342,9 @@ setMethod("filter", signature = c(x = "job_enrich"),
     message("Search genes in enriched pathways.")
     use <- match.arg(use)
     if (use == "kegg") {
-      data <- en@tables$step1$res.kegg[[ which ]]
+      data <- x@tables$step1$res.kegg[[ which ]]
     } else if (use == "go") {
-      data <- en@tables$step1$res.go[[ which ]]
+      data <- x@tables$step1$res.go[[ which ]]
     }
     isThat <- vapply(data$geneName_list, FUN.VALUE = logical(1),
       function(x) {
