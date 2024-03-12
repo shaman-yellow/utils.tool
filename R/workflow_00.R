@@ -989,8 +989,9 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
       function(dir) {
         file <- paste0(dir, "/index.Rmd")
         if (file.exists(file)) {
-          x <- stringr::str_extract(readLines(file), "job_[a-zA-Z0-9]+")
-          x[!is.na(x)]
+          x <- stringr::str_extract(readLines(file), "job_[a-zA-Z0-9]+|new_[a-zA-Z0-9]+")
+          x <- x[!is.na(x)]
+          x[ !x %in% c("new_upset", "new_venn", "new_lich", "job_esearch") ]
         }
       })
     alls <- dplyr::mutate(alls,
@@ -1002,7 +1003,7 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
     used <- dplyr::mutate(used, value = 1,
       order = paste0("Order ", gs(type, "##.*$", "")),
       rank = as.integer(as.Date(type)),
-      name = gs(name, "^job_", ""),
+      name = gs(name, "^job_|^new_", ""),
       type = gs(type, ".*##(.*)$", "\\1")
     )
     data <- as_tibble(used)
@@ -1015,7 +1016,7 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
       coord_flip() +
       labs(y = "Order (Date + N)", x = "Frequence", fill = "Name",
         color = "Type", shape = "Type") +
-      scale_fill_manual(values = color_set()) +
+      scale_fill_manual(values = color_set(T)) +
       scale_color_manual(values = rstyle("pal", seed = 6)) +
       theme_minimal()
     p.alls <- new_pie(data$name, fun_text = ggrepel::geom_label_repel)
@@ -1095,12 +1096,15 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
     p.jobde <- wrap(job_de, 5, 4)
     p.jobde
   }
+  message("Plot use frequency")
   p.use_freq <- fun.use_freq(data)
   if (get_jobs_used) {
     jobs_used <- p.use_freq$p.ind.pop$data
     return(jobs_used)
   }
+  message("Plot correlation of jobs")
   p.co_job <- fun.co_job()
+  message("Plot job demonstration")
   p.jobde <- fun.jobde()
   p.fr1 <- frame_col(c(p.jobde = 1, p.co_job = 1.5),
     list(p.jobde = ggather(p.jobde@data, vp = viewport(, , .9, .8)),

@@ -221,7 +221,7 @@ fxlsx <- function(file, ...) {
   as_tibble(data.frame(openxlsx::read.xlsx(file, ...)))
 }
 
-fxlsx2 <- function(file, n = NULL, bind = T, .id = "sheet", ...) {
+fxlsx2 <- function(file, n = NULL, .id = "sheet", bind = T, ...) {
   sheets <- openxlsx::getSheetNames(file)
   if (is.null(n)) {
     n <- 1:length(sheets)
@@ -2096,6 +2096,7 @@ plot_orders_summary <- function(data) {
   data <- dplyr::mutate(data,
     .type = dplyr::recode(type, `备单业务` = "BI", `固定业务` = "IN", "其他业务" = "Others")
   )
+  message("Plot all proportion")
   p.all.pop <- new_pie(data$.type, title = "All types")
   idata <- split(data, ~belong)
   fun <- function(lst) {
@@ -2104,7 +2105,7 @@ plot_orders_summary <- function(data) {
         dplyr::mutate(data, value = 1 / nrow(data))
       })
     data <- do.call(dplyr::bind_rows, lst)
-    p <- ggplot(data, aes(x = reorder(gs(belong, "-01$", ""), belong, decreasing = T), y = value)) +
+    p <- ggplot(data, aes(x = reorder(gs(belong, "-01$", ""), belong, decreasing = TRUE), y = value)) +
       geom_col(aes(fill = .type), position = "stack", width = .6) +
       coord_flip() +
       labs(y = "Months", x = "Proportion", fill = "Type") +
@@ -2112,6 +2113,7 @@ plot_orders_summary <- function(data) {
       theme_minimal()
     p
   }
+  message("Plot individual proportion")
   p.ind.pop <- fun(idata)
   fun <- function(data) {
     data <- dplyr::summarize(dplyr::group_by(data, belong), sum_coef = sum(coef))
@@ -2125,6 +2127,7 @@ plot_orders_summary <- function(data) {
       theme_minimal()
     wrap(p, 5, 3)
   }
+  message("Plot coefficients")
   p.all.coef <- fun(data)
   fun <- function(data) {
     data <- dplyr::mutate(data, used = date - receive_date + 1)
@@ -2139,6 +2142,7 @@ plot_orders_summary <- function(data) {
       theme_minimal()
     wrap(p, 7, 3)
   }
+  message("Plot time used.")
   p.ind.avgTime <- fun(data)
   null <- nullGrob()
   fr1 <- frame_col(c(p.all.pop = 1, p.ind.pop = 1),
@@ -2335,9 +2339,7 @@ items <- function(
 {
   if (missing(type)) {
     if (!missing(coef)) {
-      if (!all(is.na(coef))) {
-        type <- ifelse(coef == .25, "固定业务", "其他业务")
-      }
+      type <- ifelse(vapply(coef, function(x) identical(x, .25), logical(1)), "固定业务", "其他业务")
     }
   }
   if (!missing(coef)) {
@@ -2641,6 +2643,8 @@ od_get <- function(file = "./mailparsed/part_1.md", key = "id",
         which <- menu(possibles, title = "Use which?")
         possibles[ which ]
       } else id
+    } else {
+      id
     }
   } else {
     ""
@@ -3606,6 +3610,13 @@ setdev <- function(width, height) {
 ## logistic
 new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"), B = 500, ...)
 {
+  fun_escape_bug_of_rms <- function() {
+    wh <- which(vapply(1:ncol(data), function(n) is.factor(data[[ n ]]), FUN.VALUE = logical(1)))
+    if (any(grpl(colnames(data)[ wh ], "\\s"))) {
+      stop("`Due to the bug of `rms`, the names of columns of which is factor, can not contains blank")
+    }
+  }
+  fun_escape_bug_of_rms()
   if (is.character(formula)) {
     message("Detected `formula` input with 'character', use as 'y'.")
     if (length(formula) > 1) {
@@ -3620,7 +3631,7 @@ new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"), B = 500,
         collapse = " + "
       )
     )
-    message("Guess Formula:", formula)
+    message("Guess Formula: ", formula)
     formula <- as.formula(formula)
   }
   isColChar <- apply(data, 2, is.character)
@@ -3636,10 +3647,11 @@ new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"), B = 500,
   }
   message("Check levels: ", paste0(levels <- levels(data[[ y ]]), collapse = ", "))
   set_rms_datadist(data)
-  fit <- rms::lrm(formula, data = data, x = T, y = T)
+  fit <- e(rms::lrm(formula, data = data, x = T, y = T))
   # 95\\% CL
   # exp(confint.default(lrm.eff$fit))
   if (T) {
+    message("Use boot to calculate average C-index ...")
     ## use boot to calculate average C-index and 95\\% CI
     fun_c_index <- function(data, indices) {
       data <- data[ indices, ]
@@ -3855,8 +3867,12 @@ new_pie <- function(x, title = NULL, use.ggplot = T, overlap = 30,
       label = paste0(var, " ", label), lab.x = .2,
       lab.y = value / 2 + c(0, cumsum(value)[ -length(value) ])
     )
-    palette <- if (length(x) > 10) color_set() 
-      else ggsci::pal_npg()(10)
+    palette <- if (length(x) > 40)
+      color_set(T)
+      else if (length(x) > 10)
+        color_set()
+      else
+        ggsci::pal_npg()(10)
     p <- ggplot(data, aes(x = 0L, y = value, fill = var)) +
       geom_bar(stat = 'identity', position = 'stack', width = 1) +
       fun_text(aes(x = lab.x, y = lab.y, label = label)) +
