@@ -559,6 +559,25 @@ download_herbCompounds <- function(link, ids,
         link$refresh()
       }
       Sys.sleep(.5)
+      ## check whether all the web page is all loaded
+      isOK <- F
+      if (grpl(url, "Herb$")) {
+        checkWhat <- "Herb id"
+      } else if (grpl(url, "Ingredient$")) {
+        checkWhat <- "Ingredient id"
+      }
+      while (!isOK) {
+        status <- try(link$findElement(
+            using = "xpath",
+            value = paste0("//main//div//ul//span//b[text()='", checkWhat, "']")
+            ), T)
+        if (!inherits(status, "try-error")) {
+          isOK <- T
+        } else {
+          message("Guess the page is loading...")
+          Sys.sleep(1)
+        }
+      }
       res <- try(silent = T, {
         ele <- link$findElement(
           using = "xpath",
@@ -566,13 +585,14 @@ download_herbCompounds <- function(link, ids,
         )
         Sys.sleep(.5)
         ele$sendKeysToElement(list("Download", key = "enter"))
-      })
+        })
       Sys.sleep(.5)
       if (inherits(res, "try-error")) {
         writeLines("", paste0(tempdir, "/empty_", jobn, ".xlsx"))
       }
       checks <- get_all()
       cli::cli_alert_info(paste0("Job number ", jobn))
+      ## sometimes these is no response
       while (length(checks) < jobn) {
         cli::cli_alert_info("Retry remotes response ...")
         ele$sendKeysToElement(list("Download", key = "enter"))

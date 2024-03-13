@@ -221,10 +221,14 @@ fxlsx <- function(file, ...) {
   as_tibble(data.frame(openxlsx::read.xlsx(file, ...)))
 }
 
-fxlsx2 <- function(file, n = NULL, .id = "sheet", bind = T, ...) {
+fxlsx2 <- function(file, n = NULL, .id = "sheet", bind = T, pattern = NULL, ...) {
   sheets <- openxlsx::getSheetNames(file)
   if (is.null(n)) {
-    n <- 1:length(sheets)
+    if (is.null(pattern)) {
+      n <- 1:length(sheets)
+    } else {
+      n <- grp(sheets, pattern)
+    }
   }
   lst <- lapply(n,
     function(n) {
@@ -2906,10 +2910,18 @@ auto_method <- function(rm = NULL, class = "job", envir = .GlobalEnv, exclude = 
     warning("Too large `job` (", size, ") add into 'internal_job' options (limit: ", limit, ").")
   }
   injobs <- getOption("internal_job", list())
-  hasMethods <- unlist(lapply(injobs, function(x) if (is(x, "job")) x@method else NULL))
-  if (!any(job@method == hasMethods)) {
-    injobs <- c(injobs, nl(class(job), list(job)))
-    options(internal_job = injobs)
+  if (!is(job, "job_publish")) {
+    hasMethods <- unlist(lapply(injobs, function(x) if (is(x, "job")) x@method else NULL))
+    if (!any(job@method == hasMethods)) {
+      injobs <- c(injobs, nl(class(job), list(job)))
+      options(internal_job = injobs)
+    }
+  } else {
+    hasCites <- unlist(lapply(injobs, function(x) if (is(x, "job")) x@cite else NULL))
+    if (!any(job@cite == hasCites)) {
+      injobs <- c(injobs, nl(class(job), list(job)))
+      options(internal_job = injobs)
+    }
   }
 }
 
