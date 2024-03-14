@@ -11,7 +11,7 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://github.com/satijalab/ogwas/wiki"),
+    info = c(""),
     cite = "[@MungesumstatsMurphy2021; @TheMrcIeuOpeElswor2020; @TheMrBasePlaHemani2018]",
     method = "R package `MungeSumstats` used for downloading or formatting GWAS summary data (from Open GWAS)"
     ))

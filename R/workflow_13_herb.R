@@ -122,9 +122,10 @@ setMethod("step2", signature = c(x = "job_herb"),
           data <- list(data)
         }
         if (nrow(lst)) {
-          lst <- list(lst, data)
-        } else
+          lst <- c(list(lst), data)
+        } else {
           lst <- data
+        }
       }
       if (is(lst, "list")) {
         data <- data.table::rbindlist(lst, fill = T)
@@ -267,12 +268,13 @@ setMethod("map", signature = c(x = "job_herb", ref = "list"),
     }
     if (length(ref)) {
       data <- dplyr::filter(data, Target.name %in% !!unlist(ref, use.names = F))
-      p.venn2dis <- new_venn(Diseases = unlist(ref, use.names = F), Targets = data$Target.name)
+      p.venn2dis <- new_venn(Diseases = unlist(ref, use.names = F), Targets = rm.no(x$data.allu$Target.name))
       x[[ paste0("p.venn2", name) ]] <- .set_lab(p.venn2dis, sig(x), "Targets intersect with targets of diseases")
     }
     herbs <- unique(x$data.allu[[1]])
     p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
       lab.fill = lab.level, force.ax1 = herbs, ...)
+    p.pharm$.data <- data
     if (length(ref)) {
       x[[ paste0("p.pharm2", name) ]] <- .set_lab(p.pharm, sig(x), "network pharmacology with disease")
     } else {
@@ -488,7 +490,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
     guides(size = "none", shape = "none") +
     scale_color_manual(values = rstyle("pal", seed)) +
     scale_edge_color_manual(values = c("Highlight" = "red", "Non-highlight" = "lightblue")) +
-    scale_edge_width_manual(values = c("Highlight" = 1, "Non-highlight" = .1)) +
+    scale_edge_width_manual(values = c("Highlight" = edge_width * 5, "Non-highlight" = edge_width)) +
     scale_fill_gradient +
     theme_minimal() +
     labs(color = "Type", edge_color = "Highlight", edge_width = "Highlight", fill = lab.fill) +

@@ -438,7 +438,11 @@ prepare_expr_data <- function(metadata, counts, genes, message = T)
   }
   lapply(list(counts[[ 1 ]], genes[[ 1 ]], metadata[[ 1 ]]), checkDup)
   colnames(metadata) %<>% make.names()
-  metadata <- dplyr::rename(metadata, sample = 1)
+  if (any(colnames(metadata) == "sample")) {
+    metadata <- dplyr::relocate(metadata, sample)
+  } else {
+    metadata <- dplyr::rename(metadata, sample = 1)
+  }
   counts <- dplyr::select(counts, 1, dplyr::all_of(metadata$sample))
   metadata$sample %<>% make.names()
   colnames(counts) %<>% make.names()

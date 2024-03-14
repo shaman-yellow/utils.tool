@@ -36,7 +36,9 @@ setMethod("step1", signature = c(x = "job_genecard"),
     return(x)
   })
 
-get_from_genecards <- function(query, score = 5, keep_drive = F, restrict = F) {
+get_from_genecards <- function(query, score = 5, keep_drive = F, restrict = F,
+  advance = F, term = c("compounds"))
+{
   link <- start_drive(browser = "firefox")
   Sys.sleep(3)
   link$open()
@@ -46,6 +48,10 @@ get_from_genecards <- function(query, score = 5, keep_drive = F, restrict = F) {
   }
   if (restrict) {
     query <- paste0("\"", query, "\"")
+  }
+  if (advance) {
+    term <- match.arg(term)
+    query <- paste0("%20%5B", term, "%5D%20%20(%20%20", query, "%20%20)%20")
   }
   url <- paste0('https://www.genecards.org/Search/Keyword?queryString=', query,
     '&pageSize=25000&startPage=0')
@@ -72,12 +78,14 @@ get_from_genecards <- function(query, score = 5, keep_drive = F, restrict = F) {
   }
   table <- filter(table, Score > !!score)
   attr(table, ".score") <- score
-  attr(table, "lich") <- new_lich(
-    list(
-      "The GeneCards data was obtained by querying" = query_raw,
-      "Restrict (with quotes)" = restrict,
-      "Filtering by Score:" = paste0("Score > ", score)
-    )
+  lich <- list(
+    "The GeneCards data was obtained by querying" = query_raw,
+    "Restrict (with quotes)" = restrict,
+    "Filtering by Score:" = paste0("Score > ", score)
   )
+  if (advance) {
+    lich <- c(lich, list("Advance search:" = paste0(" [", term, "]  (  ", query_raw, "  ) ")))
+  }
+  attr(table, "lich") <- new_lich(lich)
   return(table)
 }

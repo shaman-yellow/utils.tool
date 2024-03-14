@@ -17,13 +17,20 @@
     ))
 
 job_biomart2 <- function(values,
-  from = c("hsapiens_gene_ensembl", "sscrofa_gene_ensembl", "mmusculus_gene_ensembl"),
-  to = c("hsapiens_gene_ensembl", "sscrofa_gene_ensembl", "mmusculus_gene_ensembl"))
+  from = c("hsapiens_gene_ensembl", "sscrofa_gene_ensembl", "mmusculus_gene_ensembl", "rnorvegicus_gene_ensembl"),
+  to = c("hsapiens_gene_ensembl", "sscrofa_gene_ensembl", "mmusculus_gene_ensembl", "rnorvegicus_gene_ensembl"))
 {
-  dataset_map <- list("hsapiens_gene_ensembl" = "hgnc_symbol", "mmusculus_gene_ensembl" = "mgi_symbol")
+  dataset_map <- list(
+    "hsapiens_gene_ensembl" = "hgnc_symbol",
+    "mmusculus_gene_ensembl" = "mgi_symbol",
+    "rnorvegicus_gene_ensembl" = "rgd_symbol"
+  )
   args <- list()
   args$from <- match.arg(from)
   args$to <- match.arg(to)
+  if (!(any(args$to == names(dataset_map)) & any(args$from == names(dataset_map)))) {
+    stop("`dataset_map` do not have symbol names of ", args$from, " or ", args$to)
+  }
   args$fromAttri <- dplyr::recode(args$from, !!!dataset_map)
   args$toAttri <- dplyr::recode(args$to, !!!dataset_map)
   x <- .job_biomart2()
@@ -88,10 +95,14 @@ setMethod("step1", signature = c(x = "job_biomart2"),
   })
 
 setMethod("step2", signature = c(x = "job_biomart2"),
-  function(x, tops, use = c("P.Value", "adj.P.Val")){
+  function(x, tops, use = c("P.Value", "adj.P.Val"), idcol = colnames(x$mapped)[[1]])
+  {
     step_message("Add column in `tops`.")
     by <- colnames(x$mapped)[[1]]
     to <- colnames(x$mapped)[[2]]
+    if (idcol != by) {
+      tops[[ by ]] <- tops[[ idcol ]]
+    }
     if (any(to == colnames(tops))) {
       tops <- dplyr::select(tops, -!!rlang::sym(to))
     }
@@ -99,6 +110,7 @@ setMethod("step2", signature = c(x = "job_biomart2"),
     data <- dplyr::distinct(data, !!rlang::sym(to), .keep_all = T)
     use <- match.arg(use)
     data <- dplyr::arrange(data, !!rlang::sym(use))
+    data <- dplyr::relocate(data, !!rlang::sym(to), !!rlang::sym(by))
     x$tops_mapped <- data
     return(x)
   })
@@ -124,7 +136,8 @@ setMethod("step2", signature = c(x = "job_biomart2"),
 }
 
 new_biomart <- function(
-  dataset = c("hsapiens_gene_ensembl", "sscrofa_gene_ensembl", "mmusculus_gene_ensembl"),
+  dataset = c("hsapiens_gene_ensembl", "sscrofa_gene_ensembl", "mmusculus_gene_ensembl", "rnorvegicus_gene_ensembl"),
+  set_global = T,
   ...)
 {
   if (missing(dataset)) {
@@ -139,7 +152,9 @@ new_biomart <- function(
   if (is.null(predb)) {
     ensembl <- e(biomaRt::useEnsembl(biomart = "ensembl", dataset = dataset, ...))
     lst <- nl(dataset, list(ensembl))
-    options(biomart = lst)
+    if (set_global) {
+      options(biomart = lst)
+    }
   } else {
     ensembl <- predb
   }

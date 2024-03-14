@@ -154,9 +154,17 @@ setMethod("step2", signature = c(x = "job_enrich"),
     }, finally = {setwd("../")})
     x@tables[[ 2 ]] <- namel(res.pathviews)
     figs <- list.files(name, search, full.names = T)
-    p.pathviews <- lapply(figs, function(x) .file_fig(x))
-    names(p.pathviews) <- get_realname(figs)
-    p.pathviews <- .set_lab(p.pathviews, sig(x), names(p.pathviews), "visualization")
+    names <- get_realname(figs)
+    p.pathviews <- mapply(figs, names, SIMPLIFY = F,
+      FUN = function(x, name) {
+        x <- .file_fig(x)
+        attr(x, "lich") <- new_lich(
+          list("Interactive figure" = paste0("\\url{https://www.genome.jp/pathway/", name, "}"))
+        )
+        return(x)
+      })
+    names(p.pathviews) <- names
+    p.pathviews <- .set_lab(p.pathviews, sig(x), names, "visualization")
     x@plots[[ 2 ]] <- namel(p.pathviews)
     return(x)
   })
@@ -340,11 +348,16 @@ setMethod("filter", signature = c(x = "job_enrich"),
   function(x, pattern, ..., use = c("kegg", "go"), which = 1)
   {
     message("Search genes in enriched pathways.")
-    use <- match.arg(use)
-    if (use == "kegg") {
-      data <- x@tables$step1$res.kegg[[ which ]]
-    } else if (use == "go") {
-      data <- x@tables$step1$res.go[[ which ]]
+    if (is.character(use)) {
+      use <- match.arg(use)
+      if (use == "kegg") {
+        data <- x@tables$step1$res.kegg[[ which ]]
+      } else if (use == "go") {
+        data <- x@tables$step1$res.go[[ which ]]
+      }
+    } else if (is(use, "data.frame")) {
+      message("Custom passed `data` for searching.")
+      data <- use
     }
     isThat <- vapply(data$geneName_list, FUN.VALUE = logical(1),
       function(x) {
@@ -353,4 +366,21 @@ setMethod("filter", signature = c(x = "job_enrich"),
     data <- dplyr::filter(data, !!isThat)
     data <- .set_lab(data, sig(x), "filter by match genes")
     data
+  })
+
+setMethod("map", signature = c(x = "job_enrich", ref = "job_enrich"),
+  function(x, ref, use = c("kegg", "go"), key = 1, cutoff = .05, use.cutoff = c("p.adjust", "pvalue"))
+  {
+    message("Find intersection pathways across two 'job_enrich'")
+    use <- match.arg(use)
+    use.cutoff <- match.arg(use.cutoff)
+    fun_extract <- function(x) {
+      dplyr::filter(x@tables$step1[[ paste0("res.", use) ]][[ key ]],
+        !!rlang::sym(use.cutoff) < cutoff)
+    }
+    lst <- lapply(list(x, ref), fun_extract)
+    data <- dplyr::filter(lst[[1]], ID %in% !!lst[[2]]$ID)
+    data <- .set_lab(data, sig(x), "pathways intersection")
+    x$intersect_paths <- data
+    return(x)
   })

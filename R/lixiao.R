@@ -3088,8 +3088,13 @@ setMethod("autor", signature = c(x = "df", name = "character"),
 setMethod("autor", signature = c(x = "fig", name = "character"),
   function(x, name, ..., asis = getOption("autor_asis", T)){
     file <- autosv(x, name, ...)
-    if (asis)
+    if (asis) {
       abstract(x, name, ...)
+      if (!is.null(lich <- attr(x, "lich"))) {
+        abstract(lich, name = name)
+      }
+      abstract(x, name = name, ...)
+    }
     include(x, name, ...)
   })
 
@@ -3337,8 +3342,10 @@ setMethod("abstract", signature = c(x = "lich", name = "character", latex = "log
     }
     str <- sapply(names(x),
       function(name){
+        text <- x[[ name ]]
+        text <- gs(text, "\\\\href\\{", "\\\\url{")
         ch <- c("\n\\textbf{", name, ":}\n\n\\vspace{0.5em}\n")
-        ch <- c(ch, strwrap(stringr::str_trunc(x[[ name ]], 300), indent = 4, width = 60))
+        ch <- c(ch, strwrap(stringr::str_trunc(text, 300), indent = 4, width = 60))
         ch <- c(ch, "\n\\vspace{2em}\n")
         ch
       })

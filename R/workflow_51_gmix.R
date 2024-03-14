@@ -88,7 +88,7 @@ setMethod("step2", signature = c(x = "job_gmix"),
     }
     if (x$get_genecard) {
       cli::cli_alert_info("Get GeneCards")
-      t.genecard <- get_from_genecards(object(x), use.score, restrict)
+      t.genecard <- get_from_genecards(object(x), use.score, restrict = restrict)
       t.genecard <- .set_lab(t.genecard, sig(x), "GeneCards used data")
       tables <- c(tables, namel(t.genecard))
       lst.genes[[ paste0("GeneCards: ", object(x)) ]] <- t.genecard$Symbol
