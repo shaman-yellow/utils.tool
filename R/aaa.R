@@ -316,12 +316,13 @@ group_strings <-
 #' @aliases .find_and_sort_strings
 #' @description \code{.find_and_sort_strings}: ...
 #' @rdname utilites
-.find_and_sort_strings <- function(strings, patterns, ...){
-    sapply(patterns, simplify = F,
-           function(pattern){
-             strings[grepl(pattern, strings, perl = T, ...)]
-           })
-  }
+.find_and_sort_strings <- function(strings, patterns, ...)
+{
+  sapply(patterns, simplify = F,
+    function(pattern){
+      strings[grepl(pattern, strings, ...)]
+    })
+}
 
 #' @export maps
 #' @aliases maps

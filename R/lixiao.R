@@ -2816,7 +2816,7 @@ auto_material <- function(class = "job_PUBLISH", envir = .GlobalEnv) {
         if (length(obj@cite)) {
           x <- list(cite = obj@cite, method = obj@method)
           list(type = "publish",
-            content = c(paste0("- ", x$method, x$cite, "."))
+            content = c(paste0("- ", x$method, " ", gs(x$cite, "\\[@(.*)\\]", "\\1"), x$cite, "."))
           )
         }
       }
@@ -3089,13 +3089,14 @@ setMethod("autor", signature = c(x = "fig", name = "character"),
   function(x, name, ..., asis = getOption("autor_asis", T)){
     file <- autosv(x, name, ...)
     if (asis) {
-      abstract(x, name, ...)
-      if (!is.null(lich <- attr(x, "lich"))) {
-        abstract(lich, name = name)
-      }
       abstract(x, name = name, ...)
     }
     include(x, name, ...)
+    if (asis) {
+      if (!is.null(lich <- attr(x, "lich"))) {
+        abstract(lich, name = name)
+      }
+    }
   })
 
 setMethod("autor", signature = c(x = "files", name = "character"),

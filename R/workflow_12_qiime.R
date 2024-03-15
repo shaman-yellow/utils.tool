@@ -539,3 +539,47 @@ try_fqs_meta <- function(metadata, filepath, filter = F) {
 activate_qiime <- function(env_pattern = "qiime", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda") {
   activate_base(env_pattern, env_path, conda)
 }
+
+get_taxon_data <- function(file = .prefix("qiime2/taxonomy.tsv", "db")) {
+  if (!file.exists(file)) {
+    # system("wget https://data.qiime2.org/2024.2/common/silva-138-99-tax.qza")
+    stop("Please download the taxonomy file from qiime2 website.")
+  }
+  ftibble(file)[, -1]
+}
+
+query_class <- function(x, level = c("g", "p", "c", "o", "f", "s"),
+  use.first = T, fun_data = get_taxon_data)
+{
+  if (is.null(ref <- getOption("taxon_data", NULL))) {
+    message("Got and set global taxonomy data for querying")
+    ref <- fun_data()
+    options(taxon_data = ref)
+  }
+  if (use.first) {
+    x <- strx(x, "[a-zA-Z0-9\\-]{2,}")
+  }
+  level <- match.arg(level)
+  ref <- dplyr::mutate(ref, Taxon = gs(Taxon, paste0("(.*", level, "__", "[^_]*?;).*"), "\\1"))
+  ref <- dplyr::distinct(ref)
+  xUnique <- unique(x)
+  res <- .find_and_sort_strings(ref$Taxon, xUnique, T)
+  res <- vapply(res,
+    function(x) {
+      if (identical(x, character(0))) {
+        NA_character_ 
+      } else {
+        x <- unique(x)
+        if (length(x) > 1) {
+          warning("length(x) > 1, use first: ", x[1])
+          x <- x[1]
+        }
+        x
+      }
+    },
+    FUN.VALUE = character(1), USE.NAMES = F
+  )
+  res[ match(x, xUnique) ]
+}
+
+

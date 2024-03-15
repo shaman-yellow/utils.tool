@@ -94,6 +94,19 @@ setGeneric("ping",
   function(x, ...) standardGeneric("ping"))
 setGeneric("login", 
   function(x, ...) standardGeneric("login"))
+setGeneric("ref", 
+  function(x, ...) standardGeneric("ref"))
+
+setMethod("ref", signature = c(x = "character"),
+  function(x, add_internal_job = T){
+    ref <- strx(x, "[A-Z][A-Za-z]{10,}[0-9]{4}")
+    message("Extracted reference: ", ref)
+    if (add_internal_job) {
+      job <- .job_publish(cite = paste0("[@", ref, "]"))
+      .add_internal_job(job)
+    }
+    return(x)
+  })
 
 setMethod("lab", signature = c(x = "ANY"),
   function(x, ...){
