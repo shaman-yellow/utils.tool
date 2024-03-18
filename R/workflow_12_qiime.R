@@ -549,7 +549,7 @@ get_taxon_data <- function(file = .prefix("qiime2/taxonomy.tsv", "db")) {
 }
 
 query_class <- function(x, level = c("g", "p", "c", "o", "f", "s"),
-  use.first = T, fun_data = get_taxon_data)
+  use.first = T, fun_data = get_taxon_data, strict = T)
 {
   if (is.null(ref <- getOption("taxon_data", NULL))) {
     message("Got and set global taxonomy data for querying")
@@ -563,7 +563,8 @@ query_class <- function(x, level = c("g", "p", "c", "o", "f", "s"),
   ref <- dplyr::mutate(ref, Taxon = gs(Taxon, paste0("(.*", level, "__", "[^_]*?;).*"), "\\1"))
   ref <- dplyr::distinct(ref)
   xUnique <- unique(x)
-  res <- .find_and_sort_strings(ref$Taxon, xUnique, T)
+  res <- .find_and_sort_strings(ref$Taxon,
+    if (strict) paste0("__", xUnique, ";") else xUnique, T)
   res <- vapply(res,
     function(x) {
       if (identical(x, character(0))) {
