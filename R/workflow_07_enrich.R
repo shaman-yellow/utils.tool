@@ -153,18 +153,7 @@ setMethod("step2", signature = c(x = "job_enrich"),
         })
     }, finally = {setwd("../")})
     x@tables[[ 2 ]] <- namel(res.pathviews)
-    figs <- list.files(name, search, full.names = T)
-    names <- get_realname(figs)
-    p.pathviews <- mapply(figs, names, SIMPLIFY = F,
-      FUN = function(x, name) {
-        x <- .file_fig(x)
-        attr(x, "lich") <- new_lich(
-          list("Interactive figure" = paste0("\\url{https://www.genome.jp/pathway/", name, "}"))
-        )
-        return(x)
-      })
-    names(p.pathviews) <- names
-    p.pathviews <- .set_lab(p.pathviews, sig(x), names, "visualization")
+    p.pathviews <- .pathview_search(name, search, x)
     x@plots[[ 2 ]] <- namel(p.pathviews)
     return(x)
   })
@@ -343,30 +332,6 @@ vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
     })
   res
 }
-
-setMethod("filter", signature = c(x = "job_enrich"),
-  function(x, pattern, ..., use = c("kegg", "go"), which = 1)
-  {
-    message("Search genes in enriched pathways.")
-    if (is.character(use)) {
-      use <- match.arg(use)
-      if (use == "kegg") {
-        data <- x@tables$step1$res.kegg[[ which ]]
-      } else if (use == "go") {
-        data <- x@tables$step1$res.go[[ which ]]
-      }
-    } else if (is(use, "data.frame")) {
-      message("Custom passed `data` for searching.")
-      data <- use
-    }
-    isThat <- vapply(data$geneName_list, FUN.VALUE = logical(1),
-      function(x) {
-        any(grpl(x, pattern, ...))
-      })
-    data <- dplyr::filter(data, !!isThat)
-    data <- .set_lab(data, sig(x), "filter by match genes")
-    data
-  })
 
 setMethod("map", signature = c(x = "job_enrich", ref = "job_enrich"),
   function(x, ref, use = c("kegg", "go"), key = 1, cutoff = .05, use.cutoff = c("p.adjust", "pvalue"))

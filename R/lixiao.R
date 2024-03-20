@@ -16,6 +16,11 @@ fig <- setClass("fig",
   representation = representation(),
   prototype = NULL)
 
+setMethod("$", signature = c(x = "fig"),
+  function(x){
+    attr(x, "lich")
+  })
+
 f <- function(file) {
   .file_fig(file)
 }

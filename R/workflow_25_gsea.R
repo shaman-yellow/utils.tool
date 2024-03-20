@@ -212,7 +212,7 @@ setMethod("step3", signature = c(x = "job_gsea"),
           res.pathview <- try(
             pathview::pathview(gene.data = genes,
               pathway.id = pathway, species = species,
-              keys.align = "y", kegg.native = T,
+              keys.align = "y", kegg.native = T, same.layer = F,
               key.pos = "topright", na.col = "grey90")
           )
           if (inherits(res.pathview, "try-error")) {
@@ -222,12 +222,26 @@ setMethod("step3", signature = c(x = "job_gsea"),
         })
     }, finally = {setwd("../")})
     x@tables[[ 3 ]] <- namel(res.pathviews)
-    figs <- list.files(name, search, full.names = T)
-    p.pathviews <- lapply(figs, function(x) .file_fig(x))
-    names(p.pathviews) <- get_realname(figs)
+    p.pathviews <- .pathview_search(name, search, x)
     x@plots[[ 3 ]] <- namel(p.pathviews)
     return(x)
   })
+
+.pathview_search <- function(name, search, x) {
+  figs <- list.files(name, search, full.names = T)
+  names <- get_realname(figs)
+  p.pathviews <- mapply(figs, names, SIMPLIFY = F,
+    FUN = function(x, name) {
+      x <- .file_fig(x)
+      attr(x, "lich") <- new_lich(
+        list("Interactive figure" = paste0("\\url{https://www.genome.jp/pathway/", name, "}"))
+      )
+      return(x)
+    })
+  names(p.pathviews) <- names
+  p.pathviews <- .set_lab(p.pathviews, sig(x), names, "visualization")
+  p.pathviews
+}
 
 setMethod("step4", signature = c(x = "job_gsea"),
   function(x, db, cutoff = .05, map = NULL, pvalue = F){
@@ -261,18 +275,59 @@ setMethod("step4", signature = c(x = "job_gsea"),
     return(x)
   })
 
-setMethod("filter", signature = c(x = "job_gsea"),
-  function(x, ref, use = c("entrezgene_id", "symbol")){
-    use <- match.arg(use)
-    isThat <- names(object(x)[[ use ]]) %in% ref
-    object(x) <- lapply(object(x),
-      function(x) {
-        x[ isThat ]
-      })
-    return(x)
-  })
+# setMethod("filter", signature = c(x = "job_gsea"),
+  # function(x, ref, use = c("entrezgene_id", "symbol")){
+  #   use <- match.arg(use)
+  #   isThat <- names(object(x)[[ use ]]) %in% ref
+  #   object(x) <- lapply(object(x),
+  #     function(x) {
+  #       x[ isThat ]
+  #     })
+  #   return(x)
+  # })
 
-setClassUnion("jobn_enrich", c("job_gsea", "job_gsea"))
+setClassUnion("jobn_enrich", c("job_gsea", "job_enrich"))
+
+setMethod("filter", signature = c(x = "jobn_enrich"),
+  function(x, pattern, ..., use = c("kegg", "go"), which = 1, genes = NULL)
+  {
+    message("Search genes in enriched pathways.")
+    if ((missing(pattern) || is.null(pattern)) & !is.null(genes)) {
+      pattern <- paste0(paste0("^", genes, "$"), collapse = "|")
+    }
+    if (is(x, "job_gsea")) {
+      prefix <- "table_"
+    } else {
+      prefix <- "res."
+    }
+    if (is.character(use)) {
+      use <- match.arg(use)
+      if (use == "kegg") {
+        data <- x@tables$step1[[ paste0(prefix, "kegg") ]]
+      } else if (use == "go") {
+        data <- x@tables$step1[[ paste0(prefix, "go") ]]
+      }
+      if (is(x, "job_enrich")) {
+        data <- data[[ which ]]
+      }
+    } else if (is(use, "data.frame")) {
+      message("Custom passed `data` for searching.")
+      data <- use
+    }
+    isThat <- vapply(data$geneName_list, FUN.VALUE = logical(1),
+      function(x) {
+        any(grpl(x, pattern, ...))
+      })
+    data <- dplyr::filter(data, !!isThat)
+    if (!is.null(genes)) {
+      data[[ "match_genes" ]] <- lapply(data[[ "geneName_list" ]],
+        function(x) {
+          x[x %in% genes]
+        })
+    }
+    data <- .set_lab(data, sig(x), "filter by match genes")
+    data
+  })
 
 setMethod("map", signature = c(x = "job_monocle", ref = "jobn_enrich"),
   function(x, ref, pathways,
@@ -319,6 +374,7 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
   ## nodes for location
   nodes <- tidyr::gather(edges, type, name, -log2fc, -ID)
   nodes <- split(nodes, ~type)
+  nodes$Symbol <- dplyr::distinct(nodes$Symbol, name, log2fc, type)
   nodes$Symbol <- dplyr::arrange(nodes$Symbol, log2fc)
   nodes$Symbol <- dplyr::mutate(
     nodes$Symbol, x = -max(data$GeneRatio) * (1 + shift),
@@ -334,8 +390,8 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
   ## custom layout
   graph <- fast_layout(edges, dplyr::select(nodes, x, y), nodes = dplyr::select(nodes, -x, -y))
   p <- ggraph(graph) +
-    geom_edge_diagonal(aes(x = x, y = y, width = abs(log2fc)),
-      color = sample(ggsci::pal_npg()(10), 1), strength = 1, flipped = T, alpha = .1) +
+    geom_edge_diagonal(aes(x = x, y = y, width = abs(log2fc), edge_color = node2.name),
+      strength = 1, flipped = T, alpha = .25) +
     geom_node_label(
       data = filter(nodes, type == "Symbol"),
       aes(label = name, x = x, y = y, fill = log2fc),
@@ -349,10 +405,11 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
       aes(x = - shift * max(GeneRatio) / 2, y = path.p, label = stringr::str_wrap(Description, 50)),
       hjust = 1, size = 4) +
     geom_vline(xintercept = 0L, linetype = 4) +
-    labs(x = "GeneRatio", y = "", edge_width = "|log2(FC)|", fill = "log2(FC)") +
+    labs(x = "GeneRatio", y = "", edge_width = "|log2(FC)|", fill = "log2(FC)", edge_color = "Highlight Pathways") +
     rstyle("theme") +
     theme(axis.text.y = element_blank()) +
     scale_fill_gradient2(low = "#3182BDFF", high = "#A73030FF") +
+    scale_edge_color_manual(values = color_set()) +
     scale_color_gradientn(colours = color_set2()) +
     scale_x_continuous(breaks = round(seq(0, max(data$GeneRatio), length.out = 4), 3),
       limits = c(-max(data$GeneRatio) * (1 + shift) * 1.2, max(data$GeneRatio))) +

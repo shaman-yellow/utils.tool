@@ -16,16 +16,19 @@
     method = "The CLI tools of `AutoDock vina` and `ADFR` software used for auto molecular docking"
     ))
 
-job_vina <- function(cids, hgnc_symbols)
+job_vina <- function(cids, hgnc_symbols, .layout = NULL)
 {
-  .job_vina(object = namel(cids, hgnc_symbols))
+  x <- .job_vina(object = namel(cids, hgnc_symbols))
+  x$.layout <- .layout
+  x
 }
 
 setGeneric("asjob_vina", 
   function(x, ...) standardGeneric("asjob_vina"))
 
 setMethod("asjob_vina", signature = c(x = "job_stringdb"),
-  function(x, cids, job_herb = NULL, compounds = NULL, hubs = 10){
+  function(x, cids, job_herb = NULL, compounds = NULL, hubs = 10)
+  {
     hgnc_symbols <- head(x@tables$step1$hub_genes$hgnc_symbol, n = hubs)
     if (!is.null(job_herb)) {
       compounds_targets <- dplyr::filter(job_herb@tables$step2$compounds_targets,
@@ -124,6 +127,7 @@ setMethod("step3", signature = c(x = "job_vina"),
       pdb.files <- NULL
     }
     if (!is.null(extra_pdb.files)) {
+      names(extra_pdb.files) <- tolower(names(extra_pdb.files))
       pdb.files <- c(pdb.files, extra_pdb.files)
       if (is.null(extra_symbols)) {
         extra_symbols <- nl(toupper(names(extra_pdb.files)), names(extra_pdb.files), F)
@@ -153,11 +157,32 @@ setMethod("step3", signature = c(x = "job_vina"),
     gotSymbols <- x$targets_annotation$hgnc_symbol[ match(tolower(names), tolower(x$targets_annotation$pdb)) ]
     x$res.receptor.symbol <- gotSymbols
     message("Not got: ", object(x)$hgnc_symbol %>% .[ !. %in% gotSymbols ])
+    if (!is.null(x$.layout)) {
+      message("Customize using `x$.layout` columns: ", paste0(colnames(x$.layout)[1:2], collapse = ", "))
+      x <- filter(x, x$.layout[[ 1 ]], x$.layout[[ 2 ]])
+    }
+    return(x)
+  })
+
+setMethod("filter", signature = c(x = "job_vina"),
+  function(x, cpd, symbol, cid = NULL)
+  {
+    message("Custom specified docking.")
+    if (x@step != 3L) {
+      stop("x@step != 3L")
+    }
+    if (is.null(cid)) {
+      cid <- unname(object(x)$cids[ match(cpd, names(object(x)$cids)) ])
+    }
+    ref <- dplyr::distinct(x$targets_annotation, hgnc_symbol, .keep_all = T)
+    pdb <- ref$pdb[ match(symbol, ref$hgnc_symbol) ]
+    layout <- nl(cid, pdb)
+    x$dock_layout <- layout
     return(x)
   })
 
 setMethod("step4", signature = c(x = "job_vina"),
-  function(x, time = 3600, savedir = "vina_space", log = "/tmp/res.log", save.object = "vn3.rds")
+  function(x, time = 3600 * 2, savedir = "vina_space", log = "/tmp/res.log", save.object = "vn3.rds")
   {
     step_message("Run vina ...")
     runs <- tibble::tibble(
@@ -178,7 +203,7 @@ setMethod("step4", signature = c(x = "job_vina"),
         lig <- x$res.ligand[[ v[1] ]]
         recep <- x$res.receptor[[ tolower(v[2]) ]]
         n <<- n + 1
-        vina_limit(lig, recep, time, dir = savedir)
+        vina_limit(lig, recep, time, dir = savedir, x = x)
       }
     )
     return(x)
@@ -256,8 +281,15 @@ vina_limit <- function(lig, recep, timeLimit = 120, dir = "vina_space", ...) {
 }
 
 vina <- function(lig, recep, dir = "vina_space",
-  exhaustiveness = 32, scoring = "ad4", stout = "/tmp/res.log", timeLimit = 60)
+  exhaustiveness = 32, scoring = "ad4", stout = "/tmp/res.log", timeLimit = 60,
+  x)
 {
+  remote <- F
+  if (!missing(x)) {
+    if (is.remote(x)) {
+      remote <- T
+    }
+  }
   if (!file.exists(dir)) {
     dir.create(dir, F)
   } 
@@ -271,14 +303,30 @@ vina <- function(lig, recep, dir = "vina_space",
     files <- get_filename(c(lig, recep))
     .cdRun("prepare_gpf.py -l ", files[1], " -r ", files[2], " -y")
     .cdRun("autogrid4 -p ", reals[2], ".gpf ", " -l ", reals[2], ".glg")
-    cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = T)
-    try(.cdRun("timeout ", timeLimit, 
+    if (remote) {
+      message("Run in remote server.")
+      cdRun("scp -r ", subdir, " ", x$remote, ":", x$wd, path = dir)
+      remoteWD <- x$wd
+      x$wd <- paste0(x$wd, "/", subdir)
+      output <- paste0(subdir, "_out.pdbqt")
+      rem_run("timeout ", timeLimit, 
         " vina  --ligand ", files[1],
         " --maps ", reals[2],
         " --scoring ", scoring,
         " --exhaustiveness ", exhaustiveness,
-        " --out ", subdir, "_out.pdbqt",
-        " >> ", stout), T)
+        " --out ", output, 
+        " >> ", stout)
+      get_file_from_remote(output, x$wd, paste0(wd, "/", output))
+    } else {
+      cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = T)
+      try(.cdRun("timeout ", timeLimit, 
+          " vina  --ligand ", files[1],
+          " --maps ", reals[2],
+          " --scoring ", scoring,
+          " --exhaustiveness ", exhaustiveness,
+          " --out ", subdir, "_out.pdbqt",
+          " >> ", stout), T)
+    }
   }
 }
 
@@ -430,3 +478,11 @@ prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {
   file[ vapply(file, file.exists, logical(1)) ]
 }
 
+setMethod("set_remote", signature = c(x = "job_vina"),
+  function(x, wd, remote = "remote")
+  {
+    x$wd <- wd
+    x$set_remote <- T
+    x$remote <- remote
+    return(x)
+  })

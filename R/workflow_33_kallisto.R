@@ -36,9 +36,22 @@ setMethod("step0", signature = c(x = "job_kall"),
   })
 
 setMethod("step1", signature = c(x = "job_kall"),
-  function(x, idx = .prefix("hg38_mrna.idx", "db"), ref_file = .prefix("Homo_sapiens.GRCh38.cdna.all.fa.gz", "db"))
-    {
+  function(x, idx = .prefix("hg38_mrna.idx", "db"),
+    ref_file = .prefix("Homo_sapiens.GRCh38.cdna.all.fa.gz", "db"),
+    org = NULL)
+  {
     step_message("Prepare kallisto gene reference index file.")
+    if (!is.null(org)) {
+      org <- match.arg(org, c("hsa", "mmu"))
+      idx <- switch(org,
+        hsa = .prefix("hg38_mrna.idx", "db"),
+        mmu = .prefix("mus39_mrna.idx", "db")
+      )
+      ref_file <- switch(org,
+        hsa = .prefix("Homo_sapiens.GRCh38.cdna.all.fa.gz", "db"),
+        mmu = .prefix("Mus_musculus.GRCm39.cdna.all.fa.gz", "db")
+      )
+    }
     if (!file.exists(idx)) {
       kall_index(ref_file, idx)
     }
@@ -74,7 +87,22 @@ setMethod("step2", signature = c(x = "job_kall"),
 setMethod("step3", signature = c(x = "job_kall"),
   function(x, path = x$output){
     step_message("Collate all quantification results.")
-    res <- as_tibble(read_kall_quant(path))
+    res <- read_kall_quant(path)
+    res <- lapply(res, as_tibble)
     x@tables[[ 3 ]] <- res
     return(x)
   })
+
+setMethod("meta", signature = c(x = "job_kall"),
+  function(x, sra, geo, col.group = "title")
+  {
+    message("Try get metadata.")
+    metadata <- x@tables$step3$metadata
+    metadata <- dplyr::mutate(metadata, sample1 = gs(sample, "1$", ""))
+    metadata <- map(metadata, "sample1", sra$info, "Run", "SampleName", col = "gsm")
+    metadata <- map(metadata, "gsm", geo.sii$guess, "rownames", col.group, col = "group")
+    metadata <- relocate(metadata, sample, group)
+    metadata
+  })
+
+
