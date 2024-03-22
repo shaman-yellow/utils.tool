@@ -18,6 +18,11 @@
 
 job_vina <- function(cids, hgnc_symbols, .layout = NULL)
 {
+  if (missing(cids) || missing(hgnc_symbols)) {
+    message("Get from `.layout` first 3 columns: cpd names, hgnc_symbols, cids")
+    cids <- nl(.layout[[ 1 ]], .layout[[ 3 ]])
+    hgnc_symbols <- .layout[[ 2 ]]
+  }
   x <- .job_vina(object = namel(cids, hgnc_symbols))
   x$.layout <- .layout
   x
@@ -55,7 +60,7 @@ setMethod("step0", signature = c(x = "job_vina"),
   })
 
 setMethod("step1", signature = c(x = "job_vina"),
-  function(x, bdb = NULL, each_target = 1, pdbs = NULL)
+  function(x, bdb = F, each_target = 1, pdbs = NULL, bdb_file = .prefix("BindingDB_All_202401.tsv", "db"))
   {
     step_message("Prepare Docking Combination.")
     if (is.null(x$mart)) {
@@ -82,9 +87,10 @@ setMethod("step1", signature = c(x = "job_vina"),
       x$targets_annotation <- tibble::add_row(x$targets_annotation, !!!pdbs)
       x$targets_annotation <- dplyr::distinct(x$targets_annotation, hgnc_symbol, .keep_all = T)
     }
-    if (!is.null(bdb)) {
-      if (file.exists(bdb)) {
-        bdb <- ld_cutRead(bdb, c("PubChem CID", "PDB ID(s) of Target Chain"))
+    if (bdb) {
+      if (file.exists(bdb_file)) {
+        message("Database `BindingDB` used for pre-filtering of docking candidates.")
+        bdb <- ld_cutRead(bdb_file, c("PubChem CID", "PDB ID(s) of Target Chain"))
         bdb <- dplyr::filter(bdb, `PubChem CID` %in% object(x)$cids)
         colnames(bdb) <- c("PubChem_id", "pdb_id")
         x@params$bdb_compounds_targets <- bdb
@@ -92,7 +98,12 @@ setMethod("step1", signature = c(x = "job_vina"),
         bdb <- lst_clear0(bdb)
         bdb <- lapply(bdb, function(v) v[ v %in% x$targets_annotation$pdb ])
         bdb <- lst_clear0(bdb)
+        if (!length(bdb)) {
+          stop("No candidates found in BindingDB.")
+        }
         x$dock_layout <- bdb
+        .add_internal_job(.job(method = "Database `BindingDB` used for pre-filtering of docking candidates.",
+            cite = "[@BindingdbIn20Gilson2016]"))
       }
     } else {
       pdbs <- split(x$targets_annotation$pdb, x$targets_annotation$hgnc_symbol)
@@ -104,20 +115,64 @@ setMethod("step1", signature = c(x = "job_vina"),
   })
 
 setMethod("step2", signature = c(x = "job_vina"),
-  function(x, cl = 10){
+  function(x, try_cluster_random = T, nGroup = 30, nMember = 3, cl = 10)
+  {
     step_message("Download sdf files and convert as pdbqt for ligands.")
     sdfFile <- query_sdfs(unique(names(x$dock_layout)), curl_cl = cl)
-    res.pdbqt <- mk_prepare_ligand.sdf(sdfFile) 
+    Show_filter <- F
+    if (try_cluster_random) {
+      if (length(object(x)$cids) > nGroup) {
+        message("To reduce docking candidates, clustering the molecules, and random sample each group to get `n`")
+        set.seed(100)
+        sdfset <- e(ChemmineR::read.SDFset(sdfFile))
+        message("Read ", length(sdfset), " molecules.")
+        apset <- e(ChemmineR::sdf2ap(sdfset))
+        cluster <- e(ChemmineR::cmp.cluster(db = apset, cutoff = seq(0.9, 0.4, by = -0.1)))
+        cluster <- dplyr::select(cluster, 1, dplyr::starts_with("CLID"))
+        nCl <- apply(cluster[, -1], 2, function(x) length(unique(x)))
+        useWhich <- which( nCl < 30 )[1] + 1
+        if (is.na(useWhich)) {
+          useWhich <- menu(paste0(names(nCl), "__", unname(nCl)), title = "Need custom select for cutoff.")
+          useWhich <- useWhich + 1
+        }
+        message("Use cutoff: ", colnames(cluster)[useWhich])
+        groups <- split(seq_along(sdfset), cluster[useWhich])
+        message("Now, get group number: ", length(groups))
+        groups <- lapply(groups,
+          function(x) {
+            if (length(x) > nMember) {
+              sample(x, nMember)
+            } else x
+          })
+        sdfset <- sdfset[unlist(groups, use.names = F)]
+        MaybeError <- vapply(ChemmineR::cid(sdfset), FUN.VALUE = logical(1),
+          function(x) {
+            dim(sdfset[[x]][[2]])[2] < 3
+        })
+        sdfset <- sdfset[which(!MaybeError)]
+        sdfFile <- gs(sdfFile, "\\.sdf$", "_random.sdf")
+        e(ChemmineR::write.SDF(sdfset, sdfFile))
+        Show_filter <- T
+      }
+    }
+    sdfFile <- cal_3d_sdf(sdfFile)
+    if (Show_filter) {
+      message("Filter out (Due to Chemmine bug): ", length(which(MaybeError)))
+      message("Now, Total docking molecules: ", length(sdfset))
+    }
+    res.pdbqt <- mk_prepare_ligand.sdf(sdfFile)
     x$res.ligand <- nl(res.pdbqt$pdbqt.cid, res.pdbqt$pdbqt)
-    message("Got: ", length(x$res.ligand))
+    message("Got (filter out in `mk_prepare_ligand.sdf`): ", length(x$res.ligand))
     alls <- as.character(object(x)$cid)
     message("Not got:", paste0(alls[!alls %in% names(x$res.ligand)], collapse = ", "))
+    message("Filter the `x@dock_layout`")
+    x$dock_layout <- x$dock_layout[ names(x$dock_layout) %in% names(x$res.ligand) ]
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_vina"),
   function(x, cl = 10, pattern = NULL,
-    extra_pdb.files = NULL, extra_layouts = NULL, extra_symbols = NULL)
+    extra_pdb.files = NULL, extra_layouts = NULL, extra_symbols = NULL, filter = T)
   {
     step_message("Dowload pdb files for Receptors.")
     ids <- unique(unlist(x$dock_layout, use.names = F))
@@ -157,9 +212,11 @@ setMethod("step3", signature = c(x = "job_vina"),
     gotSymbols <- x$targets_annotation$hgnc_symbol[ match(tolower(names), tolower(x$targets_annotation$pdb)) ]
     x$res.receptor.symbol <- gotSymbols
     message("Not got: ", object(x)$hgnc_symbol %>% .[ !. %in% gotSymbols ])
-    if (!is.null(x$.layout)) {
-      message("Customize using `x$.layout` columns: ", paste0(colnames(x$.layout)[1:2], collapse = ", "))
-      x <- filter(x, x$.layout[[ 1 ]], x$.layout[[ 2 ]])
+    if (filter) {
+      if (!is.null(x$.layout)) {
+        message("Customize using `x$.layout` columns: ", paste0(colnames(x$.layout)[1:2], collapse = ", "))
+        x <- filter(x, x$.layout[[ 1 ]], x$.layout[[ 2 ]])
+      }
     }
     return(x)
   })
@@ -215,10 +272,11 @@ setMethod("step5", signature = c(x = "job_vina"),
     step_message("Summary and visualization for results.")
     x$summary_vina <- summary_vina(x$savedir)
     res_dock <- dplyr::mutate(x$summary_vina, PubChem_id = as.integer(PubChem_id))
-    res_dock <- tbmerge(res_dock, dplyr::mutate(x$targets_annotation, pdb = tolower(pdb)),
-      by.x = "PDB_ID", by.y = "pdb", all.x = T)
+    anno <- dplyr::mutate(x$targets_annotation, pdb = tolower(pdb))
+    res_dock <- map(res_dock, "PDB_ID", anno, "pdb", "hgnc_symbol", col = "hgnc_symbol")
     if (!is.null(x$from_job_herb)) {
-      res_dock <- tbmerge(res_dock, x$compounds, by = "PubChem_id", all.x = T)
+      res_dock <- map(res_dock, "PubChem_id",
+        x$compounds, "PubChem_id", "Ingredient_name", col = "Ingredient_name")
       facet <- "Ingredient_name"
     } else {
       if (missing(compounds)) {
@@ -231,10 +289,11 @@ setMethod("step5", signature = c(x = "job_vina"),
         by.y <- "PubChem_id"
         facet <- "Ingredient_name"
       }
-      res_dock <- tbmerge(res_dock, compounds,
-        by.x = "PubChem_id", by.y = by.y, all.x = T)
+      res_dock <- map(res_dock, "PubChem_id",
+        compounds, "PubChem_id", "Ingredient_name", col = "Ingredient_name")
     }
     res_dock <- dplyr::arrange(res_dock, Affinity)
+    res_dock <- dplyr::filter(res_dock, !is.na(!!rlang::sym(facet)))
     data <- dplyr::distinct(res_dock, PubChem_id, hgnc_symbol, .keep_all = T)
     if (!is.null(excludes)) {
       data <- dplyr::filter(data, !hgnc_symbol %in% !!excludes)
@@ -257,7 +316,8 @@ setMethod("step5", signature = c(x = "job_vina"),
 setMethod("step6", signature = c(x = "job_vina"),
   function(x, time = 2){
     step_message("Use pymol for all visualization.")
-    pbapply::pbapply(x@tables$step5$res_dock, 1,
+    data <- dplyr::filter(x@tables$step5$res_dock, Affinity < 0)
+    pbapply::pbapply(data, 1,
       function(v) {
         vinaShow(v[[ "Combn" ]], v[[ "PDB_ID" ]], timeLimit = time)
       }
@@ -268,7 +328,8 @@ setMethod("step6", signature = c(x = "job_vina"),
 setMethod("step7", signature = c(x = "job_vina"),
   function(x, time = 120, backup = "./figs"){
     step_message("Custom visualization.")
-    pbapply::pbapply(x@tables$step5$unique_tops, 1,
+    data <- dplyr::filter(x@tables$step5$unique_tops, Affinity < 0)
+    pbapply::pbapply(data, 1,
       function(v) {
         vinaShow(v[[ "Combn" ]], v[[ "PDB_ID" ]], timeLimit = time, backup = backup)
       }
@@ -316,7 +377,7 @@ vina <- function(lig, recep, dir = "vina_space",
         " --exhaustiveness ", exhaustiveness,
         " --out ", output, 
         " >> ", stout)
-      get_file_from_remote(output, x$wd, paste0(wd, "/", output))
+      try(get_file_from_remote(output, x$wd, paste0(wd, "/", output)))
     } else {
       cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = T)
       try(.cdRun("timeout ", timeLimit, 
@@ -339,6 +400,12 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
   wd <- paste0(dir, "/", subdir)
   out <- paste0(Combn, "_out.pdbqt")
   recep <- paste0(recep, ".pdbqt")
+  if (!file.exists(recep)) {
+    maybethat <- list.files(wd, recep, ignore.case = T)
+    if (length(maybethat)) {
+      recep <- maybethat[1]
+    }
+  }
   res <- paste0(Combn, ".png")
   .cdRun <- function(...) cdRun(..., path = wd)
   try(.cdRun("timeout ", timeLimit, 
@@ -370,7 +437,7 @@ summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$")
   )
   res_dock <- dplyr::mutate(
     res_dock, PubChem_id = stringr::str_extract(Combn, "^[^_]{1,}"),
-    PDB_ID = stringr::str_extract(Combn, "[^_]{1,}$"),
+    PDB_ID = tolower(stringr::str_extract(Combn, "[^_]{1,}$")),
     dir = paste0(space, "/", Combn),
     file = paste0(dir, "/", Combn, "_out.pdbqt")
   )
@@ -403,6 +470,7 @@ lst_clear0 <- function(lst, len = 0) {
 ld_cutRead <- function(file, cols, abnum = T, sep = "\t", tmp = "/tmp/ldtmp.txt") {
   if (is.character(cols)) {
     names <- ld_cols(file, sep)
+    message("Find columns of: ", paste0(names[ names %in% cols ], collapse = ", "))
     pos <- which( names %in% cols )
     if (abnum) {
       pos <- head(pos, n = length(cols))
@@ -486,3 +554,15 @@ setMethod("set_remote", signature = c(x = "job_vina"),
     x$remote <- remote
     return(x)
   })
+
+cal_3d_sdf <- function(sdf) {
+  output <- gs(sdf, "\\.sdf$", "_3D.sdf")
+  isThat <- T
+  if (file.exists(output)) {
+    isThat <- usethis::ui_yeah("Overwrite the exists file?")
+  }
+  if (isThat) {
+    cdRun("obgen ", sdf, " -ff UFF > ", output)
+  }
+  output
+}
