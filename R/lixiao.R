@@ -1551,7 +1551,7 @@ setMethod("clip_data", signature = c(x = "elist", by = "wgcData"),
 
 send_eval <- function(to,
   subject = "需要评估绩效的业务",
-  content = "Hello, 慧姐\n\n这是这个月需要评估绩效的业务，已附在表格中。\n\nBest wishes!",
+  content = "Hello, 慧姐\n\n这是这个月需要评估绩效的业务 (各个业务 ICDTM 的汇总)，已附在表格中。\n\nBest wishes!",
   time = Sys.time(),
   month = lubridate::month(time),
   year = lubridate::year(time),
@@ -1717,9 +1717,12 @@ summary_month <- function(
       openxlsx2::wb_add_data(wb, 1, data, col_names = F,
         dims = do.call(openxlsx2::wb_dims, pos.data_ass), na.strings = "")
     }
+    CopyNeedEval <- F
     if (any(is.na(data_ass$coef))) {
       wb_eval <- fun(wb, dplyr::filter(data_ass, is.na(coef)))
       openxlsx2::wb_save(wb_eval, paste0(dir, "/need_eval.xlsx"))
+    } else {
+      CopyNeedEval <- T
     }
     wb <- fun(wb, data_ass)
   }
@@ -1755,6 +1758,9 @@ summary_month <- function(
       dims = do.call(openxlsx2::wb_dims, pos.sum))
   }
   openxlsx2::wb_save(wb, targets[[ "ass" ]])
+  if (CopyNeedEval) {
+    file.copy(targets[[ "ass" ]], paste0(dir, "/need_eval.xlsx"))
+  }
   ########################################
   ########################################
   wb <- openxlsx2::wb_load(targets[[ "prin" ]])
@@ -2645,6 +2651,9 @@ od_get <- function(file = "./mailparsed/part_1.md", key = "id",
   if (length(res)) {
     stat <- table(res)
     id <- names(stat[ stat == max(stat) ])
+    if (length(id) > 1) {
+      id <- id[1]
+    }
     if (strx(id, "[0-9]{2}") != "20") {
       isThat <- usethis::ui_yeah(paste0("Detected ID: ", id, "\n\tUsethis?"))
       if (!isThat) {
@@ -3114,6 +3123,8 @@ setMethod("autor", signature = c(x = "files", name = "character"),
 setMethod("autor", signature = c(x = "lich", name = "character"),
   function(x, name, ...){
     abstract(x, name, ...)
+    file <- autosv(x, name <- paste0(name, "-content"))
+    locate_file(name, "上述信息框内容已保存至")
   })
 
 setMethod("autor", signature = c(x = "character", name = "character"),

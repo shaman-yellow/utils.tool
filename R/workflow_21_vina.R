@@ -153,6 +153,15 @@ setMethod("step2", signature = c(x = "job_vina"),
         sdfFile <- gs(sdfFile, "\\.sdf$", "_random.sdf")
         e(ChemmineR::write.SDF(sdfset, sdfFile))
         Show_filter <- T
+        .add_internal_job(.job(method = "R package `ChemmineR` used for similar chemical compounds clustering",
+            cite = "[@ChemminerACoCaoY2008]"
+            ))
+        x$chem_lich <- new_lich(list(
+            "Clustering method:" = "Binning Clustering",
+            "Use Cut-off:" = colnames(cluster)[useWhich],
+            "Cluster number:" = length(groups),
+            "Each sampling for next step (docking):" = nMember
+            ))
       }
     }
     sdfFile <- cal_3d_sdf(sdfFile)
@@ -267,10 +276,17 @@ setMethod("step4", signature = c(x = "job_vina"),
   })
 
 setMethod("step5", signature = c(x = "job_vina"),
-  function(x, compounds, by.y, facet = "Ingredient_name", excludes = NULL)
+  function(x, compounds, by.y, facet = "Ingredient_name", excludes = NULL, top = 5)
   {
     step_message("Summary and visualization for results.")
     x$summary_vina <- summary_vina(x$savedir)
+    if (!is.null(top)) {
+      x$summary_vina <- split_lapply_rbind(x$summary_vina, ~ PDB_ID,
+        function(x) {
+          dplyr::slice_min(x, Affinity, n = top)
+        }
+      )
+    }
     res_dock <- dplyr::mutate(x$summary_vina, PubChem_id = as.integer(PubChem_id))
     anno <- dplyr::mutate(x$targets_annotation, pdb = tolower(pdb))
     res_dock <- map(res_dock, "PDB_ID", anno, "pdb", "hgnc_symbol", col = "hgnc_symbol")
@@ -300,10 +316,12 @@ setMethod("step5", signature = c(x = "job_vina"),
     }
     p.res_vina <- ggplot(data) + 
       geom_col(aes(x = reorder(hgnc_symbol, Affinity, decreasing = T), y = Affinity, fill = Affinity), width = .7) +
+      geom_text(data = dplyr::filter(data, Affinity <= 0),
+        aes(x = hgnc_symbol, y = Affinity - .5, label = round(Affinity, 1)), hjust = 1) +
       labs(x = "", y = "Affinity (kcal/mol)") +
       coord_flip() +
       ylim(zoRange(c(-1, data$Affinity, 1), 1.4)) +
-      facet_wrap(as.formula(paste0("~ Hmisc::capitalize(paste0(", facet, "))")),
+      facet_wrap(as.formula(paste0("~ Hmisc::capitalize(paste0(", facet, ", \" (CID: \", PubChem_id, \")\"))")),
         ncol = 1, scales = "free_y") +
       theme()
     p.res_vina <- wrap(p.res_vina, 7, nrow(data) + 1)
@@ -314,28 +332,35 @@ setMethod("step5", signature = c(x = "job_vina"),
   })
 
 setMethod("step6", signature = c(x = "job_vina"),
-  function(x, time = 2){
+  function(x, time = 15, top = NULL){
     step_message("Use pymol for all visualization.")
-    data <- dplyr::filter(x@tables$step5$res_dock, Affinity < 0)
-    pbapply::pbapply(data, 1,
-      function(v) {
-        vinaShow(v[[ "Combn" ]], v[[ "PDB_ID" ]], timeLimit = time)
-      }
-    )
-    return(x)
+    x <- .collateVinaShow(x, time, top, save = T)
+    x
   })
 
-setMethod("step7", signature = c(x = "job_vina"),
-  function(x, time = 120, backup = "./figs"){
-    step_message("Custom visualization.")
-    data <- dplyr::filter(x@tables$step5$unique_tops, Affinity < 0)
-    pbapply::pbapply(data, 1,
-      function(v) {
-        vinaShow(v[[ "Combn" ]], v[[ "PDB_ID" ]], timeLimit = time, backup = backup)
-      }
-    )
-    return(x)
-  })
+# setMethod("step7", signature = c(x = "job_vina"),
+  # function(x, time = 120, top = NULL){
+  #   step_message("Custom visualization.")
+  #   x <- .collateVinaShow(x, time, top, save = F)
+  #   x
+  # })
+
+.collateVinaShow <- function(x, time, top, save = T) {
+  data <- dplyr::filter(x@tables$step5$res_dock, Affinity < 0)
+  if (!is.null(top)) {
+    data <- head(data, n = top)
+  }
+  figs <- pbapply::pbapply(data, 1, simplify = F,
+    function(v) {
+      vinaShow(v[[ "Combn" ]], v[[ "PDB_ID" ]], timeLimit = time, save = save)
+    }
+  )
+  figs <- unlist(figs, recursive = F)
+  lab(figs) <- paste(sig(x), "docking visualization")
+  names(figs) <- paste0("Top", seq_along(figs), "_", names(figs))
+  x@plots[[ 6 ]] <- figs
+  return(x)
+}
 
 vina_limit <- function(lig, recep, timeLimit = 120, dir = "vina_space", ...) {
   try(vina(lig, recep, ..., timeLimit = timeLimit, dir = dir), T)
@@ -392,7 +417,7 @@ vina <- function(lig, recep, dir = "vina_space",
 }
 
 vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
-  timeLimit = 3, backup = NULL)
+  timeLimit = 3, backup = NULL, save = T)
 {
   if (!file.exists(path <- paste0(dir, "/", subdir))) {
     stop("file.exists(path <- paste0(dir, \"/\", subdir))")
@@ -408,13 +433,27 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
   }
   res <- paste0(Combn, ".png")
   .cdRun <- function(...) cdRun(..., path = wd)
+  img <- paste0(wd, "/", res)
+  if (file.exists(img)) {
+    file.remove(img)
+  }
+  expr <- paste0(" png ", res, ",2000,2000,dpi=300")
+  gett(expr)
+  if (!save) {
+    expr <- ""
+  }
   try(.cdRun("timeout ", timeLimit, 
-      " pymol ", out, " ", recep,
-      " -g ", res), T)
+      " pymol ",
+      " -d \"load ", out, ";",
+      " load ", recep, ";",
+      " ray;", expr, "\" "), T)
   if (is.character(backup)) {
     dir.create(backup, F)
-    file.copy(paste0(wd, "/", res), backup, T)
+    file.copy(img, backup, T)
   }
+  fig <- file_fig(Combn, img)
+  lab(fig[[1]]) <- paste0("docking ", Combn)
+  return(fig)
 }
 
 summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$")
