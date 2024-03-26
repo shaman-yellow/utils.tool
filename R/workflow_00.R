@@ -64,6 +64,8 @@ setGeneric("others",
 setGeneric("object", 
   function(x, ...) standardGeneric("object"))
 
+setGeneric("read", 
+  function(x, ...) standardGeneric("read"))
 setGeneric("pg", 
   function(x, ...) standardGeneric("pg"))
 setGeneric("relative", 
@@ -170,7 +172,7 @@ setMethod("pg", signature = c(x = "job"),
   })
 
 setMethod("pg", signature = c(x = "character"),
-  function(x, is.remote,
+  function(x, is.remote = F,
     recode.remote = getOption("pg_remote_recode", pg_remote_recode()),
     recode.local = getOption("pg_local_recode", pg_local_recode()))
   {
@@ -190,6 +192,10 @@ setMethod("pg", signature = c(x = "character"),
 pg_local_recode <- function() {
   lst <- list(
     qiime = "~/miniconda3/bin/conda run -n qiime2 qiime",
+    musitePython = "~/miniconda3/bin/conda run -n musite python3",
+    musitePTM = "~/MusiteDeep_web/MusiteDeep/predict_multi_batch.py",
+    musitePTM2S = "~/MusiteDeep_web/PTM2S/ptm2Structure.py",
+    musiteModel = normalizePath("~/MusiteDeep_web/MusiteDeep/models"),
     sirius = .prefix("sirius/bin/sirius", "op")
   )
 }

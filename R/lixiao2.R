@@ -97,17 +97,26 @@ setMethod("group", signature = c(x = "fasta"),
 setGeneric("write", 
   function(x, ...) standardGeneric("write"))
 
+setGeneric("Read",
+  function(x, ...) standardGeneric("Read"))
+
 setMethod("write", signature = c(x = "fasta"),
-  function(x, name, max = 500){
-    dir.create("fasta", F)
-    n <- 0
-    lapply(group(x),
-      function(x) {
-        n <<- n + 1
-        file <- paste0(name, "_", n, ".fasta")
-        writeLines(gs(x, "\\*$", ""), file)
-        return(file)
-      })
+  function(x, name, max = 500, dir = "fasta") {
+    dir.create(dir, F)
+    if (is.null(max)) {
+      file <- paste0(dir, "/", name, ".fasta")
+      writeLines(gs(as.character(x), "\\*$", ""), file)
+      return(file)
+    } else {
+      n <- 0
+      lapply(group(x),
+        function(x) {
+          n <<- n + 1
+          file <- paste0(dir, "/", name, "_", n, ".fasta")
+          writeLines(gs(x, "\\*$", ""), file)
+          return(file)
+        })
+    }
   })
 
 setMethod("write", signature = c(x = "grob.obj"),
@@ -116,6 +125,14 @@ setMethod("write", signature = c(x = "grob.obj"),
     match.fun(dev)(file, width * factor, height * factor)
     grid.draw(x)
     dev.off()
+  })
+
+setMethod("Read", signature = c(x = "fasta"),
+  function(x){
+    lst <- sep_list(as.character(x), "^>", T)
+    res <- lapply(lst, function(x) x[-1])
+    names(res) <- gs(vapply(lst, function(x) x[1], character(1)), "^>", "")
+    return(res)
   })
 
 get_seq.pro <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol", to = "peptide") {
