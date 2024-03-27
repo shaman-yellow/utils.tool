@@ -234,55 +234,6 @@ setMethod("step3", signature = c(x = "job_herb"),
     return(x)
   })
 
-setMethod("intersect", signature = c(x = "job_herb", y = "job_herb"),
-  function(x, y, names)
-  {
-    lst <- list(unique(x$data.allu$Target.name),
-      unique(y$data.allu$Target.name))
-    names(lst) <- names
-    venn <- new_venn(lst = lst)
-    venn <- .set_lab(venn, "intersected targets of ", paste0(names, collapse = " and "))
-    if (length(venn$ins)) {
-      lst <- list(x, y)
-      names(lst) <- names
-      lst <- lapply(lst,
-        function(obj) {
-          dplyr::filter(obj$data.allu, Target.name %in% !!venn$ins)
-        })
-      lst <- frbind(lst, idcol = "From")
-      p.pharm <- plot_network.pharm(lst[, -1])
-      list(p.venn = venn, p.pharm = p.pharm, data = lst)
-    } else {
-      message("No intersection.")
-      venn
-    }
-  })
-
-setMethod("map", signature = c(x = "job_herb", ref = "list"),
-  function(x, ref, HLs = NULL, levels = NULL, lab.level = "Level", name = "dis", compounds = NULL, ...)
-  {
-    message("Filter compounds targets with disease targets.")
-    data <- x$data.allu
-    if (!is.null(compounds)) {
-      data <- dplyr::filter(data, Ingredient.name %in% !!compounds)
-    }
-    if (length(ref)) {
-      data <- dplyr::filter(data, Target.name %in% !!unlist(ref, use.names = F))
-      p.venn2dis <- new_venn(Diseases = unlist(ref, use.names = F), Targets = rm.no(x$data.allu$Target.name))
-      x[[ paste0("p.venn2", name) ]] <- .set_lab(p.venn2dis, sig(x), "Targets intersect with targets of diseases")
-    }
-    herbs <- unique(x$data.allu[[1]])
-    p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
-      lab.fill = lab.level, force.ax1 = herbs, ...)
-    p.pharm$.data <- data
-    if (length(ref)) {
-      x[[ paste0("p.pharm2", name) ]] <- .set_lab(p.pharm, sig(x), "network pharmacology with disease")
-    } else {
-      x$p.pharmMap <-  .set_lab(p.pharm, sig(x), "network pharmacology")
-    }
-    return(x)
-  })
-
 setMethod("slice", signature = c(x = "job_herb"),
   function(x, ...){
     x@params$herbs_info <- dplyr::slice(x@params$herbs_info, ...)

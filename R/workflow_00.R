@@ -64,8 +64,6 @@ setGeneric("others",
 setGeneric("object", 
   function(x, ...) standardGeneric("object"))
 
-setGeneric("read", 
-  function(x, ...) standardGeneric("read"))
 setGeneric("pg", 
   function(x, ...) standardGeneric("pg"))
 setGeneric("relative", 

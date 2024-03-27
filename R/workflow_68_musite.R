@@ -82,9 +82,57 @@ setMethod("step2", signature = c(x = "job_musite"),
     t.data <- .set_lab(t.data, sig(x), "prediction PTM of", x$type)
     t.cutoff <- dplyr::filter(t.data, PTM_score > .5)
     t.cutoff <- .set_lab(t.cutoff, sig(x), "high score prediction PTM of", x$type)
+    strFasta <- Read(x$seqs$fasta)
+    fun_str <- function(name, pos) {
+      mapply(FUN = function(n, p) {
+        substr(strFasta[[ n ]], p-2, p+2)
+      }, name, pos)
+    }
+    data <- dplyr::mutate(t.data, str_around = fun_str(Sequence_name, Position))
+    data <- tidyr::separate(data, str_around, c(NA, n(pos, 5)), "")
+    data <- tidyr::pivot_longer(data,
+      tidyselect::starts_with("pos", F),
+      names_to = "pos", values_to = "amino"
+    )
+    data <- dplyr::mutate(data,
+      isTarget = ifelse(pos == "pos3", T, F),
+      pos = (as.double(strx(pos, "[0-9]+")) - 6L) / 20,
+      cand = paste0(Sequence_name, "_", PTM_type, "_", Position)
+    )
+    p.tops <- ggplot(data) +
+      geom_text(aes(x = reorder(cand, PTM_score), y = pos, label = amino)) +
+      geom_text(data = dplyr::filter(data, isTarget),
+        aes(x = reorder(cand, PTM_score), y = min(data$pos) * 1.5, label = Position),
+        color = "red", hjust = 0) +
+      geom_point(data = dplyr::filter(data, isTarget),
+        aes(x = reorder(cand, PTM_score), y = pos), color = "red", alpha = .3, size = 5) +
+      geom_col(data = dplyr::filter(data, isTarget),
+        aes(x = reorder(cand, PTM_score), y = PTM_score, fill = PTM_score)) +
+      coord_flip() +
+      facet_grid(PTM_type ~ Sequence_name) +
+      scale_y_continuous(breaks = seq(0, 1, by = .2)) +
+      geom_hline(yintercept = .5, linetype = 4) +
+      labs(x = "PTM position", y = "PTM score") +
+      guides(fill = "none") +
+      theme_minimal() +
+      theme(axis.text.y = element_blank())
+    p.tops <- .set_lab(p.tops, sig(x), "PTM score")
+    x@plots[[ 2 ]] <- namel(p.tops)
     x@tables[[ 2 ]] <- namel(t.data, t.cutoff)
     return(x)
   })
 
-
+setMethod("step3", signature = c(x = "job_musite"),
+  function(x, n = 1)
+  {
+    step_message("Visualize the PDB structure")
+    output_file <- paste0(x$output, "/ptm2Structure.json")
+    cdRun(pg(x), " ", pg("musitePTM2S"),
+      " -ptmInput ", x$seqs_file,
+      " -ptmOutput ", x$output, "/res_results.txt",
+      " -o ", x$output,
+      " -maxPDB ", n
+    )
+    return(x)
+  })
 

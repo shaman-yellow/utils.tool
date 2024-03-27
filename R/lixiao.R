@@ -541,6 +541,7 @@ package_results <- function(
     }
   }
   files.client <- c(report, main, extern0)
+  files.client <- files.client[ !duplicated(normalizePath(files.client)) ]
   files.master <- c(files.client, head, masterSource)
   zip(clientZip, files.client)
   if (!is.null(masterZip)) {
@@ -2486,13 +2487,19 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
 }
 
 od_get_id <- function(...) {
-  it <- od_get(..., key = "id")
-  if (is.null(it) || it == "") {
-    it <- odk("id")
-    if (is.null(it))
-      it <- odb("client", "analysis")
+  ID <- getOption("order_id")
+  if (is.null(ID)) {
+    it <- od_get(..., key = "id")
+    if (is.null(it) || it == "") {
+      it <- odk("id")
+      if (is.null(it))
+        it <- odb("client", "analysis")
+    }
+    options(order_id = it)
+    it
+  } else {
+    ID
   }
-  it
 }
 
 od_get_score <- function(...) {
