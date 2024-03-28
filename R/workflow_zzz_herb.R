@@ -2,7 +2,13 @@
 # workflow of herb
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-setClassUnion("JOB_herb", c("job_herb", "job_tcmsp"))
+setClassUnion("JOB_herb", c("job_herb", "job_tcmsp", "job_batman"))
+
+setMethod("slice", signature = c(x = "JOB_herb"),
+  function(x, ...){
+    x@params$herbs_info <- dplyr::slice(x@params$herbs_info, ...)
+    return(x)
+  })
 
 setMethod("vis", signature = c(x = "JOB_herb"),
   function(x, col.fill = 2, axes = 1:4, label.auto = F, label.freq = NULL, label.factor = 1)
