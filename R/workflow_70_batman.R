@@ -39,7 +39,8 @@ setMethod("step0", signature = c(x = "job_batman"),
   })
 
 setMethod("step1", signature = c(x = "job_batman"),
-  function(x){
+  function(x, anno = T)
+  {
     step_message("Filter and format the compounds and targets.")
     x$herbs_info <- dplyr::mutate(x$herbs_info,
       Ingredients = strsplit(Ingredients, "\\|"),
@@ -51,6 +52,9 @@ setMethod("step1", signature = c(x = "job_batman"),
       name = gs(unlist(x$herbs_info$Ingredients), "\\([0-9]+\\)$", "")
     )
     x$compounds_info <- dplyr::distinct(x$compounds_info)
+    if (anno) {
+      x <- anno(x, "LiteratureCount")
+    }
     cids <- rm.no(unlist(x$herbs_info$CID))
     compounds_targets <- dplyr::filter(
       object(x)$targets, PubChem_CID %in% !!cids

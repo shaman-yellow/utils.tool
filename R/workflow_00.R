@@ -1204,7 +1204,7 @@ setMethod("upd", signature = c(x = "local_db"),
   })
 
 setMethod("vis", signature = c(x = "df"),
-  function(x, width = 200, n = 100){
+  function(x, n = 100, width = 200) {
     print(x, n = n, width = width)
   })
 

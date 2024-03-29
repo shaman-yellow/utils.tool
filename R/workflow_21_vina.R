@@ -71,14 +71,6 @@ setMethod("step1", signature = c(x = "job_vina"),
     x$targets_annotation <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
       object(x)$hgnc_symbols, distinct = F)
     x$targets_annotation <- dplyr::filter(x$targets_annotation, pdb != "")
-    if (any(isThat <- !object(x)$hgnc_symbols %in% x$targets_annotation$hgnc_symbol)) {
-      message("PDB not found:\n\t", paste0(object(x)$hgnc_symbols[ isThat ], collapse = ", "))
-      if (!usethis::ui_yeah("Continue?")) {
-        stop("Consider other ways to found PDB files for docking.")
-      }
-    } else {
-      message("Got PDB for all `hgnc_symbol`.")
-    }
     if (!is.null(pdbs)) {
       pdbs <- list(hgnc_symbol = names(pdbs), pdb = unname(pdbs))
       if (!is.character(x$targets_annotation$pdb)) {
@@ -86,6 +78,14 @@ setMethod("step1", signature = c(x = "job_vina"),
       }
       x$targets_annotation <- tibble::add_row(x$targets_annotation, !!!pdbs)
       x$targets_annotation <- dplyr::distinct(x$targets_annotation, hgnc_symbol, .keep_all = T)
+    }
+    if (any(isThat <- !object(x)$hgnc_symbols %in% x$targets_annotation$hgnc_symbol)) {
+      message("PDB not found:\n\t", paste0(unique(object(x)$hgnc_symbols[ isThat ])), collapse = ", ")
+      if (!usethis::ui_yeah("Continue?")) {
+        stop("Consider other ways to found PDB files for docking.")
+      }
+    } else {
+      message("Got PDB for all `hgnc_symbol`.")
     }
     if (bdb) {
       if (file.exists(bdb_file)) {
@@ -174,7 +174,7 @@ setMethod("step2", signature = c(x = "job_vina"),
     message("Got (filter out in `mk_prepare_ligand.sdf`): ", length(x$res.ligand))
     alls <- as.character(object(x)$cid)
     message("Not got:", paste0(alls[!alls %in% names(x$res.ligand)], collapse = ", "))
-    message("Filter the `x@dock_layout`")
+    message("Filter the `x$dock_layout`")
     x$dock_layout <- x$dock_layout[ names(x$dock_layout) %in% names(x$res.ligand) ]
     return(x)
   })
@@ -220,7 +220,8 @@ setMethod("step3", signature = c(x = "job_vina"),
     names <- names(x$res.receptor)
     gotSymbols <- x$targets_annotation$hgnc_symbol[ match(tolower(names), tolower(x$targets_annotation$pdb)) ]
     x$res.receptor.symbol <- gotSymbols
-    message("Not got: ", object(x)$hgnc_symbol %>% .[ !. %in% gotSymbols ])
+    fun <- function(x) x[ !x %in% gotSymbols ]
+    message("Not got: ", paste0(fun(object(x)$hgnc_symbol), collapse = ", "))
     if (filter) {
       if (!is.null(x$.layout)) {
         message("Customize using `x$.layout` columns: ", paste0(colnames(x$.layout)[1:2], collapse = ", "))
@@ -269,7 +270,9 @@ setMethod("step4", signature = c(x = "job_vina"),
         lig <- x$res.ligand[[ v[1] ]]
         recep <- x$res.receptor[[ tolower(v[2]) ]]
         n <<- n + 1
-        vina_limit(lig, recep, time, dir = savedir, x = x)
+        if (!is.null(lig) & !is.null(recep)) {
+          vina_limit(lig, recep, time, dir = savedir, x = x)
+        }
       }
     )
     return(x)
@@ -314,6 +317,10 @@ setMethod("step5", signature = c(x = "job_vina"),
     if (!is.null(excludes)) {
       data <- dplyr::filter(data, !hgnc_symbol %in% !!excludes)
     }
+    if (nrow(data) > 30) {
+      data <- dplyr::filter(data, Affinity < 0)
+    }
+    data <- dplyr::mutate(data, dplyr::across(!!rlang::sym(facet), function(x) stringr::str_trunc(x, 30)))
     p.res_vina <- ggplot(data) + 
       geom_col(aes(x = reorder(hgnc_symbol, Affinity, decreasing = T), y = Affinity, fill = Affinity), width = .7) +
       geom_text(data = dplyr::filter(data, Affinity <= 0),
@@ -332,9 +339,10 @@ setMethod("step5", signature = c(x = "job_vina"),
   })
 
 setMethod("step6", signature = c(x = "job_vina"),
-  function(x, time = 15, top = NULL){
+  function(x, time = 15, top = NULL, unique = F)
+  {
     step_message("Use pymol for all visualization.")
-    x <- .collateVinaShow(x, time, top, save = T)
+    x <- .collateVinaShow(x, time, top, save = T, unique = unique)
     x
   })
 
@@ -345,8 +353,11 @@ setMethod("step6", signature = c(x = "job_vina"),
   #   x
   # })
 
-.collateVinaShow <- function(x, time, top, save = T) {
+.collateVinaShow <- function(x, time, top, save = T, unique = F) {
   data <- dplyr::filter(x@tables$step5$res_dock, Affinity < 0)
+  if (unique) {
+    data <- dplyr::distinct(data, hgnc_symbol, .keep_all = T)
+  }
   if (!is.null(top)) {
     data <- head(data, n = top)
   }
@@ -359,6 +370,9 @@ setMethod("step6", signature = c(x = "job_vina"),
   lab(figs) <- paste(sig(x), "docking visualization")
   names(figs) <- paste0("Top", seq_along(figs), "_", names(figs))
   x@plots[[ 6 ]] <- figs
+  data <- .set_lab(data, sig(x), "Metadata of visualized Docking")
+  data <- dplyr::select(data, -dir, -file, -Combn)
+  x@tables[[ 6 ]] <- namel(data)
   return(x)
 }
 
@@ -586,7 +600,7 @@ prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {
 }
 
 setMethod("set_remote", signature = c(x = "job_vina"),
-  function(x, wd, remote = "remote")
+  function(x, wd = "/data/hlc/vina", remote = "remote")
   {
     x$wd <- wd
     x$set_remote <- T
@@ -605,3 +619,9 @@ cal_3d_sdf <- function(sdf) {
   }
   output
 }
+
+setMethod("res", signature = c(x = "job_vina"),
+  function(x){
+    data <- dplyr::select(x@tables$step5$res_dock, -dir, -file)
+    dplyr::relocate(data, hgnc_symbol, Ingredient_name, Affinity)
+  })

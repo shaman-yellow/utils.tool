@@ -142,7 +142,7 @@ setMethod("step2", signature = c(x = "job_enrich"),
           res.pathview <- try(
             pathview::pathview(gene.data = genes,
               pathway.id = pathway, species = species,
-              keys.align = "y", kegg.native = T,
+              keys.align = "y", kegg.native = T, same.layer = F,
               key.pos = "topright", bins = list(gene = bins),
               na.col = "grey90", discrete = list(gene = discrete))
           )

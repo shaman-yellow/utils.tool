@@ -252,12 +252,24 @@ setMethod("map", signature = c(x = "job_herb", ref = "job_superpred"),
     return(x)
   })
 
-try_get_cids.smile <- function(smiles, max = 20L) {
-  if (any(duplicated(smiles))) {
+
+try_get_cids.smiles <- function(smiles, namespace = "smiles", max = 20L)
+{
+  try_get_cids(smiles, namespace = namespace, max = max)
+}
+
+try_get_cids.sids <- function(sids, namespace = "sid", domain = "substance", max = 20L)
+{
+  try_get_cids(sids, namespace = namespace, domain = domain, max = max)
+}
+
+try_get_cids <- function(querys, ..., max = 20L)
+{
+  if (any(duplicated(querys))) {
     message("The query is duplicated. Unique that herein.")
   }
-  res <- pbapply::pblapply(smiles,
-    function(smile) {
+  res <- pbapply::pblapply(querys,
+    function(query) {
       run <- 0L
       n <- 0L
       while ((!run || inherits(data, "try-error")) & n < max) {
@@ -266,7 +278,7 @@ try_get_cids.smile <- function(smiles, max = 20L) {
         if (n > 1) {
           message("\nRetrying...")
         }
-        data <- try(PubChemR::get_cids(smile, "smiles"))
+        data <- try(PubChemR::get_cids(query, ...))
       }
       if (inherits(data, "try-error")) {
         message("\nMore than the largest trying. Escape")

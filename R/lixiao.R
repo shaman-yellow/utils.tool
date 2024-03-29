@@ -3627,7 +3627,7 @@ new_venn <- function(..., lst = NULL, wrap = T, fun_pre = rm.no) {
   if (is.null(lst)) {
     lst <- list(...)
   }
-  lst <- lapply(lst, fun_pre)
+  lst <- lapply(lst, function(x) as.character(fun_pre(x)))
   p <- ggVennDiagram::ggVennDiagram(lst, label_percent_digit = 1) +
     scale_fill_gradient(low = "grey95", high = sample(color_set(), 1)) +
     theme_void() +
@@ -3835,11 +3835,14 @@ new_roc <- function(y, x, ..., plot.thres = NULL, lang = c("en", "cn"), cn.mode 
 }
 
 new_allu <- function(data, col.fill = 1, axes = 1:2,
-  label.auto = F, label.freq = NULL, label.factor = 1, shiny = F)
+  label.auto = F, label.freq = NULL, label.factor = 1, shiny = F, trunc = F)
 {
   require(ggalluvial)
   fill <- colnames(data)[col.fill]
   data <- dplyr::mutate(data, fill = !!rlang::sym(fill))
+  if (trunc) {
+    data <- dplyr::mutate_all(data, function(x) stringr::str_trunc(x, 20))
+  }
   data <- to_lodes_form(data, key = "Types", axes = axes)
   if (label.auto) {
     freq <- table(data$stratum)

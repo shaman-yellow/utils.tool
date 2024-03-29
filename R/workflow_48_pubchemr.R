@@ -2,6 +2,9 @@
 # workflow of pubchemr
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+# https://pubchem.ncbi.nlm.nih.gov/rest/pug/sourcetable/substance/JSON
+# https://pubchem.ncbi.nlm.nih.gov/rest/pug/substance/sourceall/ChEBI/xrefs/RegistryID/JSON
+
 .job_pubchemr <- setClass("job_pubchemr", 
   contains = c("job"),
   representation = representation(
@@ -115,6 +118,29 @@ setMethod("map", signature = c(x = "job_tcmsp", ref = "job_pubchemr"),
     return(x)
   })
 
+batch_get_cids.sids <- function(x, cl = NULL, sleep = .1) {
+  querys <- rm.no(x)
+  if (any(is.na(as.integer(querys)))) {
+    message("Invalid SID detected, remove that.")
+    querys <- querys[ !is.na(as.integer(querys)) ]
+  }
+  groups <- grouping_vec2list(querys, 100, T)
+  url_base <- "https://pubchem.ncbi.nlm.nih.gov/rest/pug/substance/sid/"
+  getType <- "/cids/JSON"
+  res <- pbapply::pblapply(groups, cl = cl,
+    function(sids) {
+      url <- paste0(url_base, paste0(sids, collapse = ","), getType)
+      res <- RCurl::getURL(url)
+      Sys.sleep(sleep)
+      res
+    })
+  res <- lapply(res,
+    function(x) {
+      dplyr::bind_rows(rjson::fromJSON(x)[[1]][[1]])
+    })
+  frbind(res)
+}
+
 try_get_cids.name <- function(name) {
   db <- PubChemR::get_cids(name)
   db <- dplyr::distinct(db, Identifier, .keep_all = T)
@@ -122,4 +148,39 @@ try_get_cids.name <- function(name) {
   db
 }
 
+try_get_cids.smiles <- function(smiles, namespace = "smiles", max = 20L)
+{
+  try_get_cids(smiles, namespace = namespace, max = max)
+}
 
+try_get_cids.sids <- function(sids, namespace = "sid", domain = "substance", max = 20L)
+{
+  try_get_cids(sids, namespace = namespace, domain = domain, max = max)
+}
+
+try_get_cids <- function(querys, ..., max = 20L)
+{
+  if (any(duplicated(querys))) {
+    message("The query is duplicated. Unique that herein.")
+  }
+  res <- pbapply::pblapply(querys,
+    function(query) {
+      run <- 0L
+      n <- 0L
+      while ((!run || inherits(data, "try-error")) & n < max) {
+        run <- 1L
+        n <- n + 1L
+        if (n > 1) {
+          message("\nRetrying...")
+        }
+        data <- try(PubChemR::get_cids(query, ...))
+      }
+      if (inherits(data, "try-error")) {
+        message("\nMore than the largest trying. Escape")
+        NULL
+      } else {
+        data
+      }
+    })
+  frbind(res, fill = T)
+}
