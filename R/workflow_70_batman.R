@@ -54,6 +54,7 @@ setMethod("step1", signature = c(x = "job_batman"),
     x$compounds_info <- dplyr::distinct(x$compounds_info)
     if (anno) {
       x <- anno(x, "LiteratureCount")
+      x$compounds_info <- dplyr::arrange(x$compounds_info, dplyr::desc(LiteratureCount))
     }
     cids <- rm.no(unlist(x$herbs_info$CID))
     compounds_targets <- dplyr::filter(
@@ -134,9 +135,8 @@ setMethod("step3", signature = c(x = "job_batman"),
     hb@object$herb <- hb@params$herbs_info
     hb <- step3(hb, disease = disease, HLs = HLs)
     x@plots[[ 3 ]] <- hb@plots$step3
-    easyRead <- hb@params$easyRead
-    x@tables[[ 3 ]] <- namel(easyRead,
-      disease_targets_annotation = hb@tables$step3$disease_targets_annotation)
+    x$easyRead <- hb@params$easyRead
+    x@tables[[ 3 ]] <- namel(disease_targets_annotation = hb@tables$step3$disease_targets_annotation)
     x$data.allu <- hb$data.allu
     return(x)
   })

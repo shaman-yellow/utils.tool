@@ -206,22 +206,6 @@ setMethod("map", signature = c(x = "job_tcmsp", ref = "job_classyfire"),
     return(x)
   })
 
-setClassUnion("JOB_herb", c("job_herb", "job_tcmsp"))
-
-setMethod("vis", signature = c(x = "JOB_herb"),
-  function(x, col.fill = 2, axes = 1:4, label.auto = F, label.freq = NULL, label.factor = 1)
-  {
-    symDisease <- x@tables$step3$disease_targets_annotation$hgnc_symbol
-    data <- x@params$data.allu
-    data <- dplyr::filter(data, Target.name %in% !!symDisease)
-    data <- dplyr::mutate(data, Disease =  x$disease)
-    p <- new_allu(data, col.fill, axes = axes,
-      label.auto = label.auto, label.freq = label.freq,
-      label.factor = label.factor)
-    p <- .set_lab(p, sig(x), "Targets of compounds and related disease" )
-    p
-  })
-
 setMethod("asjob_classyfire", signature = c(x = "job_tcmsp"),
   function(x){
     if (x@step < 2L) {

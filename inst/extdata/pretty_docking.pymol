@@ -1,0 +1,93 @@
+#############################################################
+## All one needs to do is replacing:             
+##   * Protein structure file: Protein_prot.pdb   
+##   * Protein name: 1hsg                       
+##   * Docking result file: indinavir.pdbqt    
+##   * Docking result name (normally ligand name): indinavir 
+#############################################################
+
+# The following 4 lines: 
+# 1. load protein structure and rename it
+# 2. add hydrogen (`h_add` uses a primitive algorithm to add hydrogens onto a molecule.)
+# 3. hide protein display
+# 4. show cartoon display for protein
+
+load {{protein.pdbqt}}, Protein
+h_add Protein
+hide everything, Protein
+show cartoon, Protein
+cmd.spectrum("count", selection="Protein", byres=1)
+
+# The following 6 lines: 
+# 1. load ligand structure and rename it
+# 2. add hydrogen
+# 3. hide ligand display
+# 4. show ligand in sticks mode
+# 5. Set width of stick to 0.15
+# 6. Set atom color: C-white;N-blue;O-red
+
+load {{ligand.pdbqt}}, Ligand
+h_add Ligand
+hide everything, Ligand
+show sticks, Ligand
+set stick_radius, 0.15
+util.cbaw Ligand
+
+# The following 1 line:
+# 1. Select metal ions
+select metals_, symbol mg+ca+fe+zn
+
+# The following 2 lines:
+# 1. Set hydrogen donator
+# 2. Set hydrogen accrptor 
+# `select` creates a named selection from an atom selection. 
+# `select name, (selection)`
+select h_donator,  (elem n,o and (neighbor hydro))
+select h_acceptor, (elem o or (elem n and not (neighbor hydro)))
+
+# The following 4 lines:
+# 1. Create link between ligand_h_acceptor and prot_h_donator  within given distance 3.2
+# 2. Create link between ligand_h_donator  and prot_h_acceptor within given distance 3.2
+#    Set filter 3.6 for ideal geometry and filter 3.2 for minimally acceptable geometry
+# 3. Set red color for ligand_h_acceptor and prot_h_donator 
+# 4. Set blue color for ligand_h_donator  and prot_h_acceptor
+# `distance` creates a new distance object between two selections. It will display all distances within the cutoff. Distance is also used to make hydrogen bonds like `distance hbonds, all, all, 3.2, mode=2`.
+# distance [ name [, selection1 [, selection2 [, cutoff [, mode ]]]]]
+distance LaccPdon, (Ligand and h_acceptor), (Protein and h_donator), 3.2
+distance LdonPacc, (Ligand and h_donator), (Protein and h_acceptor), 3.2
+color red, LaccPdon
+color blue, LdonPacc
+#distance Fe_C20, (fep and name C20), (heme and name fe))
+
+# The following 6 lines:
+# 1. Select non-hydro atoms of ligands
+# 2. Select protein atoms within 5A of selected atoms in last step
+# 3. Label alpha-c(ca) of selected residues with residue name and residue position
+# 4. Set label color back
+# 5. Set background white
+# 6. Hidden hydrogenes
+select sele, Ligand & not hydro
+select sele, byres (sele expand 5) & Protein
+one_letter ={'VAL':'V', 'ILE':'I', 'LEU':'L', 'GLU':'E', 'GLN':'Q', 'ASP':'D', 'ASN':'N', 'HIS':'H', 'TRP':'W', 'PHE':'F', 'TYR':'Y', 'ARG':'R', 'LYS':'K', 'SER':'S', 'THR':'T', 'MET':'M', 'ALA':'A', 'GLY':'G', 'PRO':'P', 'CYS':'C'}
+label name ca & sele, "%s-%s" % (one_letter[resn],resi)
+bg white
+set label_color, black
+hide (hydro)
+
+# The follwing 5 lines
+# 1. Comment out this line
+# 2. Create an object `surrounding_res` to represent selected protein atoms
+#    `create`: creates a new molecule object from a selection. It can also be used to create states in an   existing object. 
+#    `create name, (selection)`
+# 3. Display created surface
+# 4. Set color for surrounding_res
+# 5. Set transparency for surrounding_res
+#    Transparency is used to adjust the transparency of Surfaces and Slices.    
+#    `set transparency, F, selection`
+# show surface, Protein
+create surrounding_res, sele
+show surface, surrounding_res
+color grey80, surrounding_res
+set transparency, 0.5, surrounding_res
+
+

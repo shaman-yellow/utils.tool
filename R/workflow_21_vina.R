@@ -339,41 +339,66 @@ setMethod("step5", signature = c(x = "job_vina"),
   })
 
 setMethod("step6", signature = c(x = "job_vina"),
-  function(x, time = 15, top = NULL, unique = F)
+  function(x, time = 15, top = NULL, save = T, unique = F)
   {
     step_message("Use pymol for all visualization.")
-    x <- .collateVinaShow(x, time, top, save = T, unique = unique)
-    x
+    data <- dplyr::filter(x@tables$step5$res_dock, Affinity < 0)
+    if (unique) {
+      data <- dplyr::distinct(data, hgnc_symbol, .keep_all = T)
+    }
+    if (!is.null(top)) {
+      data <- head(data, n = top)
+    }
+    figs <- pbapply::pbapply(data, 1, simplify = F,
+      function(v) {
+        vinaShow(v[[ "Combn" ]], v[[ "PDB_ID" ]], timeLimit = time, save = save)
+      }
+    )
+    figs <- unlist(figs, recursive = F)
+    lab(figs) <- paste(sig(x), "docking visualization")
+    names(figs) <- paste0("Top", seq_along(figs), "_", names(figs))
+    x@plots[[ 6 ]] <- figs
+    data <- .set_lab(data, sig(x), "Metadata of visualized Docking")
+    data <- dplyr::select(data, -dir, -file, -Combn)
+    x@tables[[ 6 ]] <- namel(data)
+    return(x)
   })
 
-# setMethod("step7", signature = c(x = "job_vina"),
-  # function(x, time = 120, top = NULL){
-  #   step_message("Custom visualization.")
-  #   x <- .collateVinaShow(x, time, top, save = F)
-  #   x
-  # })
+setMethod("step7", signature = c(x = "job_vina"),
+  function(x, save = T){
+    step_message("Show docking results in deep and in detail.")
+    data <- x@tables$step6$data
+    figs <- pbapply::pbapply(data, 1, simplify = F,
+      function(v) {
+        vinaShow(v[[ "Combn" ]], v[[ "PDB_ID" ]], save = save, detail = T)
+      }
+    )
+    figs <- unlist(figs, recursive = F)
+    lab(figs) <- paste(sig(x), "docking interaction details")
+    names(figs) <- paste0("Top", seq_along(figs), "_", names(figs))
+    x@plots[[ 7 ]] <- figs
+    return(x)
+  })
 
-.collateVinaShow <- function(x, time, top, save = T, unique = F) {
-  data <- dplyr::filter(x@tables$step5$res_dock, Affinity < 0)
-  if (unique) {
-    data <- dplyr::distinct(data, hgnc_symbol, .keep_all = T)
-  }
-  if (!is.null(top)) {
-    data <- head(data, n = top)
-  }
-  figs <- pbapply::pbapply(data, 1, simplify = F,
-    function(v) {
-      vinaShow(v[[ "Combn" ]], v[[ "PDB_ID" ]], timeLimit = time, save = save)
-    }
-  )
-  figs <- unlist(figs, recursive = F)
-  lab(figs) <- paste(sig(x), "docking visualization")
-  names(figs) <- paste0("Top", seq_along(figs), "_", names(figs))
-  x@plots[[ 6 ]] <- figs
-  data <- .set_lab(data, sig(x), "Metadata of visualized Docking")
-  data <- dplyr::select(data, -dir, -file, -Combn)
-  x@tables[[ 6 ]] <- namel(data)
-  return(x)
+pretty_docking <- function(protein, ligand, path,
+  save = "annotation.png",
+  script = paste0(.expath, "/pretty_docking.pymol"))
+{
+  script <- readLines(script)
+  script <- gs(script, "{{protein.pdbqt}}", protein, fixed = T)
+  script <- gs(script, "{{ligand.pdbqt}}", ligand, fixed = T)
+  temp <- tempfile("Pymol", fileext = ".pml")
+  writeLines(script, temp)
+  cli::cli_alert_info(paste0("Pymol run script: ", temp))
+  output <- paste0(path, "/", save)
+  message("Save png to ", output)
+  expr <- paste0(" png ", save, ",2000,2000,dpi=300")
+  gett(expr)
+  cdRun("pymol ",
+    " -d \"run ", temp, "\"",
+    " -d \"ray; ", expr, "\"",
+    path = path)
+  return(output)
 }
 
 vina_limit <- function(lig, recep, timeLimit = 120, dir = "vina_space", ...) {
@@ -431,7 +456,7 @@ vina <- function(lig, recep, dir = "vina_space",
 }
 
 vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
-  timeLimit = 3, backup = NULL, save = T)
+  timeLimit = 3, backup = NULL, save = T, detail = F)
 {
   if (!file.exists(path <- paste0(dir, "/", subdir))) {
     stop("file.exists(path <- paste0(dir, \"/\", subdir))")
@@ -446,27 +471,34 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
     }
   }
   res <- paste0(Combn, ".png")
+  if (detail) {
+    res <- paste0("detail_", res)
+  }
   .cdRun <- function(...) cdRun(..., path = wd)
   img <- paste0(wd, "/", res)
   if (file.exists(img)) {
     file.remove(img)
   }
-  expr <- paste0(" png ", res, ",2000,2000,dpi=300")
-  gett(expr)
-  if (!save) {
-    expr <- ""
+  if (detail) {
+    pretty_docking(recep, out, wd, save = res)
+  } else {
+    expr <- paste0(" png ", res, ",2000,2000,dpi=300")
+    gett(expr)
+    if (!save) {
+      expr <- ""
+    }
+    try(.cdRun("timeout ", timeLimit, 
+        " pymol ",
+        " -d \"load ", out, ";",
+        " load ", recep, ";",
+        " ray;", expr, "\" "), T)
   }
-  try(.cdRun("timeout ", timeLimit, 
-      " pymol ",
-      " -d \"load ", out, ";",
-      " load ", recep, ";",
-      " ray;", expr, "\" "), T)
   if (is.character(backup)) {
     dir.create(backup, F)
     file.copy(img, backup, T)
   }
   fig <- file_fig(Combn, img)
-  lab(fig[[1]]) <- paste0("docking ", Combn)
+  lab(fig[[1]]) <- paste0("docking ", Combn, if (!detail) NULL else " detail")
   return(fig)
 }
 
