@@ -297,8 +297,18 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
   function(x, y, from, to, names = NULL, use = if (x$isTcga) "gene_name" else "hgnc_symbol", theme = NULL)
   {
     data <- as_tibble(x@params$normed_data$E)
-    anno <- x@params$normed_data$genes
-    lst <- .cal_corp.elist(data, anno, use, from, to, names)
+    anno <- as_tibble(x@params$normed_data$genes)
+    if (!any(colnames(anno) == use)) {
+      if (!is.null(x$genes)) {
+        if (any(colnames(x$genes) == use)) {
+          message("Use '", use, "' in `x$genes`.")
+          anno <- map(anno, colnames(anno)[1], x$genes, colnames(x$genes)[1], use, col = use)
+        } else {
+          stop("`use` not found.")
+        }
+      }
+    }
+    lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names)
     lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
     lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), theme, "significant correlation")
     return(lst)

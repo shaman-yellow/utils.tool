@@ -144,11 +144,11 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     step_message("Use `object(x)@assays@data$unstranded` converted as job_limma.")
     metadata <- data.frame(object(x)@colData)
     metadata <- dplyr::relocate(metadata, !!rlang::sym(col_id))
-    metadata <- dplyr::mutate(metadata, group = vital_status)
     # tumor, 01~09; normal, 10~19
     metadata <- dplyr::mutate(metadata, isTumor = ifelse(
         as.numeric(substr(rownames(metadata), 14, 15)) < 10,
         'tumor', 'normal'))
+    metadata <- dplyr::mutate(metadata, group = !!rlang::sym(group))
     p.isTumor <- new_pie(metadata$isTumor)
     genes <- data.frame(object(x)@rowRanges)
     genes <- dplyr::relocate(genes, !!rlang::sym(row_id))
