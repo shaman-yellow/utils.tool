@@ -31,12 +31,21 @@ setMethod("step0", signature = c(x = "job_epifactor"),
   })
 
 setMethod("step1", signature = c(x = "job_epifactor"),
-  function(x){
+  function(x, dir = .prefix("epifactor", "db")){
     step_message("Obtain epigenetic regulators.")
     file <- switch(x$use, protein = "EpiGenes_main.csv")
-    url <- paste0("https://epifactors.autosome.org/public_data/", x$version, "/", file)
-    data <- ftibble(RCurl::getURL(url))
+    dir.create(dir, F)
+    db_file <- paste0(dir, "/", file, "_", x$version, ".rds")
+    if (file.exists(db_file)) {
+      data <- readRDS(db_file)
+    } else {
+      url <- paste0("https://epifactors.autosome.org/public_data/", x$version, "/", file)
+      data <- ftibble(RCurl::getURL(url))
+      saveRDS(data, db_file)
+    }
     data <- .set_lab(data, sig(x), paste0("all ", x$use), "of epigenetic regulators")
     x@tables[[ 1 ]] <- nl(x$use, list(data))
     return(x)
   })
+
+

@@ -155,6 +155,7 @@ setMethod("step2", signature = c(x = "job_enrich"),
     x@tables[[ 2 ]] <- namel(res.pathviews)
     p.pathviews <- .pathview_search(name, search, x)
     x@plots[[ 2 ]] <- namel(p.pathviews)
+    .add_internal_job(.job(method = "R package `pathview` used for KEGG pathways visualization", cite = "[@PathviewAnRLuoW2013]"))
     return(x)
   })
 

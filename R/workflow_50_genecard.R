@@ -89,3 +89,10 @@ get_from_genecards <- function(query, score = 5, keep_drive = F, restrict = F,
   attr(table, "lich") <- new_lich(lich)
   return(table)
 }
+
+setMethod("map", signature = c(x = "job_genecard", ref = "job_genecard"),
+  function(x, ref, names = c(x@object, ref@object)){
+    lst <- lapply(list(x, ref), function(x) x@tables$step1$t.genecards$Symbol)
+    names(lst) <- names
+    new_venn(lst = lst)
+  })

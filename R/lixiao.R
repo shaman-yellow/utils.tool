@@ -588,60 +588,6 @@ show_multi <- function(layers, col, symbol = "Progein"){
     })
 }
 
-# map_from <- function(lst, db_names, db_values){}
-
-.jour_bioinf <- function() {
-  c("Nature Genetics", "Genome Biology", "Genome Research", "Nucleic Acids Res",
-    "Briefings in Bioinformatics", "BMC genomics", "Nature Methods", "Nature Biotechnology")
-}
-
-esearch.mj <- function(key, jour = .jour_bioinf(), rbind = T)
-{
-  query <- paste(jour, "[JOUR] AND", key)
-  sear <- pbapply::pblapply(query, esearch)
-  names(sear) <- jour
-  if (rbind) {
-    sear <- tibble::as_tibble(data.table::rbindlist(sear, idcol = T, fill = T))
-    if (nrow(sear) > 0)
-      sear <- dplyr::arrange(sear, dplyr::desc(SortPubDate))
-  }
-  sear
-}
-
-esearch <- function(query = NULL, fetch.save = paste0(gsub(" ", "_", query), ".xml"),
-  path = "search", tract.save = "res.tsv",
-  fields = c("SortPubDate", "Title", "FullJournalName", "Name", "Id"))
-{
-  if (!dir.exists(path)) {
-    dir.create(path)
-  }
-  if (!is.null(query)) {
-    if (!file.exists(paste0(path, "/", fetch.save))) {
-      cdRun("esearch -db pubmed -query \"", query, "\"",
-        " | efetch -format docsum > ", fetch.save,
-        path = path)
-    }
-  } else if (fetch.save == ".xml") {
-    stop("fetch.save == \".xml\"")
-  }
-  cdRun(" cat ", fetch.save, " | xtract -pattern DocumentSummary ",
-    " -sep \"|\" -element ", paste0(fields, collapse = " "),
-    " > ", tract.save, path = path)
-  file <- paste0(path, "/", tract.save)
-  res <- ftibble(file, sep = "\t", quote = "", fill = T, header = F)
-  if (nrow(res > 0)) {
-    colnames(res) <- fields
-    if (any("SortPubDate" == fields)) {
-      res <- dplyr::mutate(res, SortPubDate = as.Date(SortPubDate))
-      res <- dplyr::arrange(res, dplyr::desc(SortPubDate))
-    }
-    if (any("Id" == fields)) {
-      res <- dplyr::mutate(res, Id = as.character(Id))
-    }
-  }
-  res
-}
-
 split_lapply_rbind <- function(data, f, fun, ..., verbose = F, args = list(use.names = T)) {
   data <- split(data, f)
   if (verbose)
@@ -2449,6 +2395,9 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
   }
   if (!is.null(client)) {
     if (identical(idn, character(1)) || identical(idn, character(0))) {
+      if (identical(client, character(1)) || identical(client, character(0))) {
+        stop("Client not setup.")
+      }
       idn <- paste0(client, "订单+", odk("analysis"))
     } else {
       idn <- paste0(idn, "+客户：", client)
@@ -2486,8 +2435,11 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
   idn
 }
 
-od_get_id <- function(...) {
-  ID <- getOption("order_id")
+od_get_id <- function(reload = F, ...) {
+  if (reload)
+    ID <- NULL
+  else
+    ID <- getOption("order_id")
   if (is.null(ID)) {
     it <- od_get(..., key = "id")
     if (is.null(it) || it == "") {
@@ -2869,11 +2821,15 @@ auto_method <- function(rm = NULL, class = "job", envir = .GlobalEnv, exclude = 
       if (is(obj, exclude)) {
         NULL
       } else if (is(obj, class)) {
-        res <- try(list(cite = obj@cite, method = obj@method), T)
-        if (inherits(res, "try-error")) {
+        if (any(obj@cite == rm)) {
           NULL
         } else {
-          res
+          res <- try(list(cite = obj@cite, method = obj@method), T)
+          if (inherits(res, "try-error")) {
+            NULL
+          } else {
+            res
+          }
         }
       } else NULL
     })
@@ -3411,11 +3367,11 @@ fix.tex <- function(str) {
   gsub("_", "\\\\_", str)
 }
 
-sumTbl <- function(x, key, sum.ex) {
+sumTbl <- function(x, key, sum.ex = NULL) {
+  sums <- paste0("含有", apply(x[, key], 2, function(x) length(unique(x))),
+    "个唯一`", colnames(x[, key]), collapse = "；")
   paste0("注：表格共有", nrow(x), "行", ncol(x), "列，",
-    "以下预览的表格可能省略部分数据；",
-    "表格含有", colSum(x[[ key ]]),
-    "个唯一`", colnames(x[, key]), "'。\n", sum.ex)
+    "以下预览的表格可能省略部分数据；", sums, "'。\n", sum.ex)
 }
 
 locate_file <- function(name, des = "对应文件为") {

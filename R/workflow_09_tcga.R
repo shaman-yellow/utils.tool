@@ -72,28 +72,57 @@ setMethod("step1", signature = c(x = "job_tcga"),
     } else {
       res_query <- x@tables$step1[ grepl("^query_", names(x@tables$step1)) ]
     }
-    n <- 0
-    data_id <- lapply(res_query,
-      function(data) {
-        n <<- n + 1
-        data <- dplyr::select(data, .id = cases)
-        data <- dplyr::mutate(data, .id = stringr::str_extract(.id, "[^\\-]*-[^\\-]*-[^\\-]*"))
-        data[[ paste0(".row", "_", n) ]] <- 1:nrow(data)
-        data
-      })
-    cons <- data_id[[1]]
-    for (i in 2:length(data_id)) {
-      cons <- merge(cons, data_id[[ i ]], by = ".id")
-    }
-    cons <- distinct(cons, .id, .keep_all = T)
-    if (keep_consensus) {
-      for (i in 1:length(object(x))) {
-        object(x)[[i]]$results[[1]] %<>%
-          dplyr::slice(dplyr::all_of(cons[[ paste0(".row_", i) ]]))
+    if (length(query) > 1) {
+      n <- 0
+      data_id <- lapply(res_query,
+        function(data) {
+          n <<- n + 1
+          data <- dplyr::select(data, .id = cases)
+          data <- dplyr::mutate(data, .id = stringr::str_extract(.id, "[^\\-]*-[^\\-]*-[^\\-]*"))
+          data[[ paste0(".row", "_", n) ]] <- 1:nrow(data)
+          data
+        })
+      cons <- data_id[[1]]
+      for (i in 2:length(data_id)) {
+        cons <- merge(cons, data_id[[ i ]], by = ".id")
       }
+      cons <- distinct(cons, .id, .keep_all = T)
+      if (keep_consensus) {
+        for (i in 1:length(object(x))) {
+          object(x)[[i]]$results[[1]] %<>%
+            dplyr::slice(dplyr::all_of(cons[[ paste0(".row_", i) ]]))
+        }
+      }
+    } else {
+      cons <- NULL
     }
     res_query <- .set_lab(res_query, paste(sig(x), x$object), names(res_query), "metadata")
     x@tables[[ 1 ]] <- c(res_query, namel(cons))
+    return(x)
+  })
+
+setMethod("filter", signature = c(x = "job_tcga"),
+  function(x, ids, type = "RNA", use.tnbc = F){
+    message("Filter the 'query' before downloading the data.")
+    if (x@step != 1) {
+      stop("x@step != 1")
+    }
+    if (use.tnbc) {
+      if (!identical(x$project, "TCGA-BRCA")) {
+        stop("The param `use.tnbc` only used for TCGA-BRCA.")
+      }
+      pb <- get_data.rot2016()
+      ids <- dplyr::filter(object(pb), TNBC == "YES")$BARCODE
+      pb@object <- NULL
+      .add_internal_job(pb)
+    }
+    if (!missing(ids)) {
+      ids <- substr(unique(ids), 1, 12)
+    }
+    for (i in type) {
+      object(x)[[ type ]]$results[[ 1 ]] %<>%
+        dplyr::filter(substr(cases, 1, 12) %in% !!ids)
+    }
     return(x)
   })
 

@@ -1,8 +1,8 @@
 # ==========================================================================
-# workflow of lzerd
+# workflow of hawkdock
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-.job_lzerd <- setClass("job_lzerd", 
+.job_hawkdock <- setClass("job_hawkdock", 
   contains = c("job"),
   representation = representation(
     object = "ANY",
@@ -11,23 +11,28 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = paste0("https://lzerd.kiharalab.org/upload/upload/", "\n",
-      "http://cadd.zju.edu.cn/hawkdock/"),
-    cite = "[@LzerdWebserverChrist2021; @HawkdockAWebWeng2019]",
-    method = "`LZerD` and `HawkDock` webservers used for protein–protein docking"
+    info = "http://cadd.zju.edu.cn/hawkdock/",
+    cite = "[@HawkdockAWebWeng2019]",
+    method = "`HawkDock` webservers used for protein–protein docking"
     ))
 
-job_lzerd <- function(symbols)
+job_hawkdock <- function(symbols, .layout = NULL)
 {
-  .job_lzerd(object = symbols)
+  if (!is.null(.layout)) {
+    message("Use columns of `.layout` as 'from' and 'to'.")
+    .layout <- .layout[, 1:2]
+    colnames(.layout) <- c("from", "to")
+    symbols <- unlist(.layout, use.names = F)
+  }
+  .job_hawkdock(object = rm.no(symbols), params = list(.layout = .layout))
 }
 
-setMethod("step0", signature = c(x = "job_lzerd"),
+setMethod("step0", signature = c(x = "job_hawkdock"),
   function(x){
-    step_message("Prepare your data with function `job_lzerd`.")
+    step_message("Prepare your data with function `job_hawkdock`.")
   })
 
-setMethod("step1", signature = c(x = "job_lzerd"),
+setMethod("step1", signature = c(x = "job_hawkdock"),
   function(x){
     step_message("Download pdb files for protein docking.")
     mart <- new_biomart()
@@ -35,15 +40,65 @@ setMethod("step1", signature = c(x = "job_lzerd"),
       object(x), distinct = F)
     x$anno <- dplyr::filter(x$anno, pdb != "")
     data <- dplyr::distinct(x$anno, hgnc_symbol, .keep_all = T)
-    x$layouts <- combn(data$pdb, 2, simplify = F)
-    x$pdb_files <- get_pdb(unique(unlist(x$layouts)))
+    if (any(!object(x) %in% x$anno$hgnc_symbol)) {
+      x$notGot <- object(x)[ !object(x) %in% x$anno$hgnc_symbol ]
+      message("Not got pdb: ", paste0(x$notGot, collapse = ", "))
+    }
+    if (is.null(x$.layout)) {
+      x$layouts <- combn(data$pdb, 2, simplify = F)
+    } else {
+      layouts <- x$.layout
+      layouts <- map(layouts, "from", data, "hgnc_symbol", "pdb", rename = F)
+      layouts <- map(layouts, "to", data, "hgnc_symbol", "pdb", rename = F)
+      x$layouts <- apply(layouts, 1, tolower, simplify = F)
+      names(x$layouts) <- paste0(x$.layout$from, "_", x$.layout$to)
+    }
+    x$pdb_files <- get_pdb(rm.no(unlist(x$layouts)))
     x$pdb_from <- nl(data$hgnc_symbol, data$pdb, F)
     return(x)
   })
 
-setMethod("map", signature = c(x = "job_lzerd"),
+setMethod("step2", signature = c(x = "job_hawkdock"),
+  function(x, email = "huanglichuang@wie-biotech.com", ...)
+  {
+    step_message("Use Selenium for automatic upload jobs.")
+    url <- "http://cadd.zju.edu.cn/hawkdock/"
+    layouts <- x$layouts
+    link <- start_drive(browser = "firefox", ...)
+    Sys.sleep(3)
+    link$open()
+    ids <- pbapply::pblapply(names(layouts),
+      function(name) {
+        items <- layouts[[ name ]]
+        if (any(is.na(items))) {
+          warning("Some PDB ID is 'NA', so escape.")
+          return()
+        }
+        link$navigate(url)
+        # job name: symbol_symbol
+        ele <- link$findElement("xpath", "//form//div//input[@id='jobname_HawkDock']")
+        ele$sendKeysToElement(list(name))
+        # email
+        ele <- link$findElement("xpath", "//form//div//input[@id='email_HawkDock']")
+        ele$sendKeysToElement(list(email))
+        # input receptor
+        ele <- link$findElement("xpath", "//form//div//select[@name='rec_select']//option[@value='pdbid']")
+        ele$clickElement()
+        ele <- link$findElement("xpath", "//form//div//input[@name='rec_PDBid']")
+        ele$sendKeysToElement(list(items[1]))
+        # input ligand
+        ele <- link$findElement("xpath", "//form//div//select[@name='lig_select']//option[@value='pdbid']")
+        ele$clickElement()
+        ele <- link$findElement("xpath", "//form//div//input[@name='lig_PDBid']")
+        ele$sendKeysToElement(list(items[2]))
+        stop("Exceed 1000 AA protein was not allowed.")
+      })
+    return(x)
+  })
+
+setMethod("map", signature = c(x = "job_hawkdock"),
   function(x, ref, id, rev = F, tops = 1){
-    ref <- match.arg(ref, c("lzerd", "hawkdock"))
+    ref <- match.arg(ref, "hawkdock")
     message("Create dir and naming as `id` as savepath.")
     mapped <- list()
     if (ref == "hawkdock") {
