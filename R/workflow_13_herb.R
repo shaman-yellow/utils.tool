@@ -657,14 +657,19 @@ new_link <- function(port = 4444L, browser = c("firefox", "chrome"), addr = "loc
   browser <- match.arg(browser)
   if (browser == "firefox") {
     download.dir <- normalizePath(download.dir)
-    prof <- RSelenium::makeFirefoxProfile(
-      list('permissions.default.image' = 2L,
-        'browser.download.folderList' = 2L,
-        'browser.download.manager.showWhenStarting' = F,
-        'browser.download.lastDir' = download.dir,
-        'browser.download.dir' = download.dir
+    # about:config
+    if (!is.null(path_prof <- getOption("FirefoxProfile"))) {
+      prof <- RSelenium::getFirefoxProfile(path_prof)
+    } else {
+      prof <- RSelenium::makeFirefoxProfile(
+        list('permissions.default.image' = 2L,
+          'browser.download.folderList' = 2L,
+          'browser.download.manager.showWhenStarting' = F,
+          'browser.download.lastDir' = download.dir,
+          'browser.download.dir' = download.dir
+        )
       )
-    )
+    }
     link <- RSelenium::remoteDriver(
       remoteServerAddr = addr, port = port,
       browserName = browser,

@@ -3367,7 +3367,11 @@ fix.tex <- function(str) {
   gsub("_", "\\\\_", str)
 }
 
-sumTbl <- function(x, key, sum.ex = NULL) {
+sumTbl <- function(x, key, sum.ex = NULL, mustSum = getOption("abstract.mustSum")) {
+  if (!is.null(mustSum)) {
+    exkey <- which( colnames(x) %in% mustSum )
+    key <- unique(sort(c(key, exkey)))
+  }
   sums <- paste0("含有", apply(x[, key], 2, function(x) length(unique(x))),
     "个唯一`", colnames(x[, key]), collapse = "；")
   paste0("注：表格共有", nrow(x), "行", ncol(x), "列，",

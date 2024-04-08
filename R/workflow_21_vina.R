@@ -80,7 +80,7 @@ setMethod("step1", signature = c(x = "job_vina"),
       x$targets_annotation <- dplyr::distinct(x$targets_annotation, hgnc_symbol, .keep_all = T)
     }
     if (any(isThat <- !object(x)$hgnc_symbols %in% x$targets_annotation$hgnc_symbol)) {
-      message("PDB not found:\n\t", paste0(unique(object(x)$hgnc_symbols[ isThat ])), collapse = ", ")
+      message("PDB not found:\n\t", paste0(unique(object(x)$hgnc_symbols[ isThat ]), collapse = ", "))
       if (!usethis::ui_yeah("Continue?")) {
         stop("Consider other ways to found PDB files for docking.")
       }
@@ -172,7 +172,7 @@ setMethod("step2", signature = c(x = "job_vina"),
     res.pdbqt <- mk_prepare_ligand.sdf(sdfFile)
     x$res.ligand <- nl(res.pdbqt$pdbqt.cid, res.pdbqt$pdbqt)
     message("Got (filter out in `mk_prepare_ligand.sdf`): ", length(x$res.ligand))
-    alls <- as.character(object(x)$cid)
+    alls <- unique(as.character(object(x)$cid))
     message("Not got:", paste0(alls[!alls %in% names(x$res.ligand)], collapse = ", "))
     message("Filter the `x$dock_layout`")
     x$dock_layout <- x$dock_layout[ names(x$dock_layout) %in% names(x$res.ligand) ]
@@ -221,7 +221,7 @@ setMethod("step3", signature = c(x = "job_vina"),
     gotSymbols <- x$targets_annotation$hgnc_symbol[ match(tolower(names), tolower(x$targets_annotation$pdb)) ]
     x$res.receptor.symbol <- gotSymbols
     fun <- function(x) x[ !x %in% gotSymbols ]
-    message("Not got: ", paste0(fun(object(x)$hgnc_symbol), collapse = ", "))
+    message("Not got: ", paste0(fun(unique(object(x)$hgnc_symbol)), collapse = ", "))
     if (filter) {
       if (!is.null(x$.layout)) {
         message("Customize using `x$.layout` columns: ", paste0(colnames(x$.layout)[1:2], collapse = ", "))
@@ -275,6 +275,9 @@ setMethod("step4", signature = c(x = "job_vina"),
         }
       }
     )
+    if (.Platform$OS.type == "unix") {
+      system("notify-send 'AutoDock vina' 'All job complete'")
+    }
     return(x)
   })
 
@@ -317,8 +320,11 @@ setMethod("step5", signature = c(x = "job_vina"),
     if (!is.null(excludes)) {
       data <- dplyr::filter(data, !hgnc_symbol %in% !!excludes)
     }
-    if (nrow(data) > 30) {
+    if (nrow(data) > 20) {
       data <- dplyr::filter(data, Affinity < 0)
+    }
+    if (nrow(data) > 20) {
+      data <- head(data, n = 20)
     }
     data <- dplyr::mutate(data, dplyr::across(!!rlang::sym(facet), function(x) stringr::str_trunc(x, 30)))
     p.res_vina <- ggplot(data) + 
@@ -359,7 +365,7 @@ setMethod("step6", signature = c(x = "job_vina"),
     names(figs) <- paste0("Top", seq_along(figs), "_", names(figs))
     x@plots[[ 6 ]] <- figs
     data <- .set_lab(data, sig(x), "Metadata of visualized Docking")
-    data <- dplyr::select(data, -dir, -file, -Combn)
+    data <- dplyr::select(data, -dir, -file)
     x@tables[[ 6 ]] <- namel(data)
     return(x)
   })
@@ -653,7 +659,18 @@ cal_3d_sdf <- function(sdf) {
 }
 
 setMethod("res", signature = c(x = "job_vina"),
-  function(x){
+  function(x, meta,
+    use = "Ingredient_name", target = "Ingredient.name", get = "Herb_pinyin_name")
+  {
     data <- dplyr::select(x@tables$step5$res_dock, -dir, -file)
-    dplyr::relocate(data, hgnc_symbol, Ingredient_name, Affinity)
+    data <- dplyr::relocate(data, hgnc_symbol, Ingredient_name, Affinity)
+    if (!missing(meta)) {
+      meta <- dplyr::filter(meta, !!rlang::sym(target) %in% !!data[[ use ]])
+      meta <- dplyr::distinct(meta, !!rlang::sym(target), !!rlang::sym(get))
+      meta <- dplyr::group_by(meta, !!rlang::sym(target))
+      fun <- function(x) paste0(x, collapse = "; ")
+      meta <- dplyr::reframe(meta, .get = fun(!!rlang::sym(get)))
+      data <- map(data, use, meta, target, ".get", col = get)
+    }
+    data
   })

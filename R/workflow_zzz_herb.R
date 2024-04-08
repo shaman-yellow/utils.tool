@@ -2,7 +2,7 @@
 # workflow of herb
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-setClassUnion("JOB_herb", c("job_herb", "job_tcmsp", "job_batman"))
+setClassUnion("JOB_herb", c("job_herb", "job_tcmsp", "job_batman", "job_tcmsp2"))
 
 setMethod("slice", signature = c(x = "JOB_herb"),
   function(x, ...){
@@ -49,12 +49,16 @@ setMethod("intersect", signature = c(x = "JOB_herb", y = "JOB_herb"),
   })
 
 setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
-  function(x, ref, HLs = NULL, levels = NULL, lab.level = "Level", name = "dis", compounds = NULL, ...)
+  function(x, ref, HLs = NULL, levels = NULL, lab.level = "Level", name = "dis", compounds = NULL,
+    syns = NULL, ...)
   {
     message("Filter compounds targets with disease targets.")
     data <- x$data.allu
     if (!is.null(compounds)) {
       data <- dplyr::filter(data, Ingredient.name %in% !!compounds)
+    }
+    if (!is.null(syns)) {
+      data <- map(data, colnames(data)[2], syns, colnames(syns)[1], colnames(syns)[2], rename = F)
     }
     if (length(ref)) {
       data <- dplyr::filter(data, Target.name %in% !!unlist(ref, use.names = F))

@@ -232,4 +232,12 @@ setMethod("anno", signature = c(x = "job_batman"),
   }
 }
 
-
+try_get_syn <- function(cids) {
+  syns <- e(PubChemR::get_synonyms(unique(cids)))
+  syns <- dplyr::bind_rows(syns)
+  syns <- dplyr::rename(syns, syno = Synonym)
+  syns <- dplyr::filter(syns, !!!.filter_pick.general)
+  syns <- dplyr::group_by(syns, CID)
+  syns <- dplyr::reframe(syns, Synonym = PickGeneral(syno))
+  dplyr::ungroup(syns)
+}

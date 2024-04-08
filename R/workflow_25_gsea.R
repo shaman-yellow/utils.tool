@@ -202,7 +202,7 @@ setMethod("step3", signature = c(x = "job_gsea"),
     setwd(name)
     cli::cli_alert_info("pathview::pathview")
     tryCatch({
-      res.pathviews <- lapply(pathways,
+      res.pathviews <- sapply(pathways, simplify = F,
         function(pathway) {
           data <- dplyr::filter(data, ID == !!pathway)
           pathway <- gs(data$ID, "^[a-zA-Z]*", "")
@@ -222,20 +222,23 @@ setMethod("step3", signature = c(x = "job_gsea"),
         })
     }, finally = {setwd("../")})
     x@tables[[ 3 ]] <- namel(res.pathviews)
-    p.pathviews <- .pathview_search(name, search, x)
+    p.pathviews <- .pathview_search(name, search, x, res.pathviews)
     x@plots[[ 3 ]] <- namel(p.pathviews)
     .add_internal_job(.job(method = "R package `pathview` used for KEGG pathways visualization", cite = "[@PathviewAnRLuoW2013]"))
     return(x)
   })
 
-.pathview_search <- function(name, search, x) {
+.pathview_search <- function(name, search, x, lst) {
   figs <- list.files(name, search, full.names = T)
   names <- get_realname(figs)
   p.pathviews <- mapply(figs, names, SIMPLIFY = F,
     FUN = function(x, name) {
       x <- .file_fig(x)
+      genes <- dplyr::filter(lst[[ name ]]$plot.data.gene, all.mapped != "")$labels
       attr(x, "lich") <- new_lich(
-        list("Interactive figure" = paste0("\\url{https://www.genome.jp/pathway/", name, "}"))
+        list("Interactive figure" = paste0("\\url{https://www.genome.jp/pathway/", name, "}"),
+          "Enriched genes" = paste0(unique(genes), collapse = ", ")
+        )
       )
       return(x)
     })
