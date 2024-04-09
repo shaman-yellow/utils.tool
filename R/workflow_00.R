@@ -1177,7 +1177,7 @@ setMethod("not", signature = c(x = "local_db"),
   })
 
 setMethod("upd", signature = c(x = "local_db"),
-  function(x, data, ids = NULL){
+  function(x, data, ids = x@query){
     idcol <- x@idcol
     if (!is(data, "df")) {
       stop('is(data, "df") == F')
@@ -1213,10 +1213,19 @@ setMethod("res", signature = c(x = "local_db"),
     dplyr::filter(as_tibble(x@db), !!rlang::sym(x@idcol) %in% !!what)
   })
 
+.get_savesInternalRds <- function(file) {
+  if (file == "workflow.rds") {
+    rds <- ".injobs.rds"
+  } else {
+    rds <- paste0(".injobs.", get_realname(file), ".rds")
+  }
+}
+
 saves <- function(file = "workflow.rds", ...) {
   injobs <- getOption("internal_job")
   if (!is.null(injobs)) {
-    saveRDS(injobs, ".injobs.rds")
+    rds <- .get_savesInternalRds(file)
+    saveRDS(injobs, rds)
   }
   if (file.exists(file)) {
     isThat <- usethis::ui_yeah("The `file` exists, overwrite that?")
@@ -1231,8 +1240,9 @@ loads <- function(file = "workflow.rds", ...) {
   if (file.exists(file)) {
     load(file, envir = .GlobalEnv)
   }
-  if (file.exists(".injobs.rds")) {
-    injobs <- readRDS(".injobs.rds")
+  rds <- .get_savesInternalRds(file)
+  if (file.exists(rds)) {
+    injobs <- readRDS(rds)
     options(internal_job = injobs)
   }
 }
