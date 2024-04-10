@@ -286,6 +286,10 @@ setMethod("step5", signature = c(x = "job_vina"),
   {
     step_message("Summary and visualization for results.")
     x$summary_vina <- summary_vina(x$savedir)
+    x$summary_vina <- dplyr::filter(x$summary_vina,
+      PubChem_id %in% !!names(x$dock_layout),
+      PDB_ID %in% tolower(unlist(x$dock_layout, use.names = F))
+    )
     if (!is.null(top)) {
       x$summary_vina <- split_lapply_rbind(x$summary_vina, ~ PDB_ID,
         function(x) {

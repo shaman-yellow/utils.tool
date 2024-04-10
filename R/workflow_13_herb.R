@@ -162,7 +162,8 @@ setMethod("step3", signature = c(x = "job_herb"),
     x@params$targets_annotation <- targets_annotation
     compounds_targets_annotation <- tbmerge(
       compounds_targets, targets_annotation,
-      by.x = "Target.name", by.y = "hgnc_symbol", all.x = T
+      by.x = "Target.name", by.y = "hgnc_symbol", all.x = T,
+      allow.cartesian = T
     )
     ## create data: herbs_target
     message("Create data: herbs_target")
@@ -225,6 +226,7 @@ setMethod("step3", signature = c(x = "job_herb"),
     }
     data.allu <- dplyr::select(easyRead, Herb_pinyin_name, Ingredient.name, Target.name)
     data.allu <- dplyr::mutate(data.allu, Target.name = ifelse(is.na(Target.name), "Unkown", Target.name))
+    data.allu <- dplyr::distinct(data.allu)
     x$data.allu <- data.allu
     p.pharm <- plot_network.pharm(data.allu, seed = x$seed, HLs = HLs)
     p.pharm <- .set_lab(p.pharm, sig(x), "network pharmacology visualization")
@@ -254,9 +256,9 @@ rstyle <- function(get = "pal", seed = NULL, n = 1L) {
   res
 }
 
-plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed = sample(1:10, 1), HLs = NULL,
-  ax1 = "Herb", ax2 = "Compound", ax3 = "Target", less.label = T,
-  ax2.level = NULL, lab.fill = "", edge_width = .1, force.ax1 = NULL)
+plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax4 = 2.4, seed = sample(1:10, 1), HLs = NULL,
+  ax1 = "Herb", ax2 = "Compound", ax3 = "Target", ax4 = NULL, less.label = T,
+  ax2.level = NULL, ax4.level = NULL, lab.fill = "", edge_width = .1, force.ax1 = NULL)
 {
   if (length(unique(data[[1]])) == 1) {
     sherb <- 1L
@@ -275,11 +277,15 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
       colnames(ax2.level) <- c("name", "level")
     }
   }
+  if (!is.null(ax4.level)) {
+    colnames(ax4.level) <- c("name", "level")
+  }
   prepare_data <- function(data) {
-    colnames(data) <- c(ax1, ax2, ax3)
+    colnames(data) <- c(ax1, ax2, ax3, ax4)
     nodes <- tidyr::gather(data, type, value)
     nodes <- dplyr::distinct(nodes)
     nodes <- dplyr::relocate(nodes, name = value, type)
+    nodes <- dplyr::filter(nodes, !is.na(name))
     nodes <- dplyr::mutate(nodes, name = ifelse(duplicated(name), paste0(type, ":", name), name))
     ed.12 <- dplyr::distinct(data, dplyr::pick(1:2))
     if (sherb) {
@@ -300,9 +306,16 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
       data$y <- data$y + y
       data
     }
+    ## axis 3 coords
     crds.Tgt <- get_layout(NULL, "grid", nodes = dplyr::filter(nodes, type == !!ax3))
     crds.Tgt <- shift(crds.Tgt, -max(crds.Tgt$x) / 2, -max(crds.Tgt$y) / 2)
     f.rsz <- max(crds.Tgt$x) * f.f
+    if (!is.null(ax4)) {
+      crds.Tgt$y <- crds.Tgt$y * 0.6
+      crds.ax4 <- get_layout(NULL, "linear", nodes = dplyr::filter(nodes, type == !!ax4))
+      crds.ax4 <- shift(crds.ax4, -max(crds.ax4$x) / 2, -max(crds.Tgt$y) * f.ax4)
+      f.rsz <- f.rsz * f.ax4 / 2
+    }
     if (!f.rsz) {
       f.rsz <- 3 * f.f
     } 
@@ -346,13 +359,21 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
       spiral_order <<- crds.ComMul$name
     }
     crds.ComMul <- resize(crds.ComMul, f.rsz * f.f.mul)
-    crds <- lst_clear0(list(crds.Hrb, crds.ComSin, crds.ComMul, crds.Tgt))
+    if (!is.null(ax4)) {
+      crds <- lst_clear0(list(crds.Hrb, crds.ComSin, crds.ComMul, crds.Tgt, crds.ax4))
+    } else {
+      crds <- lst_clear0(list(crds.Hrb, crds.ComSin, crds.ComMul, crds.Tgt))
+    }
     crds <- do.call(dplyr::bind_rows, crds)
     crds <- dplyr::distinct(crds, name, .keep_all = T)
-    if (sherb) {
-      use.cols <- 2
+    if (!is.null(ax4)) {
+      use.cols <- 1:3
     } else {
-      use.cols <- 1:2
+      if (sherb) {
+        use.cols <- 2
+      } else {
+        use.cols <- 1:2
+      }
     }
     edges <- lapply(use.cols,
       function(n) {
@@ -361,6 +382,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
         edges
       })
     edges <- do.call(dplyr::bind_rows, edges)
+    edges <- dplyr::filter(edges, !is.na(target))
     nodes <- dplyr::mutate(nodes, .type = type)
     if (!sherb) {
       nodes <- dplyr::mutate(nodes,
@@ -385,6 +407,16 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
   data.tgt <- dplyr::filter(data, type == !!ax3)
   set.seed(seed)
   minSize <- .5
+  edge_data <- get_edges("short")(x)
+  if (!is.null(ax4)) {
+    edge_ax4 <- dplyr::filter(edge_data, node2.type == !!ax4)
+    edge_data <- dplyr::filter(edge_data, node2.type != !!ax4)
+    geom_edge_ax4 <- ggraph::geom_edge_diagonal(data = edge_ax4,
+      # aes(edge_color = highlight, edge_width = highlight),
+      edge_color = "lightblue")
+  } else {
+    geom_edge_ax4 <- geom_blank()
+  }
   if (is.null(HLs)) {
     if (missing(edge_width)) {
       if (nrow(dplyr::filter(data, type == !!ax2)) > 10L) {
@@ -396,20 +428,33 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
     } else {
       width <- edge_width
     }
-    geom_edge <- geom_edge_link(color = sample(color_set()[1:6], 1), alpha = .2, width = width)
+    geom_edge <- ggraph::geom_edge_link(data = edge_data,
+      color = sample(color_set()[1:6], 1), alpha = .2, width = width)
   } else {
-    geom_edge <- geom_edge_link(aes(edge_color = highlight, edge_width = highlight), alpha = .2)
+    geom_edge <- geom_edge_link(data = edge_data,
+      aes(edge_color = highlight, edge_width = highlight), alpha = .2)
+  }
+  if (is.null(ax4)) {
+    data.label <- data
+    geom_label_3 <- geom_blank()
+  } else {
+    data.label <- dplyr::filter(data, type != !!ax4)
+    geom_label_3 <- ggplot2::geom_text(
+      data = dplyr::filter(data, type == !!ax4),
+      aes(x = x, y = y, label = name, color = type),
+      angle = 45, hjust = 1
+    )
   }
   if (less.label) {
     geom_label_1 <- ggrepel::geom_label_repel(
-      data = dplyr::filter(data, cent > if (sherb) 100 else 1000),
+      data = dplyr::filter(data.label, cent > if (sherb) 100 else 1000),
       aes(x = x, y = y, label = name, color = type))
     geom_label_2 <- ggrepel::geom_label_repel(
       data = dplyr::filter(data.tgt, cent >= sort(cent, T)[10]),
       aes(x = x, y = y, label = name, color = type))
   } else {
     geom_label_1 <- ggrepel::geom_label_repel(
-      data = data, aes(x = x, y = y, label = name, color = type))
+      data = data.label, aes(x = x, y = y, label = name, color = type))
     geom_label_2 <- geom_blank()
   }
   if (is.null(ax2.level)) {
@@ -428,9 +473,9 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, seed
       aes(x = x, y = y, color = type, size = cent, shape = type))
     scale_fill_gradient <- scale_fill_gradientn(colors = rev(color_set2()))
   }
-  p <- ggraph(x) + geom_edge +
+  p <- ggraph(x) + geom_edge + geom_edge_ax4 +
     geom_node_1 + geom_node_2 +
-    geom_label_1 + geom_label_2 +
+    geom_label_1 + geom_label_2 + geom_label_3 +
     scale_size(range = c(minSize, 15)) +
     guides(size = "none", shape = "none") +
     scale_color_manual(values = rstyle("pal", seed)) +

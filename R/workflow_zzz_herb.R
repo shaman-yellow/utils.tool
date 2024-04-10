@@ -50,7 +50,7 @@ setMethod("intersect", signature = c(x = "JOB_herb", y = "JOB_herb"),
 
 setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
   function(x, ref, HLs = NULL, levels = NULL, lab.level = "Level", name = "dis", compounds = NULL,
-    syns = NULL, ...)
+    syns = NULL, enrichment = NULL, en.top = 10, ...)
   {
     message("Filter compounds targets with disease targets.")
     data <- x$data.allu
@@ -66,8 +66,24 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
       x[[ paste0("p.venn2", name) ]] <- .set_lab(p.venn2dis, sig(x), "Targets intersect with targets of diseases")
     }
     herbs <- unique(x$data.allu[[1]])
-    p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
-      lab.fill = lab.level, force.ax1 = herbs, ...)
+    if (!is.null(enrichment)) {
+      if (is(enrichment, "job_enrich")) {
+        enrichment <- enrichment@tables$step1$res.kegg[[ 1 ]]
+        message("Use fisrt enrichment results of KEGG.")
+      }
+      en <- en.sig <- head(enrichment, en.top)
+      en <- dplyr::select(en, Description, geneName_list)
+      en <- reframe_col(en, "geneName_list", unlist)
+      data <- tbmerge(data, en, by.x = "Target.name", by.y = "geneName_list", all.x = T, allow.cartesian = T)
+      data <- dplyr::relocate(data, Herb_pinyin_name, Ingredient.name)
+      en.sig <- dplyr::select(en.sig, Description, p.adjust)
+      ## plot
+      p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
+        lab.fill = lab.level, force.ax1 = herbs, ax4 = "Pathway", ax4.level = en.sig, ...)
+    } else {
+      p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
+        lab.fill = lab.level, force.ax1 = herbs, ...)
+    }
     p.pharm$.data <- data
     if (length(ref)) {
       x[[ paste0("p.pharm2", name) ]] <- .set_lab(p.pharm, sig(x), "network pharmacology with disease")

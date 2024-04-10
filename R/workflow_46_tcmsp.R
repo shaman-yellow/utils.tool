@@ -138,7 +138,7 @@ setMethod("step2", signature = c(x = "job_tcmsp"),
 
 setMethod("step3", signature = c(x = "job_tcmsp"),
   function(x, disease = NULL, disease.score = 5, HLs = NULL,
-    db_uniprot = .prefix("tcmsp/largedata/uniprotkb.rds", "db"))
+    db_uniprot = .prefix("tcmsp/largedata/uniprotkb.rds", "db"), ...)
   {
     step_message("Query genes (symbol) for target proteins, and do step3 similar to `job_herb`...")
     ########################
@@ -147,7 +147,7 @@ setMethod("step3", signature = c(x = "job_tcmsp"),
     if (!any(colnames(compounds_targets) == "symbols")) {
       cli::cli_alert_info("UniprotKB")
       kb <- job_uniprotkb(compounds_targets[[ "Target name" ]], db_uniprot)
-      kb <- suppressMessages(step1(kb))
+      kb <- suppressMessages(step1(kb, ...))
       .add_internal_job(kb)
       res <- kb@tables$step1$format_results
       compounds_targets <- tbmerge(compounds_targets, res, by.x = "Target name", by.y = "query",
@@ -174,11 +174,12 @@ setMethod("step3", signature = c(x = "job_tcmsp"),
     hb <- suppressMessages(step3(hb, disease = disease, HLs = HLs))
     x@plots[[ 3 ]] <- c(kb@plots$step1, hb@plots$step3)
     easyRead <- tbmerge(
-      dplyr::select(x@tables$step2$ingredients, `Mol ID`, Herb_pinyin_name, `Molecule Name`),
-      compounds_targets, by = "Mol ID"
+      dplyr::select(x@tables$step2$ingredients, `Mol ID`, Herb_pinyin_name),
+      compounds_targets, by = "Mol ID",
+      allow.cartesian = T
     )
-    x@tables[[ 3 ]] <- namel(easyRead,
-      disease_targets_annotation = hb@tables$step3$disease_targets_annotation)
+    x$easyRead <- dplyr::select(easyRead, - `Mol ID`)
+    x@tables[[ 3 ]] <- namel(disease_targets_annotation = hb@tables$step3$disease_targets_annotation)
     x$data.allu <- hb$data.allu
     return(x)
   })

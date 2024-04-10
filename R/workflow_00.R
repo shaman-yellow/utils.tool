@@ -827,6 +827,9 @@ setMethod("$<-", signature = c(x = "job"),
 setMethod("map", signature = c(x = "df"),
   function(x, ref, y, y.ref, y.get, rename = T, col = NULL)
   {
+    if (any(!c(y.ref, y.get) %in% colnames(y))) {
+      stop("Can not found columns of '", y.ref, "' and '", y.get, "'")
+    }
     if (is.null(col)) {
       x[[ ref ]] <- y[[ y.get ]][match(x[[ ref ]], y[[ y.ref ]])]
       if (rename) {
@@ -1273,3 +1276,7 @@ set_prefix <- function(wd, db, op) {
   res
 }
 
+stop_debug <- function(x) {
+  Terror <<- x
+  stop("Stop for debugging. Use `Terror` to get data.")
+}

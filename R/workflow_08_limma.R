@@ -154,8 +154,14 @@ setMethod("step2", signature = c(x = "job_limma"),
     } else {
       tops <- NULL
     }
-    p.valcano <- lapply(tops, plot_valcano, label = label, use = use, fc = cut.fc)
-    p.valcano <- lapply(p.valcano, function(p) wrap(p, 5, 4))
+    p.valcano <- lapply(tops, plot_valcano, label = label, use = use, fc = cut.fc, seed = x$seed)
+    p.valcano <- lapply(p.valcano,
+      function(p) {
+        p <- wrap(p, 5, 4)
+        attr(p, "lich") <- new_lich(nl(c(paste0(use, " cut-off"), "Log2(FC) cut-off"), c(use.cut, cut.fc)))
+        p
+      }
+    )
     p.valcano <- .set_lab(p.valcano, sig(x), gs(names(p.valcano), "-", "vs"), "DEGs")
     lab(p.valcano) <- paste(sig(x), "volcano plot", "DEGs")
     plots <- c(plots, namel(p.valcano))
@@ -230,7 +236,8 @@ setMethod("map", signature = c(x = "job_limma"),
     p
   })
 
-plot_valcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val", fc = .3) {
+plot_valcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val", fc = .3, seed = 1) {
+  set.seed(seed)
   if (!any(label == colnames(top_table))) {
     if (any("rownames" == colnames(top_table)))
       label <- "rownames"

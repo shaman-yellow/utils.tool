@@ -46,7 +46,7 @@ setMethod("step1", signature = c(x = "job_uniprotkb"),
           res
         } else NULL
       })
-    res <- frbind(res, idcol = T)
+    res <- frbind(res, idcol = T, fill = T)
     db <- upd(db, res)
     raw_results <- as_tibble(dplyr::filter(db@db, .id %in% object(x)))
     fun_format <- function() {

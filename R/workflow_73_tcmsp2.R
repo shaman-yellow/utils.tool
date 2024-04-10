@@ -236,7 +236,9 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
       "herb", herbs_info, "herb", "Chinese Pinyin name",
       col = "Herb_pinyin_name"
     )
-    tables$compounds_targets <- lst$targets
+    tables$compounds_targets <- dplyr::distinct(lst$targets,
+      `Mol ID`, `Molecule name`, `Target name`
+    )
     x@tables[[ 2 ]] <- tables
     x@params$herbs_info <- dplyr::select(herbs_info,
       Herb_pinyin_name = `Chinese Pinyin name`,
@@ -246,8 +248,28 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
   })
 
 setMethod("step3", signature = c(x = "job_tcmsp2"),
-  function(x, filter = T){
-    step_message()
+  function(x, filter = T, cutoff.ob = 30, cutoff.dl = 0.18, ...)
+  {
+    step_message("Call next method.")
     object(x) <- list()
+    if (filter) {
+      data <- x@tables$step2$ingredients
+      data <- dplyr::mutate(data,
+        `OB (%)` = as.double(`OB (%)`),
+        DL = as.double(DL)
+      )
+      data <- dplyr::filter(data, `OB (%)` > cutoff.ob, DL > cutoff.dl)
+      message("Filter: before (", nrow(x@tables$step2$ingredients), ") vs after (", nrow(data), ")")
+      x@tables$step2$ingredients <- data
+      x@tables$step2$compounds_targets <- dplyr::filter(
+        x@tables$step2$compounds_targets,
+        `Mol ID` %in% !!data[[ "Mol ID" ]]
+      )
+    }
+    x <- callNextMethod(x, ...)
+    data <- .set_lab(data, sig(x), "compounds filtered by OB and DL")
+    attr(data, "lich") <- new_lich(list("OB (%) cut-off" = "30%", "DL cut-off" = "0.18"))
+    x@tables[[ 3 ]]$t.ob_dl_filtered <- data
+    x$easyRead <- dplyr::select(x$easyRead, Herb_pinyin_name, `Molecule name`, symbols, protein.names)
     return(x)
   })
