@@ -16,10 +16,14 @@
     method = "The R package `Seurat` used for scRNA-seq processing; `SCSA` (python) used for cell type annotation"
     ))
 
-job_seurat <- function(dir, project = get_filename(sub("/$", "", dir)),
-  min.cells = 3, min.features = 200, ...)
+job_seurat <- function(dir = NULL, project = get_filename(sub("/$", "", dir)),
+  min.cells = 3, min.features = 200, file_h5 = NULL, ...)
 {
-  data <- e(Seurat::Read10X(dir))
+  if (!is.null(file_h5)) {
+    data <- e(Seurat::Read10X_h5(file_h5))
+  } else {
+    data <- e(Seurat::Read10X(dir))
+  }
   object <- e(Seurat::CreateSeuratObject(counts = data, project = project,
       min.cells = min.cells, min.features = min.features, ...))
   .job_seurat(object = object)
@@ -208,6 +212,9 @@ setMethod("step6", signature = c(x = "job_seurat"),
     cmd = "python3 ~/SCSA/SCSA.py", db = "~/SCSA/whole_v2.db")
   {
     step_message("Use SCSA to annotate cell types (<https://github.com/bioinfo-ibms-pumc/SCSA>).")
+    if (grpl(tissue, "(?<!\\\\)\\s", perl = T)) {
+      tissue <- gs(tissue, "\\s", "\\\\ ")
+    }
     if (!is.null(ref.markers)) {
       .check_columns(ref.markers, c("cell", "markers"))
       ref.markers <- dplyr::relocate(ref.markers, cell, markers)
@@ -613,3 +620,54 @@ setMethod("cal_corp", signature = c(x = "job_seurat", y = "NULL"),
     data <- data.frame(Matrix::as.matrix(data))
     .cal_corp.elist(data, anno, use = "symbol", from, to, names)
   })
+
+
+gptcelltype <- function(input, tissuename = NULL, model = 'gpt-4', topgenenumber = 10) {
+  OPENAI_API_KEY <- Sys.getenv("OPENAI_API_KEY")
+  if (OPENAI_API_KEY == "") {
+    message("Note: OpenAI API key not found: returning the prompt itself.")
+    API.flag <- 0
+  } else {
+    API.flag <- 1
+  }
+  if (is(input, "list")) {
+    input <- sapply(input, paste, collapse = ',')
+  } else {
+    input <- tapply(input$gene, list(input$cluster), function(i) paste0(i[1:topgenenumber], collapse = ','))
+  }
+  if (!API.flag){
+   stop('Identify cell types of ', tissuename,
+     'cells using the following markers separately for each\n row. ',
+     'Only provide the cell type name. Do not show numbers before the name.\n',
+     'Some can be a mixture of multiple cell types. ',
+     "\n", paste0(names(input), ':', unlist(input), collapse = "\n"))
+  } else {
+    message("Note: OpenAI API key found: returning the cell type annotations.")
+    cutnum <- ceiling(length(input)/30)
+    if (cutnum > 1) {
+      cid <- as.numeric(cut(1:length(input), cutnum))	
+    } else {
+      cid <- rep(1, length(input))
+    }
+    allres <- sapply(1:cutnum,
+      function(i) {
+        id <- which(cid == i)
+        flag <- 0
+        while (flag == 0) {
+          k <- openai::create_chat_completion(
+            model = model,
+            message = list(list("role" = "user", "content" = paste0('Identify cell types of ',tissuename,' cells using the following markers separately for each\n row. Only provide the cell type name. Do not show numbers before the name.\n Some can be a mixture of multiple cell types.\n',paste(input[id],collapse = '\n'))))
+          )
+          res <- strsplit(k$choices[, 'message.content'], '\n')[[1]]
+          if (length(res) == length(id))
+            flag <- 1
+        }
+        names(res) <- names(input)[id]
+        res
+      }, simplify = F)
+    message('Note: It is always recommended to check the results returned by ',
+      'GPT-4 in case of\n AI hallucination, before going to down-stream analysis.')
+    gsub(',$', '', unlist(allres))
+  }
+}
+

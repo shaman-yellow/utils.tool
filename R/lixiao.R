@@ -3867,11 +3867,12 @@ new_pie <- function(x, title = NULL, use.ggplot = T, overlap = 30,
   x <- vapply(x, length, integer(1))
   if (use.ggplot) {
     data <- data.frame(var = names(x), value = unname(x))
-    data <- dplyr::arrange(data, dplyr::desc(var))
+    data <- dplyr::arrange(data, var)
     data <- dplyr::mutate(data,
+      var = factor(var, levels = var),
       label = paste0("(", round(value / sum(value) * 100, 1), "%, ", value, ")"),
       label = paste0(var, " ", label), lab.x = .2,
-      lab.y = value / 2 + c(0, cumsum(value)[ -length(value) ])
+      lab.y = sum(value) - (value / 2 + c(0, cumsum(value)[ -length(value) ]))
     )
     palette <- if (length(x) > 40)
       color_set(T)

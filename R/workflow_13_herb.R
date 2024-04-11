@@ -256,9 +256,10 @@ rstyle <- function(get = "pal", seed = NULL, n = 1L) {
   res
 }
 
-plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax4 = 2.4, seed = sample(1:10, 1), HLs = NULL,
+plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax4 = 2, seed = sample(1:10, 1), HLs = NULL,
   ax1 = "Herb", ax2 = "Compound", ax3 = "Target", ax4 = NULL, less.label = T,
-  ax2.level = NULL, ax4.level = NULL, lab.fill = "", edge_width = .1, force.ax1 = NULL)
+  ax2.level = NULL, ax4.level = NULL, decImport.ax4Level = F, lab.fill = "",
+  edge_width = .1, force.ax1 = NULL)
 {
   if (length(unique(data[[1]])) == 1) {
     sherb <- 1L
@@ -276,9 +277,6 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
       message("Rename colnames of `ax2.level` with 'name', 'level'")
       colnames(ax2.level) <- c("name", "level")
     }
-  }
-  if (!is.null(ax4.level)) {
-    colnames(ax4.level) <- c("name", "level")
   }
   prepare_data <- function(data) {
     colnames(data) <- c(ax1, ax2, ax3, ax4)
@@ -312,7 +310,19 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
     f.rsz <- max(crds.Tgt$x) * f.f
     if (!is.null(ax4)) {
       crds.Tgt$y <- crds.Tgt$y * 0.6
-      crds.ax4 <- get_layout(NULL, "linear", nodes = dplyr::filter(nodes, type == !!ax4))
+      if (is.null(ax4.level)) {
+        crds.ax4 <- get_layout(NULL, "linear", nodes = dplyr::filter(nodes, type == !!ax4))
+      } else {
+        colnames(ax4.level) <- c("name", "level")
+        if (any(duplicated(ax4.level))) {
+          message("`ax4.level` is duplicated, de duplicated herein.")
+          ax4.level <- dplyr::distinct(ax4.level, name, .keep_all = T)
+        }
+        ## change for parent.frame
+        ax4.level <<- ax4.level
+        nodesAx4 <- dplyr::arrange(ax4.level, if (decImport.ax4Level) dplyr::desc(level) else level)
+        crds.ax4 <- get_layout(NULL, "linear", nodes = nodesAx4)
+      }
       crds.ax4 <- shift(crds.ax4, -max(crds.ax4$x) / 2, -max(crds.Tgt$y) * f.ax4)
       f.rsz <- f.rsz * f.ax4 / 2
     }
@@ -435,48 +445,66 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
       aes(edge_color = highlight, edge_width = highlight), alpha = .2)
   }
   if (is.null(ax4)) {
-    data.label <- data
+    dataAx123 <- data
     geom_label_3 <- geom_blank()
   } else {
-    data.label <- dplyr::filter(data, type != !!ax4)
+    dataAx123 <- dplyr::filter(data, type != !!ax4)
     geom_label_3 <- ggplot2::geom_text(
       data = dplyr::filter(data, type == !!ax4),
-      aes(x = x, y = y, label = name, color = type),
+      aes(x = x, y = y * 1.1, label = name, color = type),
       angle = 45, hjust = 1
     )
   }
   if (less.label) {
     geom_label_1 <- ggrepel::geom_label_repel(
-      data = dplyr::filter(data.label, cent > if (sherb) 100 else 1000),
+      data = dplyr::filter(dataAx123, cent > if (sherb) 100 else 1000),
       aes(x = x, y = y, label = name, color = type))
     geom_label_2 <- ggrepel::geom_label_repel(
       data = dplyr::filter(data.tgt, cent >= sort(cent, T)[10]),
       aes(x = x, y = y, label = name, color = type))
   } else {
     geom_label_1 <- ggrepel::geom_label_repel(
-      data = data.label, aes(x = x, y = y, label = name, color = type))
+      data = dataAx123, aes(x = x, y = y, label = name, color = type))
     geom_label_2 <- geom_blank()
   }
   if (is.null(ax2.level)) {
-    geom_node_1 <- geom_node_point(data = data, aes(x = x, y = y, color = type, size = cent, shape = type))
+    geom_node_1 <- geom_node_point(data = dataAx123,
+      aes(x = x, y = y, color = type, size = cent, shape = type))
     geom_node_2 <- geom_blank()
     scale_fill_gradient <- geom_blank()
   } else {
-    data.level <- dplyr::filter(data, .type == !!ax2)
+    data.level <- dplyr::filter(dataAx123, .type == !!ax2)
     data.level <- map(data.level, "name", ax2.level, "name", "level", col = "level")
     geom_node_1 <- geom_node_point(data = data.level,
       aes(x = x, y = y, fill = level, size = cent), shape = 21,
       stroke = 0, color = "transparent"
     )
-    data.nonlevel <- dplyr::filter(data, .type != !!ax2)
+    data.nonlevel <- dplyr::filter(dataAx123, .type != !!ax2)
     geom_node_2 <- geom_node_point(data = data.nonlevel,
       aes(x = x, y = y, color = type, size = cent, shape = type))
     scale_fill_gradient <- scale_fill_gradientn(colors = rev(color_set2()))
   }
+  sizeRange <- c(minSize, 15)
+  if (is.null(ax4.level)) {
+    geom_node_3 <- geom_blank()
+  } else {
+    dataNode3 <- dplyr::filter(data, type == !!ax4)
+    dataNode3 <- map(dataNode3, "name", ax4.level, "name", "level", col = "level")
+    ## must sort the data, else the `size` were mapped error
+    dataNode3 <- dplyr::arrange(dataNode3, x)
+    sizeNode3 <- seq(sizeRange[1], sizeRange[2] / 2, length.out = length(unique(dataNode3$name)))
+    ## the order of the order
+    dataNode3 <- dplyr::mutate(dataNode3, size = sizeNode3[ order(order(level, decreasing = decImport.ax4Level)) ])
+    geom_node_3 <- geom_node_point(
+      data = dataNode3, aes(fill = level),
+      size = dataNode3$size, shape = 21,
+      stroke = 0, color = "transparent"
+    )
+  }
   p <- ggraph(x) + geom_edge + geom_edge_ax4 +
-    geom_node_1 + geom_node_2 +
+    geom_node_1 + geom_node_2 + geom_node_3 +
     geom_label_1 + geom_label_2 + geom_label_3 +
-    scale_size(range = c(minSize, 15)) +
+    scale_size(range = sizeRange) +
     guides(size = "none", shape = "none") +
     scale_color_manual(values = rstyle("pal", seed)) +
     scale_edge_color_manual(values = c("Highlight" = "red", "Non-highlight" = "lightblue")) +

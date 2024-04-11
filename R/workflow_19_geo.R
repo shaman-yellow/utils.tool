@@ -139,6 +139,8 @@ get_metadata.geo <- function(lst,
       function(data){
         cols <- colnames(data)
         extra <- unlist(.find_and_sort_strings(cols, pattern), use.names = F)
+        namesSelect <- vapply(select, rlang::as_label, character(1))
+        select <- select[ which(namesSelect %in% cols) ]
         dplyr::select(data, !!!select, dplyr::all_of(extra))
       })
     if (!is.null(abbrev)) {

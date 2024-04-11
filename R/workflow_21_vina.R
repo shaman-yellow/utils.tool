@@ -404,7 +404,7 @@ pretty_docking <- function(protein, ligand, path,
   message("Save png to ", output)
   expr <- paste0(" png ", save, ",2000,2000,dpi=300")
   gett(expr)
-  cdRun("pymol ",
+  cdRun(pg("pymol"), " ",
     " -d \"run ", temp, "\"",
     " -d \"ray; ", expr, "\"",
     path = path)
@@ -436,8 +436,8 @@ vina <- function(lig, recep, dir = "vina_space",
     .message_info("Generating affinity maps", subdir)
     .cdRun <- function(...) cdRun(..., path = wd)
     files <- get_filename(c(lig, recep))
-    .cdRun("prepare_gpf.py -l ", files[1], " -r ", files[2], " -y")
-    .cdRun("autogrid4 -p ", reals[2], ".gpf ", " -l ", reals[2], ".glg")
+    .cdRun(pg("prepare_gpf.py"), " -l ", files[1], " -r ", files[2], " -y")
+    .cdRun(pg("autogrid4"), " -p ", reals[2], ".gpf ", " -l ", reals[2], ".glg")
     if (remote) {
       message("Run in remote server.")
       cdRun("scp -r ", subdir, " ", x$remote, ":", x$wd, path = dir)
@@ -601,7 +601,7 @@ mk_prepare_ligand.sdf <- function(sdf_file, mkdir.pdbqt = "pdbqt", check = F) {
   } else {
     lst <- list(file = sdf_file)
   }
-  cdRun("mk_prepare_ligand.py -i ", sdf_file,
+  cdRun(pg("mk_prepare_ligand.py"), " -i ", sdf_file,
     " --multimol_outdir ", mkdir.pdbqt)
   lst$file <- sdf_file
   lst$pdbqt <- list.files(mkdir.pdbqt, "\\.pdbqt$", full.names = T)
@@ -657,7 +657,7 @@ cal_3d_sdf <- function(sdf) {
     isThat <- usethis::ui_yeah("Overwrite the exists file?")
   }
   if (isThat) {
-    cdRun("obgen ", sdf, " -ff UFF > ", output)
+    cdRun(pg("obgen"), " ", sdf, " -ff UFF > ", output)
   }
   output
 }

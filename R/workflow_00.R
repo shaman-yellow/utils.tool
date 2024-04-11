@@ -194,6 +194,11 @@ pg_local_recode <- function() {
     musitePTM = "~/MusiteDeep_web/MusiteDeep/predict_multi_batch.py",
     musitePTM2S = "~/MusiteDeep_web/PTM2S/ptm2Structure.py",
     musiteModel = normalizePath("~/MusiteDeep_web/MusiteDeep/models"),
+    mk_prepare_ligand.py = "mk_prepare_ligand.py",
+    prepare_gpf.py = "prepare_gpf.py",
+    autogrid4 = "autogrid4",
+    pymol = "pymol",
+    obgen = "obgen",
     sirius = .prefix("sirius/bin/sirius", "op")
   )
 }
@@ -1009,7 +1014,9 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
       function(dir) {
         file <- paste0(dir, "/index.Rmd")
         if (file.exists(file)) {
-          x <- stringr::str_extract(readLines(file), "job_[a-zA-Z0-9]+|new_[a-zA-Z0-9]+")
+          x <- stringr::str_extract(readLines(file), "job_[a-zA-Z0-9._]+|new_[a-zA-Z0-9._]+|^pb\\.[a-zA-Z0-9._]+")
+          isPb <- grpl(x, "^pb")
+          x[ isPb ] <- ifelse(!duplicated(x[ isPb ]), x[ isPb ], NA)
           x <- x[!is.na(x)]
           x[ !x %in% c("new_upset", "new_venn", "new_lich", "job_esearch") ]
         }
@@ -1018,12 +1025,15 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
       .type = dplyr::recode(type,
         `备单业务` = "BI", `固定业务` = "IN", "其他业务" = "Others"))
     names(used) <- paste0(alls$receive_date, "_", 1:length(used), "##", alls$.type)
+    whichLen0 <- lengths(used) == 0
+    message("No any 'job' detected: \n\t", paste0(alls$.dir[whichLen0], collapse = "\n\t "))
     used <- lst_clear0(used)
     used <- as_df.lst(used)
     used <- dplyr::mutate(used, value = 1,
       order = paste0("Order ", gs(type, "##.*$", "")),
       rank = as.integer(as.Date(type)),
-      name = gs(name, "^job_|^new_", ""),
+      name = gs(name, "^job_|^new_|(?<=^pb).*", "", perl = T),
+      name = gs(name, "^pb$", "Publication"),
       type = gs(type, ".*##(.*)$", "\\1")
     )
     data <- as_tibble(used)

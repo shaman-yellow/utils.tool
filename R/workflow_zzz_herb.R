@@ -79,7 +79,11 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
       en.sig <- dplyr::select(en.sig, Description, p.adjust)
       ## plot
       p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
-        lab.fill = lab.level, force.ax1 = herbs, ax4 = "Pathway", ax4.level = en.sig, ...)
+        lab.fill = "P.adjust", force.ax1 = herbs, ax4 = "Pathway", ax4.level = en.sig,
+        decImport.ax4Level = T, ...)
+      dataPath <- reframe_col(data, "Description", function(x) paste0(x, collapse = "; "))
+      dataPath <- dplyr::rename(dataPath, Enriched_pathways = "Description")
+      p.pharm$.path <- dataPath
     } else {
       p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
         lab.fill = lab.level, force.ax1 = herbs, ...)
