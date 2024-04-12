@@ -98,4 +98,39 @@ get_data.rot2016 <- function(file = .prefix("published_data/RefinementOfTLehman2
   return(x)
 }
 
-
+get_data.nmt2015 <- function(file = .prefix("published_data/NovelMarkersTJablon2015.rds"), update = F)
+{
+  # scRNA-seq, mouse Macrophage, M0, M1, M2 signature
+  if (file.exists(file) && !update) {
+    obj <- readRDS(file)
+  } else {
+    # Top 10 up- and down-Regulated genes common to M1 and M2 macrophages.
+    m1m2 <- "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4689374/table/pone.0145342.t003/?report=objectonly"
+    # Genes increased more than 2-FC in M1 and decreased more than 2-FC in M2 macrophages.
+    m1_up_m2_down <- "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4689374/table/pone.0145342.t004/?report=objectonly"
+    # Genes increased more than 2-FC in M2 and decreased more than 2-FC in M1 macrophages.
+    m2_up_m1_down <- "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4689374/table/pone.0145342.t005/?report=objectonly"
+    fun_m1m2 <- function(url) {
+      x <- as_tibble(get_table.html(RCurl::getURL(url))[[1]])
+      x <- dplyr::filter(x, !grpl(V1, "Gene|Regulated"), grpl(V1, "^[A-Za-z0-9]+$"))
+      colnames(x) <- c("gene", "FC.M1_vs_M0", "p.M1_vs_M0", "FC.M2_vs_M0", "p.M2_vs_M0")
+      x <- dplyr::mutate(x, dplyr::across(2:5, as.double))
+      x
+    }
+    fun_m <- function(url) {
+      x <- as_tibble(get_table.html(RCurl::getURL(url))[[1]], .name_repair = "minimal")
+      colnames(x) <- c("gene", "FC.M1_vs_M0", "p.M1_vs_M0", "FC.M2_vs_M0", "p.M2_vs_M0")
+      x <- dplyr::mutate(x, dplyr::across(2:5, as.double))
+      x
+    }
+    sig.m0 <- fun_m1m2(m1m2)
+    sig.m1 <- fun_m(m1_up_m2_down)
+    sig.m2 <- fun_m(m2_up_m1_down)
+    obj <- namel(sig.m0, sig.m1, sig.m2)
+    saveRDS(obj, file)
+  }
+  x <- .job(object = obj, cite = "[@NovelMarkersTJablon2015]",
+    method = "The data in published article of Jablonski et al used for distinguishing macrophage phenotypes (M0/M1/M2)"
+  )
+  return(x)
+}

@@ -12,8 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("Tutorial: https://satijalab.org/seurat/articles/pbmc3k_tutorial.html"),
-    cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019; @ScsaACellTyCaoY2020]",
-    method = "The R package `Seurat` used for scRNA-seq processing; `SCSA` (python) used for cell type annotation"
+    cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]",
+    method = "The R package `Seurat` used for scRNA-seq processing"
     ))
 
 job_seurat <- function(dir = NULL, project = get_filename(sub("/$", "", dir)),
@@ -209,12 +209,14 @@ setMethod("step5", signature = c(x = "job_seurat"),
 
 setMethod("step6", signature = c(x = "job_seurat"),
   function(x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = .5,
-    cmd = "python3 ~/SCSA/SCSA.py", db = "~/SCSA/whole_v2.db")
+    org = c("Human", "Mouse"),
+    cmd = pg("scsa"), db = pg("scsa_db"))
   {
     step_message("Use SCSA to annotate cell types (<https://github.com/bioinfo-ibms-pumc/SCSA>).")
     if (grpl(tissue, "(?<!\\\\)\\s", perl = T)) {
       tissue <- gs(tissue, "\\s", "\\\\ ")
     }
+    org <- match.arg(org)
     if (!is.null(ref.markers)) {
       .check_columns(ref.markers, c("cell", "markers"))
       ref.markers <- dplyr::relocate(ref.markers, cell, markers)
@@ -236,7 +238,7 @@ setMethod("step6", signature = c(x = "job_seurat"),
       " -s seurat", " -i ", marker_file,
       " -k ", tissue, " -d ", db, " ", ref.markers.cmd,
       " -p ", filter.p, " -f ", filter.fc,
-      " -E -g Human -m txt",
+      " -E -g ", org, " -m txt",
       " -o ", result_file, " > /tmp/log_scsa.txt"
     )
     x@params$marker_file <- marker_file
@@ -261,6 +263,8 @@ setMethod("step6", signature = c(x = "job_seurat"),
     p.map_scsa <- wrap(as_grob(p.map_scsa), 7, 4)
     p.map_scsa <- .set_lab(p.map_scsa, sig(x), "SCSA", "Cell type annotation")
     x@plots[[ 6 ]] <- list(p.map_scsa = p.map_scsa)
+    .add_internal_job(.job(method = "`SCSA` (python) used for cell type annotation",
+        cite = "[@ScsaACellTyCaoY2020]"))
     return(x)
   })
 
@@ -560,6 +564,21 @@ prepare_10x <- function(target, pattern, single = F) {
       function(x)
         file.rename(x, paste0(dir, "/", gs(get_filename(x), ".*_", "")))
     )
+    expected <- c("barcodes.tsv.gz", "features.tsv.gz", "matrix.mtx.gz")
+    alls <- list.files(dir, full.names = T)
+    allnames <- get_filename(alls)
+    if (!all(expected %in% allnames)) {
+      message("Got all files: ", paste0(allnames, collapse = ", "))
+      notGet <- expected[ !expected %in% allnames ]
+      Get <- expected[ expected %in% allnames ]
+      message("Got: ", paste0(Get, collapse = ", "), "\n",
+        "Not got: ", crayon::yellow(paste0(notGet, collapse = ", ")))
+      isUnExpected <- !allnames %in% expected
+      if (length(which(isUnExpected)) == 1 & length(notGet) == 1) {
+        file.rename(alls[ isUnExpected ], paste0(dir, "/", notGet))
+        message(crayon::red("Rename: "), alls[ isUnExpected ], " as ", paste0(dir, "/", notGet))
+      }
+    }
     dir
   } else {
     path <- get_path(target)
@@ -622,52 +641,111 @@ setMethod("cal_corp", signature = c(x = "job_seurat", y = "NULL"),
   })
 
 
-gptcelltype <- function(input, tissuename = NULL, model = 'gpt-4', topgenenumber = 10) {
-  OPENAI_API_KEY <- Sys.getenv("OPENAI_API_KEY")
-  if (OPENAI_API_KEY == "") {
-    message("Note: OpenAI API key not found: returning the prompt itself.")
-    API.flag <- 0
+applyGptcelltype <- function(input, tissuename, model = c("gpt-3.5-turbo", "gpt-4"),
+  topgenenumber = 10)
+{
+  # https://platform.openai.com/api-keys
+  OPENAI_API_KEY <- getOption("OPENAI_API_KEY")
+  if (is.null(OPENAI_API_KEY)) {
+    API.flag <- 0L
   } else {
-    API.flag <- 1
+    API.flag <- 1L
   }
+  model <- match.arg(model)
   if (is(input, "list")) {
     input <- sapply(input, paste, collapse = ',')
   } else {
-    input <- tapply(input$gene, list(input$cluster), function(i) paste0(i[1:topgenenumber], collapse = ','))
+    if (!is.data.frame(input)) {
+      stop("`input` must be either data.frame or list.")
+    }
+    if (!all(c("cluster", "gene") %in% colnames(input))) {
+      stop("The data.frame format of `input` must contain columns: cluster, gene.")
+    }
+    input <- tapply(input$gene, list(input$cluster),
+      function(i) paste0(i[1:topgenenumber], collapse = ','))
   }
   if (!API.flag){
    stop('Identify cell types of ', tissuename,
-     'cells using the following markers separately for each\n row. ',
-     'Only provide the cell type name. Do not show numbers before the name.\n',
-     'Some can be a mixture of multiple cell types. ',
-     "\n", paste0(names(input), ':', unlist(input), collapse = "\n"))
+     ' cells using the following markers separately for each\n row.',
+     ' Only provide the cell type name. Do not show numbers before the name.\n',
+     ' Some can be a mixture of multiple cell types.\n',
+     paste0(names(input), ':', unlist(input), collapse = "\n"))
   } else {
-    message("Note: OpenAI API key found: returning the cell type annotations.")
-    cutnum <- ceiling(length(input)/30)
+    cutnum <- ceiling(length(input) / 30)
     if (cutnum > 1) {
-      cid <- as.numeric(cut(1:length(input), cutnum))	
+      cid <- as.numeric(cut(1:length(input), cutnum))
     } else {
       cid <- rep(1, length(input))
     }
-    allres <- sapply(1:cutnum,
+    allres <- sapply(1:cutnum, simplify = F,
       function(i) {
         id <- which(cid == i)
-        flag <- 0
-        while (flag == 0) {
-          k <- openai::create_chat_completion(
-            model = model,
-            message = list(list("role" = "user", "content" = paste0('Identify cell types of ',tissuename,' cells using the following markers separately for each\n row. Only provide the cell type name. Do not show numbers before the name.\n Some can be a mixture of multiple cell types.\n',paste(input[id],collapse = '\n'))))
+        content <- paste0(
+          'Identify cell types of ', tissuename, ', ',
+          ' using the following markers separately for each row.',
+          ' Only provide the cell type name.',
+          ' Do not show numbers before the name.\n',
+          ' Some can be a mixture of multiple cell types.\n\n',
+          paste(input[id], collapse = '\n')
+        )
+        flag <- 0L
+        while (!flag) {
+          k <- openai::create_chat_completion(model = model,
+            messages = list(list(role = "user", content = "How are you?")),
+            openai_api_key = OPENAI_API_KEY
           )
+          stop_debug(k)
           res <- strsplit(k$choices[, 'message.content'], '\n')[[1]]
           if (length(res) == length(id))
             flag <- 1
         }
         names(res) <- names(input)[id]
         res
-      }, simplify = F)
-    message('Note: It is always recommended to check the results returned by ',
-      'GPT-4 in case of\n AI hallucination, before going to down-stream analysis.')
+      })
     gsub(',$', '', unlist(allres))
   }
 }
 
+identify.mouseMacroPhe <- function(x, use = "scsa_cell",
+  cell.name = "Macrophage",
+  markers = x@tables$step5$all_markers_no_filter)
+{
+  message("This function only support for organism of 'mouse'.")
+  if (!is(x, "job_seurat")) {
+    stop("is(x, 'job_seurat')")
+  }
+  meta <- x@object@meta.data
+  clusters <- dplyr::filter(meta, !!rlang::sym(use) == !!cell.name)[[ "seurat_clusters" ]]
+  markers <- dplyr::filter(markers, cluster %in% !!clusters)
+  # markers <- tapply(markers, markers$cluster, function(x) x$gene, simplify = F)
+  ##################################
+  ##################################
+  ref <- get_data.nmt2015()
+  ## 
+  ref@object <- NULL
+  .add_internal_job(ref)
+  stop("...")
+}
+
+scsa_custom_marker <- function() {
+  cdRun(pg("scsa"),
+    " -d ", pg("scsa_db"),
+    " -i ", file_input,
+    " -s seurat -E -f1.5 -p 0.01",
+    " -E -g ", org,
+    " -m txt",
+    " -M user.table",
+    " -o result",
+    " > /tmp/log_scsa.txt"
+  )
+}
+
+matchCellMarkers <- function(lst.markers, ref, least = 2) {
+  lst <- vapply(lst.markers, FUN.VALUE = logical(1),
+    function(x) {
+      x <- as.list(table(ref %in% x))
+      x[[ "TRUE" ]] >= least
+    }
+  )
+  lst
+}

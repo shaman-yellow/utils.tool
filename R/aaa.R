@@ -488,8 +488,8 @@ space <- function(env = .GlobalEnv, all.names = T) {
       obj.size(get(name, envir = env))
     })
   info <- tibble::tibble(name = names(info), size = unname(info))
-  info <- mutate(info, value = as.double(stringr::str_extract(size, "^[0-9.]+")))
-  info <- arrange(info, dplyr::desc(value))
+  info <- dplyr::mutate(info, value = as.double(stringr::str_extract(size, "^[0-9.]+")))
+  info <- dplyr::arrange(info, dplyr::desc(value))
   info
 }
 

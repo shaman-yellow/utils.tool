@@ -197,6 +197,8 @@ pg_local_recode <- function() {
     mk_prepare_ligand.py = "mk_prepare_ligand.py",
     prepare_gpf.py = "prepare_gpf.py",
     autogrid4 = "autogrid4",
+    scsa = "python3 ~/SCSA/SCSA.py",
+    scsa_db = "~/SCSA/whole_v2.db",
     pymol = "pymol",
     obgen = "obgen",
     sirius = .prefix("sirius/bin/sirius", "op")

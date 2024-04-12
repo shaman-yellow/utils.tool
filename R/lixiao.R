@@ -3478,12 +3478,12 @@ setMethod("slice", signature = c(x = "df"),
 #   })
 
 setGeneric("as_tibble", 
-  function(x) standardGeneric("as_tibble"))
+  function(x, ...) standardGeneric("as_tibble"))
 
 setMethod("as_tibble", signature = c(x = "df"),
-  function(x){
+  function(x, ...){
     rownames <- rownames(x)
-    x <- tibble::as_tibble(x)
+    x <- tibble::as_tibble(x, ...)
     if (!identical(rownames, as.character(1:nrow(x)))) {
       x <- dplyr::mutate(x, rownames = !!rownames)
       x <- dplyr::relocate(x, rownames)
