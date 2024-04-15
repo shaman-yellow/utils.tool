@@ -208,63 +208,16 @@ setMethod("step5", signature = c(x = "job_seurat"),
   })
 
 setMethod("step6", signature = c(x = "job_seurat"),
-  function(x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = .5,
+  function(x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = 1.5,
     org = c("Human", "Mouse"),
-    cmd = pg("scsa"), db = pg("scsa_db"))
+    cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_cell")
   {
     step_message("Use SCSA to annotate cell types (<https://github.com/bioinfo-ibms-pumc/SCSA>).")
-    if (grpl(tissue, "(?<!\\\\)\\s", perl = T)) {
-      tissue <- gs(tissue, "\\s", "\\\\ ")
-    }
-    org <- match.arg(org)
-    if (!is.null(ref.markers)) {
-      .check_columns(ref.markers, c("cell", "markers"))
-      ref.markers <- dplyr::relocate(ref.markers, cell, markers)
-      ref.markers_file <- tempfile("ref.markers_file", fileext = ".tsv")
-      write_tsv(ref.markers, ref.markers_file, col.names = F)
-      x@params$ref.markers_file <- ref.markers_file
-      ref.markers.cmd <- paste0(" -M ", ref.markers_file)
-    } else {
-      ref.markers.cmd <- ""
-    }
-    marker_file <- tempfile("marker_file", fileext = ".csv")
-    result_file <- tempfile("result_file")
-    all_markers <- dplyr::rename(x@tables$step5$all_markers_no_filter, avg_logFC = avg_log2FC)
-    all_markers <- dplyr::select(all_markers, -rownames)
-    all_markers <- dplyr::mutate(all_markers, gene = gs(gene, "\\.[0-9]*", ""))
-    data.table::fwrite(all_markers, marker_file)
-    cli::cli_alert_info(cmd)
-    cdRun(cmd,
-      " -s seurat", " -i ", marker_file,
-      " -k ", tissue, " -d ", db, " ", ref.markers.cmd,
-      " -p ", filter.p, " -f ", filter.fc,
-      " -E -g ", org, " -m txt",
-      " -o ", result_file, " > /tmp/log_scsa.txt"
-    )
-    x@params$marker_file <- marker_file
-    x@params$scsa_res_file <- result_file
-    x@params$scsa_log <- readLines("/tmp/log_scsa.txt")
-    scsa_res <- dplyr::rename_all(ftibble(result_file), make.names)
-    scsa_res <- dplyr::arrange(scsa_res, Cluster, dplyr::desc(Z.score))
-    x@tables[[ 6 ]] <- namel(scsa_res)
-    ## add into seurat object
-    scsa_res <- dplyr::distinct(scsa_res, Cluster, .keep_all = T)
-    clusters <- object(x)@meta.data$seurat_clusters
-    cell_types <- scsa_res$Cell.Type[match(clusters, scsa_res$Cluster)]
-    cell_types <- ifelse(is.na(cell_types), "Unknown", cell_types)
-    object(x)@meta.data$scsa_cell <- factor(cell_types,
-      levels = c(unique(scsa_res$Cell.Type), "Unknown"))
-    x@params$group.by <- "scsa_cell"
-    ## plot
-    p.map_scsa <- e(Seurat::DimPlot(
-        object(x), reduction = "umap", label = F, pt.size = .7,
-        group.by = "scsa_cell", cols = color_set()
-        ))
-    p.map_scsa <- wrap(as_grob(p.map_scsa), 7, 4)
-    p.map_scsa <- .set_lab(p.map_scsa, sig(x), "SCSA", "Cell type annotation")
-    x@plots[[ 6 ]] <- list(p.map_scsa = p.map_scsa)
-    .add_internal_job(.job(method = "`SCSA` (python) used for cell type annotation",
-        cite = "[@ScsaACellTyCaoY2020]"))
+    lst <- do.call(scsa_annotation, as.list(environment()))
+    x <- lst$x
+    x@tables[[ 6 ]] <- list(scsa_res_all = lst$scsa_res_all)
+    x@params$group.by <- lst$res.col
+    x@plots[[ 6 ]] <- list(p.map_scsa = lst$p.map_scsa)
     return(x)
   })
 
@@ -285,11 +238,11 @@ setMethod("step7", signature = c(x = "job_seurat"),
   })
 
 setMethod("diff", signature = c(x = "job_seurat"),
-  function(x, group.by, contrasts){
+  function(x, group.by, contrasts, name = "contrasts"){
     if (is.data.frame(contrasts)) {
       contrasts <- apply(contrasts, 1, c, simplify = F)
     }
-    if (is.null(x@params$contrasts)) {
+    if (is.null(x@params[[ name ]])) {
       res <- e(lapply(contrasts,
           function(con) {
             data <- Seurat::FindMarkers(object(x),
@@ -304,9 +257,9 @@ setMethod("diff", signature = c(x = "job_seurat"),
       res <- dplyr::rename(res, contrast = .id)
       res <- dplyr::filter(res, p_val_adj < .05)
       res <- .set_lab(res, sig(x), "DEGs of the contrasts")
-      x@params$contrasts <- res
+      x@params[[ name ]] <- res
     } else {
-      res <- x@params$contrasts
+      res <- x@params[[ name ]]
     }
     ## contrast intersection
     tops <- split(res, ~ contrast)
@@ -320,10 +273,10 @@ setMethod("diff", signature = c(x = "job_seurat"),
         lapply(lst, fun_filter)
       })
     tops <- unlist(tops, recursive = F)
-    x$diff_sets_intersection <- tops
+    x[[ paste0(name, "_intersection") ]] <- tops
     p.sets_intersection <- new_upset(lst = tops, trunc = NULL)
     p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "contrasts-DEGs-intersection")
-    x$p.diff_sets_intersection <- p.sets_intersection
+    x[[ paste0("p.", name, "_intersection") ]] <- p.sets_intersection
     return(x)
   })
 
@@ -524,9 +477,9 @@ setMethod("focus", signature = c(x = "job_seurat"),
   })
 
 setMethod("map", signature = c(x = "job_seurat", ref = "character"),
-  function(x, ref){
+  function(x, ref, slot = "scale.data"){
     p.heatmap <- wrap(as_grob(e(Seurat::DoHeatmap(
-          object(x), features = ref, raster = T, size = 3
+          object(x), features = ref, raster = T, size = 3, slot = slot
           ))))
     p.heatmap <- .set_lab(p.heatmap, sig(x), "heatmap show the reference genes")
     p.heatmap
@@ -708,36 +661,86 @@ applyGptcelltype <- function(input, tissuename, model = c("gpt-3.5-turbo", "gpt-
 
 identify.mouseMacroPhe <- function(x, use = "scsa_cell",
   cell.name = "Macrophage",
-  markers = x@tables$step5$all_markers_no_filter)
+  markers = x@tables$step5$all_markers_no_filter, top.ref = 10, ...)
 {
-  message("This function only support for organism of 'mouse'.")
-  if (!is(x, "job_seurat")) {
-    stop("is(x, 'job_seurat')")
-  }
-  meta <- x@object@meta.data
-  clusters <- dplyr::filter(meta, !!rlang::sym(use) == !!cell.name)[[ "seurat_clusters" ]]
-  markers <- dplyr::filter(markers, cluster %in% !!clusters)
-  # markers <- tapply(markers, markers$cluster, function(x) x$gene, simplify = F)
-  ##################################
-  ##################################
+  message("This function only support for organism of 'mouse'.\n",
+    "Make sure the dataset has been subset, only retain the Macrophage cells.")
   ref <- get_data.nmt2015()
-  ## 
+  Macrophage_M0 <- dplyr::filter(ref@object$sig.m0, FC.M1_vs_M0 < 1)$gene
+  Macrophage_M1 <- dplyr::filter(ref@object$sig.m1, FC.M1_vs_M0 > 1)$gene
+  Macrophage_M2 <- dplyr::filter(ref@object$sig.m2, FC.M2_vs_M0 > 1)$gene
+  ref.markers <- namel(Macrophage_M0, Macrophage_M1, Macrophage_M2)
+  ref.markers <- lapply(ref.markers, function(i) i[ i %in% rownames(object(x)@assays$SCT$scale.data) ])
+  if (!is.null(top.ref)) {
+    ref.markers <- lapply(ref.markers, head, n = top.ref)
+  }
+  ref.markers <- as_df.lst(ref.markers, "cell", "markers")
+  lst <- scsa_annotation(x, "All", ref.markers, org = "M", res.col = "macrophage_phenotypes",
+    onlyUseRefMarkers = T, ...)
+  x <- lst$x
+  ref.markers <- .set_lab(as_tibble(ref.markers), sig(x), "the markers for Macrophage phenotypes annotation")
+  x$p.macrophage <- lst$p.map_scsa
+  x$t.macrophage_ref <- ref.markers
+  x$p.macrophage_hp_ref <- map(x, ref.markers$markers)
   ref@object <- NULL
   .add_internal_job(ref)
-  stop("...")
+  return(x)
 }
 
-scsa_custom_marker <- function() {
-  cdRun(pg("scsa"),
-    " -d ", pg("scsa_db"),
-    " -i ", file_input,
-    " -s seurat -E -f1.5 -p 0.01",
-    " -E -g ", org,
-    " -m txt",
-    " -M user.table",
-    " -o result",
-    " > /tmp/log_scsa.txt"
+scsa_annotation <- function(
+  x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = 1.5,
+  org = c("Human", "Mouse"),
+  cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_annotation",
+  onlyUseRefMarkers = F)
+{
+  if (grpl(tissue, "(?<!\\\\)\\s", perl = T)) {
+    tissue <- gs(tissue, "\\s", "\\\\ ")
+  }
+  org <- match.arg(org)
+  if (!is.null(ref.markers)) {
+    .check_columns(ref.markers, c("cell", "markers"))
+    ref.markers <- dplyr::relocate(ref.markers, cell, markers)
+    ref.markers_file <- tempfile("ref.markers_file", fileext = ".tsv")
+    write_tsv(ref.markers, ref.markers_file, col.names = F)
+    x@params$ref.markers_file <- ref.markers_file
+    ref.markers.cmd <- paste0(" -M ", ref.markers_file)
+  } else {
+    ref.markers.cmd <- ""
+  }
+  marker_file <- tempfile("marker_file", fileext = ".csv")
+  result_file <- tempfile("result_file")
+  all_markers <- dplyr::rename(x@tables$step5$all_markers_no_filter, avg_logFC = avg_log2FC)
+  all_markers <- dplyr::select(all_markers, -rownames)
+  all_markers <- dplyr::mutate(all_markers, gene = gs(gene, "\\.[0-9]*", ""))
+  data.table::fwrite(all_markers, marker_file)
+  cli::cli_alert_info(cmd)
+  cdRun(cmd,
+    " -s seurat", " -i ", marker_file,
+    " -k ", tissue, " -d ", db, " ", ref.markers.cmd,
+    " -p ", filter.p, " -f ", filter.fc,
+    " -E -g ", org, " -m txt",
+    if (onlyUseRefMarkers) " -N " else NULL,
+    " -o ", result_file, " > /tmp/log_scsa.txt"
   )
+  scsa_res <- dplyr::rename_all(ftibble(result_file), make.names)
+  scsa_res <- scsa_res_all <- dplyr::arrange(scsa_res, Cluster, dplyr::desc(Z.score))
+  ## add into seurat object
+  scsa_res <- dplyr::distinct(scsa_res, Cluster, .keep_all = T)
+  clusters <- object(x)@meta.data$seurat_clusters
+  cell_types <- scsa_res$Cell.Type[match(clusters, scsa_res$Cluster)]
+  cell_types <- ifelse(is.na(cell_types), "Unknown", cell_types)
+  object(x)@meta.data[[ res.col ]] <- factor(cell_types,
+    levels = c(unique(scsa_res$Cell.Type), "Unknown"))
+  ## plot
+  p.map_scsa <- e(Seurat::DimPlot(
+      object(x), reduction = "umap", label = F, pt.size = .7,
+      group.by = res.col, cols = color_set()
+      ))
+  p.map_scsa <- wrap(as_grob(p.map_scsa), 7, 4)
+  p.map_scsa <- .set_lab(p.map_scsa, sig(x), "SCSA", "Cell type annotation")
+  .add_internal_job(.job(method = "`SCSA` (python) used for cell type annotation",
+      cite = "[@ScsaACellTyCaoY2020]"))
+  namel(x, p.map_scsa, res.col, scsa_res_all)
 }
 
 matchCellMarkers <- function(lst.markers, ref, least = 2) {

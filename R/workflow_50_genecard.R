@@ -55,6 +55,7 @@ get_from_genecards <- function(query, score = 5, keep_drive = F, restrict = F,
   }
   url <- paste0('https://www.genecards.org/Search/Keyword?queryString=', query,
     '&pageSize=25000&startPage=0')
+  message("Navigate to URL:\n\t", url)
   link$navigate(url)
   Sys.sleep(5)
   html <- link$getPageSource()[[1]]

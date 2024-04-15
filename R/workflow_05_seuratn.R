@@ -16,11 +16,14 @@
     method = "R package `Seurat` used for multiple dataset integration"
     ))
 
-job_seuratn <- function(dirs)
+job_seuratn <- function(dirs, names = NULL)
 {
+  n <- 0L
   object <- pbapply::pblapply(dirs,
     function(dir) {
-      suppressMessages(job_seurat(dir))@object
+      n <<- n + 1L
+      project <- names[n]
+      suppressMessages(job_seurat(dir, project = project))@object
     })
   .job_seuratn(object = object)
 }

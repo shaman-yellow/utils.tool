@@ -122,6 +122,7 @@ setMethod("map", signature = c(x = "job_gmix", ref = "job_gmix"),
 
 .get_source.DisGeNet <- function(id, length) {
   url <- paste0("https://www.disgenet.org/browser/0/1/0/", id, "/0/", length, "/source__ALL/_b./#")
+  message("Try get data from URL:\n\t", url)
   html <- RCurl::getURL(url)
   data <- as_tibble(get_table.html(html)[[1]])
   fun_format <- function(x) {
