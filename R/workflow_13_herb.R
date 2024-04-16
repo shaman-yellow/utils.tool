@@ -377,7 +377,11 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
     crds <- do.call(dplyr::bind_rows, crds)
     crds <- dplyr::distinct(crds, name, .keep_all = T)
     if (!is.null(ax4)) {
-      use.cols <- 1:3
+      if (sherb) {
+        use.cols <- 2:3
+      } else {
+        use.cols <- 1:3
+      }
     } else {
       if (sherb) {
         use.cols <- 2
@@ -407,6 +411,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
         highlight = ifelse(source %in% HLs & target %in% HLs, "Highlight", "Non-highlight")
       )
     }
+    message("Generating network layout.")
     fast_layout(edges, layout = layout, nodes = nodes)
   }
   x <- prepare_data(data)

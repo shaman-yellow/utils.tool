@@ -76,52 +76,54 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
       } else {
         message("TCMSP has logined.")
       }
-      ## download
-      # >>>
-      fun_input <- function() {
-        link$findElement("xpath", "//div//input[@class='el-input__inner']")
-      }
-      fun_check <- function(info) {
-        ele <- try(link$findElement("xpath", "//div//div[@class='mspTips']//div[@class='left']"), T)
-        if (inherits(ele, "try-error")) {
-          return(F)
-        }
-        text <- ele$getElementText()
-        grpl(text, info$V3)
-      }
-      fun_pageSize <- function() {
-        # change page size
-        ele <- link$findElement("xpath",
-          paste0("//span[@class='el-pagination__sizes']",
-            "//i[@class='el-icon el-select__caret el-select__icon']"))
-        ele$clickElement()
-        # span[contains(text(), '200条/页')]
-        ele <- link$findElement("xpath", "//ul[@role='listbox']//li//span[text()='200条/页']")
-        ele$clickElement()
-      }
-      fun_collate <- function() {
-        lst <- get_table.html(link$getPageSource()[[1]])
-        data <- lst[[2]]
-        colnames(data) <- colnames(lst[[1]])
-        data
-      }
-      fun_next <- function() {
-        ## switch to next page
-        ele <- link$findElement("xpath", "//div[@class='el-pagination']//button[@class='btn-next']")
-        attr <- ele$getElementAttribute("aria-disabled")[[1]]
-        if (attr == "true") {
-          return(F)
-        } else {
-          ele$clickElement()
-          return(T)
-        }
-      }
-      fun_get <- function() {
-        get_table.html(link$getPageSource()[[1]])
-      }
-      # >>>
       lstHerbItems <- pbapply::pblapply(queries,
         function(herb) {
+          ## download
+          # >>>
+          fun_input <- function() {
+            link$findElement("xpath", "//div//input[@class='el-input__inner']")
+          }
+          fun_check <- function(info) {
+            ele <- try(link$findElement("xpath", "//div//div[@class='mspTips']//div[@class='left']"), T)
+            if (inherits(ele, "try-error")) {
+              return(F)
+            }
+            text <- ele$getElementText()
+            grpl(text, info$V3)
+          }
+          fun_pageSize <- function() {
+            # change page size
+            message("Switch page size.")
+            ele <- link$findElement("xpath",
+              paste0("//span[@class='el-pagination__sizes']",
+                "//i[@class='el-icon el-select__caret el-select__icon']"))
+            ele$clickElement()
+            Sys.sleep(1)
+            # span[contains(text(), '200条/页')]
+            ele <- link$findElement("xpath", "//ul[@role='listbox']//li//span[text()='200条/页']")
+            ele$clickElement()
+          }
+          fun_collate <- function() {
+            lst <- get_table.html(link$getPageSource()[[1]])
+            data <- lst[[2]]
+            colnames(data) <- colnames(lst[[1]])
+            data
+          }
+          fun_next <- function() {
+            ## switch to next page
+            ele <- link$findElement("xpath", "//div[@class='el-pagination']//button[@class='btn-next']")
+            attr <- ele$getElementAttribute("aria-disabled")[[1]]
+            if (attr == "true") {
+              return(F)
+            } else {
+              ele$clickElement()
+              return(T)
+            }
+          }
+          fun_get <- function() {
+            get_table.html(link$getPageSource()[[1]])
+          }
+          # >>>
           ele <- try(fun_input(), T)
           if (inherits(ele, "try-error")) {
             link$navigate(x$url_home)
@@ -132,7 +134,7 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
           Sys.sleep(.1)
           ele <- link$findElement("xpath", "//div//span//img[@class='btn-search']")
           ele$clickElement()
-          Sys.sleep(1)
+          Sys.sleep(3)
           # check search page status
           info <- fun_get()
           n <- 0L
@@ -192,16 +194,23 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
                 active <- grpl(attr, "is-active")
               }
               message("Is focused: ", type)
-              fun_pageSize()
+              if (F) {
+                Sys.sleep(1)
+                fun_pageSize()
+                Sys.sleep(2)
+                page.size <- 200
+              } else {
+                page.size <- 50
+              }
               ele <- link$findElement("xpath", "//div[@class='el-pagination']//span[@class='el-pagination__total is-first']")
               total <- as.integer(strx(ele$getElementText()[[1]], "[0-9]+"))
-              len <- total %/% 200 + 1
+              len <- total %/% page.size + 1
               lstContents <- lapply(1:len,
                 function(x) {
                   data <- fun_collate()
                   canNext <- fun_next()
                   Sys.sleep(2)
-                  if (x == len & canNext) {
+                  if (x == len && canNext) {
                     stop("Total Page number error.")
                   }
                   return(data)

@@ -50,7 +50,7 @@ setMethod("intersect", signature = c(x = "JOB_herb", y = "JOB_herb"),
 
 setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
   function(x, ref, HLs = NULL, levels = NULL, lab.level = "Level", name = "dis", compounds = NULL,
-    syns = NULL, enrichment = NULL, en.top = 10, ...)
+    syns = NULL, enrichment = NULL, en.top = 10, use.enrich = c("kegg", "go"), ...)
   {
     message("Filter compounds targets with disease targets.")
     data <- x$data.allu
@@ -67,23 +67,9 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
     }
     herbs <- unique(x$data.allu[[1]])
     if (!is.null(enrichment)) {
-      if (is(enrichment, "job_enrich")) {
-        enrichment <- enrichment@tables$step1$res.kegg[[ 1 ]]
-        message("Use fisrt enrichment results of KEGG.")
-      }
-      en <- en.sig <- head(enrichment, en.top)
-      en <- dplyr::select(en, Description, geneName_list)
-      en <- reframe_col(en, "geneName_list", unlist)
-      data <- tbmerge(data, en, by.x = "Target.name", by.y = "geneName_list", all.x = T, allow.cartesian = T)
-      data <- dplyr::relocate(data, Herb_pinyin_name, Ingredient.name)
-      en.sig <- dplyr::select(en.sig, Description, p.adjust)
-      ## plot
-      p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
-        lab.fill = "P.adjust", force.ax1 = herbs, ax4 = "Pathway", ax4.level = en.sig,
-        decImport.ax4Level = T, ...)
-      dataPath <- reframe_col(data, "Description", function(x) paste0(x, collapse = "; "))
-      dataPath <- dplyr::rename(dataPath, Enriched_pathways = "Description")
-      p.pharm$.path <- dataPath
+      res <- plot_network.enrich(data, enrichment, use.enrich, en.top, ...)
+      p.pharm <- res$p.pharm
+      p.pharm$.path <- res$dataPath
     } else {
       p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
         lab.fill = lab.level, force.ax1 = herbs, ...)
@@ -98,4 +84,34 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
   })
 
 
-
+plot_network.enrich <- function(data, enrichment, use.enrich = c("kegg", "go"), en.top = 10,
+  use.sub = c("BP", "CC", "MF"), ...)
+{
+  if (is(enrichment, "job_enrich")) {
+    use.enrich <- match.arg(use.enrich)
+    enrichment <- enrichment@tables$step1[[ paste0("res.", use.enrich) ]][[ 1 ]]
+    if (use.enrich == "go") {
+      enrichment <- dplyr::filter(enrichment, ont == !!use.sub)
+    }
+    message("Use fisrt enrichment results of ", use.enrich, ": ", use.sub)
+  }
+  en <- en.sig <- head(enrichment, en.top)
+  en <- dplyr::select(en, Description, geneName_list)
+  en <- reframe_col(en, "geneName_list", unlist)
+  ax.names <- colnames(data)
+  data <- tbmerge(data, en, by.x = ax.names[3], by.y = "geneName_list", all.x = T, allow.cartesian = T)
+  data <- dplyr::relocate(data, !!!rlang::syms(ax.names))
+  en.sig <- dplyr::select(en.sig, Description, p.adjust)
+  ## plot
+  p.pharm <- plot_network.pharm(
+    data, lab.fill = "P.adjust",
+    ax4 = "Pathway", ax4.level = en.sig,
+    decImport.ax4Level = T, ...
+  )
+  dataPath <- reframe_col(data, "Description",
+    function(x) paste0(length(x), "###", paste0(x, collapse = "; ")))
+  dataPath <- tidyr::separate(dataPath, Description, c("Hit_pathway_number", "Enriched_pathways"), "###")
+  dataPath <- dplyr::mutate(dataPath, Hit_pathway_number = as.integer(Hit_pathway_number))
+  dataPath <- dplyr::arrange(dataPath, dplyr::desc(Hit_pathway_number))
+  namel(p.pharm, dataPath)
+}

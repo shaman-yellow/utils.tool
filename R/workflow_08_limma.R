@@ -316,8 +316,10 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
       }
     }
     lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names)
-    lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
-    lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), theme, "significant correlation")
+    if (length(unique(from)) > 1 && length(unique(to)) > 1) {
+      lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
+      lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), theme, "significant correlation")
+    }
     return(lst)
   })
 
@@ -345,9 +347,13 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
     corp <- cal_corp(lst[[1]], lst[[2]], names[[1]], names[[2]], trans = T)
   }
   sig.corp <- dplyr::filter(tibble::as_tibble(corp), sign != "-")
-  hp <- new_heatdata(corp)
-  hp <- callheatmap(hp)
-  namel(corp, sig.corp, hp)
+  if (length(from) > 1 && length(to) > 1) {
+    hp <- new_heatdata(corp)
+    hp <- callheatmap(hp)
+    namel(corp, sig.corp, hp)
+  } else {
+    namel(corp, sig.corp)
+  }
 }
 
 expand.cons <- function(...) {

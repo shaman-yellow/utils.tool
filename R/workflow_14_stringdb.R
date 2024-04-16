@@ -48,12 +48,14 @@ setMethod("step0", signature = c(x = "job_stringdb"),
 
 setMethod("step1", signature = c(x = "job_stringdb"),
   function(x, tops = 30, layout = "kk", species = 9606,
-    network_type = "phy", input_directory = .prefix(name = "db"), version = "11.5", label = F, HLs = NULL)
+    network_type = "phy", input_directory = .prefix("stringdb_physical_v12.0", name = "db"),
+    version = "12.0", label = F, HLs = NULL, use.anno = T,
+    file_anno = .prefix("stringdb_physical_v12.0/9606.protein.physical.links.full.v12.0.txt.gz", name = "db"),
+    filter.exp = 0, filter.text = 0)
   {
-    step_message("Create PPI network.
-      "
-    )
+    step_message("Create PPI network.")
     if (is.null(x@params$sdb)) {
+      message("Use STRINGdb network type of '", network_type, "'")
       sdb <- new_stringdb(species = species, network_type = network_type,
         input_directory = input_directory, version = version
       )
@@ -74,8 +76,27 @@ setMethod("step1", signature = c(x = "job_stringdb"),
       graph <- x@params$graph 
     }
     edges <- as_tibble(igraph::as_data_frame(res.str$graph))
+    edges <- dplyr::distinct(edges, from, to, .keep_all = T)
+    if (use.anno) {
+      message("Get PPI annotation from:\n\t", file_anno)
+      anno <- ftibble(file_anno)
+      edges <- tbmerge(edges[, 1:2], anno, by.x = c("from", "to"), by.y = paste0("protein", 1:2),
+        all.x = T, sort = F)
+      if (filter.exp || filter.text) {
+        edges <- dplyr::filter(edges, experiments >= !!filter.exp, textmining >= !!filter.text)
+      }
+    }
     edges <- map(edges, "from", res.str$mapped, "STRING_id", "hgnc_symbol", rename = F)
     edges <- map(edges, "to", res.str$mapped, "STRING_id", "hgnc_symbol", rename = F)
+    des_edges <- list("STRINGdb network type:" = match.arg(network_type, c("physical", "function")))
+    if (use.anno) {
+      des_edges <- c(des_edges,
+        list("Filter experiments score:" = paste0("At least score ", filter.exp),
+          "Filter textmining score:" = paste0("At least score ", filter.text)
+        ))
+    }
+    edges <- .set_lab(edges, sig(x), "PPI annotation")
+    attr(edges, "lich") <- new_lich(des_edges)
     x$edges <- edges
     p.ppi <- plot_network.str(graph, label = label)
     p.ppi <- .set_lab(wrap(p.ppi), sig(x), "raw PPI network")
@@ -200,8 +221,8 @@ new_stringdb <- function(
   score_threshold = 200,
   species = 9606,
   network_type = c("physical", "full"),
-  input_directory = .prefix(name = "db"),
-  version = "11.5")
+  input_directory = .prefix("stringdb_physical_v12.0", name = "db"),
+  version = "12.0")
 {
   e(STRINGdb::STRINGdb$new(score_threshold = score_threshold,
     species = species, network_type = match.arg(network_type),
