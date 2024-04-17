@@ -49,16 +49,16 @@ setMethod("step0", signature = c(x = "job_enrich"),
 
 # Biological Process, Molecular Function, and Cellular Component groups
 setMethod("step1", signature = c(x = "job_enrich"),
-  function(x, organism = 'hsa', orgDb = 'org.Hs.eg.db', cl = 4, maxShow = 10,
-    use = c("p.adjust", "pvalue"))
+  function(x, organism = 'hsa', orgDb = 'org.Hs.eg.db', cl = 4, maxShow.kegg = 10,
+    maxShow.go = 10, use = c("p.adjust", "pvalue"))
   {
     step_message("Use clusterProfiler for enrichment.")
     cli::cli_alert_info("clusterProfiler::enrichKEGG")
     use <- match.arg(use)
     res.kegg <- multi_enrichKEGG(object(x), organism = organism)
-    p.kegg <- vis_enrich.kegg(res.kegg, maxShow = maxShow, use = use)
+    p.kegg <- vis_enrich.kegg(res.kegg, maxShow = maxShow.kegg, use = use)
     use.p <- attr(p.kegg, "use.p")
-    p.kegg <- lapply(p.kegg, function(x) wrap(x, 8, 4 * (maxShow / 10)))
+    p.kegg <- lapply(p.kegg, function(x) wrap(x, 8, 4 * (maxShow.kegg / 10)))
     p.kegg <- .set_lab(p.kegg, sig(x), names(p.kegg), "KEGG enrichment")
     fun <- function(sets) {
       lapply(sets,
@@ -72,7 +72,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
     res.kegg <- .set_lab(res.kegg, sig(x), names(res.kegg), "KEGG enrichment data")
     cli::cli_alert_info("clusterProfiler::enrichGO")
     res.go <- multi_enrichGO(object(x), orgDb = orgDb, cl = cl)
-    p.go <- vis_enrich.go(res.go, maxShow = maxShow, use = use.p)
+    p.go <- vis_enrich.go(res.go, maxShow = maxShow.go, use = use.p)
     p.go <- lapply(p.go, function(x) wrap(x))
     p.go <- .set_lab(p.go, sig(x), names(p.go), "GO enrichment")
     res.go <- lapply(res.go,

@@ -124,7 +124,7 @@ log_trans <- function(data, id.cols = c(".features_id"),
 dot_heatmap <- function(data, x = "sample", y = ".features_id",
   color = "value", size = "value", shape = NULL,
   lab_x = "Sample", lab_y = "Feature ID", lab_color = "log2 (Feature level)",
-  lab_size = "", lab_shape = NULL, ...)
+  lab_size = "", lab_shape = NULL, HLs = NULL, ...)
 {
   scale_color <- if ( 0L > min(data[[ color ]]) & 0L < max(data[[ color ]])) {
     scale_color_gradient2(
@@ -143,7 +143,23 @@ dot_heatmap <- function(data, x = "sample", y = ".features_id",
         shape = !!rlang::sym(shape)))
     guides <- guides(shape = guide_legend(override.aes = list(size = 5)))
   }
+  geom_vline <- geom_blank()
+  geom_hline <- geom_blank()
+  if (!is.null(HLs)) {
+    fun <- function(x) {
+      HLs[ HLs %in% unique(data[[ x ]]) ]
+    }
+    xintercept <- fun(x)
+    yintercept <- fun(y)
+    if (length(xintercept)) {
+      geom_vline <- ggplot2::geom_vline(xintercept = xintercept, linewidth = 4, color = "darkred", alpha = .3)
+    }
+    if (length(yintercept)) {
+      geom_hline <- geom_hline(yintercept = yintercept, linewidth = 4, color = "darkred", alpha = .3)
+    }
+  }
   p <- ggplot(data, aes(x = !!rlang::sym(x), y = !!rlang::sym(y))) +
+    geom_hline + geom_vline +
     geom_point +
     theme_minimal() +
     scale_color +

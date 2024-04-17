@@ -1092,7 +1092,7 @@ setMethod("corheatmap", signature = c(x = "df", y = "df"),
   })
 
 setMethod("callheatmap", signature = c(x = "heatdata"),
-  function(x){
+  function(x, HLs = NULL){
     y.reformat <- x.reformat <- 0L
     if (!is.null(x@ymeta)) {
       x@data_long <- dplyr::filter(
@@ -1111,7 +1111,7 @@ setMethod("callheatmap", signature = c(x = "heatdata"),
     if (any(c(y.reformat, x.reformat)) | is.null(x@main)) {
       x <- standby(x)
     }
-    x@gg_main <- do.call(x@fun_plot[[ "main" ]], c(list(x@data_long), x@aesn))
+    x@gg_main <- do.call(x@fun_plot[[ "main" ]], c(list(x@data_long), x@aesn, list(HLs = HLs)))
     if (y.reformat) {
       if (any(colnames(x@ymeta) == x@y_aesn[[ x@aesh ]])) {
         args <- c(list(data = x@ymeta, p = NULL, pal = x@y_pal), x@y_aesn)
@@ -3053,10 +3053,10 @@ setMethod("autor", signature = c(x = "df", name = "character"),
       function(x) is.character(x) | is.numeric(x) | is.logical(x) | is.factor(x))
     file <- autosv(x, name, ...)
     if (asis) {
+      abstract(x, name = name, ...)
       if (!is.null(lich <- attr(x, "lich"))) {
         abstract(lich, name = name)
       }
-      abstract(x, name = name, ...)
     }
     include(x, name, ...)
   })
@@ -3069,8 +3069,8 @@ setMethod("autor", signature = c(x = "fig", name = "character"),
       abstract(x, name = name, ...)
     }
     include(x, name, ...)
-    if (asis) {
-      if (!is.null(lich <- attr(x, "lich"))) {
+    if (!is.null(lich <- attr(x, "lich"))) {
+      if (asis) {
         abstract(lich, name = name)
       }
     }

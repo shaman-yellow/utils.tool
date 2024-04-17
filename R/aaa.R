@@ -2,6 +2,11 @@
 # utilites
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+sapply(vector, simplify = T,
+  function(item) {
+    item
+  })
+
 #' @aliases utilites
 #'
 #' @title utilites for programming

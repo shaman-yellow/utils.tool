@@ -259,7 +259,7 @@ rstyle <- function(get = "pal", seed = NULL, n = 1L) {
 plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax4 = 2, seed = sample(1:10, 1), HLs = NULL,
   ax1 = "Herb", ax2 = "Compound", ax3 = "Target", ax4 = NULL, less.label = T,
   ax2.level = NULL, ax4.level = NULL, decImport.ax4Level = F, lab.fill = "",
-  edge_width = .1, force.ax1 = NULL)
+  edge_width = .1, force.ax1 = NULL, ax3.layout = c("spiral", "grid"), ax4.layout = c("circle", "linear"))
 {
   if (length(unique(data[[1]])) == 1) {
     sherb <- 1L
@@ -278,6 +278,8 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
       colnames(ax2.level) <- c("name", "level")
     }
   }
+  ax3.layout <- match.arg(ax3.layout)
+  ax4.layout <- match.arg(ax4.layout)
   prepare_data <- function(data) {
     colnames(data) <- c(ax1, ax2, ax3, ax4)
     nodes <- tidyr::gather(data, type, value)
@@ -305,13 +307,24 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
       data
     }
     ## axis 3 coords
-    crds.Tgt <- get_layout(NULL, "grid", nodes = dplyr::filter(nodes, type == !!ax3))
-    crds.Tgt <- shift(crds.Tgt, -max(crds.Tgt$x) / 2, -max(crds.Tgt$y) / 2)
+    nodesTgt <- dplyr::filter(nodes, type == !!ax3)
+    if (ax3.layout == "spiral" && nrow(nodesTgt) < 30) {
+      message("Nodes of 'ax3' too small, set layout as: grid")
+      ax3.layout <- "grid"
+    }
+    if (ax3.layout == "grid") {
+      crds.Tgt <- get_layout(NULL, "grid", nodes = nodesTgt)
+      crds.Tgt <- shift(crds.Tgt, -max(crds.Tgt$x) / 2, -max(crds.Tgt$y) / 2)
+    } else if (ax3.layout == "spiral") {
+      crds.Tgt <- get_coords.spiral(nrow(nodesTgt), nCir = 2, minRad = 2)
+      crds.Tgt <- get_layout(NULL, crds.Tgt, nodes = nodesTgt)
+      f.f <- f.f * .5
+    }
     f.rsz <- max(crds.Tgt$x) * f.f
     if (!is.null(ax4)) {
       crds.Tgt$y <- crds.Tgt$y * 0.6
       if (is.null(ax4.level)) {
-        crds.ax4 <- get_layout(NULL, "linear", nodes = dplyr::filter(nodes, type == !!ax4))
+        crds.ax4 <- get_layout(NULL, ax4.layout, nodes = dplyr::filter(nodes, type == !!ax4))
       } else {
         colnames(ax4.level) <- c("name", "level")
         if (any(duplicated(ax4.level))) {
@@ -321,10 +334,18 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
         ## change for parent.frame
         ax4.level <<- ax4.level
         nodesAx4 <- dplyr::arrange(ax4.level, if (decImport.ax4Level) dplyr::desc(level) else level)
-        crds.ax4 <- get_layout(NULL, "linear", nodes = nodesAx4)
+        crds.ax4 <- get_layout(NULL, ax4.layout, nodes = nodesAx4)
       }
-      crds.ax4 <- shift(crds.ax4, -max(crds.ax4$x) / 2, -max(crds.Tgt$y) * f.ax4)
-      f.rsz <- f.rsz * f.ax4 / 2
+      if (ax4.layout == "linear") {
+        crds.ax4 <- shift(crds.ax4, -max(crds.ax4$x) / 2, -max(crds.Tgt$y) * f.ax4)
+        f.rsz <- f.rsz * f.ax4 / 2
+      } else if (ax4.layout == "circle") {
+        if (!f.rsz) {
+          f.rsz <- 3 * f.f
+        }
+        # f.rsz / f.f, e.g., max(crds.Tgt$x)
+        crds.ax4 <- resize(crds.ax4, f.rsz / f.f * .3)
+      }
     }
     if (!f.rsz) {
       f.rsz <- 3 * f.f
@@ -426,7 +447,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
   if (!is.null(ax4)) {
     edge_ax4 <- dplyr::filter(edge_data, node2.type == !!ax4)
     edge_data <- dplyr::filter(edge_data, node2.type != !!ax4)
-    geom_edge_ax4 <- ggraph::geom_edge_diagonal(data = edge_ax4,
+    geom_edge_ax4 <- ggraph::geom_edge_link(data = edge_ax4,
       # aes(edge_color = highlight, edge_width = highlight),
       edge_color = "lightblue")
   } else {
@@ -454,11 +475,18 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
     geom_label_3 <- geom_blank()
   } else {
     dataAx123 <- dplyr::filter(data, type != !!ax4)
-    geom_label_3 <- ggplot2::geom_text(
-      data = dplyr::filter(data, type == !!ax4),
-      aes(x = x, y = y * 1.1, label = name, color = type),
-      angle = 45, hjust = 1
-    )
+    if (ax4.layout == "linear") {
+      geom_label_3 <- ggplot2::geom_text(
+        data = dplyr::filter(data, type == !!ax4),
+        aes(x = x, y = y * 1.1, label = name, color = type),
+        angle = 45, hjust = 1
+      )
+    } else if (ax4.layout == "circle") {
+      geom_label_3 <- ggrepel::geom_label_repel(
+        data = dplyr::filter(data, type == !!ax4),
+        aes(x = x, y = y, label = name, color = type)
+      )
+    }
   }
   if (less.label) {
     geom_label_1 <- ggrepel::geom_label_repel(
@@ -818,6 +846,11 @@ get_tcm.base <- function(id, link_prefix) {
   data <- rvest::html_text(src)
   data <- strsplit(data, "\r\n")[[1]]
   data
+}
+
+get_coords.sin <- function(num = 100, nWave = 4) {
+  x <- seq(0, nWave * 2 * pi, length.out = num)
+  tibble::tibble(x = x, y = sin(x))
 }
 
 get_coords.spiral <- function(num = 100, nCir = 3, minRad = 1, maxRad = 3) {

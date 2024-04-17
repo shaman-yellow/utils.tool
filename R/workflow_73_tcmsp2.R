@@ -277,7 +277,7 @@ setMethod("step3", signature = c(x = "job_tcmsp2"),
     }
     x <- callNextMethod(x, ...)
     data <- .set_lab(data, sig(x), "compounds filtered by OB and DL")
-    attr(data, "lich") <- new_lich(list("OB (%) cut-off" = "30%", "DL cut-off" = "0.18"))
+    attr(data, "lich") <- new_lich(list("OB (\\%) and DL cut-off" = "OB >= 30\\%; DL >= 0.18"))
     x@tables[[ 3 ]]$t.ob_dl_filtered <- data
     x$easyRead <- dplyr::select(x$easyRead, Herb_pinyin_name, `Molecule name`, symbols, protein.names)
     return(x)
