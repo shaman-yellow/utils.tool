@@ -195,7 +195,7 @@ pg_local_recode <- function() {
     musitePTM2S = "~/MusiteDeep_web/PTM2S/ptm2Structure.py",
     dl = normalizePath("~/D-GCAN/DGCAN"),
     dl_dataset = normalizePath("~/D-GCAN/dataset"),
-    dl_model = normalizePath("~/D-GCAN/model"),
+    dl_model = normalizePath("~/D-GCAN/DGCAN/model"),
     musiteModel = normalizePath("~/MusiteDeep_web/MusiteDeep/models"),
     mk_prepare_ligand.py = "mk_prepare_ligand.py",
     prepare_gpf.py = "prepare_gpf.py",
@@ -728,7 +728,7 @@ setGeneric("skel",
   function(x, ...) standardGeneric("skel"))
 
 setGeneric("res", 
-  function(x, ...) standardGeneric("res"))
+  function(x, ref, ...) standardGeneric("res"))
 
 setGeneric("intersect", 
   function(x, y, ...) standardGeneric("intersect"))

@@ -18,6 +18,11 @@
 
 job_hob <- function(smiles)
 {
+  if (is.data.frame(smiles)) {
+    message("The input is data.frame. Use first column as names, next column as smiles.")
+    smiles <- nl(smiles[[1]], smiles[[2]], F)
+  }
+  smiles <- smiles[ !duplicated(smiles) ]
   .job_hob(object = smiles)
 }
 

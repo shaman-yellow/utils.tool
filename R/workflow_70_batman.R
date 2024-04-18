@@ -39,7 +39,7 @@ setMethod("step0", signature = c(x = "job_batman"),
   })
 
 setMethod("step1", signature = c(x = "job_batman"),
-  function(x, anno = T)
+  function(x, anno = F, filter.hob = T, filter.dl = T, test = F)
   {
     step_message("Filter and format the compounds and targets.")
     x$herbs_info <- dplyr::mutate(x$herbs_info,
@@ -68,6 +68,42 @@ setMethod("step1", signature = c(x = "job_batman"),
       dplyr::select(x$herbs_info, -Ingredients), "CID", unlist
     )
     herbs_compounds <- dplyr::distinct(herbs_compounds, Pinyin.Name, Latin.Name, CID)
+    if (filter.hob || filter.dl) {
+      cids <- unique(herbs_compounds$CID)
+      if (test) {
+        cids <- head(cids, n = 100)
+      }
+      smiles <- get_smiles_batch(cids, n = 50)
+      message("Number of unique compounds: ", nrow(smiles))
+      setSmiles <- list(All_compounds = smiles$IsomericSMILES)
+    }
+    if (filter.hob) {
+      hob <- job_hob(smiles)
+      hob <- step1(hob)
+      hobSmiles <- dplyr::filter(res(hob), isOK)$smiles
+      .add_internal_job(hob, T)
+      x$hob <- hob
+      setSmiles <- c(setSmiles, list(HOB_is_OK = hobSmiles))
+    }
+    if (filter.dl) {
+      dl <- job_dl(smiles)
+      dl <- step1(dl)
+      dl <- step2(dl)
+      dlSmiles <- dplyr::filter(res(dl), isOK)$smiles
+      .add_internal_job(dl, T)
+      x$dl <- dl
+      setSmiles <- c(setSmiles, list(DL_is_OK = dlSmiles))
+    }
+    if (filter.hob || filter.dl) {
+      p.upset <- new_upset(lst = setSmiles)
+      p.upset <- .set_lab(p.upset, sig(x), "Prediction of HOB and Drug-Likeness")
+      x@plots[[ 1 ]] <- namel(p.upset)
+      cids <- dplyr::filter(smiles, IsomericSMILES %in% !!p.upset$ins)$CID
+      message("Filter the `herbs_compounds` and `compounds_targets`.")
+      herbs_compounds <- dplyr::filter(herbs_compounds, CID %in% !!cids)
+      compounds_targets <- dplyr::filter(compounds_targets, PubChem_CID %in% !!cids)
+      predicted <- dplyr::filter(predicted, PubChem_CID %in% !!cids)
+    }
     x@tables[[ 1 ]] <- namel(herbs_compounds, compounds_targets, predicted)
     return(x)
   })
@@ -240,4 +276,18 @@ try_get_syn <- function(cids) {
   syns <- dplyr::group_by(syns, CID)
   syns <- dplyr::reframe(syns, Synonym = PickGeneral(syno))
   dplyr::ungroup(syns)
+}
+
+get_smiles_batch <- function(cids, n = 100, sleep = .5) {
+  res <- .get_properties_batch(cids, n = 100, as_dataframe = T, properties = "IsomericSMILES", sleep = sleep)
+  frbind(res, fill = T)
+}
+
+.get_properties_batch <- function(ids, ..., n = 100, sleep = .5) {
+  groups <- grouping_vec2list(unique(ids), n, T)
+  pbapply::pblapply(groups,
+    function(ids) {
+      Sys.sleep(sleep)
+      PubChemR::get_properties(identifier = ids, ...)
+    })
 }

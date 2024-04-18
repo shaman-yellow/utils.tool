@@ -2881,7 +2881,13 @@ auto_method <- function(rm = NULL, class = "job", envir = .GlobalEnv, exclude = 
   obj
 }
 
-.add_internal_job <- function(job, limit = 20) {
+.add_internal_job <- function(job, clear = F, limit = 20) {
+  if (clear) {
+    job@params <- list()
+    job@plots <- list()
+    job@tables <- list()
+    job@object <- NULL
+  }
   size <- as.double(gs(obj.size(job), "[a-zA-Z]", ""))
   if (size > limit) {
     warning("Too large `job` (", size, ") add into 'internal_job' options (limit: ", limit, ").")

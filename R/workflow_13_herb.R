@@ -318,7 +318,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
     } else if (ax3.layout == "spiral") {
       crds.Tgt <- get_coords.spiral(nrow(nodesTgt), nCir = 2, minRad = 2)
       crds.Tgt <- get_layout(NULL, crds.Tgt, nodes = nodesTgt)
-      f.f <- f.f * .5
+      f.f <- f.f * .7
     }
     f.rsz <- max(crds.Tgt$x) * f.f
     if (!is.null(ax4)) {

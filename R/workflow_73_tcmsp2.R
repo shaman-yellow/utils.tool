@@ -181,17 +181,30 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
           message("In frame of ", herb, ": ", info$V3)
           lstItems <- lapply(items,
             function(type) {
-              xpath <- paste0("//div[@class='el-radio-group']//span[text()='", type, "']")
-              ele <- link$findElement("xpath", xpath)
-              ele$clickElement()
+              message("In collating: ", type)
               # check whether focused
               active <- F
-              while (!active) {
+              n <- 0L
+              while (!active && n < 10L) {
+                n <- n + 1L
+                xpath <- paste0("//div[@class='el-radio-group']//span[text()='", type, "']")
+                ele <- link$findElement("xpath", xpath)
+                ele$clickElement()
                 Sys.sleep(1)
+                if (n > 5) {
+                  system("notify-send 'Crawl TCMSP' 'Can not switch frame automaticly! Please manualy switch!'")
+                  hasSwitch <- usethis::ui_yeah("Has the windows been switched?")
+                  if (!hasSwitch) {
+                    stop("Can not switch frame automaticly! Please manualy switch!")
+                  }
+                }
                 # the parent frame is 'label'
                 ele <- link$findElement("xpath", paste0(xpath, "/.."))
                 attr <- ele$getElementAttribute("class")[[1]]
                 active <- grpl(attr, "is-active")
+              }
+              if (!active) {
+                stop("Can not focused.")
               }
               message("Is focused: ", type)
               if (F) {
@@ -231,7 +244,6 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
       x$dbs <- sapply(names(x$items), simplify = F,
         function(name) {
           data <- frbind(lapply(lstHerbItems, function(x) x[[ name ]]))
-          Terror <<- list(x$dbs[[ name ]], data)
           upd(x$dbs[[ name ]], data)
         })
     }
@@ -253,6 +265,8 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
       Herb_pinyin_name = `Chinese Pinyin name`,
       Herb_cn_name = `Chinese name`
     )
+    ## remove NA
+    x$dbs[[ "ingredients" ]]@db <- dplyr::filter(x$dbs[[ "ingredients" ]]@db, !is.na(`Mol ID`))
     return(x)
   })
 
