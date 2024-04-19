@@ -33,15 +33,18 @@ setMethod("step0", signature = c(x = "job_hawkdock"),
   })
 
 setMethod("step1", signature = c(x = "job_hawkdock"),
-  function(x){
+  function(x, extra_pdbs = NULL){
     step_message("Download pdb files for protein docking.")
     mart <- new_biomart()
     x$anno <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
       object(x), distinct = F)
     x$anno <- dplyr::filter(x$anno, pdb != "")
     data <- dplyr::distinct(x$anno, hgnc_symbol, .keep_all = T)
+    if (!is.null(extra_pdbs)) {
+      data <- tibble::add_row(data, hgnc_symbol = names(extra_pdbs), pdb = unname(extra_pdbs))
+    }
     if (any(!object(x) %in% x$anno$hgnc_symbol)) {
-      x$notGot <- object(x)[ !object(x) %in% x$anno$hgnc_symbol ]
+      x$notGot <- object(x)[ !object(x) %in% data$hgnc_symbol ]
       message("Not got pdb: ", paste0(x$notGot, collapse = ", "))
     }
     if (is.null(x$.layout)) {

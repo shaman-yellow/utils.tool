@@ -67,7 +67,7 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
     }
     herbs <- unique(x$data.allu[[1]])
     if (!is.null(enrichment)) {
-      res <- plot_network.enrich(data, enrichment, use.enrich, en.top, ...)
+      res <- plot_network.enrich(data, enrichment, use.enrich, en.top, HLs = HLs, ...)
       p.pharm <- res$p.pharm
       p.pharm$.path <- res$dataPath
     } else {
@@ -114,4 +114,53 @@ plot_network.enrich <- function(data, enrichment, use.enrich = c("kegg", "go"), 
   dataPath <- dplyr::mutate(dataPath, Hit_pathway_number = as.integer(Hit_pathway_number))
   dataPath <- dplyr::arrange(dataPath, dplyr::desc(Hit_pathway_number))
   namel(p.pharm, dataPath)
+}
+
+filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T) {
+  if (filter.hob || filter.dl) {
+    if (test) {
+      ids <- head(ids, n = 100)
+    }
+    if (use.cids) {
+      if (!is.numeric(ids)) {
+        stop("is.numeric(ids) == F")
+      }
+      smiles <- get_smiles_batch(ids, n = 50)
+      smiles <- dplyr::rename(smiles, ID = CID, SMILES = IsomericSMILES)
+    } else {
+      message("use.cids == F, so `ids` should be SMILES with names.")
+      smiles <- ids
+      message("De duplicated smiles.")
+      smiles <- smiles[ !duplicated(smiles) ]
+      if (any(duplicated(names(smiles)))) {
+        stop("any(duplicated(names(smiles)))")
+      }
+      smiles <- tibble::tibble(ID = names(smiles), SMILES = unname(smiles))
+    }
+    message("Number of unique compounds: ", nrow(smiles))
+    setSmiles <- list(All_compounds = smiles$SMILES)
+  }
+  if (filter.hob) {
+    hob <- job_hob(smiles)
+    hob <- step1(hob)
+    hobSmiles <- dplyr::filter(res(hob), isOK)$smiles
+    .add_internal_job(hob, T)
+    setSmiles <- c(setSmiles, list(HOB_is_OK = hobSmiles))
+  }
+  if (filter.dl) {
+    dl <- job_dl(smiles)
+    dl <- step1(dl)
+    dl <- step2(dl)
+    dlSmiles <- dplyr::filter(res(dl), isOK)$smiles
+    .add_internal_job(dl, T)
+    setSmiles <- c(setSmiles, list(DL_is_OK = dlSmiles))
+  }
+  if (filter.hob || filter.dl) {
+    p.upset <- new_upset(lst = setSmiles)
+    ids <- dplyr::filter(smiles, SMILES %in% !!p.upset$ins)$ID
+    p.upset$ins <- smiles$ID[ match(p.upset$ins, smiles$SMILES) ]
+    namel(ids, p.upset)
+  } else {
+    return()
+  }
 }

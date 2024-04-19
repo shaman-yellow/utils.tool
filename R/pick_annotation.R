@@ -112,7 +112,8 @@ pick_synonym <-
     quote(!grepl('^[A-Z-]{1,5}$', syno)),
     quote(!grepl('^[A-Z0-9]{1,}$', syno)),
     quote(!grepl('(?<=-)[A-Z0-9]{5,}$', syno, perl = T)),
-    quote(!grepl('^[0-9-]*$', syno))
+    quote(!grepl('^[0-9-]*$', syno)),
+    quote(!grepl('^[A-Z]{14}-', syno))
   )
 
 #' @export PickGeneral

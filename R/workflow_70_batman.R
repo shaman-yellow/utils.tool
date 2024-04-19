@@ -68,38 +68,12 @@ setMethod("step1", signature = c(x = "job_batman"),
       dplyr::select(x$herbs_info, -Ingredients), "CID", unlist
     )
     herbs_compounds <- dplyr::distinct(herbs_compounds, Pinyin.Name, Latin.Name, CID)
-    if (filter.hob || filter.dl) {
-      cids <- unique(herbs_compounds$CID)
-      if (test) {
-        cids <- head(cids, n = 100)
-      }
-      smiles <- get_smiles_batch(cids, n = 50)
-      message("Number of unique compounds: ", nrow(smiles))
-      setSmiles <- list(All_compounds = smiles$IsomericSMILES)
-    }
-    if (filter.hob) {
-      hob <- job_hob(smiles)
-      hob <- step1(hob)
-      hobSmiles <- dplyr::filter(res(hob), isOK)$smiles
-      .add_internal_job(hob, T)
-      x$hob <- hob
-      setSmiles <- c(setSmiles, list(HOB_is_OK = hobSmiles))
-    }
-    if (filter.dl) {
-      dl <- job_dl(smiles)
-      dl <- step1(dl)
-      dl <- step2(dl)
-      dlSmiles <- dplyr::filter(res(dl), isOK)$smiles
-      .add_internal_job(dl, T)
-      x$dl <- dl
-      setSmiles <- c(setSmiles, list(DL_is_OK = dlSmiles))
-    }
-    if (filter.hob || filter.dl) {
-      p.upset <- new_upset(lst = setSmiles)
-      p.upset <- .set_lab(p.upset, sig(x), "Prediction of HOB and Drug-Likeness")
+    lst <- filter_hob_dl(unique(herbs_compounds$CID), filter.hob, filter.dl, test)
+    if (length(lst)) {
+      p.upset <- .set_lab(lst$p.upset, sig(x), "Prediction of HOB and Drug-Likeness")
       x@plots[[ 1 ]] <- namel(p.upset)
-      cids <- dplyr::filter(smiles, IsomericSMILES %in% !!p.upset$ins)$CID
       message("Filter the `herbs_compounds` and `compounds_targets`.")
+      cids <- lst$ids
       herbs_compounds <- dplyr::filter(herbs_compounds, CID %in% !!cids)
       compounds_targets <- dplyr::filter(compounds_targets, PubChem_CID %in% !!cids)
       predicted <- dplyr::filter(predicted, PubChem_CID %in% !!cids)
@@ -145,7 +119,7 @@ setMethod("step2", signature = c(x = "job_batman"),
   })
 
 setMethod("step3", signature = c(x = "job_batman"),
-  function(x, HLs = NULL, disease = NULL)
+  function(x, HLs = NULL, disease = NULL, shortName = T, test = F)
   {
     step_message("Network pharmacology.")
     ########################
@@ -155,6 +129,19 @@ setMethod("step3", signature = c(x = "job_batman"),
     herbs_compounds <- map(x@tables$step1$herbs_compounds, "CID",
       x$compounds_info, "cids", "name", col = "Ingredient.name"
     )
+    if (shortName) {
+      message("Get Synonyms (short name) for compounds.")
+      if (test) {
+        herbs_compounds <- head(herbs_compounds, 300)
+      }
+      syns <- try_get_syn(unique(herbs_compounds$CID))
+      herbs_compounds <- map(herbs_compounds, "CID", syns, "CID", "Synonym", col = "Synonym")
+      herbs_compounds <- dplyr::mutate(herbs_compounds,
+        Ingredient.name = ifelse(is.na(Synonym), Ingredient.name, Synonym))
+      if (test) {
+        stop_debug(namel(herbs_compounds))
+      }
+    }
     hb@tables$step1$herbs_compounds <- dplyr::select(
       herbs_compounds, herb_id = Pinyin.Name, Ingredient.id = CID,
       Ingredient.name

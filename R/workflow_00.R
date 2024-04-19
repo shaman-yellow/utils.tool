@@ -599,7 +599,7 @@ show_standardGeneric <- selectMethod(
 )
 
 .show_method <- function(object, default, filter_by_options){
-  if (!hasMethods(object, package = environmentName(topenv()))) {
+  if (!hasMethods(object, where = topenv())) {
     return(default(object))
   }
   methods <- findMethods(object)
@@ -738,6 +738,9 @@ setGeneric("fill",
 
 setGeneric("upd", 
   function(x, ...) standardGeneric("upd"))
+
+setGeneric("upload", 
+  function(x, ...) standardGeneric("upload"))
 
 setGeneric("not", 
   function(x, ...) standardGeneric("not"))

@@ -38,7 +38,8 @@ setMethod("step0", signature = c(x = "job_herb"),
   })
 
 setMethod("step1", signature = c(x = "job_herb"),
-  function(x, tempdir = "download", db = .prefix("herb/herbs_ingredient.rds", "db"))
+  function(x, filter.hob = T, filter.dl = T, ...,
+    tempdir = "download", db = .prefix("herb/herbs_ingredient.rds", "db"))
   {
     step_message("Dowload compounds of herbs.")
     ids <- params(x)$herbs_info$Herb_
@@ -65,6 +66,26 @@ setMethod("step1", signature = c(x = "job_herb"),
     }
     herbs_compounds <- dplyr::filter(db@db, herb_id %in% ids)
     herbs_compounds <- .set_lab(herbs_compounds, sig(x), "Components of Herbs")
+    if (filter.hob || filter.dl) {
+      smiles <- dplyr::filter(object(x)$component,
+        Ingredient_id %in% !!unique(herbs_compounds$Ingredient.id),
+        Ingredient_Smile != "Not Available")
+      smiles <- dplyr::select(smiles, Ingredient_id, Ingredient_Smile)
+      smiles <- nl(smiles$Ingredient_id, smiles$Ingredient_Smile, F)
+      ## Check smiles available
+      message("Use rcdk to check smiles validity.")
+      notValide <- vapply(rcdk::parse.smiles(unname(smiles)), is.null, logical(1))
+      if (any(notValide)) {
+        message("Some smiles was not valid: ", length(which(notValide)))
+      }
+      smiles <- smiles[ !notValide ]
+      lst <- filter_hob_dl(smiles, filter.hob, filter.dl, use.cids = F, ...)
+      if (length(lst)) {
+        p.upset <- .set_lab(lst$p.upset, sig(x), "Prediction of HOB and Drug-Likeness")
+        x@plots[[ 1 ]] <- namel(p.upset)
+        herbs_compounds <- dplyr::filter(herbs_compounds, Ingredient.id %in% !!lst$ids)
+      }
+    }
     x@tables[[ 1 ]] <- namel(herbs_compounds)
     return(x)
   })
@@ -259,7 +280,8 @@ rstyle <- function(get = "pal", seed = NULL, n = 1L) {
 plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax4 = 2, seed = sample(1:10, 1), HLs = NULL,
   ax1 = "Herb", ax2 = "Compound", ax3 = "Target", ax4 = NULL, less.label = T,
   ax2.level = NULL, ax4.level = NULL, decImport.ax4Level = F, lab.fill = "",
-  edge_width = .1, force.ax1 = NULL, ax3.layout = c("spiral", "grid"), ax4.layout = c("circle", "linear"))
+  edge_width = .1, force.ax1 = NULL, ax3.layout = c("spiral", "grid"), ax4.layout = c("circle", "linear"),
+  HLs.label = T)
 {
   if (length(unique(data[[1]])) == 1) {
     sherb <- 1L
@@ -550,9 +572,11 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
     geom_blank()
   if (!is.null(HLs)) {
     data <- dplyr::filter(data, name %in% HLs)
-    p <- p + geom_point(data = data, aes(x = x, y = y), shape = 21, color = "red", size = 10) +
-      ggrepel::geom_label_repel(data = data, aes(x = x, y = y, label = name),
+    p <- p + geom_point(data = data, aes(x = x, y = y), shape = 21, color = "red", size = 10)
+    if (HLs.label) {
+      p <- p + ggrepel::geom_label_repel(data = data, aes(x = x, y = y, label = name),
         size = 7, color = "black")
+    }
   }
   if (sherb) {
     if (spiral) {

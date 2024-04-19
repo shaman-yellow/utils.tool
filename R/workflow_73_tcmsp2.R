@@ -124,6 +124,7 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
             get_table.html(link$getPageSource()[[1]])
           }
           # >>>
+          message("Try Dowload data of ", herb)
           ele <- try(fun_input(), T)
           if (inherits(ele, "try-error")) {
             link$navigate(x$url_home)
@@ -138,7 +139,14 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
           # check search page status
           info <- fun_get()
           n <- 0L
-          while (is.null(info[[2]]) || !length(nrow(info[[2]]))) {
+          empty <- F
+          ele <- try(link$findElement("xpath", "//div//div[@class='el-table__empty-block']"), T)
+          if (!inherits(ele, "try-error")) {
+            empty <- T
+            warning("No results for matching: ", herb)
+            return()
+          }
+          while ((is.null(info[[2]]) || !length(nrow(info[[2]]))) && (!empty)) {
             n <- n + 1L
             if (n > 5) {
               stop("Search failed.")
@@ -235,17 +243,19 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
         })
       ## update local database
       herbs_info <- frbind(lapply(lstHerbItems, function(x) x$herbs_info))
-      herbs_info <- dplyr::mutate(herbs_info, herb = `Chinese name`)
-      if (forceGetHerbInfo) {
-        x$herbs_info <- herbs_info
-        return(x)
+      if (nrow(herbs_info)) {
+        herbs_info <- dplyr::mutate(herbs_info, herb = `Chinese name`)
+        if (forceGetHerbInfo) {
+          x$herbs_info <- herbs_info
+          return(x)
+        }
+        x$dbHerbs <- upd(x$dbHerbs, herbs_info)
+        x$dbs <- sapply(names(x$items), simplify = F,
+          function(name) {
+            data <- frbind(lapply(lstHerbItems, function(x) x[[ name ]]))
+            upd(x$dbs[[ name ]], data)
+          })
       }
-      x$dbHerbs <- upd(x$dbHerbs, herbs_info)
-      x$dbs <- sapply(names(x$items), simplify = F,
-        function(name) {
-          data <- frbind(lapply(lstHerbItems, function(x) x[[ name ]]))
-          upd(x$dbs[[ name ]], data)
-        })
     }
     lst <- lapply(x$dbs,
       function(db) {
@@ -267,6 +277,8 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
     )
     ## remove NA
     x$dbs[[ "ingredients" ]]@db <- dplyr::filter(x$dbs[[ "ingredients" ]]@db, !is.na(`Mol ID`))
+    x$dbHerbs@db <- dplyr::filter(x$dbHerbs@db, !is.na(`Chinese name`))
+    x$herbs_notGet <- x$herbs[ !x$herbs %in% x$herbs_info$Herb_cn_name ]
     return(x)
   })
 

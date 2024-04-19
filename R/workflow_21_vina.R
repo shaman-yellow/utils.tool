@@ -282,7 +282,7 @@ setMethod("step4", signature = c(x = "job_vina"),
   })
 
 setMethod("step5", signature = c(x = "job_vina"),
-  function(x, compounds, by.y, facet = "Ingredient_name", excludes = NULL, top = 5)
+  function(x, compounds, by.y, facet = "Ingredient_name", excludes = NULL, top = 5, cutoff.af = NULL)
   {
     step_message("Summary and visualization for results.")
     x$summary_vina <- summary_vina(x$savedir)
@@ -321,6 +321,9 @@ setMethod("step5", signature = c(x = "job_vina"),
     res_dock <- dplyr::arrange(res_dock, Affinity)
     res_dock <- dplyr::filter(res_dock, !is.na(!!rlang::sym(facet)))
     data <- dplyr::distinct(res_dock, PubChem_id, hgnc_symbol, .keep_all = T)
+    if (!is.null(cutoff.af)) {
+      data <- dplyr::filter(data, Affinity < !!cutoff.af)
+    }
     if (!is.null(excludes)) {
       data <- dplyr::filter(data, !hgnc_symbol %in% !!excludes)
     }
@@ -349,10 +352,16 @@ setMethod("step5", signature = c(x = "job_vina"),
   })
 
 setMethod("step6", signature = c(x = "job_vina"),
-  function(x, time = 15, top = NULL, save = T, unique = F)
+  function(x, time = 15, top = NULL, save = T, unique = F, symbol = NULL, cpd = NULL)
   {
     step_message("Use pymol for all visualization.")
     data <- dplyr::filter(x@tables$step5$res_dock, Affinity < 0)
+    if (!is.null(symbol)) {
+      data <- dplyr::filter(data, hgnc_symbol %in% !!symbol)
+    }
+    if (!is.null(cpd)) {
+      data <- dplyr::filter(data, Ingredient_name %in% !!cpd)
+    }
     if (unique) {
       data <- dplyr::distinct(data, hgnc_symbol, .keep_all = T)
     }
