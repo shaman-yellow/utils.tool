@@ -257,6 +257,11 @@ setMethod("step3", signature = c(x = "job_herb"),
     return(x)
   })
 
+# setMethod("merge", signature = c(x = "job_herb", y = "list"),
+#   function(x, y){
+#   })
+
+
 rstyle <- function(get = "pal", seed = NULL, n = 1L) {
   if (get == "pal") {
     set <- lapply(ggsci:::ggsci_db[1:19], function(x) unname(x[[1]]))

@@ -742,6 +742,9 @@ setGeneric("upd",
 setGeneric("upload", 
   function(x, ...) standardGeneric("upload"))
 
+setGeneric("pull", 
+  function(x, ...) standardGeneric("pull"))
+
 setGeneric("not", 
   function(x, ...) standardGeneric("not"))
 
