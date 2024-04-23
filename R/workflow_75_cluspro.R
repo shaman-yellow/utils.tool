@@ -56,8 +56,60 @@ setMethod("step3", signature = c(x = "job_cluspro"),
     groups_status <- rep(F, length(groups))
     x$groups <- groups
     x$groups_status <- groups_status
-    x$in_queue <- F
     message("Use `upload` to start the first jobs.")
+    return(x)
+  })
+
+setMethod("step4", signature = c(x = "job_cluspro"),
+  function(x, top = 3)
+  {
+    step_message("Plot scores and visualize models.")
+    if (!is.null(x$tmp_scores)) {
+      data <- dplyr::filter(x$tmp_scores, Cluster == 0)
+      data <- tidyr::separate(data, "Name", c("pro1", "pro2"), "_", remove = F)
+      recodes <- as.list(x$pdb_from)
+      data <- dplyr::mutate(data, value = Lowest.Energy,
+        pdb1 = dplyr::recode(pro1, !!!recodes),
+        pdb2 = dplyr::recode(pro2, !!!recodes),
+        var = paste0(pro1, " (", pdb1, ") + ", pro2, " (", pdb2, ")")
+      )
+      t.data <- data <- dplyr::arrange(data, Lowest.Energy)
+      p.score <- ggplot(data, aes(x = reorder(var, value, decreasing = TRUE), y = value, fill = value)) +
+        geom_col(width = .5) +
+        geom_text(aes(x = var, y = value + max(value) * .02, label = value), hjust = 1, size = 3) +
+        ylim(c(min(data$value) * 1.2, 0)) +
+        coord_flip() +
+        labs(y = "Lowest Energy of Top", x = "Proteins (PDB)") +
+        rstyle("theme") +
+        theme(legend.position = "")
+      p.score <- wrap(p.score, 9, nrow(data) * .3 + .5)
+      p.score <- .set_lab(p.score, sig(x), "Overview of protein docking results.")
+      plots <- namel(p.score)
+      if (!is.null(top)) {
+        data <- head(data, top)
+        n <- 0L
+        figs <- pbapply::pbapply(data, 1, simplify = F,
+          function(v) {
+            n <<- n + 1L
+            name <- v[[ "Name" ]]
+            file <- vis_pdb.cluspro(
+              x$tmp_models[[ name ]],
+              paste0(v[[ "pro2" ]], " (", v[[ "pdb2" ]], ")"),
+              paste0(v[[ "pro1" ]], " (", v[[ "pdb1" ]], ")")
+            )
+            fig <- file_fig(paste0("Top_", n, "_", name), file)
+            lab(fig[[1]]) <- paste0("protein docking of ", name)
+            return(fig)
+          })
+        figs <- unlist(figs, recursive = F)
+        plots <- c(plots, list(top = figs))
+      }
+      x@plots[[ 4 ]] <- plots
+      t.data <- .set_lab(t.data, sig(x), "Overview of protein docking results data.")
+      x@tables[[ 4 ]] <- namel(t.data)
+    } else {
+      message("No score information, please pull results first.")
+    }
     return(x)
   })
 
@@ -94,26 +146,27 @@ setMethod("pull", signature = c(x = "job_cluspro"),
     link <- x$link
     url <- "https://cluspro.bu.edu/results.php"
     link$navigate(url)
-    fun_format <- function(x) {
-      colnames(x) <- unlist(x[1, ])
-      x[-1, ]
-    }
-    history <- fun_format(get_table.html(link$getPageSource()[[1]])[[1]])
-    if (!is.null(x$groups) && !is.null(x$whichGroup)) {
-      group <- x$groups[[ x$whichGroup ]]
+    history <- .get_finished.cluspro(link)
+    if (!is.null(x$groups)) {
+      group <- unlist(x$groups)
       group <- group[ !group %in% x$excludes ]
-      status <- dplyr::filter(history, Name %in% !!group)
-      message("Current finished: ", nrow(status), "/", length(group))
+      finished <- dplyr::filter(history, Name %in% !!group)
+      message("Current finished: ", nrow(finished), "/", length(group))
       if (is.null(ref)) {
-        ref <- status$Name
+        ref <- finished$Name
       }
     }
     if (length(ref)) {
-      status <- dplyr::filter(history, Name %in% !!ref)
+      finished <- dplyr::filter(history, Name %in% !!ref)
     } else {
-      status <- data.frame()
+      finished <- data.frame()
     }
-    if (nrow(status)) {
+    if (!is.null(x$tmp_scores)) {
+      finishedNotGet <- dplyr::filter(finished, !Name %in% !!unique(x$tmp_scores$Name))
+    } else {
+      finishedNotGet <- finished
+    }
+    if (nrow(finishedNotGet)) {
       dir.create(dir, F)
       fun_format <- function(x) {
         cluster <- 0L
@@ -143,7 +196,7 @@ setMethod("pull", signature = c(x = "job_cluspro"),
       if (!dir.exists(dir_download)) {
         stop("dir.exists(dir_download)")
       }
-      res <- pbapply::pbapply(status, 1, simplify = F,
+      res <- pbapply::pbapply(finishedNotGet, 1, simplify = F,
         function(v) {
           id <- v[[ "Id" ]]
           message("\nPull results: \n\t", v[[ "Name" ]])
@@ -171,38 +224,47 @@ setMethod("pull", signature = c(x = "job_cluspro"),
           }
           ## score
           link$navigate(paste0("https://cluspro.bu.edu/scores.php?job=", id, "&coeffi=0"))
+          Sys.sleep(1)
           score <- fun_format(get_table.html(link$getPageSource()[[1]])[[1]])
           namel(score, file_model)
         })
-      names(res) <- status$Name
+      names(res) <- finishedNotGet$Name
       scores <- lapply(res, function(x) x$score)
       scores <- frbind(scores, idcol = "Name")
       scores <- dplyr::rename_all(scores, make.names)
-      x$tmp_scores <- scores
-      x$tmp_models <- vapply(res, function(x) x$file_model, character(1))
+      models <- vapply(res, function(x) x$file_model, character(1))
+      if (!is.null(x$tmp_scores)) {
+        x$tmp_scores <- dplyr::bind_rows(x$tmp_scores, scores)
+        x$tmp_models <- c(x$tmp_models, models)
+      } else {
+        x$tmp_scores <- scores
+        x$tmp_models <- models
+      }
     } else {
       if (length(ref)) {
-        message("Job maybe not finished: ", ref)
+        message("Job maybe not finished: ", paste0(ref, collapse = ", "))
       } else {
         message("No job has been finished.")
       }
     }
+    x@step <- 3L
     return(x)
   })
 
 setMethod("upload", signature = c(x = "job_cluspro"),
-  function(x){
+  function(x, whichGroup = NULL, maxAllow = 15){
     message("Collate current status and upload jobs.")
-    notFinish <- which(!x$groups_status)
-    if (!length(notFinish)) {
-      message("All job has been finished.")
-      return(x)
+    if (is.null(whichGroup)) {
+      notFinish <- which(!x$groups_status)
+      if (!length(notFinish)) {
+        message("All job has been upload.")
+        return(x)
+      }
+      x$whichGroup <- whichGroup <- notFinish[1]
+    } else {
+      x$whichGroup <- whichGroup
     }
-    if (x$in_queue) {
-      message("Please wait for completion of previous jobs.")
-      return(x)
-    }
-    x$whichGroup <- whichGroup <- notFinish[1]
+    message("Arrange for uploading: Group ", whichGroup, " of ", length(x$groups))
     ## check link
     if (is.null(x$link)) {
       stop("is.null(x$link)")
@@ -219,32 +281,45 @@ setMethod("upload", signature = c(x = "job_cluspro"),
         stop("Maybe not login.")
       }
     }
+    ## 
     link <- x$link
     group <- rawGroup <- x$groups[[ whichGroup ]]
+    ## check if got results
+    url <- "https://cluspro.bu.edu/results.php"
+    link$navigate(url)
+    finished <- .get_finished.cluspro(link)
+    finished <- dplyr::filter(finished, Name %in% !!group)
+    message("Has got results: ", nrow(finished), "/", length(group), "/", length(rawGroup))
+    group <- group[ !group %in% finished$Name ]
+    ## check now running
+    url <- "https://cluspro.bu.edu/queue.php"
     fun_get <- function(url) {
-      link$navigate(url)
       fun_format <- function(x) {
         colnames(x) <- unlist(x[1, ])
         x[-1, ]
       }
       fun_format(get_table.html(link$getPageSource()[[1]])[[1]])
     }
-    ## check if got results
-    url <- "https://cluspro.bu.edu/results.php"
-    finished <- dplyr::filter(fun_get(url), Name %in% !!group)
-    message("Has got results: ", nrow(finished), "/", length(group), "/", length(rawGroup))
-    group <- group[ !group %in% finished$Name ]
-    ## check now running
-    url <- "https://cluspro.bu.edu/queue.php"
     queues <- dplyr::filter(fun_get(url), User == x$usr)
+    if (nrow(queues) >= maxAllow) {
+      stop("Too many jobs in server: ", nrow(queues))
+    } else {
+      message("Job Server in server: ", nrow(queues))
+    }
     runs <- group[ group %in% queues$Name ]
-    message("Is now in queue: ", length(runs), "/", length(group), "/", length(rawGroup))
+    message("The group in queue: ", length(runs), "/", length(group), "/", length(rawGroup))
     group <- group[ !group %in% queues$Name ]
+    if (length(group) + nrow(queues) > maxAllow) {
+      stop("Upload will cause too many jobs: ", nrow(queues), " + ", length(group), " > ", maxAllow)
+    } else {
+      message("Enough space for further upload.")
+    }
     ####################################################
     ####################################################
     ## upload
     if (length(group)) {
       message("Start upload.")
+      url <- "https://cluspro.bu.edu/home.php"
       n <- 0L
       excludes <- pbapply::pblapply(group,
         function(i) {
@@ -263,20 +338,65 @@ setMethod("upload", signature = c(x = "job_cluspro"),
           ele$sendKeysToElement(list(i))
           ele <- link$findElement("xpath", "//form//div//select[@name='server']//option[@value='gpu']")
           ele$clickElement()
+          ## ligand
           ele <- link$findElement("xpath", "//div//span//input[@id='ligpdb']")
           ele$sendKeysToElement(list(layout[[ "from" ]]))
+          ## rec
           ele <- link$findElement("xpath", "//div//span//input[@id='recpdb']")
           ele$sendKeysToElement(list(layout[[ "to" ]]))
+          ## submit
           ele <- link$findElement("xpath", "//div//input[@type='submit']")
           ele$clickElement()
           message("JOB has successfully upload: ", i)
           Sys.sleep(3)
         })
-      x$excludes <- unlist(excludes)
+      x$excludes <- unique(c(x$excludes, unlist(excludes)))
     }
     x$groups_status[ whichGroup ] <- T
-    x$in_queue <- T
     return(x)
   })
 
 
+vis_pdb.cluspro <- function(pdb, label.a, label.b,
+  save = paste0(get_savedir("figs"), "/", make.names(label.a), "_with_", make.names(label.b), ".png"),
+  command = pg("pymol"))
+{
+  # label.a, rec
+  # label.b, lig
+  data <- ftibble(pdb, fill = T)
+  sig <- which(data$V1 == "HEADER")
+  coa <- dplyr::slice(data, sig[1]:(sig[2] - 1))
+  cob <- dplyr::slice(data, sig[2]:nrow(data))
+  fun_pos <- function(x) {
+    c(max(x$V7, na.rm = T), median(x$V8, na.rm = T), median(x$V9, na.rm = T))
+  }
+  pos.a <- fun_pos(coa)
+  pos.b <- fun_pos(cob)
+  expr <- .expr_pretty_pdb(label.a, pos.a, label.b, pos.b,
+    a = "rec.pdb", b = "lig.000.00.pdb"
+  )
+  vis_pdb(pdb, expr, save)
+  return(save)
+}
+
+.get_finished.cluspro <- function(link) {
+  fun_format <- function(x) {
+    colnames(x) <- unlist(x[1, ])
+    x[-1, ]
+  }
+  canGet <- T
+  res <- list()
+  n <- 0L
+  while (canGet) {
+    n <- n + 1L
+    res[[ n ]] <- fun_format(get_table.html(link$getPageSource()[[1]])[[1]])
+    ele <- try(link$findElement("xpath", "//a[text()='next ->']"), T)
+    if (inherits(ele, "try-error")) {
+      canGet <- F
+    } else {
+      ele$clickElement()
+      Sys.sleep(1)
+    }
+  }
+  frbind(res)
+}

@@ -186,9 +186,12 @@ vis_pdb.hawkdock <- function(pdb, label.a, label.b,
   return(save)
 }
 
-vis_pdb <- function(file, expr = NULL, save = NULL, command = "pymol") {
+vis_pdb <- function(file, expr = NULL, save = NULL, command = pg("pymol"))
+{
   if (!is.null(save)) {
-    expr <- paste0(expr, " -g ", save)
+    saveExpr <- paste0(" png ", save, ",2500,2000,dpi=300")
+    gett(saveExpr)
+    expr <- paste0(expr, " -d \"ray; ", saveExpr, "\"")
   }
   cdRun(command, " ", file, " ", expr)
 }
@@ -206,6 +209,6 @@ vis_pdb <- function(file, expr = NULL, save = NULL, command = "pymol") {
     "set label_size, 25",
     "\" ",
     " -d \"", "label pA, '", label.a, "'", "\" ",
-    "-d \"", "label pB, '", label.b, "'", "\" "
+    " -d \"", "label pB, '", label.b, "'", "\" "
     )
 }

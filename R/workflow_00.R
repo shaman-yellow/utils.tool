@@ -1301,3 +1301,16 @@ stop_debug <- function(x) {
   Terror <<- x
   stop("Stop for debugging. Use `Terror` to get data.")
 }
+
+setMethod("show", signature = c(object = "character"),
+  function(object){
+    if (length(object) > 200) {
+      message(crayon::silver("Length: ", length(object)))
+      object <- head(object, n = 200)
+    }
+    if (any(tooMany <- (nchar(object) > 1000))) {
+      message(crayon::silver("Chunk strings too long."))
+      object[ tooMany ] <- paste0(substr(object, 1, 1000), crayon::silver("..."))
+    }
+    print(object)
+  })

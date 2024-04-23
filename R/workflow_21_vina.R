@@ -71,6 +71,7 @@ setMethod("step1", signature = c(x = "job_vina"),
     x$targets_annotation <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
       object(x)$hgnc_symbols, distinct = F)
     x$targets_annotation <- dplyr::filter(x$targets_annotation, pdb != "")
+    x$targets_annotation <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = T)
     if (!is.null(pdbs)) {
       pdbs <- list(hgnc_symbol = names(pdbs), pdb = unname(pdbs))
       if (!is.character(x$targets_annotation$pdb)) {
@@ -115,7 +116,7 @@ setMethod("step1", signature = c(x = "job_vina"),
   })
 
 setMethod("step2", signature = c(x = "job_vina"),
-  function(x, try_cluster_random = T, nGroup = 30, nMember = 3, cl = 10)
+  function(x, try_cluster_random = T, nGroup = 30, nMember = 3, cl = 10, sdf.3d = NULL)
   {
     step_message("Download sdf files and convert as pdbqt for ligands.")
     sdfFile <- query_sdfs(unique(names(x$dock_layout)), curl_cl = cl)
@@ -164,7 +165,15 @@ setMethod("step2", signature = c(x = "job_vina"),
             ))
       }
     }
-    sdfFile <- cal_3d_sdf(sdfFile)
+    if (is.null(sdf.3d)) {
+      message("Overwrite exists 3D SDF file.")
+      sdfFile <- cal_3d_sdf(sdfFile)
+    } else if (file.exists(sdf.3d)) {
+      message("Use '", sdf.3d, "'")
+      sdfFile <- sdf.3d
+    } else {
+      stop("file.exists(sdf.3d) == F")
+    }
     if (Show_filter) {
       message("Filter out (Due to Chemmine bug): ", length(which(MaybeError)))
       message("Now, Total docking molecules: ", length(sdfset))
@@ -218,7 +227,8 @@ setMethod("step3", signature = c(x = "job_vina"),
     }
     x$res.receptor <- prepare_receptor(pdb.files)
     names <- names(x$res.receptor)
-    gotSymbols <- x$targets_annotation$hgnc_symbol[ match(tolower(names), tolower(x$targets_annotation$pdb)) ]
+    anno <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = T)
+    gotSymbols <- anno$hgnc_symbol[ match(tolower(names), tolower(anno$pdb)) ]
     x$res.receptor.symbol <- gotSymbols
     fun <- function(x) x[ !x %in% gotSymbols ]
     message("Not got: ", paste0(fun(unique(object(x)$hgnc_symbol)), collapse = ", "))
@@ -411,7 +421,7 @@ pretty_docking <- function(protein, ligand, path,
   cli::cli_alert_info(paste0("Pymol run script: ", temp))
   output <- paste0(path, "/", save)
   message("Save png to ", output)
-  expr <- paste0(" png ", save, ",2000,2000,dpi=300")
+  expr <- paste0(" png ", save, ",2500,2000,dpi=300")
   gett(expr)
   cdRun(pg("pymol"), " ",
     " -d \"run ", temp, "\"",
@@ -426,7 +436,7 @@ vina_limit <- function(lig, recep, timeLimit = 120, dir = "vina_space", ...) {
 
 vina <- function(lig, recep, dir = "vina_space",
   exhaustiveness = 32, scoring = "ad4", stout = "/tmp/res.log", timeLimit = 60,
-  x)
+  excludes.atom = c("G0", "CG0"), x)
 {
   remote <- F
   if (!missing(x)) {
@@ -446,6 +456,14 @@ vina <- function(lig, recep, dir = "vina_space",
     .cdRun <- function(...) cdRun(..., path = wd)
     files <- get_filename(c(lig, recep))
     .cdRun(pg("prepare_gpf.py"), " -l ", files[1], " -r ", files[2], " -y")
+    if (!is.null(excludes.atom)) {
+      message("Excludes atom type: ", paste0(excludes.atom, collapse = ", "))
+      ## ligand type and map file
+      .cdRun("sed -i",
+        " -e '/", paste0(paste0("^map.*", excludes.atom), collapse = "\\|"), "/d'",
+        " -e 's/", paste0(paste0("\\b", excludes.atom, "\\b"), collapse = "\\|"), "//g'",
+        " ", reals[2], ".gpf")
+    }
     .cdRun(pg("autogrid4"), " -p ", reals[2], ".gpf ", " -l ", reals[2], ".glg")
     if (remote) {
       message("Run in remote server.")
@@ -501,7 +519,7 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
   if (detail) {
     pretty_docking(recep, out, wd, save = res)
   } else {
-    expr <- paste0(" png ", res, ",2000,2000,dpi=300")
+    expr <- paste0(" png ", res, ",2500,2000,dpi=300")
     gett(expr)
     if (!save) {
       expr <- ""
