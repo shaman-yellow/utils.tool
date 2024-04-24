@@ -118,16 +118,20 @@ setMethod("filter", signature = c(x = "job_stringdb"),
   function(x, ref.x, ref.y, lab.x = "Source", lab.y = "Target",
     use = "preferred_name", data = x@params$graph, level.x = NULL,
     lab.fill = "log2FC",
-    top = 10, use.top = c("from", "to"), top_in = NULL, ...)
+    top = 10, use.top = c("from", "to"), top_in = NULL, keep.ref = F, ...)
   {
     message("Search and filter: ref.x in from, ref.y in to; or, reverse.")
     use.top <- match.arg(use.top)
     data <- tibble::as_tibble(get_edges()(data), .name_repair = "minimal")
     data <- dplyr::select(data, dplyr::ends_with(use))
     data <- dplyr::rename(data, from = 1, to = 2)
-    data <- dplyr::filter(data,
-      (from %in% ref.x & to %in% ref.y) | (from %in% ref.y & to %in% ref.x)
-    )
+    if (keep.ref) {
+      data <- dplyr::filter(data, from %in% c(ref.x, ref.y), to %in% c(ref.x, ref.y))
+    } else {
+      data <- dplyr::filter(data,
+        (from %in% ref.x & to %in% ref.y) | (from %in% ref.y & to %in% ref.x)
+      )  
+    }
     data <- dplyr::mutate(data, needRev = ifelse(from %in% ref.x, F, T))
     data <- apply(data, 1,
       function(x) {
@@ -173,7 +177,9 @@ setMethod("filter", signature = c(x = "job_stringdb"),
       } else {
         p.top_in <- NULL
       }
-      tops <- dplyr::slice_max(tops, MCC_score, n = top)
+      if (!is.null(top)) {
+        tops <- dplyr::slice_max(tops, MCC_score, n = top)
+      }
       edges <- dplyr::filter(edges, !!rlang::sym(use.top) %in% tops$name)
       nodes <- dplyr::filter(nodes, name %in% edges$from | name %in% edges$to)
       graph <- igraph::graph_from_data_frame(edges, vertices = nodes)
@@ -315,15 +321,29 @@ plot_network.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
 
 plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   label.size = 4, node.size = 12, sc = 5, ec = 5, 
-  arr.len = 2, edge.color = 'lightblue', edge.width = 1, lab.fill = "MCC score",
-  label = "genes", HLs = NULL, arrow = F, shape = F)
+  arr.len = 2, edge.color = 'lightblue', edge.width = 1,
+  lab.fill = if (is.null(levels)) "MCC score" else "Levels",
+  label = "genes", HLs = NULL, arrow = F, shape = F, levels = NULL)
 {
+  dataNodes <- get_nodes()(graph)
+  if (is.null(levels)) {
+    fill <- "MCC_score"
+  } else {
+    fill <- "levels"
+    if (!is.data.frame(levels)) {
+      stop("!is.data.frame(levels) == F")
+    }
+    levels
+  }
   if (shape) {
     geom_node_point <- geom_node_point(
-      aes(x = x, y = y, fill = ifelse(is.na(MCC_score), 0, MCC_score),  shape = type),
+      data = dataNodes,
+      aes(x = x, y = y, fill = ifelse(is.na(!!rlang::sym(fill)), 0, !!rlang::sym(fill)), shape = type),
       size = node.size, stroke = .3)
   } else {
-    geom_node_point <- geom_node_point(aes(x = x, y = y, fill = ifelse(is.na(MCC_score), 0, MCC_score)),
+    geom_node_point <- geom_node_point(
+      data = dataNodes,
+      aes(x = x, y = y, fill = ifelse(is.na(!!rlang::sym(fill)), 0, !!rlang::sym(fill))),
       size = node.size, shape = 21, stroke = .3)
   }
   p <- ggraph(graph) +
@@ -337,7 +357,7 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
     scale_fill_gradient(low = "lightyellow", high = "red") +
     scale_x_continuous(limits = zoRange(graph$x, scale.x)) +
     scale_y_continuous(limits = zoRange(graph$y, scale.y)) +
-    labs(fill = "MCC score", shape = "Type") +
+    labs(fill = lab.fill, shape = "Type") +
     theme_void() +
     theme(plot.margin = margin(r = .05, unit = "npc")) +
     geom_blank()

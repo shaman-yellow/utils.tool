@@ -350,3 +350,12 @@ setMethod("map", signature = c(x = "job_enrich", ref = "job_enrich"),
     x$intersect_paths <- data
     return(x)
   })
+
+get_genes.keggPath <- function(name) {
+  if (!is(name, "character")) {
+    stop("is(name, 'character')")
+  }
+  lst <- e(KEGGREST::keggGet(name))
+  x <- strx(lst[[1]]$GENE, "^[A-Za-z][^;]+")
+  x[ !is.na(x) ]
+}

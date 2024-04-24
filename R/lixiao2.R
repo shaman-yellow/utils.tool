@@ -41,7 +41,7 @@ kall_quant <- function(path, pattern = "[1-2]\\.QC\\.fastq\\.gz$",
 read_kall_quant <- function(path) {
   files <- list.files(path, "abundance.tsv$", full.names = T, recursive = T)
   metadata <- data.frame(file = files)
-  metadata <- mutate(metadata, directory = get_path(file),
+  metadata <- dplyr::mutate(metadata, directory = get_path(file),
     sample = get_realname(directory)
   )
   n <- 0
@@ -49,15 +49,15 @@ read_kall_quant <- function(path) {
     function(file) {
       n <<- n + 1
       data <- ftibble(file)
-      data <- mutate(data, count = est_counts)
+      data <- dplyr::mutate(data, count = est_counts)
       if (n == 1)
-        select(data, target_id, count)
+        dplyr::select(data, target_id, count)
       else
-        select(data, count)
+        dplyr::select(data, count)
     })
   counts <- suppressMessages(do.call(dplyr::bind_cols, counts))
-  counts <- mutate(counts, target_id = gs(target_id, "\\.[0-9]{1,}$", ""))
-  counts <- distinct(counts, target_id, .keep_all = T)
+  counts <- dplyr::mutate(counts, target_id = gs(target_id, "\\.[0-9]{1,}$", ""))
+  counts <- dplyr::distinct(counts, target_id, .keep_all = T)
   colnames(counts)[-1] <- metadata$sample
   namel(counts, metadata)
 }
@@ -140,9 +140,9 @@ get_seq.pro <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol", 
   data <- e(biomaRt::getSequence(id = ids, type = from, seqType = to, mart = mart))
   data <- filter(data, !grepl("unavailable", !!rlang::sym(to)))
   if (unique) {
-    data <- mutate(data, long = nchar(!!rlang::sym(to)))
-    data <- arrange(data, dplyr::desc(long))
-    data <- distinct(data, hgnc_symbol, .keep_all = T)
+    data <- dplyr::mutate(data, long = nchar(!!rlang::sym(to)))
+    data <- dplyr::arrange(data, dplyr::desc(long))
+    data <- dplyr::distinct(data, hgnc_symbol, .keep_all = T)
   }
   if (fasta) {
     fasta <- apply(data, 1,
@@ -432,17 +432,17 @@ get_detail_chunk <- function(body) {
 # for slidy
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-setGeneric("convert", 
-  function(x, ...) standardGeneric("convert"))
+# setGeneric("convert", 
+#   function(x, ...) standardGeneric("convert"))
 
-setMethod("convert", signature = c(x = "character"),
-  function(x){
-    y <- gs(x, "\\.pdf$", ".png")
-    pdf_convert(x, filenames = y)
-  })
+# setMethod("convert", signature = c(x = "character"),
+#   function(x){
+#     y <- gs(x, "\\.pdf$", ".png")
+#     pdf_convert(x, filenames = y)
+#   })
 
-sl.col <- function() {
-}
+# sl.col <- function() {
+# }
 
-sl.items <- function() {
-}
+# sl.items <- function() {
+# }
