@@ -65,7 +65,7 @@ setMethod("step1", signature = c(x = "job_seuratn"),
   })
 
 setMethod("step2", signature = c(x = "job_seuratn"),
-  function(x, workers = 3){
+  function(x, workers = NULL){
     step_message("Perform integration (time-consumed).
       Prarameter red{{workers}} would call `future::plan`.
       If it meet error (Seurat::IntegrateData), the object would be returned.

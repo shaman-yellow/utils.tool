@@ -118,7 +118,8 @@ setMethod("filter", signature = c(x = "job_stringdb"),
   function(x, ref.x, ref.y, lab.x = "Source", lab.y = "Target",
     use = "preferred_name", data = x@params$graph, level.x = NULL,
     lab.fill = "log2FC",
-    top = 10, use.top = c("from", "to"), top_in = NULL, keep.ref = F, ...)
+    top = 10, use.top = c("from", "to"), top_in = NULL, keep.ref = F,
+    arrow = T, ...)
   {
     message("Search and filter: ref.x in from, ref.y in to; or, reverse.")
     use.top <- match.arg(use.top)
@@ -184,7 +185,11 @@ setMethod("filter", signature = c(x = "job_stringdb"),
       nodes <- dplyr::filter(nodes, name %in% edges$from | name %in% edges$to)
       graph <- igraph::graph_from_data_frame(edges, vertices = nodes)
       graph <- fast_layout(graph, layout = "linear", circular = T)
-      p.mcc <- plot_networkFill.str(graph, label = "name", arrow = T, shape = T)
+      p.mcc <- plot_networkFill.str(graph, label = "name",
+        arrow = arrow, shape = T,
+        levels = level.x,
+        lab.fill = if (is.null(level.x)) NULL else "Log2(FC)", ...
+      )
       p.mcc <- .set_lab(p.mcc, sig(x), "Top MCC score")
       colnames(edges) <- c(lab.x, lab.y)
       namel(p.mcc, nodes, edges, p.top_in)
@@ -325,25 +330,31 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   lab.fill = if (is.null(levels)) "MCC score" else "Levels",
   label = "genes", HLs = NULL, arrow = F, shape = F, levels = NULL)
 {
-  dataNodes <- get_nodes()(graph)
+  dataNodes <- ggraph::get_nodes()(graph)
   if (is.null(levels)) {
     fill <- "MCC_score"
+    dataNodes <- dplyr::mutate(dataNodes, Levels = ifelse(is.na(MCC_score), 0, MCC_score))
+    scale_fill_gradient <- scale_fill_gradient(low = "lightyellow", high = "red")
   } else {
-    fill <- "levels"
+    fill <- "Levels"
     if (!is.data.frame(levels)) {
       stop("!is.data.frame(levels) == F")
     }
-    levels
+    message("The first and second columns of `levels` were used as name and levels.")
+    dataNodes <- map(tibble::tibble(dataNodes), "name",
+      levels, colnames(levels)[1], colnames(levels)[2], col = "Levels")
+    pal <- color_set2()
+    scale_fill_gradient <- ggplot2::scale_fill_gradient2(low = pal[2], high = pal[1])
   }
   if (shape) {
     geom_node_point <- geom_node_point(
       data = dataNodes,
-      aes(x = x, y = y, fill = ifelse(is.na(!!rlang::sym(fill)), 0, !!rlang::sym(fill)), shape = type),
+      aes(x = x, y = y, fill = !!rlang::sym(fill), shape = type),
       size = node.size, stroke = .3)
   } else {
     geom_node_point <- geom_node_point(
       data = dataNodes,
-      aes(x = x, y = y, fill = ifelse(is.na(!!rlang::sym(fill)), 0, !!rlang::sym(fill))),
+      aes(x = x, y = y, fill = !!rlang::sym(fill)),
       size = node.size, shape = 21, stroke = .3)
   }
   p <- ggraph(graph) +
@@ -354,7 +365,7 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
       color = edge.color, width = edge.width) +
     geom_node_point +
     geom_node_text(aes(label = !!rlang::sym(label)), size = label.size) +
-    scale_fill_gradient(low = "lightyellow", high = "red") +
+    scale_fill_gradient +
     scale_x_continuous(limits = zoRange(graph$x, scale.x)) +
     scale_y_continuous(limits = zoRange(graph$y, scale.y)) +
     labs(fill = lab.fill, shape = "Type") +
@@ -363,6 +374,10 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
     geom_blank()
   if (shape) {
     p <- p + scale_shape_manual(values = c(24, 21, 22, 23))
+  }
+  if (!is.null(HLs)) {
+    data <- dplyr::filter(dataNodes, name %in% !!HLs)
+    p <- p + geom_point(data = data, aes(x = x, y = y), shape = 21, color = "red", size = 20)
   }
   p
 } 

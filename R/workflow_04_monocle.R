@@ -252,7 +252,8 @@ setMethod("step3", signature = c(x = "job_monocle"),
   })
 
 setMethod("step4", signature = c(x = "job_monocle"),
-  function(x, groups, genes){
+  function(x, groups = ids(x), genes, group.by = NULL)
+  {
     step_message("Plot genes (in branch) that change as a function of pseudotime.
       red{{`groups`}} and red{{`genes`}} were used to subset the `object(x)`."
     )
@@ -261,15 +262,20 @@ setMethod("step4", signature = c(x = "job_monocle"),
     gene.groups <- grouping_vec2list(genes, 10, T)
     pblapply <- pbapply::pblapply
     colData <- SummarizedExperiment::colData
+    if (is.null(group.by)) {
+      group.by <- x@params$group.by
+    }
     genes_in_pseudotime <- e(pblapply(gene.groups,
         function(genes) {
-          cds <- fun_sub(cds,
-            rownames(cds) %in% genes,
-            colData(cds)[[ x@params$group.by ]] %in% groups
-          )
+          if (!is.null(groups)) {
+            cds <- fun_sub(cds,
+              rownames(cds) %in% genes,
+              colData(cds)[[ x@params$group.by ]] %in% groups
+            )
+          }
           p <- monocle3::plot_genes_in_pseudotime(cds,
             label_by_short_name = F,
-            color_cells_by = x@params$group.by,
+            color_cells_by = group.by,
             min_expr = 0.5
           )
           wrap(p, 6, length(genes) * 1.6)
@@ -520,3 +526,5 @@ setMethod("skel", signature = c(x = "job_monocle"),
     code <- gs(code, "\\bmn\\b", sig.mn)
     writeLines(code)
   })
+
+

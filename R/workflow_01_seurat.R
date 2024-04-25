@@ -96,7 +96,7 @@ setMethod("step2", signature = c(x = "job_seurat"),
   })
 
 setMethod("step3", signature = c(x = "job_seurat"),
-  function(x, dims, resolution, force = F){
+  function(x, dims = 1:15, resolution = 1.2, force = F){
     step_message("This contains several execution: Cluster the cells, UMAP
       reduction, Cluster biomarker (Differential analysis). Object were
       performed with:
@@ -238,11 +238,12 @@ setMethod("step7", signature = c(x = "job_seurat"),
   })
 
 setMethod("diff", signature = c(x = "job_seurat"),
-  function(x, group.by, contrasts, name = "contrasts"){
+  function(x, group.by, contrasts, name = "contrasts", force = T)
+  {
     if (is.data.frame(contrasts)) {
       contrasts <- apply(contrasts, 1, c, simplify = F)
     }
-    if (is.null(x@params[[ name ]])) {
+    if (is.null(x@params[[ name ]]) || force) {
       res <- e(lapply(contrasts,
           function(con) {
             data <- Seurat::FindMarkers(object(x),
@@ -477,9 +478,9 @@ setMethod("focus", signature = c(x = "job_seurat"),
   })
 
 setMethod("map", signature = c(x = "job_seurat", ref = "character"),
-  function(x, ref, slot = "scale.data"){
+  function(x, ref, slot = "scale.data", ...){
     p.heatmap <- wrap(as_grob(e(Seurat::DoHeatmap(
-          object(x), features = ref, raster = T, size = 3, slot = slot
+          object(x), features = ref, raster = T, size = 3, slot = slot, ...
           ))))
     p.heatmap <- .set_lab(p.heatmap, sig(x), "heatmap show the reference genes")
     p.heatmap
