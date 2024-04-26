@@ -340,6 +340,29 @@ setMethod("map", signature = c(x = "job_monocle", ref = "job_seurat"),
     return(x)
   })
 
+setMethod("map", signature = c(x = "job_monocle", ref = "character"),
+  function(x, ref, cells = NULL, seurat = NULL, ...)
+  {
+    message("Plot pseudotime heatmap.")
+    if (is.null(seurat)) {
+      if (is.null(x$sr_sub)) {
+        stop("Object Seurat should provided.")
+      } else {
+        seurat <- x$sr_sub@object
+      }
+    }
+    seurat <- seurat[ rownames(seurat) %in% ref, ]
+    if (is.null(cells)) {
+      seurat <- seurat[, cells]
+    }
+    p.hp <- plot_pseudotime_heatmap(seurat,
+      show_rownames = T,
+      pseudotime = monocle3::pseudotime(x@object)
+    )
+    p.hp <- .set_lab(p.hp, sig(x), "Pseudotime heatmap of genes")
+    p.hp
+  })
+
 get_principal_nodes <- function(cds, col, target) {
   cell_ids <- which(SummarizedExperiment::colData(cds)[, col] == target)
   closest_vertex <- cds@principal_graph_aux[[ "UMAP" ]]$pr_graph_cell_proj_closest_vertex
