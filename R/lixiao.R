@@ -1811,10 +1811,11 @@ autosv <- function(x, name, ...) {
       file <- as.character(x)
       if (is(x, "file_fig")) {
         .dir <- get_savedir("figs")
+        nfile <- paste0(.dir, "/", name, strx(file, "\\.[^.]+$"))
         if (get_path(file) != .dir) {
-          file.copy(file, .dir, T)
+          file.copy(file, nfile, T)
         }
-        file <- paste0(.dir, "/", get_filename(file))
+        file <- nfile
       }
     } else {
       stop("file.exists(x) == F")

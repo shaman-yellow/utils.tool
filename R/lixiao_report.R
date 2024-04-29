@@ -16,13 +16,12 @@ send_eval <- function(to,
 
 send_registers <- function(to,
   subject = "业务表格更新",
-  content = "Hello, 慧姐\n\n这是每月末需提交的更新的业务登记表，以及可做业务类型细节清单更新。\n\nBest wishes!",
+  content = "Hello, 慧姐\n\n这是每月末需提交的更新的业务登记表。\n\nBest wishes!",
   time = Sys.time(),
   month = lubridate::month(time),
   year = lubridate::year(time),
   path_summary = paste0(.prefix(), "summary"),
-  atts = c(paste0(path_summary, "/", "生信组表格登记-黄礼闯.xlsx"),
-    paste0(path_summary, "/", "type_list.xlsx")))
+  atts = c(paste0(path_summary, "/", "生信组表格登记-黄礼闯.xlsx")))
 {
   send_that(to, subject, content, atts)
 }
