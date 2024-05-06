@@ -1072,7 +1072,7 @@ deparse_mail <- function(dir = "mail",
   }
   testfile <- list.files(dir, full.names = T, recursive = T)[1]
   fewLines <- readLines(testfile, n = 100)
-  if (!any(grpl(fewLines, "Content-Transfer-Encoding: base64"))) {
+  if (!any(grpl(fewLines, "Content-Transfer-Encoding"))) {
     message("Maybe this mail is not the raw file.")
     return()
   }

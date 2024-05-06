@@ -97,6 +97,7 @@ preview.gl <- function(p.lst) {
 
 zoRange <- function (x, factor) 
 {
+  x <- x[ !is.na(x) ]
   x <- range(x)
   ex <- abs(x[2] - x[1]) * (factor - 1)
   x[1] <- x[1] - ex

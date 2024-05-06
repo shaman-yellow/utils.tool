@@ -803,6 +803,31 @@ new_lich <- function(lst) {
   .lich(lst)
 }
 
+new_hp.cor <- function(data, ..., sig = T, fontsize = 6) {
+  if (length(unique(data[[ "From" ]])) == 1) {
+    cluster_columns <- F
+  } else {
+    cluster_columns <- T
+  }
+  if (length(unique(data[[ "to" ]])) == 1) {
+    cluster_rows <- F
+  } else {
+    cluster_rows <- T
+  }
+  p.hp <- tidyHeatmap::heatmap(data, From, To, cor,
+    cluster_columns = cluster_columns, cluster_rows = cluster_rows,
+    palette_value = fun_color(),
+    column_names_gp = gpar(fontsize = fontsize),
+    row_names_gp = gpar(fontsize = fontsize),
+    ...
+  )
+  if (sig) {
+    p.hp <- tidyHeatmap::layer_star(p.hp, pvalue < .05)
+  }
+  p.hp <- .set_lab(p.hp, "correlation heatmap")
+  wrap(p.hp)
+}
+
 setMethod("show", signature = c(object = "lich"),
   function(object){
     show_lst.ch(object)
@@ -1330,7 +1355,8 @@ setGeneric("cal_corp",
   function(x, y, ...) standardGeneric("cal_corp"))
 
 setMethod("cal_corp", signature = c(x = "df", y = "df"),
-  function(x, y, row_var = "row_var", col_var = "col_var", trans = F){
+  function(x, y, row_var = "row_var", col_var = "col_var", trans = F, fast = T)
+  {
     x <- data.frame(x)
     y <- data.frame(y)
     if (is.character(x[[1]])) {
@@ -1347,9 +1373,29 @@ setMethod("cal_corp", signature = c(x = "df", y = "df"),
       x <- t(x)
       y <- t(y)
     }
-    cor <- agricolae::correlation(x, y)
-    data <- as_data_long(cor$correlation, cor$pvalue, row_var, col_var, "cor", "pvalue")
-    .corp(add_anno(.corp(data)))
+    if (fast) {
+      cor <- agricolae::correlation(x, y)
+      data <- as_data_long(cor$correlation, cor$pvalue, row_var, col_var, "cor", "pvalue")
+      .corp(add_anno(.corp(data)))
+    } else {
+      alls <- pbapply::pbapply(x, 2, simplify = F,
+        function(i) {
+          group <- apply(y, 2, simplify = F,
+            function(j) {
+              fit <- lm(j ~ i)
+              tibble::tibble(
+                cor = fit$coefficients[[2]],
+                pvalue = signif(summary(fit)$coefficients[2, 4], 5),
+                model = list(fit$model)
+              )
+            })
+          names(group) <- colnames(y)
+          frbind(group, idcol = col_var)
+        })
+      names(alls) <- colnames(x)
+      alls <- frbind(alls, idcol = row_var)
+      add_anno(.corp(alls))
+    }
   })
 
 setMethod("new_heatdata", signature = c(x = "df"),
@@ -1404,7 +1450,7 @@ setMethod("as_data_long", signature = c(x = "df", y = "df"),
     .data_long(x)
   })
 
-setGeneric("add_anno", 
+setGeneric("add_anno",
   function(x) standardGeneric("add_anno"))
 
 setMethod("add_anno", signature = c(x = "corp"),

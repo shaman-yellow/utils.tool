@@ -36,6 +36,10 @@ job_limma_normed <- function(data, metadata, genes = NULL) {
   }
   if (!is.null(genes)) {
     message("Be careful, the first columns of `genes` were considered as ID columns.")
+    if (any(duplicated(genes[[1]]))) {
+      stop("any(duplicated(genes[[1]]))")
+    }
+    genes <- dplyr::slice(genes, match(rownames(data), genes[[1]]))
   }
   .job_limma(object = data, params = list(metadata = metadata, isTcga = F, normed = T, genes = genes))
 }
@@ -89,7 +93,7 @@ setMethod("step1", signature = c(x = "job_limma"),
       x@params$normed_data <- object(x)
     } else {
       x$normed_data <- list(
-        genes = data.frame(rownames = rownames(object(x))),
+        genes = if (is.null(x$genes)) data.frame(rownames = rownames(object(x))) else x$genes,
         targets = metadata,
         E = object(x)
       )
@@ -302,8 +306,9 @@ setMethod("tops", signature = c(x = "job_limma"),
 
 setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
   function(x, y, from, to, names = NULL, use = if (x$isTcga) "gene_name" else "hgnc_symbol",
-    theme = NULL, HLs = NULL)
+    theme = NULL, HLs = NULL, mode = c("heatmap", "linear"))
   {
+    mode <- match.arg(mode)
     data <- as_tibble(x@params$normed_data$E)
     anno <- as_tibble(x@params$normed_data$genes)
     if (!any(colnames(anno) == use)) {
@@ -316,15 +321,19 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
         }
       }
     }
-    lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names, HLs = HLs)
-    if (length(unique(from)) > 1 && length(unique(to)) > 1) {
-      lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
-      lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), theme, "significant correlation")
+    if (mode == "heatmap") {
+      lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = T)
+      if (length(unique(from)) > 1 && length(unique(to)) > 1) {
+        lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
+        lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), theme, "significant correlation")
+      }
+    } else if (mode == "linear") {
+      lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = F)
     }
     return(lst)
   })
 
-.cal_corp.elist <- function(data, anno, use, from, to, names, HLs = NULL)
+.cal_corp.elist <- function(data, anno, use, from, to, names, HLs = NULL, fast = T)
 {
   if (is.null(data$rownames)) {
     data <- as_tibble(data)
@@ -342,20 +351,74 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
       data <- dplyr::filter(data, symbol %in% dplyr::all_of(set))
       dplyr::distinct(data, symbol, .keep_all = T)
     })
+  # heatmap
   if (is.null(names)) {
-    corp <- cal_corp(lst[[1]], lst[[2]], "From", "To", trans = T)
+    corp <- cal_corp(lst[[1]], lst[[2]], "From", "To", trans = T, fast = fast)
   } else {
-    corp <- cal_corp(lst[[1]], lst[[2]], names[[1]], names[[2]], trans = T)
+    corp <- cal_corp(lst[[1]], lst[[2]], names[[1]], names[[2]], trans = T, fast = fast)
   }
-  sig.corp <- dplyr::filter(tibble::as_tibble(corp), sign != "-")
-  if (length(from) > 1 && length(to) > 1) {
-    hp <- new_heatdata(corp)
-    hp <- callheatmap(hp, HLs = HLs)
-    namel(corp, sig.corp, hp)
+  if (fast) {
+    sig.corp <- dplyr::filter(tibble::as_tibble(corp), sign != "-")
+    if (length(from) > 1 && length(to) > 1) {
+      hp <- new_heatdata(corp)
+      hp <- callheatmap(hp, HLs = HLs)
+      namel(corp, sig.corp, hp)
+    } else {
+      namel(corp, sig.corp)
+    }
   } else {
-    namel(corp, sig.corp)
+    corp
+    # regression line
   }
 }
+
+setMethod("vis", signature = c(x = "corp"),
+  function(x, group = NULL, facet = ".id")
+  {
+    x <- as_tibble(x)
+    x <- dplyr::mutate(x, .id = paste0(From, "_", To))
+    facet <- match.arg(facet)
+    theme <- rstyle("theme")
+    fun_plot <- function(x) {
+      models <- x$model
+      names(models) <- x$.id
+      data <- frbind(models, idcol = ".id")
+      if (facet == ".id") {
+        facet <- ggplot2::facet_wrap(~ .id, scales = "free")
+      }
+      anno <- dplyr::mutate(x, model = lapply(model,
+          function(x) {
+            c(j = max(zoRange(x[[ "j" ]], 1.3), na.rm = T),
+              i = min(x[[ "i" ]], na.rm = T))
+          }),
+        y = vapply(model, function(x) x[[ "j" ]], numeric(1)),
+        x = vapply(model, function(x) x[[ "i" ]], numeric(1))
+      )
+      p <- ggplot(data, aes(y = j, x = i)) +
+        geom_point() +
+        stat_smooth(method = "lm", col = "red") +
+        facet +
+        geom_text(data = anno,
+          aes(x = x, y = y,
+            label = paste0("Cor = ", round(cor, 2), "\n", "P-value = ", round(pvalue, 5))),
+          size = 3, hjust = 0, vjust = 1) +
+        theme
+      p <- as_grob(p)
+      layout <- dplyr::filter(p$layout, grpl(name, "^panel"))
+      f.w <- max(as.integer(strx(layout$name, "[0-9]+")))
+      f.h <- max(as.integer(strx(layout$name, "[0-9]+$")))
+      wrap(p, 4 * f.w, 4 * f.h)
+    }
+    if (!is.null(group)) {
+      lst.p <- lapply(split(x, x[[group]]), fun_plot)
+      lst.p <- .set_lab(lst.p, "Linear regression of", names(lst.p))
+    } else {
+      p <- fun_plot(x)
+      .set_lab(p, "Linear regression")
+    }
+  })
+
+
 
 expand.cons <- function(...) {
   apply(expand.grid(...), 1, simplify = T,

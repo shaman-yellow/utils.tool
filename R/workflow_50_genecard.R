@@ -69,7 +69,7 @@ get_from_genecards <- function(query, score = 5, keep_drive = F, restrict = F,
   table <- select(table, -1, -2)
   table <- dplyr::mutate(table, Score = as.double(Score))
   if (is.null(score)) {
-    ss <- c(seq(1, 15, by = 1), 0L)
+    ss <- c(seq(1, 30, by = 1), 0L)
     chs <- vapply(ss, FUN.VALUE = double(1),
       function(x) {
         length(which(table$Score > x))

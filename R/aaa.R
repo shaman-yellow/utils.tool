@@ -610,6 +610,20 @@ color_set <- function(more = F) {
   }
 }
 
+color_gradient <- function() {
+  c("#67001FFF", "#B2182BFF", "#D6604DFF",
+    "#F4A582FF", "#FDDBC7FF", "#F7F7F7FF",
+    "#D1E5F0FF", "#92C5DEFF", "#4393C3FF",
+    "#2166ACFF", "#053061FF")
+}
+
+fun_color <- function(from = -1, to = 1) {
+  circlize::colorRamp2(
+    seq(from, to, length.out = 11), 
+    RColorBrewer::brewer.pal(11, "RdBu")
+  )
+}
+
 draw_smile <- function(smile, file, pdf = T) {
   file <- .smiles_to_cairosvg(smile, file, pdf)
   .file_fig(file)
