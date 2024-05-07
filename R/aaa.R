@@ -620,7 +620,7 @@ color_gradient <- function() {
 fun_color <- function(from = -1, to = 1) {
   circlize::colorRamp2(
     seq(from, to, length.out = 11), 
-    RColorBrewer::brewer.pal(11, "RdBu")
+    rev(RColorBrewer::brewer.pal(11, "RdBu"))
   )
 }
 

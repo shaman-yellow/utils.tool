@@ -135,14 +135,14 @@ setMethod("step2", signature = c(x = "job_monocle"),
     step_message("
       red{{`roots`}} would passed to `monocle3::order_cells` for setting
       as roots of `pseudotime`. If `roots` is character with names, processed
-      by red{{`get_principal_nodes`}} and then passed to parameter `root_pr_nodes`;
+      by red{{`get_earliest_principal_nodes`}} and then passed to parameter `root_pr_nodes`;
       else, directly passed to param `root_pr_nodes`.
       "
     )
     if (!is.null(names(roots))) {
       if (length(roots) > 1)
         stop("With name of `roots`, but length(roots) > 1")
-      roots <- get_principal_nodes(object(x), names(roots), unname(roots))
+      roots <- get_earliest_principal_nodes(object(x), names(roots), unname(roots))
     }
     object(x) <- e(monocle3::order_cells(object(x), root_pr_nodes = roots))
     p.pseu <- e(monocle3::plot_cells(
@@ -324,6 +324,16 @@ setMethod("ids", signature = c(x = "job_monocle"),
       ids
   })
 
+setMethod("add_anno", signature = c(x = "job_monocle"),
+  function(x){
+    metaPrin <- igraph::V(monocle3::principal_graph(object(x))[[ "UMAP" ]])
+    cellPrin <- object(x)@principal_graph_aux[[ "UMAP" ]]$pr_graph_cell_proj_closest_vertex[, ]
+    cellPrin[] <- metaPrin$name[ cellPrin ]
+    object(x)@colData[[ "principal_node" ]] <-
+      unname(cellPrin)[ match(rownames(object(x)@colData), names(cellPrin)) ]
+    return(x)
+  })
+
 setMethod("map", signature = c(x = "job_monocle", ref = "job_seurat"),
   function(x, ref, use.x, use.ref, name = "cell_mapped"){
     matched <- match(rownames(object(x)@colData), rownames(object(ref)@meta.data))
@@ -341,36 +351,157 @@ setMethod("map", signature = c(x = "job_monocle", ref = "job_seurat"),
   })
 
 setMethod("map", signature = c(x = "job_monocle", ref = "character"),
-  function(x, ref, cells = NULL, seurat = NULL, ...)
+  function(x, ref, branches = NULL, enrich = NULL, seurat = NULL, ...)
   {
     message("Plot pseudotime heatmap.")
     if (is.null(seurat)) {
       if (is.null(x$sr_sub)) {
-        stop("Object Seurat should provided.")
+        stop("Object Seurat (`x$sr_sub`) should provided.")
       } else {
         seurat <- x$sr_sub@object
       }
     }
     seurat <- seurat[ rownames(seurat) %in% ref, ]
-    if (is.null(cells)) {
-      seurat <- seurat[, cells]
+    pseudotime <- monocle3::pseudotime(x@object)
+    if (!is.null(branches)) {
+      # branches: list(c("Y_start", "Y_end"))
+      linkPrin <- monocle3::principal_graph(object(x))[["UMAP"]]
+      if (is.null(names(branches))) {
+        names(branches) <- paste0("B", 1:length(branches))
+      }
+      branches <- lapply(branches,
+        function(x) {
+          names(igraph::shortest_paths(linkPrin, x[1], x[2])$vpath[[1]])
+        })
+      hpMode <- "normal"
+      if (length(branches) == 2) {
+        if (branches[[1]][1] == branches[[2]][1]) {
+          hpMode <- "212"
+        } else if (tail(branches[[1]], 1) == tail(branches[[2]], 1)) {
+          hpMode <- "121"
+        }
+      }
+      if (is.null(object(x)@colData$principal_node)) {
+        x <- add_anno(x)
+      }
+      groupCells <- nl(rownames(object(x)@colData), object(x)@colData$principal_node, F)
+      groupCells <- lapply(branches,
+        function(yn) {
+          names(groupCells[ groupCells %in% yn ])
+        })
+      n <- 0L
+      p.hps <- lapply(groupCells,
+        function(cells) {
+          n <<- n + 1L
+          pseudotime <- pseudotime[ names(pseudotime) %in% cells ]
+          if (hpMode == "212" && n == 1L) {
+            rev <- T
+          } else if (hpMode == "121" && n == 2L) {
+            rev <- T
+          } else {
+            rev <- F
+          }
+          if (n == 1L) {
+            plot_heatmap.seurat(seurat[, cells], pseudotime, rev.pseudotime = rev,
+              enrich = enrich, ...)
+          } else {
+            plot_heatmap.seurat(seurat[, cells], pseudotime, rev.pseudotime = rev, ...)
+          }
+        })
+      p.hp <- p.hps[[1]]
+      for (i in seq_along(p.hps)[-1]) {
+        p.hp <- p.hp + p.hps[[ i ]]
+      }
+      p.hp <- wrap(p.hp, 5 + i * 3, 8)
+    } else {
+      p.hp <- plot_heatmap.seurat(seurat, pseudotime, enrich = enrich, ...)
+      p.hp <- wrap(p.hp, 5, 8)
     }
-    p.hp <- plot_pseudotime_heatmap(seurat,
-      show_rownames = T,
-      pseudotime = monocle3::pseudotime(x@object)
-    )
+    # ComplexHeatmap::Heatmap
+    # ComplexHeatmap::top_annotation
+    # ComplexHeatmap::HeatmapAnnotation
     p.hp <- .set_lab(p.hp, sig(x), "Pseudotime heatmap of genes")
     p.hp
   })
 
-get_principal_nodes <- function(cds, col, target) {
-  cell_ids <- which(SummarizedExperiment::colData(cds)[, col] == target)
+plot_heatmap.seurat <- function(seurat, pseudotime, enrich = NULL,
+  use.enrich = c("go", "kegg"), rev.pseudotime = F,
+  top.enrich = 10, cutoff.enrich = .05, split = 3, ...)
+{
+  dat <- pseudotime_heatmap(seurat,
+    show_rownames = T, pseudotime = pseudotime
+  )
+  dat <- as_tibble(dat)
+  dat <- tidyr::pivot_longer(dat, -rownames, names_to = "Pseudo_Time", values_to = "Levels")
+  dat <- dplyr::mutate(dat, Pseudo_Time = as.integer(Pseudo_Time), .Pseudo_Time = Pseudo_Time)
+  if (rev.pseudotime) {
+    dat <- dplyr::mutate(dat,
+      .Pseudo_Time = factor(.Pseudo_Time, levels = sort(unique(.Pseudo_Time), decreasing = T))
+    )
+  }
+  use.enrich <- match.arg(use.enrich)
+  if (!is.null(enrich)) {
+    if (is(enrich, "job_enrich")) {
+      use.enrich <- paste0("res.", use.enrich)
+      enrich <- enrich@tables$step1[[ use.enrich ]]$ids
+      if (use.enrich == "res.go") {
+        enrich <- split(enrich, ~ ont)
+        enrich <- lapply(enrich,
+          function(x) {
+            x <- dplyr::filter(x, p.adjust < !!cutoff.enrich)
+            x <- head(x, top.enrich)
+            x <- dplyr::reframe(dplyr::group_by(x, Description), genes = unlist(geneName_list))
+          })
+        for (i in names(enrich)) {
+          ## Here, the higher rank pathway will be priority to match
+          col <- paste0("GO_", i)
+          dat <- map(dat, "rownames", enrich[[i]], "genes", "Description", col = col)
+          dat[[ col ]] <- ifelse(is.na(dat[[ col ]]), "No match", dat[[ col ]])
+          dat[[ col ]] <- factor(dat[[ col ]], levels = c(unique(enrich[[i]]$Description), "No match"))
+        }
+        anno_enrich <- paste0("GO_", names(enrich))
+      }
+    }
+  } else {
+    use.enrich <- ""
+  }
+  maxBreak <- max(ceiling(abs(range(dat$Levels))))
+  p.hp <- tidyHeatmap::heatmap(dat, rownames, .Pseudo_Time, Levels,
+    cluster_columns = F, cluster_rows = T,
+    row_title = "Genes", column_title = character(0),
+    row_km = split, palette_value = fun_color(-maxBreak, maxBreak),
+    show_column_names = F,
+    ...
+  )
+  p.hp <- tidyHeatmap::annotation_tile(p.hp, Pseudo_Time, show_annotation_name = F)
+  if (use.enrich == "res.go") {
+    allAnno <- unique(unlist(dplyr::select(dat, dplyr::starts_with("GO"))))
+    palAnno <- nl(allAnno, head(color_set(), length(allAnno)), F)
+    palAnno <- c(c("No match" = "white"), palAnno)
+    palAnno <- palAnno[ !duplicated(names(palAnno)) ]
+    for (i in anno_enrich) {
+      pal <- palAnno[ names(palAnno) %in% dat[[ i ]] ]
+      p.hp <- tidyHeatmap::annotation_tile(p.hp, !!rlang::sym(i), palette = pal)
+    }
+  }
+  p.hp
+}
+
+get_earliest_principal_nodes <- function(cds, col, target) {
   closest_vertex <- cds@principal_graph_aux[[ "UMAP" ]]$pr_graph_cell_proj_closest_vertex
   closest_vertex <- as.matrix(closest_vertex[ colnames(cds), ])
-  pos <- as.numeric(names(which.max(table(closest_vertex[ cell_ids, ]))))
-  root_pr_nodes <- igraph::V(monocle3::principal_graph(cds)[["UMAP"]])$name[ pos ]
+  if (!missing(col)) {
+    cell_ids <- which(SummarizedExperiment::colData(cds)[, col] == target)
+    pos <- as.numeric(names(which.max(table(closest_vertex[ cell_ids, ]))))
+  } else {
+    pos <- as.numeric(names(which.max(table(closest_vertex[,]))))
+  }
+  igraph <- monocle3::principal_graph(cds)[["UMAP"]]
+  vertical <- igraph::V(igraph)
+  root_pr_nodes <- vertical$name[ pos ]
   root_pr_nodes
 }
+
 
 cal_modules.cds <- function(cds, gene_sigs, cell_group) {
   n <- 0

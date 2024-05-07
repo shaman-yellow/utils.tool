@@ -3,7 +3,7 @@
 # but revised for Seurat (5) and Monocle3
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-plot_pseudotime_heatmap <- function(
+pseudotime_heatmap <- function(
     object,
     cluster_rows = TRUE,
     hclust_method = "ward.D2",
@@ -18,7 +18,8 @@ plot_pseudotime_heatmap <- function(
     trend_formula = "~ sm.ns(Pseudotime, df = 3)",
     cores = 1,
     nCol = 100,
-    pseudotime = NULL)
+    pseudotime = NULL,
+    plot_heatmap = F)
 {
   ## NOTE: object of cell_data_set converted by 'SeuratWrapper' may caused error.' 
   if (is(object, "cell_data_set")) {
@@ -111,29 +112,22 @@ plot_pseudotime_heatmap <- function(
     row.names(annotation_row) <- row_ann_labels
   }
   colnames(heatmap_matrix) <- c(1:ncol(heatmap_matrix))
-  stop_debug(namel(heatmap_matrix))
-  ph_res <- pheatmap::pheatmap(heatmap_matrix[, ], # ph$tree_row$order
-    useRaster = T,
-    cluster_cols = FALSE,
-    cluster_rows = cluster_rows,
-    show_rownames = show_rownames,
-    show_colnames = F,
-    # scale="row",
-    clustering_distance_rows = row_dist, # row_dist
-    clustering_method = hclust_method, # ward.D2
-    cutree_rows = num_clusters,
-    # cutree_cols = 2,
-    annotation_row = annotation_row,
-    annotation_col = annotation_col,
-    treeheight_row = 20,
-    breaks = bks,
-    fontsize = 6,
-    color = hmcols,
-    border_color = NA,
-    silent = TRUE,
-    filename = NA
-  )
-  ph_res
+  if (plot_heatmap) {
+    ph_res <- pheatmap::pheatmap(heatmap_matrix[, ], # ph$tree_row$order
+      useRaster = T,
+      cluster_cols = FALSE, cluster_rows = cluster_rows,
+      show_rownames = show_rownames, show_colnames = F,
+      clustering_distance_rows = row_dist, # row_dist
+      clustering_method = hclust_method, # ward.D2
+      cutree_rows = num_clusters,
+      # cutree_cols = 2,
+      annotation_row = annotation_row, annotation_col = annotation_col,
+      treeheight_row = 20, breaks = bks, fontsize = 6,
+      color = hmcols, border_color = NA, silent = TRUE, filename = NA
+    )
+  } else {
+    return(heatmap_matrix)
+  }
 }
 
 
