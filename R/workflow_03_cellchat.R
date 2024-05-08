@@ -308,6 +308,7 @@ setGeneric("select_pathway",
 
 setMethod("select_pathway", signature = c(x = "job_cellchat"),
   function(x, pattern, get = c("pathways", "lps", "intersect")){
+    message("`Pattern` used for match cells.")
     get <- match.arg(get)
     if (x@step < 1) {
       stop("x@step != 1")

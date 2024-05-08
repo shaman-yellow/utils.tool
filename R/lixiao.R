@@ -1451,7 +1451,7 @@ setMethod("as_data_long", signature = c(x = "df", y = "df"),
   })
 
 setGeneric("add_anno",
-  function(x) standardGeneric("add_anno"))
+  function(x, ...) standardGeneric("add_anno"))
 
 setMethod("add_anno", signature = c(x = "corp"),
   function(x){

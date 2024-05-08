@@ -252,7 +252,8 @@ setMethod("step3", signature = c(x = "job_monocle"),
   })
 
 setMethod("step4", signature = c(x = "job_monocle"),
-  function(x, groups = ids(x), genes, group.by = NULL)
+  function(x, groups = ids(x), genes, group.by = NULL, cutoff = .5,
+    cutoff.den = 1, group.den = "orig.ident")
   {
     step_message("Plot genes (in branch) that change as a function of pseudotime.
       red{{`groups`}} and red{{`genes`}} were used to subset the `object(x)`."
@@ -276,12 +277,26 @@ setMethod("step4", signature = c(x = "job_monocle"),
           p <- monocle3::plot_genes_in_pseudotime(cds,
             label_by_short_name = F,
             color_cells_by = group.by,
-            min_expr = 0.5
+            min_expr = cutoff
           )
-          wrap(p, 6, length(genes) * 1.6)
+          data <- p$data
+          p <- wrap(p, 6, length(genes) * 1.6)
+          namel(p, data)
         }))
     names(genes_in_pseudotime) <- paste0("pseudo", 1:length(genes_in_pseudotime))
-    x@plots[[ 4 ]] <- namel(genes_in_pseudotime)
+    dat_genes_in_pseudotime <- lapply(genes_in_pseudotime, function(x) x$data)
+    theme <- rstyle("theme")
+    plot_density <- lapply(dat_genes_in_pseudotime,
+      function(data) {
+        p <- ggplot(dplyr::filter(data, expression > cutoff.den)) +
+          ggplot2::geom_density(aes(pseudotime, color = !!rlang::sym(group.den))) +
+          labs(y = paste0("density (expression > ", cutoff.den, ")")) +
+          theme
+        wrap(p, 7, 2.5)
+      })
+    genes_in_pseudotime <- lapply(genes_in_pseudotime, function(x) x$p)
+    x@plots[[ 4 ]] <- namel(genes_in_pseudotime, plot_density)
+    x@tables[[ 4 ]] <- namel(dat_genes_in_pseudotime)
     return(x)
   })
 
@@ -325,14 +340,41 @@ setMethod("ids", signature = c(x = "job_monocle"),
   })
 
 setMethod("add_anno", signature = c(x = "job_monocle"),
-  function(x){
+  function(x, branches = NULL)
+  {
     metaPrin <- igraph::V(monocle3::principal_graph(object(x))[[ "UMAP" ]])
     cellPrin <- object(x)@principal_graph_aux[[ "UMAP" ]]$pr_graph_cell_proj_closest_vertex[, ]
     cellPrin[] <- metaPrin$name[ cellPrin ]
     object(x)@colData[[ "principal_node" ]] <-
       unname(cellPrin)[ match(rownames(object(x)@colData), names(cellPrin)) ]
+    object(x)@colData[[ "pseudotime" ]] <- monocle3::pseudotime(object(x))
+    if (!is.null(branches)) {
+      branches <- get_branches.mn(x, branches)
+      branches <- as_df.lst(branches)
+      branches <- dplyr::distinct(branches, name, .keep_all = T)
+      branches <- dplyr::arrange(branches, type)
+      branches <- dplyr::mutate(branches,
+        branch = paste0("time_", unlist(lapply(table(type), seq))),
+        branch = paste0(gs(type, "Branch ", "B"), ":", branch)
+      )
+      which <- match(object(x)@colData[[ "principal_node" ]], branches$name)
+      object(x)@colData[[ "branch" ]] <- branches$branch[ which ]
+    }
     return(x)
   })
+
+get_branches.mn <- function(x, branches) {
+  # branches: list(c("Y_start", "Y_end"))
+  if (is.null(names(branches))) {
+    names(branches) <- paste0("Branch ", 1:length(branches))
+  }
+  linkPrin <- monocle3::principal_graph(object(x))[["UMAP"]]
+  branches <- lapply(branches,
+    function(x) {
+      names(igraph::shortest_paths(linkPrin, x[1], x[2])$vpath[[1]])
+    })
+  branches
+}
 
 setMethod("map", signature = c(x = "job_monocle", ref = "job_seurat"),
   function(x, ref, use.x, use.ref, name = "cell_mapped"){
@@ -350,8 +392,33 @@ setMethod("map", signature = c(x = "job_monocle", ref = "job_seurat"),
     return(x)
   })
 
+setMethod("map", signature = c(x = "job_seurat", ref = "job_monocle"),
+  function(x, ref, cols = c("pseudotime", "branch"))
+  {
+    if (any(cols == "pseudotime") && !any(colnames(meta) == "pseudotime")) {
+      ref <- add_anno(ref)
+    }
+    meta <- object(ref)@colData
+    cols <- cols[ cols %in% colnames(meta) ]
+    if (!length(cols)) {
+      stop("No available columns in metadata of `ref`.")
+    }
+    for (i in cols) {
+      lst <- nl(rownames(meta), meta[[ i ]])
+      if (is.character(meta[[ i ]])) {
+        default <- NA_character_
+      } else if (is.numeric(meta[[ i ]])) {
+        default <- as.numeric("")
+      }
+      object(x)@meta.data[[ i ]] <- dplyr::recode(
+        rownames(object(x)@meta.data), !!!lst, .default = default
+      )
+    }
+    return(x)
+  })
+
 setMethod("map", signature = c(x = "job_monocle", ref = "character"),
-  function(x, ref, branches = NULL, enrich = NULL, seurat = NULL, ...)
+  function(x, ref, branches = NULL, enrich = NULL, seurat = NULL, HLs = NULL, ...)
   {
     message("Plot pseudotime heatmap.")
     if (is.null(seurat)) {
@@ -365,14 +432,7 @@ setMethod("map", signature = c(x = "job_monocle", ref = "character"),
     pseudotime <- monocle3::pseudotime(x@object)
     if (!is.null(branches)) {
       # branches: list(c("Y_start", "Y_end"))
-      linkPrin <- monocle3::principal_graph(object(x))[["UMAP"]]
-      if (is.null(names(branches))) {
-        names(branches) <- paste0("B", 1:length(branches))
-      }
-      branches <- lapply(branches,
-        function(x) {
-          names(igraph::shortest_paths(linkPrin, x[1], x[2])$vpath[[1]])
-        })
+      branches <- get_branches.mn(x, branches)
       hpMode <- "normal"
       if (length(branches) == 2) {
         if (branches[[1]][1] == branches[[2]][1]) {
@@ -390,7 +450,7 @@ setMethod("map", signature = c(x = "job_monocle", ref = "character"),
           names(groupCells[ groupCells %in% yn ])
         })
       n <- 0L
-      p.hps <- lapply(groupCells,
+      lst <- lapply(groupCells,
         function(cells) {
           n <<- n + 1L
           pseudotime <- pseudotime[ names(pseudotime) %in% cells ]
@@ -401,20 +461,30 @@ setMethod("map", signature = c(x = "job_monocle", ref = "character"),
           } else {
             rev <- F
           }
-          if (n == 1L) {
-            plot_heatmap.seurat(seurat[, cells], pseudotime, rev.pseudotime = rev,
-              enrich = enrich, ...)
-          } else {
-            plot_heatmap.seurat(seurat[, cells], pseudotime, rev.pseudotime = rev, ...)
-          }
+          prepare_pseudo_heatmap_tidydata(seurat[, cells], pseudotime, rev)
         })
-      p.hp <- p.hps[[1]]
-      for (i in seq_along(p.hps)[-1]) {
-        p.hp <- p.hp + p.hps[[ i ]]
+      if (length(lst) > 1) {
+        dat <- frbind(lst, idcol = "Branch")
+        n <- 0L
+        levels <- unlist(lapply(lst,
+            function(x) {
+              n <<- n + 1L
+              paste0("Branch ", n, ":", levels(x[[ ".Pseudo_Time" ]]))
+            }))
+        dat <- dplyr::mutate(dat,
+          .Pseudo_Time = factor(paste0(Branch, ":", .Pseudo_Time), levels = levels)
+        )
+        dat <- dplyr::group_by(dat, Branch)
+      } else if (length(lst)){
+        dat <- lst[[1]]
       }
-      p.hp <- wrap(p.hp, 5 + i * 3, 8)
+      p.hp <- plot_pseudo_heatmap.seurat(dat, enrich = enrich, HLs = HLs, ...)
+      p.hp <- wrap(p.hp, 5 + length(lst) * 3, 8)
     } else {
-      p.hp <- plot_heatmap.seurat(seurat, pseudotime, enrich = enrich, ...)
+      p.hp <- plot_pseudo_heatmap.seurat(
+        prepare_pseudo_heatmap_tidydata(seurat, pseudotime),
+        enrich = enrich, HLs = HLs, ...
+      )
       p.hp <- wrap(p.hp, 5, 8)
     }
     # ComplexHeatmap::Heatmap
@@ -424,21 +494,25 @@ setMethod("map", signature = c(x = "job_monocle", ref = "character"),
     p.hp
   })
 
-plot_heatmap.seurat <- function(seurat, pseudotime, enrich = NULL,
-  use.enrich = c("go", "kegg"), rev.pseudotime = F,
-  top.enrich = 10, cutoff.enrich = .05, split = 3, ...)
+prepare_pseudo_heatmap_tidydata <- function(seurat, pseudotime, rev.pseudotime = F)
 {
   dat <- pseudotime_heatmap(seurat,
     show_rownames = T, pseudotime = pseudotime
   )
   dat <- as_tibble(dat)
   dat <- tidyr::pivot_longer(dat, -rownames, names_to = "Pseudo_Time", values_to = "Levels")
-  dat <- dplyr::mutate(dat, Pseudo_Time = as.integer(Pseudo_Time), .Pseudo_Time = Pseudo_Time)
-  if (rev.pseudotime) {
-    dat <- dplyr::mutate(dat,
-      .Pseudo_Time = factor(.Pseudo_Time, levels = sort(unique(.Pseudo_Time), decreasing = T))
-    )
-  }
+  dat <- dplyr::mutate(dat, Pseudo_Time = as.integer(Pseudo_Time),
+    .Pseudo_Time = factor(Pseudo_Time,
+      levels = sort(unique(Pseudo_Time), decreasing = rev.pseudotime))
+  )
+  dat
+}
+
+plot_pseudo_heatmap.seurat <- function(dat, enrich = NULL,
+  use.enrich = c("go", "kegg"),
+  top.enrich = 10, cutoff.enrich = .05, split = 3, HLs = NULL, ...)
+{
+  .check_columns(dat, c("rownames", ".Pseudo_Time", "Pseudo_Time", "Levels"))
   use.enrich <- match.arg(use.enrich)
   if (!is.null(enrich)) {
     if (is(enrich, "job_enrich")) {
@@ -465,6 +539,18 @@ plot_heatmap.seurat <- function(seurat, pseudotime, enrich = NULL,
   } else {
     use.enrich <- ""
   }
+  if (!is.null(HLs)) {
+    if (!is(HLs, "list") || is.null(names(HLs)) || !all(vapply(HLs, is.character, logical(1)))) {
+      stop("`HLs` should be 'list' with names.")
+    }
+    HLs <- split(as_df.lst(HLs, "type", "genes"), ~ type)
+    for (i in seq_along(HLs)) {
+      col <- names(HLs)[[ i ]]
+      dat <- map(dat, "rownames", HLs[[i]], "genes", "type", col = col)
+      dat[[ col ]] <- ifelse(is.na(dat[[ col ]]), "No match", "Match")
+      dat[[ col ]] <- factor(dat[[ col ]], levels = c("Match", "No match"))
+    }
+  }
   maxBreak <- max(ceiling(abs(range(dat$Levels))))
   p.hp <- tidyHeatmap::heatmap(dat, rownames, .Pseudo_Time, Levels,
     cluster_columns = F, cluster_rows = T,
@@ -475,12 +561,19 @@ plot_heatmap.seurat <- function(seurat, pseudotime, enrich = NULL,
   )
   p.hp <- tidyHeatmap::annotation_tile(p.hp, Pseudo_Time, show_annotation_name = F)
   if (use.enrich == "res.go") {
+    dat <- dplyr::ungroup(dat)
     allAnno <- unique(unlist(dplyr::select(dat, dplyr::starts_with("GO"))))
     palAnno <- nl(allAnno, head(color_set(), length(allAnno)), F)
     palAnno <- c(c("No match" = "white"), palAnno)
     palAnno <- palAnno[ !duplicated(names(palAnno)) ]
     for (i in anno_enrich) {
       pal <- palAnno[ names(palAnno) %in% dat[[ i ]] ]
+      p.hp <- tidyHeatmap::annotation_tile(p.hp, !!rlang::sym(i), palette = pal)
+    }
+  }
+  if (!is.null(HLs)) {
+    pal <- c("Match" = "black", "No match" = "white")
+    for (i in names(HLs)) {
       p.hp <- tidyHeatmap::annotation_tile(p.hp, !!rlang::sym(i), palette = pal)
     }
   }
