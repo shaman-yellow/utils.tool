@@ -88,7 +88,7 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     }
     edges <- map(edges, "from", res.str$mapped, "STRING_id", "hgnc_symbol", rename = F)
     edges <- map(edges, "to", res.str$mapped, "STRING_id", "hgnc_symbol", rename = F)
-    des_edges <- list("STRINGdb network type:" = match.arg(network_type, c("physical", "function")))
+    des_edges <- list("STRINGdb network type:" = match.arg(network_type, c("physical", "full")))
     if (use.anno) {
       des_edges <- c(des_edges,
         list("Filter experiments score:" = paste0("At least score ", filter.exp),
@@ -182,7 +182,8 @@ setMethod("filter", signature = c(x = "job_stringdb"),
         tops <- dplyr::slice_max(tops, MCC_score, n = top)
       }
       edges <- dplyr::filter(edges, !!rlang::sym(use.top) %in% tops$name)
-      nodes <- dplyr::filter(nodes, name %in% edges$from | name %in% edges$to)
+      nodes <- dplyr::slice(nodes, c(which(name %in% edges$from), which(name %in% edges$to)))
+      nodes <- dplyr::distinct(nodes, name, .keep_all = T)
       graph <- igraph::graph_from_data_frame(edges, vertices = nodes)
       graph <- fast_layout(graph, layout = "linear", circular = T)
       p.mcc <- plot_networkFill.str(graph, label = "name",
@@ -328,7 +329,8 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   label.size = 4, node.size = 12, sc = 5, ec = 5, 
   arr.len = 2, edge.color = 'lightblue', edge.width = 1,
   lab.fill = if (is.null(levels)) "MCC score" else "Levels",
-  label = "genes", HLs = NULL, arrow = F, shape = F, levels = NULL)
+  label = "genes", HLs = NULL, arrow = F, shape = F, levels = NULL,
+  label.shape = c(from = "from", to = "to"), ...)
 {
   dataNodes <- ggraph::get_nodes()(graph)
   if (is.null(levels)) {
@@ -343,6 +345,7 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
     message("The first and second columns of `levels` were used as name and levels.")
     dataNodes <- map(tibble::tibble(dataNodes), "name",
       levels, colnames(levels)[1], colnames(levels)[2], col = "Levels")
+    dataNodes <- dplyr::mutate(dataNodes, Levels = ifelse(is.na(Levels), 0, Levels))
     pal <- color_set2()
     scale_fill_gradient <- ggplot2::scale_fill_gradient2(low = pal[2], high = pal[1])
   }
@@ -373,7 +376,7 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
     theme(plot.margin = margin(r = .05, unit = "npc")) +
     geom_blank()
   if (shape) {
-    p <- p + scale_shape_manual(values = c(24, 21, 22, 23))
+    p <- p + scale_shape_manual(values = c(24, 21, 22, 23), labels = label.shape)
   }
   if (!is.null(HLs)) {
     data <- dplyr::filter(dataNodes, name %in% !!HLs)

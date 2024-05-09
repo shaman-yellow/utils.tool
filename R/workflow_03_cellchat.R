@@ -29,7 +29,11 @@ setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
     }
     if (is.null(group.by))
       stop("is.null(group.by) == T")
-    object(x)@meta.data[[ group.by ]] %<>% droplevels()
+    if (is.character(object(x)@meta.data[[ group.by ]])) {
+      object(x)@meta.data[[ group.by ]] %<>% as.factor()
+    } else {
+      object(x)@meta.data[[ group.by ]] %<>% droplevels()
+    }
     object <- e(CellChat::createCellChat(
         object = object(x), group.by = group.by, assay = assay,
         ...
@@ -101,6 +105,10 @@ setMethod("step1", signature = c(x = "job_cellchat"),
       message("Due to error, escape from clustering; But the object was returned.")
       object(x) <- object
     }
+    #  Interaction net count plot and interaction weight
+    #  plot. The thicker the line represented, the more
+    #  the number of interactions, and the stronger the interaction
+    #  weights/strength between the two cell types
     x@plots[[ 1 ]] <- c(namel(p.showdb), p.comms)
     x@tables[[ 1 ]] <- namel(lp_net, pathway_net)
     return(x)
@@ -307,14 +315,19 @@ setGeneric("select_pathway",
   function(x, ...) standardGeneric("select_pathway"))
 
 setMethod("select_pathway", signature = c(x = "job_cellchat"),
-  function(x, pattern, get = c("pathways", "lps", "intersect")){
+  function(x, pattern.x, pattern.y = pattern.x, get = c("lps", "pathways", "intersect")){
     message("`Pattern` used for match cells.")
     get <- match.arg(get)
     if (x@step < 1) {
       stop("x@step != 1")
     }
+    if (pattern.x == pattern.y) {
+      `%with%` <- `|`
+    } else {
+      `%with%` <- `&`
+    }
     pathways <- filter(x@tables$step1$pathway_net,
-      grepl(pattern, source) | grepl(pattern, target),
+      grepl(pattern.x, source) %with% grepl(pattern.y, target),
       pval < .05
     )
     pathways <- .set_lab(pathways, sig(x), "interaction of pathways")
@@ -322,7 +335,7 @@ setMethod("select_pathway", signature = c(x = "job_cellchat"),
       return(pathways)
     }
     lps <- filter(x@tables$step1$lp_net,
-      grepl(pattern, source) | grepl(pattern, target),
+      grepl(pattern.x, source) %with% grepl(pattern.y, target),
       pval < .05
     )
     lps <- .set_lab(lps, sig(x), "interaction of ligand and receptor")

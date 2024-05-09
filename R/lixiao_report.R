@@ -614,12 +614,12 @@ plot_report_summary <- function(cover_file = .prefix("cover_page.pdf"))
   wrap(p.rep, 9, 5)
 }
 
-order_packaging <- function(target = "output.pdf", register = autoRegisters)
+order_packaging <- function(target = "output.pdf", register = autoRegisters, ...)
 {
   idname <- gidn()
   report <- paste0(idname, ".pdf")
   file.copy(target, report, T)
-  package_results(head = NULL, masterZip = NULL, report = report)
+  package_results(head = NULL, masterZip = NULL, report = report, ...)
   zipfiles <- list.files(".", "[\u4e00-\u9fa5]+.*\\.zip")
   zipfiles <- zipfiles[ zipfiles != paste0(idname, ".zip") ]
   if (length(zipfiles)) {

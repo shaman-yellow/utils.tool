@@ -175,7 +175,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
   ax1 = "Herb", ax2 = "Compound", ax3 = "Target", ax4 = NULL, less.label = T,
   ax2.level = NULL, ax4.level = NULL, decImport.ax4Level = F, lab.fill = "",
   edge_width = .1, force.ax1 = NULL, ax3.layout = c("spiral", "grid"), ax4.layout = c("circle", "linear"),
-  HLs.label = T)
+  HLs.label = T, ...)
 {
   if (length(unique(data[[1]])) == 1) {
     sherb <- 1L

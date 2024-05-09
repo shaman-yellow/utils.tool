@@ -520,47 +520,6 @@ search_resFile <- function(file = "index.Rmd",
   unlist(res)
 }
 
-package_results <- function(
-  master_include = NULL,
-  report = "output.pdf",
-  main = unique(c(search_resFile("index.Rmd"), autoRegisters)), 
-  headPattern = "[^r][^e][^s].*业务.*\\.zip", head = list.files(".", headPattern),
-  masterSource = c("output.Rmd", "install.R", "read_me.txt", head),
-  prefix = "results_", zip = paste0(prefix, head),
-  clientZip = "client.zip", masterZip = "master.zip",
-  clear = T, external_file = "order_material")
-{
-  if (!file.exists(external_file)) {
-    stop("file.exists(external_file)")
-  } else {
-    if (length(exters <- list.files(external_file, full.names = T)) == 0) {
-      stop("Guess you have forget to save the order material file to `external_file`.")
-    } else {
-      dir.create(extern0 <- "报单相关资料", F)
-      file.copy(exters, extern0, T, T)
-    }
-  }
-  files.client <- c(report, main, extern0)
-  files.client <- files.client[ !duplicated(normalizePath(files.client)) ]
-  files.master <- c(files.client, head, masterSource)
-  zip(clientZip, files.client)
-  if (!is.null(masterZip)) {
-    zip(masterZip, files.master)
-    zip(zip, c(clientZip, masterZip), flags = "-ur9X")
-    if (clear) {
-      file.remove(c(clientZip, masterZip))
-    }
-  } else {
-    message("Only client file were packaged.")
-  }
-  if (file.exists(file <- ".items.rds")) {
-    info <- readRDS(file)
-    info$date <- Sys.Date()
-    info$isLatest <- T
-    saveRDS(info, file)
-  }
-}
-
 colSum <- function(col) {
   length(unique(col))
 }
