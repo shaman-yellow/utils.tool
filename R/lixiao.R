@@ -1695,21 +1695,50 @@ auto_method <- function(rm = NULL, class = "job", envir = .GlobalEnv, exclude = 
   writeLines(methods)
 }
 
-.get_job_list <- function(envir = .GlobalEnv, extra = getOption("internal_job")) {
+.get_job_list <- function(
+  envir = .GlobalEnv, extra = getOption("internal_job"),
+  type = c("name", "class"))
+{
+  type <- match.arg(type)
   names <- ls(envir = envir, all.names = F)
   names <- lapply(names,
     function(x) {
-      if (is(get(x, envir = envir), "job")) x else NULL
+      if (is(get(x, envir = envir), "job")) {
+        if (type == "name") {
+          x
+        } else {
+          class(get(x, envir = envir))
+        }
+      } else NULL
     })
   names <- unlist(names)
   if (!is.null(extra)) {
-    if (identical(class(extra), "list")) {
-      names <- c(as.list(names), extra)
+    if (type == "name") {
+      if (identical(class(extra), "list")) {
+        names <- c(as.list(names), extra)
+      } else {
+        names <- c(as.list(names), list(extra))
+      }
     } else {
-      names <- c(as.list(names), list(extra))
+      if (!identical(class(extra), "list")) {
+        extra <- list(extra)
+      }
+      names <- c(as.list(names), unlist(lapply(extra, class)))
+      return(unique(unlist(names)))
     }
   }
   names
+}
+
+get_job_source <- function(jobs = .get_job_list(type = "class"), path = "~/utils.tool/") {
+  files <- list.files(path, "workflow.*\\.R$", full.names = T, recursive = T)
+  names <- get_filename(files)
+  jobs <- gs(jobs, "^job_", "")
+  isThat <- vapply(names, FUN.VALUE = logical(1),
+    function(name) {
+      any(grpl(name, paste0(paste0("_", jobs, "\\."), collapse = "|")))
+    })
+  files[ isThat ]
 }
 
 .obtain_job <- function(name, envir, class = "job") {
@@ -1805,6 +1834,11 @@ autor_preset <- function(echo = F, eval = F, ...) {
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 ## orinal function, for save file, and return file name
+
+autorm <- function(names) {
+  autoRegisters <<- autoRegisters[ -which(names(autoRegisters) %in% names) ]
+}
+
 autosv <- function(x, name, ...) {
   if (!exists("autoRegisters")) {
     autoRegisters <- character(0)
@@ -2115,10 +2149,11 @@ setMethod("abstract", signature = c(x = "ANY", name = "character", latex = "miss
     } else if (restype != "asis") {
       warning("restype != \"asis\"")
     }
-    if (knitr::is_latex_output())
+    if (knitr::is_latex_output()) {
       latex <- T
-    else
+    } else {
       latex <- NULL
+    }
     reCallMethod("abstract", namel(x, name, latex), ...)
   })
 

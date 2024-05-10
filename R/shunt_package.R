@@ -22,7 +22,7 @@ new_package <- function(path, imports = NULL, depends = NULL, extdata = T,
   if (!file.exists(path)) {
     usethis::create_package(path, fields)
     usethis::use_mit_license()
-    dir.create(paste0(path, "/inst/extdata"), recursive = T)
+    # dir.create(paste0(path, "/inst/extdata"), recursive = T)
     file.copy(gitignore_templ, ".")
     writeLines(c(paste0("# ", stringr::str_extract(path, "[^/]*$")),
         "", "Under preparation...", ""), "README.md")
