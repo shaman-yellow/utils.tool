@@ -15,14 +15,17 @@ new_package.fromFiles <- function(pkg.path, files, path = NULL,
 }
 
 new_package <- function(path, imports = NULL, depends = NULL, extdata = T,
-  fields = .new_package_fields(),
-  gitignore_templ = .gitignore_templ()
-  ) {
+  fields = .new_package_fields(), extdata = NULL,
+  gitignore_templ = .gitignore_templ())
+{
   pre.wd <- getwd()
   if (!file.exists(path)) {
     usethis::create_package(path, fields)
     usethis::use_mit_license()
-    # dir.create(paste0(path, "/inst/extdata"), recursive = T)
+    dir.create("inst/extdata", recursive = T)
+    if (!is.null(extdata)) {
+      file.copy(extdata, "inst/extdata")
+    }
     file.copy(gitignore_templ, ".")
     writeLines(c(paste0("# ", stringr::str_extract(path, "[^/]*$")),
         "", "Under preparation...", ""), "README.md")
