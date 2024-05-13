@@ -196,6 +196,9 @@ pg_local_recode <- function() {
     dl = normalizePath("~/D-GCAN/DGCAN"),
     dl_dataset = normalizePath("~/D-GCAN/dataset"),
     dl_model = normalizePath("~/D-GCAN/DGCAN/model"),
+    scfeaPython = "~/miniconda3/bin/conda run -n scFEA python",
+    scfea = "~/scFEA/src/scFEA.py",
+    scfea_db = "~/scFEA/data",
     musiteModel = normalizePath("~/MusiteDeep_web/MusiteDeep/models"),
     mk_prepare_ligand.py = "mk_prepare_ligand.py",
     prepare_gpf.py = "prepare_gpf.py",
@@ -219,7 +222,10 @@ pg_remote_recode <- function() {
     samtools = "~/miniconda3/bin/conda run -n base samtools",
     metaphlan = "~/miniconda3/bin/conda run -n mpa metaphlan",
     merge_metaphlan_tables.py = "~/miniconda3/bin/conda run -n mpa merge_metaphlan_tables.py",
-    sirius = "~/operation/sirius/bin/sirius"
+    sirius = "~/operation/sirius/bin/sirius",
+    scfeaPython = "~/miniconda3/bin/conda run -n scFEA python",
+    scfea = "/data/hlc/scFEA/src/scFEA.py",
+    scfea_db = "/data/hlc/scFEA/data"
   )
 }
 

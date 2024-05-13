@@ -14,8 +14,8 @@ new_package.fromFiles <- function(pkg.path, files, path = NULL,
   file.copy(files, paste0(pkg.path, "/R"), T)
 }
 
-new_package <- function(path, imports = NULL, depends = NULL, extdata = T,
-  fields = .new_package_fields(), extdata = NULL,
+new_package <- function(path, imports = NULL, depends = NULL, extdata = NULL,
+  fields = .new_package_fields(),
   gitignore_templ = .gitignore_templ())
 {
   pre.wd <- getwd()

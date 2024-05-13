@@ -81,7 +81,7 @@ setMethod("step1", signature = c(x = "job_dl"),
       owd <- getwd()
       setwd(pg("dl"))
       x$res_train <- tryCatch(x@params$train$train(
-        normalizePath('~/D-GCAN/dataset/bRo5.txt'),
+        paste0(pg("dl_dataset"), "/bRo5.txt"),
         radius = 1L,
         dim = 52L,
         layer_hidden = 4L,
@@ -94,7 +94,7 @@ setMethod("step1", signature = c(x = "job_dl"),
         decay_interval = 25L,
         iteration = 140L,
         N = 5000L,
-        dataset_train = normalizePath('~/D-GCAN/dataset/data_train.txt')
+        dataset_train = paste0(pg("dl_dataset"), "/data_train.txt")
       ), finally = setwd(owd))
     }
     return(x)

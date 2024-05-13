@@ -508,7 +508,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_seurat"),
     return(x)
   })
 
-prepare_10x <- function(target, pattern, single = F) {
+prepare_10x <- function(target, pattern, single = F, col.gene = 1, check = T) {
   if (!single) {
     files <- list.files(target, "\\.gz$", full.names = T)
     files <- files[ grepl(pattern, files) ]
@@ -535,6 +535,9 @@ prepare_10x <- function(target, pattern, single = F) {
     }
     dir
   } else {
+    if (!missing(pattern)) {
+      stop("`pattern` not supported while single == T")
+    }
     path <- get_path(target)
     name <- get_realname(target)
     dir <- paste0(path, "/", name)
@@ -542,6 +545,18 @@ prepare_10x <- function(target, pattern, single = F) {
       unlink(dir, T, T)
     }
     data <- ftibble(target)
+    if (length(col.gene) > 1) {
+      message("Use first element of `col.gene`, and removed the others.")
+      data <- dplyr::relocate(data, dplyr::all_of(col.gene))
+      data <- dplyr::select(data, -dplyr::all_of(seq_along(col.gene)[-1]))
+    }
+    print(data)
+    if (check) {
+      isCon <- usethis::ui_yeah("Continue?")
+      if (!isCon) {
+        stop("...")
+      }  
+    }
     data[[ 1 ]] <- gs(data[[ 1 ]], "\\.[0-9]*$", "")
     data <- dplyr::distinct(data, !!rlang::sym(colnames(data)[1]), .keep_all = T)
     ## as Matrix
