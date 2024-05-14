@@ -112,6 +112,7 @@ setMethod("set_remote", signature = c(x = "job_scfea"),
   {
     rem_dir.create(wd)
     cdRun("scp ", paste0(x$dir, "/data.csv"), " ", x$remote, ":", x$wd)
+    stop("...")
     x$map_local <- x$dir
     x$dir <- wd
     x$set_remote <- T
