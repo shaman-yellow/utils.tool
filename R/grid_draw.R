@@ -32,7 +32,7 @@ setClass("viewport")
 setClassUnion("grob.obj", .grob_class)
 
 .gg <- c("gg", "ggplot", "ggraph", "patchwork", "ggtree", "ggside")
-lapply(.gg, setClass, where = topenv())
+setFakeClasses(.gg)
 setClassUnion("gg.obj", .gg)
 
 .class_unit <- c("unit", "simpleUnit", "unit_v2")

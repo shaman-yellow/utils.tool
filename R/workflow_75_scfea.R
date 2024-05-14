@@ -21,7 +21,7 @@ setGeneric("asjob_scfea",
   function(x, ...) standardGeneric("asjob_scfea"))
 
 setMethod("asjob_scfea", signature = c(x = "job_seurat"),
-  function(x, org = c("mouse", "human"), assay = "RNA", dir = "scfea", ...)
+  function(x, cells = NULL, org = c("mouse", "human"), assay = "RNA", dir = "scfea", ...)
   {
     org <- match.arg(org)
     message("Use org: ", org)
@@ -39,14 +39,16 @@ setMethod("asjob_scfea", signature = c(x = "job_seurat"),
       }
       refs <- fun_test(file)
     }
-    cells <- colnames(object(x))
     data <- object(x)@assays[[ assay ]]@counts
-    data <- data[ rownames(data) %in% refs, colnames(data) %in% cells ]
+    data <- data[ rownames(data) %in% refs, ]
+    if (!is.null(cells)) {
+      data <- data[, cells]
+    }
     message("Dim: ", paste0(dim(data), collapse = ", "))
     message("Max: ", max(apply(data, 2, max)))
     if (dir.exists(dir)) {
-      if (!usethis::ui_yeah("Directory of `dir` exists, continue?")) {
-        stop("...")
+      if (usethis::ui_yeah("Directory of `dir` exists, remove that?")) {
+        unlink(dir, recursive = T)
       }
     }
     dir.create(dir, F)
@@ -91,9 +93,12 @@ setMethod("step0", signature = c(x = "job_scfea"),
   })
 
 setMethod("step1", signature = c(x = "job_scfea"),
-  function(x, recompute = F)
+  function(x)
   {
     step_message("Run prediction.")
+    if (!is.remote(x)) {
+      dir.create("output")
+    }
     rem_run(
       pg("scfeaPython", is.remote(x)), " ", pg("scfea", is.remote(x)),
       " --data_dir ", pg("scfea_db", is.remote(x)),
@@ -102,20 +107,34 @@ setMethod("step1", signature = c(x = "job_scfea"),
       " --res_dir ", x$dir,
       " --moduleGene_file ", x$moduleGene_file,
       " --stoichiometry_matrix ", x$stoichiometry_matrix,
-      " --cName_file ", x$cName_file
+      " --cName_file ", x$cName_file,
+      " --output_flux_file ", "flux.csv",
+      " --output_balance_file ", "balance.csv"
     )
+    if (is.remote(x)) {
+      cdRun("scp -r ", x$remote, ":", x$wd, "/* ", x$map_local)
+    }
     return(x)
   })
 
 setMethod("set_remote", signature = c(x = "job_scfea"),
   function(x, wd = "/data/hlc/scfea", remote = "remote")
   {
-    rem_dir.create(wd)
-    cdRun("scp ", paste0(x$dir, "/data.csv"), " ", x$remote, ":", x$wd)
-    stop("...")
-    x$map_local <- x$dir
-    x$dir <- wd
-    x$set_remote <- T
-    x$remote <- remote
+    if (!is.remote(x)) {
+      x$set_remote <- T
+      x$remote <- remote
+      if (rem_file.exists(wd)) {
+        isThat <- usethis::ui_yeah("Dir exists, remove all files ?")
+        if (isThat) {
+          cdRun("ssh ", remote, " 'rm -r ", wd, "'")
+        }
+      }
+      rem_dir.create(wd)
+      x$wd <- wd
+      rem_dir.create("output")
+      cdRun("scp ", paste0(x$dir, "/data.csv"), " ", remote, ":", wd)
+      x$map_local <- x$dir
+      x$dir <- "."
+    }
     return(x)
   })

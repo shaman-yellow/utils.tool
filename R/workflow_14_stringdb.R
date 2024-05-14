@@ -118,7 +118,9 @@ setMethod("filter", signature = c(x = "job_stringdb"),
   function(x, ref.x, ref.y, lab.x = "Source", lab.y = "Target",
     use = "preferred_name", data = x@params$graph, level.x = NULL,
     lab.fill = "log2FC",
-    top = 10, use.top = c("from", "to"), top_in = NULL, keep.ref = F,
+    ## this top is used for 'from' or 'to'
+    top = 10, use.top = c("from", "to"),
+    top_in = NULL, keep.ref = F,
     arrow = T, ...)
   {
     message("Search and filter: ref.x in from, ref.y in to; or, reverse.")
@@ -127,7 +129,9 @@ setMethod("filter", signature = c(x = "job_stringdb"),
     data <- dplyr::select(data, dplyr::ends_with(use))
     data <- dplyr::rename(data, from = 1, to = 2)
     if (keep.ref) {
-      data <- dplyr::filter(data, from %in% c(ref.x, ref.y), to %in% c(ref.x, ref.y))
+      tmpData <- dplyr::filter(data, from %in% c(ref.x, ref.y), to %in% c(ref.x, ref.y))
+      tmpDataNodes <- unique(c(tmpData$from, tmpData$to))
+      data <- dplyr::filter(data, from %in% tmpDataNodes, to %in% tmpDataNodes)
     } else {
       data <- dplyr::filter(data,
         (from %in% ref.x & to %in% ref.y) | (from %in% ref.y & to %in% ref.x)
@@ -178,18 +182,18 @@ setMethod("filter", signature = c(x = "job_stringdb"),
       } else {
         p.top_in <- NULL
       }
-      if (!is.null(top)) {
+      if (!is.null(top) && !keep.ref) {
         tops <- dplyr::slice_max(tops, MCC_score, n = top)
+        edges <- dplyr::filter(edges, !!rlang::sym(use.top) %in% tops$name)
       }
-      edges <- dplyr::filter(edges, !!rlang::sym(use.top) %in% tops$name)
-      nodes <- dplyr::slice(nodes, c(which(name %in% edges$from), which(name %in% edges$to)))
+      nodes <- dplyr::slice(nodes, c(which(name %in% ref.x), which(name %in% ref.y)))
       nodes <- dplyr::distinct(nodes, name, .keep_all = T)
       graph <- igraph::graph_from_data_frame(edges, vertices = nodes)
       graph <- fast_layout(graph, layout = "linear", circular = T)
       p.mcc <- plot_networkFill.str(graph, label = "name",
         arrow = arrow, shape = T,
         levels = level.x,
-        lab.fill = if (is.null(level.x)) NULL else "Log2(FC)", ...
+        lab.fill = if (is.null(level.x)) "MCC score" else "Log2(FC)", ...
       )
       p.mcc <- .set_lab(p.mcc, sig(x), "Top MCC score")
       colnames(edges) <- c(lab.x, lab.y)

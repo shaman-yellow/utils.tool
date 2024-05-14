@@ -609,6 +609,10 @@ setMethod("cal_corp", signature = c(x = "job_seurat", y = "NULL"),
     .cal_corp.elist(data, anno, use = "symbol", from, to, names)
   })
 
+setMethod("meta", signature = c(x = "job_seurat"),
+  function(x){
+    as_tibble(object(x)@meta.data)
+  })
 
 applyGptcelltype <- function(input, tissuename, model = c("gpt-3.5-turbo", "gpt-4"),
   topgenenumber = 10)

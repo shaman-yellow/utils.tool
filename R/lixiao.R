@@ -799,7 +799,7 @@ setMethod("show", signature = c(object = "lich"),
 # #' @importClassesFrom edgeR DGEList
 # #' @importClassesFrom limma EList
 .eset <- c("DGEList", "EList")
-lapply(.eset, setClass, where = topenv())
+setFakeClasses(.eset)
 setClassUnion("eset", .eset)
 
 elist <- setClass("elist", 

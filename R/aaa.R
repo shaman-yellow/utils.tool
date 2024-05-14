@@ -2,6 +2,15 @@
 # utilites
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+setFakeClasses <- function(classes) {
+  lapply(classes,
+    function(name) {
+      if (inherits(try(getClass(name, where = .GlobalEnv), silent = T), "try-error")) {
+        suppressWarnings(setClass(name, where = topenv()))
+      }
+    })
+}
+
 sapply(vector, simplify = T,
   function(item) {
     item
