@@ -94,7 +94,7 @@ setMethod("step1", signature = c(x = "job_limma"),
     } else {
       x$normed_data <- list(
         genes = if (is.null(x$genes)) data.frame(rownames = rownames(object(x))) else x$genes,
-        targets = metadata,
+        targets = x$metadata,
         E = object(x)
       )
     }
@@ -142,7 +142,12 @@ setMethod("step2", signature = c(x = "job_limma"),
         if (!is.null(x$genes)) {
           tops <- lapply(tops,
             function(obj) {
-              map(obj, colnames(obj)[1], x$genes, colnames(x$genes)[1], label, col = label)
+              obj <- map(obj, colnames(obj)[1], x$genes, colnames(x$genes)[1], label, col = label)
+              if (!is.null(x$from_scfea)) {
+                ## the genes belong to the module
+                obj <- map(obj, colnames(obj)[1], x$genes, colnames(x$genes)[1], "gene", col = "gene")
+              }
+              obj
             })
         }
       }
