@@ -418,7 +418,8 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_monocle"),
   })
 
 setMethod("map", signature = c(x = "job_monocle", ref = "character"),
-  function(x, ref, branches = NULL, enrich = NULL, seurat = NULL, HLs = NULL, ...)
+  function(x, ref, branches = NULL, enrich = NULL, seurat = NULL, HLs = NULL,
+    assay = NULL, enrichExtra = NULL, group_by = NULL, ...)
   {
     message("Plot pseudotime heatmap.")
     if (is.null(seurat)) {
@@ -427,6 +428,9 @@ setMethod("map", signature = c(x = "job_monocle", ref = "character"),
       } else {
         seurat <- x$sr_sub@object
       }
+    }
+    if (!is.null(assay)) {
+      seurat@active.assay <- assay
     }
     seurat <- seurat[ rownames(seurat) %in% ref, ]
     pseudotime <- monocle3::pseudotime(x@object)
@@ -478,12 +482,14 @@ setMethod("map", signature = c(x = "job_monocle", ref = "character"),
       } else if (length(lst)){
         dat <- lst[[1]]
       }
-      p.hp <- plot_pseudo_heatmap.seurat(dat, enrich = enrich, HLs = HLs, ...)
+      p.hp <- plot_pseudo_heatmap.seurat(dat, enrich = enrich, HLs = HLs, enrichExtra = enrichExtra,
+        group_by = group_by, ...)
       p.hp <- wrap(p.hp, 5 + length(lst) * 3, 8)
     } else {
       p.hp <- plot_pseudo_heatmap.seurat(
         prepare_pseudo_heatmap_tidydata(seurat, pseudotime),
-        enrich = enrich, HLs = HLs, ...
+        enrich = enrich, HLs = HLs, enrichExtra = enrichExtra,
+        group_by = group_by, ...
       )
       p.hp <- wrap(p.hp, 5, 8)
     }
@@ -510,7 +516,8 @@ prepare_pseudo_heatmap_tidydata <- function(seurat, pseudotime, rev.pseudotime =
 
 plot_pseudo_heatmap.seurat <- function(dat, enrich = NULL,
   use.enrich = c("go", "kegg"),
-  top.enrich = 10, cutoff.enrich = .05, split = 3, HLs = NULL, ...)
+  top.enrich = 10, cutoff.enrich = .05, split = 3, HLs = NULL,
+  enrichExtra = NULL, group_by = NULL, ...)
 {
   .check_columns(dat, c("rownames", ".Pseudo_Time", "Pseudo_Time", "Levels"))
   use.enrich <- match.arg(use.enrich)
@@ -526,14 +533,22 @@ plot_pseudo_heatmap.seurat <- function(dat, enrich = NULL,
             x <- head(x, top.enrich)
             x <- dplyr::reframe(dplyr::group_by(x, Description), genes = unlist(geneName_list))
           })
-        for (i in names(enrich)) {
-          ## Here, the higher rank pathway will be priority to match
-          col <- paste0("GO_", i)
-          dat <- map(dat, "rownames", enrich[[i]], "genes", "Description", col = col)
-          dat[[ col ]] <- ifelse(is.na(dat[[ col ]]), "No match", dat[[ col ]])
-          dat[[ col ]] <- factor(dat[[ col ]], levels = c(unique(enrich[[i]]$Description), "No match"))
+        names(enrich) <- paste0("GO_", names(enrich))
+        if (!is.null(enrichExtra)) {
+          message("Use first column of `enrichExtra` as ID.")
+          enrichExtra <- dplyr::rename(enrichExtra, genes = 1)
+          enrichExtra <- tidyr::pivot_longer(enrichExtra, -genes, names_to = "ont", values_to = "Description")
+          enrichExtra <- split(enrichExtra, ~ ont)
+          enrich <- c(enrichExtra, enrich)
         }
-        anno_enrich <- paste0("GO_", names(enrich))
+        for (col in names(enrich)) {
+          ## Here, the higher rank pathway will be priority to match
+          dat <- map(dat, "rownames", enrich[[ col ]], "genes", "Description", col = col)
+          dat[[ col ]] <- ifelse(is.na(dat[[ col ]]), "No match", dat[[ col ]])
+          dat[[ col ]] <- factor(dat[[ col ]], levels = c(unique(enrich[[ col ]]$Description), "No match"))
+          dat[[ col ]] <- droplevels(dat[[ col ]])
+        }
+        anno_enrich <- names(enrich)
       }
     }
   } else {
@@ -549,9 +564,19 @@ plot_pseudo_heatmap.seurat <- function(dat, enrich = NULL,
       dat <- map(dat, "rownames", HLs[[i]], "genes", "type", col = col)
       dat[[ col ]] <- ifelse(is.na(dat[[ col ]]), "No match", "Match")
       dat[[ col ]] <- factor(dat[[ col ]], levels = c("Match", "No match"))
+      dat[[ col ]] <- droplevels(dat[[ col ]])
     }
   }
   maxBreak <- max(ceiling(abs(range(dat$Levels))))
+  if (!is.null(group_by)) {
+    if (is.character(group_by)) {
+      group_by <- list(group_by)
+    }
+    if (!any(dplyr::groups(dat) %in% unlist(group_by))) {
+      group_by <- c(group_by, dplyr::groups(dat))
+    }
+    dat <- dplyr::group_by(dat, !!!rlang::syms(group_by))
+  }
   p.hp <- tidyHeatmap::heatmap(dat, rownames, .Pseudo_Time, Levels,
     cluster_columns = F, cluster_rows = T,
     row_title = "Genes", column_title = character(0),
@@ -559,16 +584,30 @@ plot_pseudo_heatmap.seurat <- function(dat, enrich = NULL,
     show_column_names = F,
     ...
   )
+  maxBreak <- max(ceiling(abs(range(dat$Pseudo_Time))))
+  # p.hp <- tidyHeatmap::annotation_line(p.hp, Pseudo_Time, show_annotation_name = F)
   p.hp <- tidyHeatmap::annotation_tile(p.hp, Pseudo_Time, show_annotation_name = F)
+  # p.hp@top_annotation$color[[ which(p.hp@top_annotation$col_name == "Pseudo_Time") ]] <- fun_color(0, maxBreak, T, "seq")
   if (use.enrich == "res.go") {
     dat <- dplyr::ungroup(dat)
-    allAnno <- unique(unlist(dplyr::select(dat, dplyr::starts_with("GO"))))
-    palAnno <- nl(allAnno, head(color_set(), length(allAnno)), F)
-    palAnno <- c(c("No match" = "white"), palAnno)
-    palAnno <- palAnno[ !duplicated(names(palAnno)) ]
+    allAnno <- lapply(dplyr::select(dat, dplyr::all_of(anno_enrich)), levels)
+    palAnno <- head(color_set(T), length(unlist(allAnno)))
+    palAnno <- split(palAnno, rep(seq_along(allAnno), lengths(allAnno)))
+    palAnno <- lapply(seq_along(palAnno),
+      function(n) {
+        nl(allAnno[[n]], palAnno[[n]], F)
+      })
+    names(palAnno) <- anno_enrich
+    pals <- list()
     for (i in anno_enrich) {
-      pal <- palAnno[ names(palAnno) %in% dat[[ i ]] ]
+      pal <- palAnno[[ i ]]
+      pal[[ "No match" ]] <- "white"
       p.hp <- tidyHeatmap::annotation_tile(p.hp, !!rlang::sym(i), palette = pal)
+      pals[[ i ]] <- pal
+    }
+    if (T) {
+      # as 'tidyHeatmap::annotation_tile' not support (or bug?) for named vector for color map
+      p.hp@left_annotation$color[p.hp@left_annotation$col_name %in% anno_enrich] <- pals
     }
   }
   if (!is.null(HLs)) {
@@ -576,6 +615,7 @@ plot_pseudo_heatmap.seurat <- function(dat, enrich = NULL,
     for (i in names(HLs)) {
       p.hp <- tidyHeatmap::annotation_tile(p.hp, !!rlang::sym(i), palette = pal)
     }
+    p.hp@left_annotation$color[p.hp@left_annotation$col_name %in% names(HLs)] <- rep(list(pal), length(HLs))
   }
   p.hp
 }
@@ -773,5 +813,6 @@ setMethod("skel", signature = c(x = "job_monocle"),
     code <- gs(code, "\\bmn\\b", sig.mn)
     writeLines(code)
   })
+
 
 

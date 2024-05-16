@@ -950,7 +950,27 @@ treeObj <- function(obj, stops = c("gg", "wrap"), maxdepth = 10L) {
 
 view_obj_for_vim <- function(x, y) {
   if (isGeneric(x)) {
-    obj <- selectMethod(x, class(get(y, envir = .GlobalEnv)))
+    if (nchar(y)) {
+      classY <- class(get(y, envir = .GlobalEnv))
+      obj <- try(selectMethod(x, classY), silent = T)
+    } else {
+      obj <- NULL
+      classY <- NULL
+    }
+    if (inherits(obj, "try-error") || is.null(classY)) {
+      alls <- findMethodSignatures(x)
+      if (nrow(alls) > 1) {
+        if (!is.null(classY)) {
+          alls <- alls[alls[, 1] == classY, ]
+        }
+        if (nrow(alls) > 1) {
+          useWhich <- menu(paste0(alls[, 1], ", ", alls[, 2]), title = "Show which?")
+        }
+      } else {
+        useWhich <- 1L
+      }
+      obj <- selectMethod(x, alls[useWhich, ])
+    }
     assign(name <- ".tmpfun", obj, envir = .GlobalEnv)
     .view_obj(name)
   } else {

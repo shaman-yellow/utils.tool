@@ -37,7 +37,7 @@ setMethod("step0", signature = c(x = "job_biomart"),
 
 setMethod("step1", signature = c(x = "job_biomart"),
   function(x, values,
-    filters = c("ensembl_transcript_id", "ensembl_gene_id", "hgnc_symbol", "entrezgene_id"),
+    filters = c("ensembl_transcript_id", "ensembl_gene_id", "hgnc_symbol", "mgi_symbol", "entrezgene_id"),
     attrs = NULL, mode = x$mart_dataset)
   {
     step_message("Get annotation.")

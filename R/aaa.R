@@ -626,10 +626,20 @@ color_gradient <- function() {
     "#2166ACFF", "#053061FF")
 }
 
-fun_color <- function(from = -1, to = 1) {
+fun_color <- function(from = -1, to = 1, sample = T, category = c("div", "seq")) {
+  if (sample) {
+    category <- match.arg(category)
+    pals <- dplyr::filter(RColorBrewer::brewer.pal.info, category == category)
+    which <- sample(1:nrow(pals), 1)
+    pal <- rownames(pals)[ which ]
+    max <- pals$maxcolors[ which ]
+  } else {
+    pal <- "RdBu"
+    max <- 11L
+  }
   circlize::colorRamp2(
-    seq(from, to, length.out = 11), 
-    rev(RColorBrewer::brewer.pal(11, "RdBu"))
+    seq(from, to, length.out = max),
+    rev(RColorBrewer::brewer.pal(max, pal))
   )
 }
 

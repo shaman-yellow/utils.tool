@@ -124,7 +124,7 @@ setMethod("step3", signature = c(x = "job_seurat"),
     object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims))
     object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution))
     object(x) <- e(Seurat::RunUMAP(object(x), dims = dims))
-    p.umap <- e(Seurat::DimPlot(object(x), reduction = "umap", cols = color_set()))
+    p.umap <- e(Seurat::DimPlot(object(x), reduction = "umap", cols = color_set(T)))
     p.umap <- wrap(p.umap, 6, 5)
     p.umap <- .set_lab(p.umap, sig(x), "UMAP", "Clustering")
     x@plots[[ 3 ]] <- namel(p.umap)
@@ -717,6 +717,13 @@ scsa_annotation <- function(
     tissue <- gs(tissue, "\\s", "\\\\ ")
   }
   org <- match.arg(org)
+  prop <- prop.table(table(grpl(rownames(object(x)), "^[A-Z][a-z]")))
+  if (prop[[ "TRUE" ]] > .5 && org == "Human") {
+    isThat <- usethis::ui_yeah("Match org of 'Human', but most of genes is Mouse like symbol, continue?")
+    if (!isThat) {
+      stop("...")
+    }
+  }
   if (!is.null(ref.markers)) {
     .check_columns(ref.markers, c("cell", "markers"))
     ref.markers <- dplyr::relocate(ref.markers, cell, markers)

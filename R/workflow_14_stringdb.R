@@ -19,9 +19,9 @@
 job_stringdb <- function(data)
 {
   if (is.character(data)) {
-    data <- data.frame(hgnc_symbol = rm.no(data))
+    data <- data.frame(Symbol = rm.no(data))
   }
-  data <- dplyr::distinct(data, hgnc_symbol)
+  data <- dplyr::distinct(data, Symbol)
   .job_stringdb(object = data)
 }
 
@@ -36,7 +36,7 @@ setMethod("asjob_stringdb", signature = c(x = "job_herb"),
 setMethod("asjob_stringdb", signature = c(x = "character"),
   function(x){
     message("`x` should be gene Symbols.")
-    job_stringdb(data.frame(hgnc_symbol = x))
+    job_stringdb(data.frame(Symbol = x))
   })
 
 setMethod("step0", signature = c(x = "job_stringdb"),
@@ -64,7 +64,7 @@ setMethod("step1", signature = c(x = "job_stringdb"),
       sdb <- x@params$sdb 
     }
     if (is.null(x@params$res.str)) {
-      res.str <- create_interGraph(sdb, data.frame(object(x)), col = "hgnc_symbol")
+      res.str <- create_interGraph(sdb, data.frame(object(x)), col = "Symbol")
       x@params$res.str <- res.str
     } else {
       res.str <- x@params$res.str
@@ -86,8 +86,8 @@ setMethod("step1", signature = c(x = "job_stringdb"),
         edges <- dplyr::filter(edges, experiments >= !!filter.exp, textmining >= !!filter.text)
       }
     }
-    edges <- map(edges, "from", res.str$mapped, "STRING_id", "hgnc_symbol", rename = F)
-    edges <- map(edges, "to", res.str$mapped, "STRING_id", "hgnc_symbol", rename = F)
+    edges <- map(edges, "from", res.str$mapped, "STRING_id", "Symbol", rename = F)
+    edges <- map(edges, "to", res.str$mapped, "STRING_id", "Symbol", rename = F)
     des_edges <- list("STRINGdb network type:" = match.arg(network_type, c("physical", "full")))
     if (use.anno) {
       des_edges <- c(des_edges,
@@ -101,13 +101,13 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     p.ppi <- plot_network.str(graph, label = label)
     p.ppi <- .set_lab(wrap(p.ppi), sig(x), "raw PPI network")
     ## hub genes
-    hub_genes <- cal_mcc.str(res.str, "hgnc_symbol", F)
+    hub_genes <- cal_mcc.str(res.str, "Symbol", F)
     graph_mcc <- get_subgraph.mcc(res.str$graph, hub_genes, top = tops)
     x$graph_mcc <- graph_mcc <- fast_layout(graph_mcc, layout = "linear", circular = T)
-    p.mcc <- plot_networkFill.str(graph_mcc, label = "hgnc_symbol", HLs = HLs)
+    p.mcc <- plot_networkFill.str(graph_mcc, label = "Symbol", HLs = HLs)
     p.mcc <- .set_lab(wrap(p.mcc), sig(x), paste0("Top", tops, " MCC score"))
     x@plots[[1]] <- namel(p.ppi, p.mcc)
-    x@tables[[1]] <- c(list(mapped = relocate(res.str$mapped, hgnc_symbol, STRING_id)),
+    x@tables[[1]] <- c(list(mapped = relocate(res.str$mapped, Symbol, STRING_id)),
       namel(hub_genes)
     )
     x@params$tops <- tops
@@ -207,7 +207,7 @@ setMethod("filter", signature = c(x = "job_stringdb"),
 
 setMethod("asjob_enrich", signature = c(x = "job_stringdb"),
   function(x, tops = x@params$tops){
-    ids <- head(x@tables$step1$hub_genes$hgnc_symbol, tops)
+    ids <- head(x@tables$step1$hub_genes$Symbol, tops)
     job_enrich(list(hub_genes = ids), x@tables$step1$hub_genes)
   })
 
@@ -215,11 +215,11 @@ setMethod("vis", signature = c(x = "job_stringdb"),
   function(x, HLs){
     p <- ggraph(x@params$graph_mcc) +
       geom_edge_arc(
-        aes(color = ifelse(node1.hgnc_symbol == !!HLs | node2.hgnc_symbol == !!HLs,
-            paste0(node1.hgnc_symbol, " <-> ", node2.hgnc_symbol), "...Others"))) +
+        aes(color = ifelse(node1.Symbol == !!HLs | node2.Symbol == !!HLs,
+            paste0(node1.Symbol, " <-> ", node2.Symbol), "...Others"))) +
       geom_node_point(aes(x = x, y = y, fill = ifelse(is.na(MCC_score), 0, MCC_score)),
         size = 12, shape = 21, stroke = .3) +
-      geom_node_text(aes(x = x * 1.2, y = y * 1.2, label = hgnc_symbol,
+      geom_node_text(aes(x = x * 1.2, y = y * 1.2, label = Symbol,
           angle = -((-node_angle(x,  y) + 90) %% 180) + 90), size = 4) +
       scale_fill_gradient(low = "lightyellow", high = "red") +
       scale_edge_color_manual(values = c("grey92", color_set())) +
@@ -228,8 +228,8 @@ setMethod("vis", signature = c(x = "job_stringdb"),
     p <- wrap(p, 12, 9)
     p <- .set_lab(p, sig(x), "MCC score of PPI top feature")
     data <- get_edges()(x@params$graph_mcc)
-    data <- dplyr::filter(data, node1.hgnc_symbol %in% !!HLs | node2.hgnc_symbol %in% !!HLs)
-    data <- dplyr::select(data, node1.hgnc_symbol, node2.hgnc_symbol)
+    data <- dplyr::filter(data, node1.Symbol %in% !!HLs | node2.Symbol %in% !!HLs)
+    data <- dplyr::select(data, node1.Symbol, node2.Symbol)
     namel(p.mcc = p, data)
   })
 
