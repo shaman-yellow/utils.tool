@@ -951,7 +951,8 @@ treeObj <- function(obj, stops = c("gg", "wrap"), maxdepth = 10L) {
 view_obj_for_vim <- function(x, y) {
   if (isGeneric(x)) {
     if (nchar(y)) {
-      classY <- class(get(y, envir = .GlobalEnv))
+      classY <- class(eval(parse(text = y), envir = .GlobalEnv))
+      message("Class of target: ", classY)
       obj <- try(selectMethod(x, classY), silent = T)
     } else {
       obj <- NULL
@@ -959,17 +960,26 @@ view_obj_for_vim <- function(x, y) {
     }
     if (inherits(obj, "try-error") || is.null(classY)) {
       alls <- findMethodSignatures(x)
-      if (nrow(alls) > 1) {
+      if (!nrow(alls)) {
+        stop("No methods signatures.")
+      } else if (nrow(alls) > 1) {
         if (!is.null(classY)) {
           alls <- alls[alls[, 1] == classY, ]
         }
-        if (nrow(alls) > 1) {
+        if (is.matrix(alls)) {
           useWhich <- menu(paste0(alls[, 1], ", ", alls[, 2]), title = "Show which?")
+        } else if (is.character(alls)) {
+          useWhich <- integer(0)
         }
       } else {
         useWhich <- 1L
       }
-      obj <- selectMethod(x, alls[useWhich, ])
+      if (length(useWhich)) {
+        sigs <- alls[useWhich, ]
+      } else {
+        sigs <- alls
+      }
+      obj <- selectMethod(x, sigs)
     }
     assign(name <- ".tmpfun", obj, envir = .GlobalEnv)
     .view_obj(name)

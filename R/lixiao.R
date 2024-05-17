@@ -2440,7 +2440,7 @@ new_upset2 <- function(..., lst = NULL, trunc = "left", width = 30, convert = T)
   namel(p, ins)
 }
 
-new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T) {
+new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T, ins = NULL) {
   if (is.null(lst)) {
     lst <- list(...)
   }
@@ -2457,7 +2457,21 @@ new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T) 
     show(data)
     p <- wrap(recordPlot())
     p$ins <- ins(lst = raw.lst)
-    p$lich <- new_lich(list(All_intersection = p$ins))
+    lich <- list(All_intersection = p$ins)
+    if (!is.null(ins)) {
+      exLich <- list("Other intersection" = paste0(
+          vapply(ins, FUN.VALUE = character(1),
+            function(x) {
+              if (length(x) != 2) {
+                stop("Each `ins` should be length 2 of integer.")
+              }
+              anno <- paste0(paste0("\"", names(raw.lst)[x], "\""), collapse = " WITH ")
+              paste0(anno, ": ", paste0(ins(lst = raw.lst[x]), collapse = ", "))
+            }),
+          collapse = "\n\\newline\n"))
+      lich <- c(lich, exLich)
+    }
+    p$lich <- new_lich(lich)
     p$raw <- raw.lst
     p
   } else {

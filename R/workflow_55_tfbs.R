@@ -18,7 +18,7 @@
 
 job_tfbs <- function(genes)
 {
-  .job_tfbs(object = genes)
+  .job_tfbs(object = rm.no(genes))
 }
 
 setMethod("step0", signature = c(x = "job_tfbs"),
@@ -38,7 +38,12 @@ setMethod("step1", signature = c(x = "job_tfbs"),
         function(gene) {
           url <- paste0("https://tfbsdb.systemsbiology.net/searchgene?searchterm=", gene)
           res <- RCurl::getURL(url)
-          res <- lapply(get_table.html(res),
+          res <- try(get_table.html(res), T)
+          if (inherits(res, "try-error")) {
+            message("\nCan not get results of ", gene, ", continue to next.")
+            return()
+          }
+          res <- lapply(res,
             function(x) {
               if (is(x, "df"))
                 as_tibble(x)
@@ -99,7 +104,8 @@ setMethod("step1", signature = c(x = "job_tfbs"),
   })
 
 setMethod("map", signature = c(x = "job_tfbs", ref = "character"),
-  function(x, ref){
+  function(x, ref, axes = 1:3, ...)
+  {
     data <- dplyr::select(x@tables$step1$res, target, TF_symbol, Motif, PValue)
     data <- dplyr::mutate(data, PValue = as.double(PValue))
     data <- split_lapply_rbind(data, 1:nrow(data), args = list(fill = T),
@@ -114,7 +120,7 @@ setMethod("map", signature = c(x = "job_tfbs", ref = "character"),
     p.venn <- new_venn(DB_TFs = data$TF_symbol, Candidates = ref)
     p.venn <- .set_lab(p.venn, sig(x), "intersection of TFs with queried Candidates")
     data <- dplyr::filter(data, TF_symbol %in% ref)
-    p.allu <- new_allu(data, axes = 1:3, col.fill = 4) +
+    p.allu <- new_allu(data, axes = axes, col.fill = 4, ...) +
       theme_minimal() +
       labs(fill = "P-value") +
       theme(axis.text.y = element_blank(),

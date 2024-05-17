@@ -174,7 +174,14 @@ setMethod("step2", signature = c(x = "job_limma"),
     p.valcano <- .set_lab(p.valcano, sig(x), gs(names(p.valcano), "-", "vs"), "DEGs")
     lab(p.valcano) <- paste(sig(x), "volcano plot", "DEGs")
     plots <- c(plots, namel(p.valcano))
-    x@tables[[ 2 ]] <- namel(tops)
+    tables <- namel(tops)
+    if (x$from_scfea) {
+      belong.flux <- reframe_col(dplyr::select(tops[[1]], gene, name), "gene", function(x) unlist(x))
+      belong.flux <- dplyr::relocate(belong.flux, gene, Metabolic_flux = name)
+      belong.flux <- .set_lab(belong.flux, sig(x), "Differential metabolic flux related Genes")
+      tables <- c(tops, namel(belong.flux))
+    }
+    x@tables[[ 2 ]] <- tables
     x@plots[[ 2 ]] <- plots
     return(x)
   })

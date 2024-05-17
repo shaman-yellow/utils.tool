@@ -82,10 +82,12 @@ setMethod("step1", signature = c(x = "job_biomart2"),
           }
         })
       values <- unlist(notGet, use.names = F)
-      message("Target of length ", length(values), " can retry.")
-      isThat <- usethis::ui_yeah("Re-try?")
-      if (!isThat) {
-        values <- character(0)
+      if (length(values)) {
+        message("Target of length ", length(values), " can retry.")
+        isThat <- usethis::ui_yeah("Re-try?")
+        if (!isThat) {
+          values <- character(0)
+        }  
       }
     }
     mapped <- data.frame(db[ db[[1]] %in% object(x), ])
@@ -113,6 +115,20 @@ setMethod("step2", signature = c(x = "job_biomart2"),
     data <- dplyr::relocate(data, !!rlang::sym(to), !!rlang::sym(by))
     x$tops_mapped <- data
     return(x)
+  })
+
+setMethod("map", signature = c(x = "job_biomart2", ref = "character"),
+  function(x, ref, mode = c("from2to", "to2from"))
+  {
+    mode <- match.arg(mode)
+    if (mode == "from2to") {
+      m1 <- x$mapped[[1]]
+      m2 <- x$mapped[[2]]
+    } else {
+      m1 <- x$mapped[[2]]
+      m2 <- x$mapped[[1]]
+    }
+    m2[ match(ref, m1) ]
   })
 
 .multi_tasks_urls.biomart2 <- function(values, group_number, args) {

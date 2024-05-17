@@ -140,6 +140,7 @@ setMethod("step2", signature = c(x = "job_scfea"),
     maybePlot <- list.files(dir, "loss_[0-9]+-[0-9]+\\.png", full.names = T)
     if (length(maybePlot)) {
       p.loss <- .file_fig(maybePlot)
+      p.loss <- .set_lab(p.loss, sig(x), "Convergency of the loss terms during training")
     } else {
       p.loss <- NULL
     }

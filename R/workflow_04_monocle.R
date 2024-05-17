@@ -569,6 +569,15 @@ plot_pseudo_heatmap.seurat <- function(dat, enrich = NULL,
   }
   maxBreak <- max(ceiling(abs(range(dat$Levels))))
   if (!is.null(group_by)) {
+    if (length(group_by) == 1 && any(names(HLs) == group_by)) {
+      dat <- dplyr::mutate(dat,
+        dplyr::across(!!rlang::sym(group_by),
+          function(x) {
+            x <- as.character(x)
+            ifelse(x == "Match", group_by, "Others")
+          }))
+    }
+    HLs <- HLs[ !names(HLs) %in% group_by ]
     if (is.character(group_by)) {
       group_by <- list(group_by)
     }
