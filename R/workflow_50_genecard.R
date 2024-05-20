@@ -16,6 +16,21 @@
     method = "The Human Gene Database `GeneCards` used for disease related genes prediction"
     ))
 
+job_genecardn <- function(...) {
+  .job_genecardn(list(...))
+}
+
+.job_genecardn <- setClass("job_genecardn",
+  contains = c("list")
+)
+
+setValidity("job_genecardn", 
+  function(object){
+    if (all(vapply(object, function(x) is(x, "job_genecard"), logical(1))))
+      T
+    else F
+  })
+
 job_genecard <- function(disease)
 {
   .job_genecard(object = disease)
@@ -66,7 +81,7 @@ get_from_genecards <- function(query, score = 5, keep_drive = F, restrict = F,
   table <- as_tibble(data.frame(table[[1]]))
   colnames(table) %<>% gs("\\.+", "_")
   colnames(table) %<>% gs("X_|_$", "")
-  table <- select(table, -1, -2)
+  table <- dplyr::select(table, -1, -2)
   table <- dplyr::mutate(table, Score = as.double(Score))
   if (is.null(score)) {
     ss <- c(seq(1, 30, by = 1), 0L)
@@ -96,4 +111,50 @@ setMethod("map", signature = c(x = "job_genecard", ref = "job_genecard"),
     lst <- lapply(list(x, ref), function(x) x@tables$step1$t.genecards$Symbol)
     names(lst) <- names
     new_venn(lst = lst)
+  })
+
+setMethod("cal_corp", signature = c(x = "job_limma", y = "job_genecardn"),
+  function(x, y, from, names = NULL, use = if (x$isTcga) "gene_name" else "hgnc_symbol",
+    HLs = NULL, ..., top = NULL, tidyheatmap = T, linear = F)
+  {
+    genes.to <- lapply(y,
+      function(x) {
+        if (!is.null(top)) {
+          genes <- head(x@tables$step1$t.genecards$Symbol, n = top)
+        } else {
+          genes <- x@tables$step1$t.genecards$Symbol         
+        }
+        nl(x@object, list(genes))
+      })
+    genes.to <- unlist(genes.to, recursive = F)
+    dat.to <- as_df.lst(genes.to)
+    datUni.to <- dplyr::distinct(dat.to, name, .keep_all = T)
+    ## cal_corp ...
+    lst.cor <- cal_corp(x, NULL, from, datUni.to$name, names = names, use = use, ...)
+    if (tidyheatmap) {
+      data <- as_tibble(lst.cor$corp)
+      if (!is.null(names)) {
+        from.name <- names[[1]]
+        to.name <- names[[2]]
+      } else {
+        from.name <- "From"
+        to.name <- "To"
+      }
+      data <- map(data, to.name, datUni.to, "name", "type", col = "Factors")
+      if (!is.null(HLs)) {
+        data <- dplyr::mutate(data, Type.from = ifelse(!!rlang::sym(from.name) %in% HLs, "Key", "Others"))
+        # data <- dplyr::mutate(data, Type.to = ifelse(!!rlang::sym(to.name) %in% HLs, "Key", "Others"))
+      }
+      data <- dplyr::group_by(data, Factors, Type.from)
+      tihp.cor <- new_hp.cor(data)
+      lst.cor$tihp.cor <- tihp.cor
+    }
+    if (linear) {
+      data <- dplyr::filter(data, !!rlang::sym(from.name) %in% !!HLs, pvalue < .05)
+      linear.cor <- cal_corp(x, NULL, data[[ from.name ]], data[[ to.name ]], use = use, mode = "l")
+      linear.cor <- map(linear.cor, to.name, datUni.to, "name", "type", col = "Factors")
+      lp.cor <- vis(.corp(linear.cor), "Factors")
+      lst.cor$lp.cor <- lp.cor
+    }
+    lst.cor
   })

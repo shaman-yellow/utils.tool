@@ -152,6 +152,7 @@ setMethod("step3", signature = c(x = "job_tcmsp"),
       res <- kb@tables$step1$format_results
       compounds_targets <- tbmerge(compounds_targets, res, by.x = "Target name", by.y = "query",
         all.x = T, allow.cartesian = T)
+      x@tables$step2$compounds_targets <- compounds_targets
     }
     ########################
     ########################
@@ -457,5 +458,6 @@ setMethod("filter", signature = c(x = "job_tcmsp"),
     p <- wrap(p, 7, height = 2 + nrow(data) * .3)
     p <- .set_lab(p, sig(x), "Filterd ingredients")
     x$p.filtered <- p
+    x@step <- 2L
     x
   })
