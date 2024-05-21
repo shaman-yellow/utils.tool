@@ -185,6 +185,7 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     colnames(counts) <- metadata[[ col_id ]]
     rownames(counts) <- genes[[ row_id ]]
     object <- e(edgeR::DGEList(counts, samples = metadata, genes = genes))
+    project <- x$project
     x <- job_limma(object)
     if (get_treatment) {
       x <- .get_treatment.lm.tc(x)
@@ -193,6 +194,7 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     x <- meta(x, group)
     x$p.isTumor <- p.isTumor
     x$isTcga <- T
+    x$project <- project
     return(x)
   })
 

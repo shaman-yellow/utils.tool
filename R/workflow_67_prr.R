@@ -42,8 +42,9 @@ setGeneric("asjob_prr",
   function(x, ...) standardGeneric("asjob_prr"))
 
 setMethod("asjob_prr", signature = c(x = "job_tcga"),
-  function(x, drug)
+  function(x, drug = prr_drug())
   {
+    drug <- match.arg(drug)
     if (missing(drug)) {
       stop("missing(drug)")
     }
@@ -59,6 +60,24 @@ setMethod("asjob_prr", signature = c(x = "job_tcga"),
     x <- suppressMessages(asjob_limma(x))
     x <- suppressMessages(step1(x, norm_vis = F))
     ## forma
+    rownames <- gname(object(x)$genes$gene_name)
+    useWhich <- !is.na(rownames) & !duplicated(rownames)
+    data <- object(x)$E[useWhich, ]
+    rownames(data) <- rownames[ useWhich ]
+    x <- job_prr(data, drug)
+    return(x)
+  })
+
+setMethod("asjob_prr", signature = c(x = "job_limma"),
+  function(x, drug = prr_drug())
+  {
+    drug <- match.arg(drug)
+    if (is.null(x$isTcga)) {
+      stop("is.null(x$isTcga)")
+    }
+    if (x@step < 1L) {
+      stop("x@step < 1L")
+    }
     rownames <- gname(object(x)$genes$gene_name)
     useWhich <- !is.na(rownames) & !duplicated(rownames)
     data <- object(x)$E[useWhich, ]
@@ -157,24 +176,32 @@ setMethod("do_limma", signature = c(x = "job_tcga", ref = "job_prr"),
     colnames(counts)[ -1 ] %<>% fstr()
     metadata <- dplyr::mutate(metadata, sample = fstr(sample))
     ## metadata preparing
-    fun_test <- function() {
-      data <- dplyr::group_by(metadata, kmeans_group)
-      data <- dplyr::summarise(data, mean = mean(sensitivity))
-      Resis <- data$kmeans_group[ data$mean == use$resistance(data$mean) ]
-      Non_resis <- data$kmeans_group[ data$mean == use$non_resistance(data$mean) ]
-      metadata <- dplyr::mutate(metadata,
-        group = ifelse(kmeans_group == Resis, "Resistance",
-          ifelse(kmeans_group == Non_resis, "Non_resistance", NA_character_))
-      )
-      metadata <- dplyr::filter(metadata, !is.na(group))
-    }
-    metadata <- fun_test()
+    metadata <- .assign_resistance(metadata, use)
     metadata <- dplyr::relocate(metadata, sample, group)
     ## remove not exists sample of protein data
     metadata <- dplyr::filter(metadata, sample %in% !!colnames(counts)[-1])
     ## the `genes` is protein info
     x <- job_limma_normed(counts, metadata, genes)
     x$extra_metadata <- dplyr::slice(lst$metadata, match(bcr_patient_barcode, metadata$sample))
+    return(x)
+  })
+
+setMethod("map", signature = c(x = "job_limma", ref = "job_prr"),
+  function(x, ref, use = list("resistance" = max, "non_resistance" = min))
+  {
+    if (x@step != 1L) {
+      stop("x@step != 1L")
+    }
+    metadata <- ref@tables$step2$t.predict
+    metadata <- .assign_resistance(metadata, use, filter.na = F)
+    metadata <- dplyr::mutate(metadata, group = ifelse(is.na(group), "Others", group))
+    object(x)$targets <- map(object(x)$targets, "sample", metadata, "sample", "group",
+      col = "predicted_resistance")
+    group <- object(x)$targets$predicted_resistance
+    print(table(group))
+    message("Set group as `predicted_resistance`")
+    x$design <- mx(~0 + group)
+    object(x)$targets <- dplyr::mutate(object(x)$targets, group = predicted_resistance)
     return(x)
   })
 
@@ -352,4 +379,20 @@ prr_drug <- function() {
     "Vinorelbine", "Vorinostat", "VX.680", "VX.702", "WH.4.023", 
     "WO2009093972", "WZ.1.84", "X17.AAG", "X681640", "XMD8.85", 
     "Z.LLNle.CHO", "ZM.447439")
+}
+
+.assign_resistance <- function(metadata, use, filter.na = T)
+{
+  data <- dplyr::group_by(metadata, kmeans_group)
+  data <- dplyr::summarise(data, mean = mean(sensitivity))
+  Resis <- data$kmeans_group[ data$mean == use$resistance(data$mean) ]
+  Non_resis <- data$kmeans_group[ data$mean == use$non_resistance(data$mean) ]
+  metadata <- dplyr::mutate(metadata,
+    group = ifelse(kmeans_group == Resis, "Resistance",
+      ifelse(kmeans_group == Non_resis, "Non_resistance", NA_character_))
+  )
+  if (filter.na) {
+    metadata <- dplyr::filter(metadata, !is.na(group))
+  }
+  metadata
 }

@@ -368,15 +368,6 @@ cal_annoCoord <- function(data, col = "group", pos.x = .1, pos.y = 1.3) {
 # network
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-as_double.ratioCh <- function(ch) {
-  values <- stringr::str_extract_all(ch, "[0-9]{1,}")
-  vapply(values, FUN.VALUE = double(1),
-    function(values) {
-      values <- as.double(values)
-      values[ 1 ] / values[ 2 ]
-    })
-}
-
 .element_textbox <- 
   function(family = NULL, face = NULL, size = NULL,
     colour = "white", fill = "lightblue",
@@ -783,8 +774,8 @@ new_hp.cor <- function(data, ..., sig = T, fontsize = 6) {
   if (sig) {
     p.hp <- tidyHeatmap::layer_star(p.hp, pvalue < .05)
   }
-  p.hp <- .set_lab(p.hp, "correlation heatmap")
-  wrap(p.hp)
+  p.hp <- .set_lab(wrap(p.hp), "correlation heatmap")
+  p.hp
 }
 
 setMethod("show", signature = c(object = "lich"),
@@ -1930,6 +1921,13 @@ setMethod("autor", signature = c(x = "can_be_draw", name = "character"),
 ## autor for data.frame
 setMethod("autor", signature = c(x = "df", name = "character"),
   function(x, name, ..., asis = getOption("autor_asis", T)){
+    if (any(vapply(x, class, character(1)) == "list")) {
+      x <- dplyr::mutate(x,
+        dplyr::across(dplyr::where(is.list),
+          function(x) {
+            vapply(x, paste0, collapse = " | ", FUN.VALUE = character(1))
+          }))
+    }
     x <- dplyr::select_if(x,
       function(x) is.character(x) | is.numeric(x) | is.logical(x) | is.factor(x))
     file <- autosv(x, name, ...)
@@ -2494,8 +2492,8 @@ new_venn <- function(..., lst = NULL, wrap = T, fun_pre = rm.no) {
   if (wrap) {
     p <- wrap(p, 4, 2.5)
   }
-  attr(p, "ins") <- ins <- intersect(lst[[1]], lst[[2]])
-  attr(p, "lich") <- new_lich(list(Intersection = ins))
+  attr(p, "ins") <- ins <- ins(lst = lst)
+  attr(p, "lich") <- new_lich(list(All_intersection = ins))
   lab(p) <- paste0("Intersection of ", paste0(names(lst), collapse = " with "))
   p
 }

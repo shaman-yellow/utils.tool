@@ -93,7 +93,7 @@ get_data.pps2022 <- function(dir = .prefix("published_data/ProteomicsProfShao202
 get_data.rot2016 <- function(file = .prefix("published_data/RefinementOfTLehman2016_s3.xlsx")) {
   # https://pubmed.ncbi.nlm.nih.gov/27310713/
   obj <- fxlsx(file, sheet = 2, startRow = 2)
-  x <- .job(object = obj, cite = "[@ProteomicsProfShao2022]",
+  x <- .job(object = obj, cite = "[@RefinementOfTLehman2016]",
     method = "Selection of TNBC cases in TCGA-BRCA was adopted from results of study of Lehmann et al")
   return(x)
 }

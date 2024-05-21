@@ -274,23 +274,28 @@ vis_enrich.kegg <- function(lst, cutoff = .1, maxShow = 10,
       data <- dplyr::arrange(data, !!rlang::sym(use))
       data <- head(data, n = maxShow)
       data <- dplyr::mutate(data, GeneRatio = as_double.ratioCh(GeneRatio))
-      p <- ggplot(data) +
-        geom_point(aes(x = reorder(Description, GeneRatio),
-            y = GeneRatio, size = Count, fill = !!rlang::sym(use)),
-          shape = 21, stroke = 0, color = "transparent") +
-        scale_fill_gradient(high = "grey90", low = "darkred") +
-        scale_size(range = c(4, 6)) +
-        labs(x = "", y = "Gene Ratio") +
-        guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
-        coord_flip() +
-        ylim(zoRange(data$GeneRatio, 1.3)) +
-        rstyle("theme")
+      p <- .plot_kegg(data, use)
       p
     })
   if (length(lst) == 1) {
     attr(res, "use.p") <- use.p
   }
   res
+}
+
+.plot_kegg <- function(data, use) {
+  p <- ggplot(data) +
+    geom_point(aes(x = reorder(Description, GeneRatio),
+        y = GeneRatio, size = Count, fill = !!rlang::sym(use)),
+      shape = 21, stroke = 0, color = "transparent") +
+    scale_fill_gradient(high = "grey90", low = "darkred") +
+    scale_size(range = c(4, 6)) +
+    labs(x = "", y = "Gene Ratio") +
+    guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
+    coord_flip() +
+    ylim(zoRange(data$GeneRatio, 1.3)) +
+    rstyle("theme")
+  p
 }
 
 vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
@@ -315,18 +320,7 @@ vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
       data, GeneRatio = as_double.ratioCh(GeneRatio),
       stringr::str_wrap(Description, width = 30)
     )
-    p <- ggplot(data) +
-      geom_point(aes(x = reorder(Description, GeneRatio),
-          y = GeneRatio, size = Count, fill = !!rlang::sym(use)),
-        shape = 21, stroke = 0, color = "transparent") +
-      scale_fill_gradient(high = "grey90", low = "darkred") +
-      scale_size(range = c(4, 6)) +
-      guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
-      coord_flip() +
-      facet_grid(.id ~ ., scales = "free") +
-      rstyle("theme") +
-      theme(axis.title.y = element_blank()) +
-      geom_blank()
+    p <- .plot_go(data, use)
     p
   }
   res <- lapply(lst,
@@ -334,6 +328,43 @@ vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
       try(fun(x), silent = T)
     })
   res
+}
+
+plot_go <- function(data, cutoff = .1, maxShow = 10,
+  use = c("p.adjust", "pvalue"), facet = ".id")
+{
+  use <- match.arg(use)
+  data <- lapply(split(data, data[[ facet ]]),
+    function(data) {
+      data <- dplyr::filter(data, !!rlang::sym(use) < cutoff)
+      data <- dplyr::arrange(data, !!rlang::sym(use))
+      data <- head(data, n = maxShow)
+      data <- dplyr::mutate(data, GeneRatio = as_double.ratioCh(GeneRatio))
+      data <- dplyr::arrange(data, GeneRatio)
+      data
+    })
+  data <- frbind(data)
+  p <- .plot_go(data, use, facet)
+  p <- wrap(p, 10, 7)
+  p <- .set_lab(p, "GO-enrichment")
+  p
+}
+
+.plot_go <- function(data, use, facet = ".id")
+{
+  p <- ggplot(data) +
+    geom_point(aes(x = reorder(Description, GeneRatio),
+        y = GeneRatio, size = Count, fill = !!rlang::sym(use)),
+      shape = 21, stroke = 0, color = "transparent") +
+    scale_fill_gradient(high = "grey90", low = "darkred") +
+    scale_size(range = c(4, 6)) +
+    guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
+    coord_flip() +
+    ggplot2::facet_grid(rows = ggplot2::vars(!!rlang::sym(facet)), scales = "free") +
+    rstyle("theme") +
+    theme(axis.title.y = element_blank()) +
+    geom_blank()
+  p
 }
 
 setMethod("map", signature = c(x = "job_enrich", ref = "job_enrich"),
@@ -360,4 +391,13 @@ get_genes.keggPath <- function(name) {
   lst <- e(KEGGREST::keggGet(name))
   x <- strx(lst[[1]]$GENE, "^[A-Za-z][^;]+")
   x[ !is.na(x) ]
+}
+
+as_double.ratioCh <- function(ch) {
+  values <- stringr::str_extract_all(ch, "[0-9]{1,}")
+  vapply(values, FUN.VALUE = double(1),
+    function(values) {
+      values <- as.double(values)
+      values[ 1 ] / values[ 2 ]
+    })
 }

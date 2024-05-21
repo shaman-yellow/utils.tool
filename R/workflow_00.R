@@ -863,13 +863,17 @@ setMethod("map", signature = c(x = "df"),
     x
   })
 
-setMethod("map", signature = c(x = "list"),
-  function(x, y, y.ref, y.get){
-    lapply(x,
-      function(x) {
-        y[[ y.get ]][match(x, y[[ y.ref ]])]
-      })
-  })
+# setMethod("map", signature = c(x = "list"),
+  # function(x, y, y.ref, y.get, ...)
+  # {
+  #   if (is(x, "df")) {
+  #     return(callNextMethod(x, y, y.ref, y.get, ...))
+  #   }
+  #   lapply(x,
+  #     function(x) {
+  #       y[[ y.get ]][match(x, y[[ y.ref ]])]
+  #     })
+#   })
 
 setMethod("gname", signature = c(x = "character"),
   function(x){

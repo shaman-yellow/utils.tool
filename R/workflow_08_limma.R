@@ -175,7 +175,7 @@ setMethod("step2", signature = c(x = "job_limma"),
     lab(p.valcano) <- paste(sig(x), "volcano plot", "DEGs")
     plots <- c(plots, namel(p.valcano))
     tables <- namel(tops)
-    if (x$from_scfea) {
+    if (!is.null(x$from_scfea)) {
       belong.flux <- reframe_col(dplyr::select(tops[[1]], gene, name), "gene", function(x) unlist(x))
       belong.flux <- dplyr::relocate(belong.flux, gene, Metabolic_flux = name)
       belong.flux <- .set_lab(belong.flux, sig(x), "Differential metabolic flux related Genes")
@@ -430,6 +430,27 @@ setMethod("vis", signature = c(x = "corp"),
     }
   })
 
+setMethod("getsub", signature = c(x = "job_limma"),
+  function(x, tnbc = F){
+    if (tnbc) {
+      if (!is.null(x$isTcga) && identical(x$project, "TCGA-BRCA")) {
+        cli::cli_alert_info("get_data.rot2016")
+        pb.rot <- get_data.rot2016()
+        isTnbc <- gs(object(x)$samples$sample, "[A-Z]$", "") %in%
+          dplyr::filter(object(pb.rot), TNBC == "YES")$TCGA_SAMPLE
+        isNormal <- object(x)$samples$isTumor == "normal"
+        object(x) <- object(x)[, isTnbc | isNormal ]
+        object(x)$samples$group <- object(x)$samples$isTumor
+        message("Change group to `isTumor`.")
+        x$pb <- pb.rot
+        .add_internal_job(pb.rot)
+      } else {
+        stop("!is.null(x$isTcga) && identical(x$project, 'TCGA-BRCA')")
+      }
+      message("Dim: ", paste0(dim(object(x)), collapse = ", "))
+    }
+    return(x)
+  })
 
 
 expand.cons <- function(...) {
