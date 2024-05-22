@@ -753,20 +753,31 @@ new_lich <- function(lst) {
   .lich(lst)
 }
 
-new_hp.cor <- function(data, ..., sig = T, fontsize = 6) {
-  if (length(unique(data[[ "From" ]])) == 1) {
+new_hp.cor <- function(data, ..., sig = T, fontsize = 6, names = c("From", "To")) {
+  if (length(unique(data[[ names[2] ]])) == 1) {
     cluster_columns <- F
   } else {
     cluster_columns <- T
   }
-  if (length(unique(data[[ "to" ]])) == 1) {
+  if (length(unique(data[[ names[1] ]])) == 1) {
     cluster_rows <- F
   } else {
     cluster_rows <- T
   }
-  p.hp <- tidyHeatmap::heatmap(data, From, To, cor,
+  groups <- dplyr::groups(data)
+  if (length(groups)) {
+    data <- dplyr::ungroup(data)
+    groups <- lapply(groups,
+      function(x) {
+        if (length(unique(data[[ x ]])) > 1) x
+      })
+    groups <- lst_clear0(groups)
+    if (length(groups)) {
+      data <- dplyr::group_by(data, !!!rlang::syms(groups))
+    }
+  }
+  p.hp <- tidyHeatmap::heatmap(data, !!rlang::sym(names[1]), !!rlang::sym(names[2]), cor,
     cluster_columns = cluster_columns, cluster_rows = cluster_rows,
-    palette_value = fun_color(),
     column_names_gp = gpar(fontsize = fontsize),
     row_names_gp = gpar(fontsize = fontsize),
     ...
@@ -774,8 +785,22 @@ new_hp.cor <- function(data, ..., sig = T, fontsize = 6) {
   if (sig) {
     p.hp <- tidyHeatmap::layer_star(p.hp, pvalue < .05)
   }
-  p.hp <- .set_lab(wrap(p.hp), "correlation heatmap")
+  palette <- fun_color()
+  p.hp@input$col <- palette
+  if (!identical(p.hp@input$col, palette)) {
+    stop("!identical(p.hp@input$col, palette)")
+  }
+  x.num <- length(unique(data[[ names[1] ]]))
+  y.num <- length(unique(data[[ names[2] ]]))
+  p.hp <- wrap(p.hp,
+    if (y.num > 100) 18 else 1.5 + .12 * y.num,
+    if (x.num > 50) 12 else 1.5 + .12 * x.num)
+  p.hp <- .set_lab(p.hp, "correlation heatmap")
   p.hp
+}
+
+show_col.thp <- function(x) {
+  scales::show_col(attr(x, "colors"))
 }
 
 setMethod("show", signature = c(object = "lich"),
@@ -1921,6 +1946,9 @@ setMethod("autor", signature = c(x = "can_be_draw", name = "character"),
 ## autor for data.frame
 setMethod("autor", signature = c(x = "df", name = "character"),
   function(x, name, ..., asis = getOption("autor_asis", T)){
+    if (knitr::is_latex_output()) {
+      cat("\\begin{center}\\vspace{1.5cm}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{89}\\end{center}")
+    }
     if (any(vapply(x, class, character(1)) == "list")) {
       x <- dplyr::mutate(x,
         dplyr::across(dplyr::where(is.list),
@@ -1938,11 +1966,17 @@ setMethod("autor", signature = c(x = "df", name = "character"),
       }
     }
     include(x, name, ...)
+    if (knitr::is_latex_output()) {
+      cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{89}\\vspace{1.5cm}\\end{center}")
+    }
   })
 
 ## autor for figures of file
 setMethod("autor", signature = c(x = "fig", name = "character"),
   function(x, name, ..., asis = getOption("autor_asis", T)){
+    if (knitr::is_latex_output()) {
+      cat("\\begin{center}\\vspace{1.5cm}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{88}\\end{center}")
+    }
     file <- autosv(x, name, ...)
     if (asis) {
       abstract(x, name = name, ...)
@@ -1953,13 +1987,22 @@ setMethod("autor", signature = c(x = "fig", name = "character"),
         abstract(lich, name = name)
       }
     }
+    if (knitr::is_latex_output()) {
+      cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{88}\\vspace{1.5cm}\\end{center}")
+    }
   })
 
 setMethod("autor", signature = c(x = "files", name = "character"),
   function(x, name, ..., asis = getOption("autor_asis", T)){
     file <- autosv(x, name, ...)
+    if (knitr::is_latex_output()) {
+      cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{85}\\vspace{1.5cm}\\end{center}")
+    }
     if (asis)
       abstract(x, name, ...)
+    if (knitr::is_latex_output()) {
+      cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{85}\\vspace{1.5cm}\\end{center}")
+    }
   })
 
 setMethod("autor", signature = c(x = "lich", name = "character"),
@@ -2011,7 +2054,7 @@ setMethod("include", signature = c(x = "df"),
     x <- tibble::as_tibble(x)
     if (knitr::is_latex_output()) {
       x <- trunc_table(x)
-      knitr::kable(x, "markdown", caption = as_caption(name))
+      print(knitr::kable(x, "markdown", caption = as_caption(name)))
     } else {
       print(x)
     }

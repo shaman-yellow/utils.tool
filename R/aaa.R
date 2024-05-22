@@ -629,7 +629,7 @@ color_gradient <- function() {
 fun_color <- function(from = -1, to = 1, sample = T, category = c("div", "seq")) {
   if (sample) {
     category <- match.arg(category)
-    pals <- dplyr::filter(RColorBrewer::brewer.pal.info, category == category)
+    pals <- dplyr::filter(RColorBrewer::brewer.pal.info, category == !!category)
     which <- sample(1:nrow(pals), 1)
     pal <- rownames(pals)[ which ]
     max <- pals$maxcolors[ which ]
@@ -637,10 +637,8 @@ fun_color <- function(from = -1, to = 1, sample = T, category = c("div", "seq"))
     pal <- "RdBu"
     max <- 11L
   }
-  circlize::colorRamp2(
-    seq(from, to, length.out = max),
-    rev(RColorBrewer::brewer.pal(max, pal))
-  )
+  colors <- rev(RColorBrewer::brewer.pal(max, pal))
+  circlize::colorRamp2(seq(from, to, length.out = max), colors)
 }
 
 draw_smile <- function(smile, file, pdf = T) {

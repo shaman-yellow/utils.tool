@@ -283,6 +283,17 @@ vis_enrich.kegg <- function(lst, cutoff = .1, maxShow = 10,
   res
 }
 
+plot_kegg <- function(data, cutoff = .1, maxShow = 10,
+  use = c("p.adjust", "pvalue"), facet = ".id", pattern = NULL)
+{
+  use <- match.arg(use)
+  data <- .format_enrich(data, use, cutoff, maxShow, pattern)
+  p <- .plot_kegg(data, use)
+  p <- wrap(p, 8, 2 + nrow(data) * .2)
+  p <- .set_lab(p, "KEGG-enrichment")
+  p
+}
+
 .plot_kegg <- function(data, use) {
   p <- ggplot(data) +
     geom_point(aes(x = reorder(Description, GeneRatio),
@@ -331,23 +342,35 @@ vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
 }
 
 plot_go <- function(data, cutoff = .1, maxShow = 10,
-  use = c("p.adjust", "pvalue"), facet = ".id")
+  use = c("p.adjust", "pvalue"), facet = ".id", pattern = NULL)
 {
   use <- match.arg(use)
   data <- lapply(split(data, data[[ facet ]]),
     function(data) {
-      data <- dplyr::filter(data, !!rlang::sym(use) < cutoff)
-      data <- dplyr::arrange(data, !!rlang::sym(use))
-      data <- head(data, n = maxShow)
-      data <- dplyr::mutate(data, GeneRatio = as_double.ratioCh(GeneRatio))
-      data <- dplyr::arrange(data, GeneRatio)
-      data
+      .format_enrich(data, use, cutoff, maxShow, pattern)
     })
   data <- frbind(data)
   p <- .plot_go(data, use, facet)
-  p <- wrap(p, 10, 7)
+  p <- wrap(p, 10, 1 + nrow(data) * .2)
   p <- .set_lab(p, "GO-enrichment")
   p
+}
+
+.format_enrich <- function(data, use, cutoff, maxShow, pattern = NULL)
+{
+  data <- dplyr::filter(data, !!rlang::sym(use) < cutoff)
+  data <- dplyr::arrange(data, !!rlang::sym(use))
+  less <- head(data, n = maxShow)
+  if (!is.null(pattern)) {
+    extra <- dplyr::filter(data, grpl(Description, pattern, T))
+    if (nrow(extra)) {
+      less <- dplyr::bind_rows(less, extra)
+      less <- dplyr::distinct(less)
+    }
+  }
+  less <- dplyr::mutate(less, GeneRatio = as_double.ratioCh(GeneRatio))
+  less <- dplyr::arrange(less, GeneRatio)
+  less
 }
 
 .plot_go <- function(data, use, facet = ".id")

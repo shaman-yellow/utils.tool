@@ -129,6 +129,9 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_genecardn"),
     genes.to <- unlist(genes.to, recursive = F)
     dat.to <- as_df.lst(genes.to)
     datUni.to <- dplyr::distinct(dat.to, name, .keep_all = T)
+    if (length(y) == 1 && is.null(names)) {
+      names <- c("From", make.names(y[[1]]@object))
+    }
     ## cal_corp ...
     lst.cor <- cal_corp(x, NULL, from, datUni.to$name, names = names, use = use, ...)
     if (tidyheatmap) {
@@ -146,7 +149,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_genecardn"),
         # data <- dplyr::mutate(data, Type.to = ifelse(!!rlang::sym(to.name) %in% HLs, "Key", "Others"))
       }
       data <- dplyr::group_by(data, Factors, Type.from)
-      tihp.cor <- new_hp.cor(data)
+      tihp.cor <- new_hp.cor(data, names = c(from.name, to.name))
       lst.cor$tihp.cor <- tihp.cor
     }
     if (linear) {

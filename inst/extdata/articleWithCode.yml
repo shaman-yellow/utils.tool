@@ -15,6 +15,7 @@ output:
     # toc_depth: 4
     latex_engine: xelatex
 header-includes:
+  \usepackage{pgfornament}
   \usepackage{caption}
   \captionsetup{font={footnotesize},width=6in}
   \renewcommand{\dblfloatpagefraction}{.9}

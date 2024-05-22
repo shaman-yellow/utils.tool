@@ -114,7 +114,7 @@ setMethod("step1", signature = c(x = "job_limma"),
 setMethod("step2", signature = c(x = "job_limma"),
   function(x, ..., contrasts = NULL, block = NULL, use = c("adj.P.Val", "P.Value"),
     use.cut = .05, cut.fc = .5,
-    label = if (x$isTcga) "gene_name" else "hgnc_symbol", batch = F)
+    label = if (x$isTcga) "gene_name" else "hgnc_symbol", batch = F, HLs = NULL)
   {
     step_message("Difference test.")
     use <- match.arg(use)
@@ -163,17 +163,17 @@ setMethod("step2", signature = c(x = "job_limma"),
     } else {
       tops <- NULL
     }
-    p.valcano <- lapply(tops, plot_valcano, label = label, use = use, fc = cut.fc, seed = x$seed)
-    p.valcano <- lapply(p.valcano,
+    p.volcano <- lapply(tops, plot_volcano, label = label, use = use, fc = cut.fc, seed = x$seed, HLs = HLs)
+    p.volcano <- lapply(p.volcano,
       function(p) {
         p <- wrap(p, 5, 4)
         attr(p, "lich") <- new_lich(nl(c(paste0(use, " cut-off"), "Log2(FC) cut-off"), c(use.cut, cut.fc)))
         p
       }
     )
-    p.valcano <- .set_lab(p.valcano, sig(x), gs(names(p.valcano), "-", "vs"), "DEGs")
-    lab(p.valcano) <- paste(sig(x), "volcano plot", "DEGs")
-    plots <- c(plots, namel(p.valcano))
+    p.volcano <- .set_lab(p.volcano, sig(x), gs(names(p.volcano), "-", "vs"), "DEGs")
+    lab(p.volcano) <- paste(sig(x), "volcano plot", "DEGs")
+    plots <- c(plots, namel(p.volcano))
     tables <- namel(tops)
     if (!is.null(x$from_scfea)) {
       belong.flux <- reframe_col(dplyr::select(tops[[1]], gene, name), "gene", function(x) unlist(x))
@@ -248,11 +248,13 @@ setMethod("map", signature = c(x = "job_limma"),
     data <- tibble::as_tibble(t(object$E))
     data$group <- object$targets$group
     data <- tidyr::gather(data, var, value, -group)
-    p <- .map_boxplot(data, pvalue)
+    p <- .map_boxplot2(data, pvalue)
     p
   })
 
-plot_valcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val", fc = .3, seed = 1) {
+plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
+  fc = .3, seed = 1, HLs = NULL)
+{
   set.seed(seed)
   if (!any(label == colnames(top_table))) {
     if (any("rownames" == colnames(top_table)))
@@ -278,6 +280,14 @@ plot_valcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val", fc
       aes(label = !!rlang::sym(label)), size = 3) +
     rstyle("theme") +
     geom_blank()
+  if (!is.null(HLs)) {
+    data <- dplyr::filter(data, !!rlang::sym(label) %in% HLs)
+    p <- p +
+      ggrepel::geom_label_repel(data = data,
+        aes(x = logFC, y = -log10(!!rlang::sym(use)), label = !!rlang::sym(label))) +
+      geom_point(data = data, aes(x = logFC, y = -log10(!!rlang::sym(use))),
+        color = "darkred", shape = 21, fill = "transparent", size = 3, stroke = .5)
+  }
   p
 }
 

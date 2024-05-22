@@ -202,6 +202,7 @@ setMethod("map", signature = c(x = "job_limma", ref = "job_prr"),
     message("Set group as `predicted_resistance`")
     x$design <- mx(~0 + group)
     object(x)$targets <- dplyr::mutate(object(x)$targets, group = predicted_resistance)
+    x$normed_data <- object(x)
     return(x)
   })
 
