@@ -161,3 +161,24 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_genecardn"),
     }
     lst.cor
   })
+
+plot_col.genecard <- function(data, top = 10, facet = T)
+{
+  data <- head(data, top)
+  p <- ggplot(data, aes(x = reorder(Symbol, Score), y = Score, fill = Score)) +
+    geom_col(width = .5) +
+    geom_text(aes(x = Symbol, y = Score + max(Score) * .01, label = Score), hjust = 0, size = 3) +
+    ylim(c(0, max(data$Score) * 1.2)) +
+    coord_flip() +
+    labs(x = "Gene Symbol", y = "Score") +
+    rstyle("theme") +
+    theme(legend.position = "") +
+    if (facet) {
+      facet_grid(rows = ggplot2::vars(Category), scales = "free_y")
+    } else {
+      geom_blank()
+    }
+  p <- wrap(p, 7, nrow(data) * .4 + .5)
+  p <- .set_lab(p, "Genecard Score visualization")
+  p
+}

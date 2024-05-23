@@ -353,7 +353,7 @@ vptest <- function(r = .7, fill = "lightblue"){
 
 #' @export sym_chem
 sym_chem <- function(smi){
-  tmpsvg <- paste0(tempdir(), "/tempsvg.svg")
+  tmpsvg <- file.path(tempdir(), "tempsvg.svg")
   ChemmineOB::convertToImage("SMI", "SVG", source = smi, toFile = tmpsvg)
   svgtxt <- readLines(tmpsvg)
   svgtxt <- gsub("stroke-width=\"2.0", "stroke-width=\"4.0", svgtxt)

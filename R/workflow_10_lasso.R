@@ -234,7 +234,7 @@ setMethod("map", signature = c(x = "job_lasso"),
     scale_fill_manual(values = color_set()) +
     scale_color_manual(values = color_set()) +
     labs(x = "Group", y = "Value") +
-    rstyle("theme") +
+    theme_light() +
     theme(legend.position = "none",
       axis.text.x = element_text(angle = 45, hjust = 1)) +
     geom_blank()

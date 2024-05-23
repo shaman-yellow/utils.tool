@@ -4,8 +4,8 @@
 
 diann <- function(targets, fasta,
   savepath = paste0(Sys.Date(), "_Diann"),
-  out = paste0(savepath, "/report.tsv"), lib = NULL,
-  out.lib = paste0(savepath, "/report-lib.tsv"),
+  out = file.path(savepath, "report.tsv"), lib = NULL,
+  out.lib = file.path(savepath, "report-lib.tsv"),
   min.fr.mz = 200, max.fr.mz = 1800, cut = "K*,R*",
   missed.cleavages = 1, min.pep.len = 7, max.pep.len = 30,
   min.pr.mz = 300, max.pr.mz = 1800, min.pr.charge = 1, max.pr.charge = 4,

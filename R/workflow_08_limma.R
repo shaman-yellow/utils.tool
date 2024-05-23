@@ -186,6 +186,21 @@ setMethod("step2", signature = c(x = "job_limma"),
     return(x)
   })
 
+setMethod("group", signature = c(x = "job_limma"),
+  function(x, group)
+  {
+    stopifnot(x@step >= 1L)
+    object(x) <- x$normed_data
+    group <- x$normed_data$targets[[ group ]]
+    stopifnot(!is.null(group))
+    object(x)$targets$group <- group
+    x$normed_data$targets$group <- group
+    design <- mx(~ 0 + group)
+    x$design <- design
+    x@step <- 1L
+    return(x)
+  })
+
 setMethod("step3", signature = c(x = "job_limma"),
   function(x, names = NULL, use = "all", use.gene = "hgnc_symbol", fun_filter = rm.no){
     step_message("Sets intersection.")

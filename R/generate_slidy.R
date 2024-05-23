@@ -4,18 +4,18 @@
 
 generate_slidy <- function(name, path = "/mnt/data/wizard/Documents/zcmu_reports")
 {
-  file <- paste0(path, "/", name, ".Rmd")
+  file <- file.path(path, paste0(name, ".Rmd"))
   meta <- generate_slidy_meta()
   cat(meta, file = file)
 }
 
 make_slidy <- function(name, path = "/mnt/data/wizard/Documents/zcmu_reports")
 {
-  file <- paste0(path, "/", name, ".Rmd")
+  file <- file.path(path, paste0(name, ".Rmd"))
   rmarkdown::render(file)
 }
 
-preprocess_bib <- function(file = paste0(.expath, "/library.bib")) {
+preprocess_bib <- function(file = file.path(.expath, "library.bib")) {
   lst <- read_bib(file)
   which <- grepl("^@[0-9]*$", names(lst))
   lst[which] <- lapply(lst[which],
@@ -192,7 +192,7 @@ arrange_figsPath <- function(file, pattern = "^!\\[.*\\]", to = NULL, overwrite 
       dir <- to
     }
   } else {
-    dir <- paste0(path, "/", gsub("\\.[a-zA-Z]*$", "", filename))
+    dir <- file.path(path, gsub("\\.[a-zA-Z]*$", filename))
   }
   lines <- readLines(file)
   pos <- grep(pattern, lines)
@@ -200,7 +200,7 @@ arrange_figsPath <- function(file, pattern = "^!\\[.*\\]", to = NULL, overwrite 
     line <- lines[n]
     file <- gsub("\"", "", stringr::str_extract(line, "(?<=\\]\\().*(?=\\))"))
     filename <- get_filename(file)
-    nfile <- paste0(dir, "/", filename)
+    nfile <- file.path(dir, filename)
     line <- gsub("\\]\\(.*\\)", paste0("](", nfile, ")"), line)
     file.copy(file, dir, overwrite)
     line

@@ -73,9 +73,9 @@ get_data.pmb2023 <- function(file = .prefix("published_data/ProteinMetabolBenson
 
 get_data.pps2022 <- function(dir = .prefix("published_data/ProteomicsProfShao2022"))
 {
-  metadata <- fxlsx(paste0(dir, "/ProteomicsProfShao2022_s4.xlsx"))
+  metadata <- fxlsx(file.path(dir, "ProteomicsProfShao2022_s4.xlsx"))
   metadata <- .set_lab(metadata, "PUBLISHED-ProteomicsProfShao2022-metadata")
-  data <- fxlsx(paste0(dir, "/ProteomicsProfShao2022_s1.xlsx"), startRow = 2)
+  data <- fxlsx(file.path(dir, "ProteomicsProfShao2022_s1.xlsx"), startRow = 2)
   colnames(data)[1:3] <- c("UniProt_Knowledgebase_ID", "Protein_name", "Gene_name")
   data <- .set_lab(data, "PUBLISHED-ProteomicsProfShao2022-data")
   obj <- namel(metadata, data)

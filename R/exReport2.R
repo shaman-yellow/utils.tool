@@ -12,7 +12,7 @@ as_report.rough <- function(lines) {
 
 write_biocStyle <- function(
   report, savename, title, change_include_fun = "inclu.fig",
-  bioyml = readLines(paste0(.expath, "/", "biocstyle.yml")),
+  bioyml = readLines(paste0(.expath, "biocstyle.yml")),
   origin_include_fun = "knitr::include_graphics",
   render = rmarkdown::render,
   bib = NULL)
@@ -50,7 +50,7 @@ write_biocStyle <- function(
 
 write_thesisDocx <- function(report, savename, title,
   change_include_fun = "inclu.fig",
-  yml = readLines(paste0(.expath, "/", "ch_thesis.yml")),
+  yml = readLines(file.path(.expath, "ch_thesis.yml")),
   origin_include_fun = "knitr::include_graphics", ...)
 {
   write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun, ...)
@@ -58,7 +58,7 @@ write_thesisDocx <- function(report, savename, title,
 
 write_thesisDocxEn <- function(report, savename, title,
   change_include_fun = "inclu.fig",
-  yml = readLines(paste0(.expath, "/", "en_thesis.yml")),
+  yml = readLines(paste0(.expath, "en_thesis.yml")),
   origin_include_fun = "knitr::include_graphics", ...)
 {
   write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun, ...)
@@ -66,7 +66,7 @@ write_thesisDocxEn <- function(report, savename, title,
 
 write_articlePdf <- function(report, savename, title,
   change_include_fun = NULL,
-  yml = readLines(paste0(.expath, "/", "articleWithCode.yml")),
+  yml = readLines(file.path(.expath, "articleWithCode.yml")),
   origin_include_fun = "knitr::include_graphics", ...)
 {
   write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun, ...)

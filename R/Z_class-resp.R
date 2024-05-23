@@ -36,7 +36,7 @@ setMissing <- function(generic, ..., .SIG = "missing"){
 
 # .yaml_default <- function(style = c("resp_default")) {
 #   style <- match.arg(style)
-#   readLines(paste0(.expath, "/", style, ".yml"))
+#   readLines(file.path(.expath, paste0(style, ".yml")))
 # }
 
 # .resp <- setClass("resp", 

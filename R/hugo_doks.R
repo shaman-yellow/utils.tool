@@ -25,15 +25,15 @@ new_scene <- function(scene, weight = rep(100, length(scene)), ex_weight = weigh
     lapply(1:length(scene),
       function(n){
         name <- names(scene)[n]
-        dir <- paste0(path, "/", name)
+        dir <- file.path(path, name)
         if (!dir.exists(dir)) {
           dir.create(dir)
           if (index_Draft) {
-            index <- paste0(dir, "/_index.Rmd")
+            index <- file.path(dir, "_index.Rmd")
             writeLines(index_Draft(name, weight[[n]]), index)
           }
         }
-        file <- paste0(dir, "/", scene[[n]], ".Rmd")
+        file <- file.path(dir, paste0(scene[[n]], ".Rmd"))
         if (!file.exists(file)) {
           writeLines(Draft(scene[[n]], ex_weight[[n]], tar, name), file)
         }
@@ -95,7 +95,7 @@ setGeneric("set_home",
   function(x, ...) standardGeneric("set_home"))
 setMethod("set_home", signature = setMissing("set_home"),
   function(){
-    function(path = paste0(hugoDir, "/config"), tar = "params.toml") {
+    function(path = file.path(hugoDir, "config"), tar = "params.toml") {
       target_file(path, tar)
     }
   })

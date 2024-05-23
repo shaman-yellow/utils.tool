@@ -118,7 +118,7 @@ get_signature <-
 #' @description \code{tmp_pdf}: ...
 #' @rdname utilites
 tmp_pdf <- function() {
-  paste0(tempdir(), "/tmp_pdf.pdf")
+  file.path(tempdir(), "tmp_pdf.pdf")
 }
 
 #' @export op
@@ -440,7 +440,7 @@ prefix <- c()
 #' @export .check_external_svg
 .check_external_svg <- function(){
   files <- list.files(.expathsvg, "\\.svg$", full.names = T)
-  log.path <- paste0(.expathsvg, "/log")
+  log.path <- file.path(.expathsvg, "log")
   if (file.exists(log.path)) {
     log <- readLines(log.path)
     log <- log[vapply(log, file.exists, T)]
@@ -465,7 +465,7 @@ prefix <- c()
 
 #' @export ex_grob
 ex_grob <- function(name, fun = .cairosvg_to_grob){
-  file <- paste0(.expathsvg, "/", name, ".svg")
+  file <- file.path(.expathsvg, paste0(name, ".svg"))
   if (file.exists(file)) {
     fun(file)
   } else {
