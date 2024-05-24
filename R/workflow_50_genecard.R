@@ -162,6 +162,11 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_genecardn"),
     lst.cor
   })
 
+setMethod("res", signature = c(x = "job_genecard"),
+  function(x){
+    x@tables$step1$t.genecards
+  })
+
 plot_col.genecard <- function(data, top = 10, facet = T)
 {
   data <- head(data, top)

@@ -12,7 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     pg = "methy",
-    info = c("https://www.bioconductor.org/packages/release/workflows/vignettes/methylationArrayAnalysis/inst/doc/methylationArrayAnalysis.html"),
+    info = c("https://www.bioconductor.org/packages/release/workflows/vignettes/methylationArrayAnalysis/inst/doc/methylationArrayAnalysis.html",
+      "https://bioconductor.org/packages/release/bioc/vignettes/Gviz/inst/doc/Gviz.html"),
     cite = "[@MissmethylAnPhipso2016; @MinfiAFlexibAryee2014; @VisualizingGenHahne2016; @CallingDifferePeters2021]",
     method = "R package `missMethyl`, `minfi`, `Gviz`, `DMRcate` were used for analysing methylation array data"
     ))
@@ -29,6 +30,6 @@ setMethod("step0", signature = c(x = "job_methy"),
 
 setMethod("step1", signature = c(x = "job_methy"),
   function(x){
-    step_message("Quality control (QC).")
+    step_message("")
     return(x)
   })

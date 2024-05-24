@@ -1329,7 +1329,7 @@ set_prefix <- function(wd, db, op) {
   if (missing(path)) {
     res <- pr
   } else {
-    res <- paste0(pr, "/", path)
+    res <- file.path(pr, path)
   }
   if (!file.exists(res) & warning) {
     warning("The file not exists in local")
