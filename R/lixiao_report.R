@@ -162,7 +162,7 @@ summary_month <- function(
       coef = round(coef, 3)
     )
     data_ass <- dplyr::select(data_ass,
-      member, seq, id, type, score, num, title, title.en, status, note, coef,
+      member, seq, id, type, class, score, num, title, title.en, status, note, coef,
       remuneration, I, C, D, `T`, M
     )
     fun <- function(wb, data) {
@@ -675,8 +675,6 @@ package_results <- function(
   }
 }
 
-
-
 od_get_title <- function() {
   odb("name", "analysis")
 }
@@ -727,9 +725,19 @@ items <- function(
   member = "黄礼闯",
   save = ".items.rds",
   tags = character(0),
+  note = character(1),
+  class = c("实验单生信", "标书生信", "SCI生信", "SCI+标书生信", "-"),
   isLatest = F,
   lock = F)
 {
+  if (length(class) > 1) {
+    if (is.null(getOption("orderClass"))) {
+      class <- class[menu(class, title = "Is which type?")]
+      options(orderClass = class)
+    } else {
+      class <- getOption("orderClass")
+    }
+  }
   if (missing(type)) {
     if (!missing(coef)) {
       type <- ifelse(vapply(coef, function(x) identical(x, .25), logical(1)), "固定业务", "其他业务")
