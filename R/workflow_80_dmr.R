@@ -1,8 +1,8 @@
 # ==========================================================================
-# workflow of methy
+# workflow of dmr
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-.job_methy <- setClass("job_methy", 
+.job_dmr <- setClass("job_dmr", 
   contains = c("job"),
   representation = representation(
     object = "ANY",
@@ -11,28 +11,34 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    pg = "methy",
-    info = c("https://www.bioconductor.org/packages/release/workflows/vignettes/methylationArrayAnalysis/inst/doc/methylationArrayAnalysis.html",
-      "https://bioconductor.org/packages/release/bioc/vignettes/Gviz/inst/doc/Gviz.html",
-      "https://bioconductor.org/packages/release/bioc/vignettes/Gviz/inst/doc/Gviz.html#43_DataTrack"
-      ),
-    cite = "[@MissmethylAnPhipso2016; @MinfiAFlexibAryee2014; @VisualizingGenHahne2016; @CallingDifferePeters2021]",
-    method = "R package `missMethyl`, `minfi`, `Gviz`, `DMRcate` were used for analysing methylation array data"
+    pg = "dmr",
+    info = c("https://bioconductor.org/packages/release/bioc/vignettes/Gviz/inst/doc/Gviz.html"),
+    cite = "[@VisualizingGenHahne2016]",
+    method = "R package `Gviz` were used for methylation data visualization"
     ))
 
-job_methy <- function()
+job_dmr <- function(data, genome = c("hg38", "mm10", "rn6"),
+  col.chr = "chr", col.start = "start", col.end = "end", col.gene = "symbol",
+  use.delta = grpf(colnames(data), "_vs_")[1],
+  use.qvalue = grpf(colnames(data), "qvalue", T)[1])
 {
-  .job_methy()
+  data <- dplyr::filter(data, !is.na(!!rlang::sym(col.chr)))
+  object <- as_GRanges(data, NULL, col.chr, col.start, col.end,
+    delta = use.delta, qvalue = use.qvalue, symbol = col.gene)
+  x <- .job_dmr(object = object)
+  x$data <- data
+  x$genome <- genome
+  x
 }
 
-setMethod("step0", signature = c(x = "job_methy"),
+setMethod("step0", signature = c(x = "job_dmr"),
   function(x){
-    step_message("Prepare your data with function `job_methy`.")
+    step_message("Prepare your data with function `job_dmr`.")
   })
 
-setMethod("step1", signature = c(x = "job_methy"),
+setMethod("step1", signature = c(x = "job_dmr"),
   function(x){
-    step_message("")
+    step_message("Quality control (QC).")
     return(x)
   })
 
@@ -52,7 +58,7 @@ plot_dmr <- function(data, chr, genome = c("hg38", "mm10", "rn6"),
   }
   genome <- match.arg(genome)
   if (is(data, "GRanges")) {
-    dmrRanges <- data
+    dmrRanges <- data[ data@seqnames == chr ]
   } else {
     dmrRanges <- as_GRanges(data, chr, col.chr, col.start, col.end,
       delta = use.delta, qvalue = use.qvalue)
