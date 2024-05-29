@@ -678,3 +678,15 @@ replaceFunInPackage <- function(name, fun, package) {
   assign(name, fun, envir = nameSpace)
   lockBinding(name, nameSpace)
 }
+
+get_grid <- function(len, ncols = 2, nrows = NULL) {
+  if (is.null(nrows)) {
+    nrows <- len %/% ncols
+  } else if (is.null(ncols)) {
+    ncols <- len %/% nrows
+  }
+  i <- seq(len)
+  col <- ((i - 1) %% ncols) + 1
+  row <- (((i) - 1) %/% ncols) + 1
+  namel(row, col)
+}

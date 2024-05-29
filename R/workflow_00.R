@@ -1354,3 +1354,4 @@ setMethod("show", signature = c(object = "character"),
     }
     print(object)
   })
+
