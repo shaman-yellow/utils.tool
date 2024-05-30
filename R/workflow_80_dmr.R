@@ -40,6 +40,12 @@ setMethod("step1", signature = c(x = "job_dmr"),
   function(x, plot_cpgIsland = T)
   {
     step_message("DMR distribution.")
+    data <- dplyr::filter(as.data.frame(object(x)), !is.na(symbol))
+    p.volcano <- plot_volcano(data, label = "symbol",
+      use = "qvalue", label.p = "Q-value",
+      use.fc = "delta", label.fc = "Delta",
+    )
+    p.volcano <- wrap(p.volcano, 5, 4)
     p.distri <- new_pie(object(x)@seqnames, title = "DMR distribution")
     p.distri <- wrap(p.distri, 7, 5)
     p.distri <- .set_lab(p.distri, sig(x), "DMR distribution")
@@ -50,18 +56,36 @@ setMethod("step1", signature = c(x = "job_dmr"),
     ## CpG Island
     cpgIsland <- get_cpgisland_GRranges(x$genome)
     cpgIsland <- x$cpgIsland <- IRanges::subsetByOverlaps(cpgIsland, object(x))
-    p.viewCpgIsland <- new_col(
-      lst = lapply(split(cpgIsland@seqnames, as.character(cpgIsland@seqnames)), seq_along)
-    )
-    p.viewCpgIsland <- .set_lab(p.viewCpgIsland, sig(x), "CpG Island overlap number")
+    if (T) {
+      ## stats overlap
+      function_stats <- function() {
+        metaOverlaps <- IRanges::findOverlaps(object(x), cpgIsland)
+        obj <- object(x)[ metaOverlaps@from ]
+        obj <- split(obj, as.character(obj@seqnames))
+        res <- lapply(obj,
+          function(x) {
+            ifelse(is.na(x$symbol), "CpG Island", "CpG Island + Gene")
+          })
+        as_df.lst(res)
+      }
+      dat <- function_stats()
+      p.viewOverlap <- ggplot(dat, aes(x = sortCh(type, T, T), y = 1, fill = name)) +
+        ggchicklet::geom_chicklet(width = 0.7, radius = grid::unit(5, "pt")) + 
+        scale_fill_brewer(palette = "Set2") +
+        labs(x = "Chromosome", y = "Number", fill = "Type") +
+        theme_minimal() +
+        coord_flip()
+      p.viewOverlap <- wrap(p.viewOverlap, 6, colSum(dat$type) * .3 + .5)
+      p.viewOverlap <- .set_lab(p.viewOverlap, sig(x), "specific methylation")
+    }
     if (plot_cpgIsland) {
       p.cpgIsland <- plot_multiChr(cpgIsland, x$genome, "cpgIsland")
-      p.cpgIsland <- .set_lab(wrap(p.cpgIsland), sig(x), "CpG Island overlap")
+      p.cpgIsland <- .set_lab(wrap(p.cpgIsland), sig(x), "CpG Island methylation")
     } else {
       p.cpgIsland <- NULL
     }
     #################################
-    x@plots[[ 1 ]] <- namel(p.distri, p.viewCpgIsland, p.distriGene, p.cpgIsland)
+    x@plots[[ 1 ]] <- namel(p.volcano, p.distri, p.viewOverlap, p.distriGene, p.cpgIsland)
     return(x)
   })
 
@@ -84,7 +108,7 @@ setMethod("step2", signature = c(x = "job_dmr"),
     p.dmrs <- sapply(chrs, simplify = F,
       function(chr) {
         # if must is T, maybe return NULL
-        p <- plot_dmr(obj, chr, x$genome, mustOverlapCpgIsland = must)
+        p <- plot_dmr(obj, chr, x$genome, mustOverlapCpgIsland = must, gr.cpgIsland = x$cpgIsland)
         if (!is.null(p)) {
           wrap(p, 7, 4)
         }
@@ -99,13 +123,17 @@ setMethod("step2", signature = c(x = "job_dmr"),
   })
 
 setMethod("vis", signature = c(x = "job_dmr"),
-  function(x, chr, subset = NULL, ucscRefseq = F, zo = 1.2, ...)
+  function(x, chr, subset = NULL, ucscRefseq = F, zo = 1.2, symbol = NULL, ...)
   {
+    if (!is.null(symbol) && missing(chr)) {
+      chr <- as.character(object(x)[ which(object(x)$symbol == symbol) ]@seqnames)
+      message("Found chr of ", symbol, " in ", chr)
+    }
     if (is.numeric(chr)) {
       chr <- paste0("chr", chr)
     }
     p <- plot_dmr(object(x), chr, x$genome, subset.cpgIsland = subset,
-      ucscRefseq = ucscRefseq, zo = zo, ...)
+      ucscRefseq = ucscRefseq, zo = zo, gr.cpgIsland = x$cpgIsland, symbol = symbol, ...)
     p <- .set_lab(p, sig(x), chr, "DMR annotation")
     p
   })
@@ -116,40 +144,65 @@ plot_dmr <- function(data, chr, genome = c("hg38", "mm10", "rn6"),
   dnaseHyper = T, ucscRefseq = F,
   plot_qvalue = T, plot_delta = T,
   use.delta = grpf(colnames(data), "_vs_")[1], use.qvalue = grpf(colnames(data), "qvalue", T)[1],
-  qvalueTrans = T, mustOverlapCpgIsland = F)
+  qvalueTrans = T, mustOverlapCpgIsland = F, gr.cpgIsland = NULL, symbol = NULL)
 {
   if (is.numeric(chr)) {
     chr <- paste0("chr", chr)
   }
   genome <- match.arg(genome)
   if (is(data, "GRanges")) {
-    dmrRanges <- data[ data@seqnames == chr ]
+    allRanges <- data[ data@seqnames == chr ]
   } else {
     if (missing(use.delta) || missing(use.qvalue)) {
       message("Be Carefully, the columns of delta and q-value is:\n\t", use.delta, ", ", use.qvalue)
     }
-    dmrRanges <- as_GRanges(data, chr, col.chr, col.start, col.end,
+    allRanges <- as_GRanges(data, chr, col.chr, col.start, col.end,
       delta = use.delta, qvalue = use.qvalue)
   }
+  targetRanges <- allRanges
   ## Chromosome annotation Track
   iTrack <- Gviz::IdeogramTrack(genome = genome, chromosome = chr, name = paste0("Chromosome ", chr))
   gTrack <- Gviz::GenomeAxisTrack(col = "black", cex = 1, name = "Axis", fontcolor = "black")
   tracks <- list(iTrack, gTrack)
   sizes <- c(1, 2)
+  if (!is.null(symbol) || !is.null(subset.cpgIsland)) {
+    small <- T
+  } else small <- F
   ## DMR region
   if (T) {
     ## for annotation
     if (dmrRegion) {
       aTrack <- Gviz::AnnotationTrack(genome = genome, chromosome = chr,
-        range = dmrRanges, name = "DMR")
+        range = allRanges, name = "DMR")
       tracks <- c(tracks, list(aTrack))
       sizes <- c(sizes, 3)
     }
   }
+  if (!is.null(symbol)) {
+    fun_find <- function () {
+      which <- which(allRanges$symbol == symbol)
+      if (!length(which)) {
+        stop("Nothing.")
+      }
+      message("Found targetRanges: ")
+      r <- allRanges[ which ]
+      print(r)
+      r
+    }
+    targetRanges <- fun_find()
+    if (missing(zo)) {
+      zo <- 50
+    }
+    ucscRefseq <- T
+  }
   if (cpgIsland) {
-    cpgIsland <- get_cpgisland_GRranges(genome)
+    if (is.null(gr.cpgIsland)) {
+      cpgIsland <- get_cpgisland_GRranges(genome)
+    } else {
+      cpgIsland <- gr.cpgIsland
+    }
     if (cpgIsland.overlap) {
-      cpgIsland <- IRanges::subsetByOverlaps(cpgIsland, dmrRanges, type = "any")
+      cpgIsland <- IRanges::subsetByOverlaps(cpgIsland, allRanges, type = "any")
     }
     if (mustOverlapCpgIsland && !length(cpgIsland)) {
       message("No overlap of cpgIsland of ", chr)
@@ -161,19 +214,18 @@ plot_dmr <- function(data, chr, genome = c("hg38", "mm10", "rn6"),
       range = cpgIsland, fill = "darkgreen",
       name = if (cpgIsland.overlap) "CpG Island overlap" else "CpG Island"
     )
-    if (!is.null(subset.cpgIsland)) {
+    if (!is.null(symbol)) {
+      message("Use ranges of `symbol` location")
+    } else if (!is.null(subset.cpgIsland)) {
+      ## just found dmr area
       if (is(subset.cpgIsland, "GRanges")) {
         RangeSubset <- range.IRanges(subset.cpgIsland)
       } else if (is(subset.cpgIsland, "numeric")) {
         RangeSubset <- cpgIsland[subset.cpgIsland, ]
         RangeSubset <- range.IRanges(RangeSubset)
       }
-      RangeSubset <- GenomicRanges::GRanges(
-        seqnames = S4Vectors::Rle(chr),
-        range = IRanges::IRanges(RangeSubset[1], RangeSubset[2]),
-        strand = S4Vectors::Rle("*")
-      )
-      dmrRanges <- IRanges::subsetByOverlaps(dmrRanges, RangeSubset, type = "any")
+      RangeSubset <- pseudo_ranges(RangeSubset, chr)
+      targetRanges <- IRanges::subsetByOverlaps(allRanges, RangeSubset, type = "any")
     }
     tracks <- c(tracks, list(islandTrack))
     sizes <- c(sizes, 1)
@@ -185,8 +237,8 @@ plot_dmr <- function(data, chr, genome = c("hg38", "mm10", "rn6"),
   }
   if (ucscRefseq) {
     message("Show UCSC annotation")
-    print(dmrRanges)
-    ucscRange <- range.IRanges(dmrRanges)
+    print(targetRanges)
+    ucscRange <- range.IRanges(targetRanges)
     if (!is.null(zo)) {
       ucscRange <- pmax(floor(zoRange(ucscRange, zo)), 0)
     }
@@ -197,57 +249,68 @@ plot_dmr <- function(data, chr, genome = c("hg38", "mm10", "rn6"),
   }
   if (plot_qvalue) {
     if (qvalueTrans) {
-      values <- dmrRanges$qvalue
+      values <- allRanges$qvalue
       minLimit <- min(values[ values != 0 ]) / 10
       values[ values == 0 ] <- minLimit
       values <- -log10(values)
-      dmrRanges$qvalue <- values
+      allRanges$qvalue <- values
     }
     qvalueTrack <- Gviz::DataTrack(genome = genome, chromosome = chr,
-      range = dmrRanges[, "qvalue"],
+      range = allRanges[, "qvalue"],
       name = if (qvalueTrans) "-Log10(Q-value)" else "Q-value",
       type = "hist", fill.histogram = "darkred", col.histogram = "transparent"
     )
     tracks <- c(tracks, list(qvalueTrack))
-    sizes <- c(sizes, 3)
+    sizes <- c(sizes, if (small) 1 else 3)
   }
   if (plot_delta) {
     deltaTrack <- Gviz::DataTrack(genome = genome, chromosome = chr,
-      range = dmrRanges[, "delta"],
+      range = allRanges[, "delta"],
       name = "Delta", type = "gradient",
-      gradient = RColorBrewer::brewer.pal(3, "RdBu")
+      gradient = rev(RColorBrewer::brewer.pal(3, "RdBu")),
+      ylim = c(-1, 1)
     )
     tracks <- c(tracks, list(deltaTrack))
-    sizes <- c(sizes, 3)
+    sizes <- c(sizes, if (small) 1 else 3)
   }
   ## plot
-  ranges <- range.IRanges(dmrRanges)
+  ranges <- range.IRanges(targetRanges)
   if (is.null(zo)) {
     if (length(subset.cpgIsland) == 1) {
-      zo <- 3
+      zo <- 50
     } else {
       zo <- 1.2
     }
   }
-  if (!is.null(subset.cpgIsland)) {
+  if (!is.null(subset.cpgIsland) || !is.null(symbol)) {
     ranges <- floor(zoRange(ranges, zo))
   }
+  message("DMR in this ranges:")
+  print(IRanges::subsetByOverlaps(allRanges, pseudo_ranges(ranges, chr)))
   Gviz::plotTracks(tracks, from = ranges[1], to = ranges[2], sizes = sizes)
   p.tracks <- recordPlot()
-  wrap(p.tracks)
+  wrap(p.tracks, 7, 6)
 }
 
-track_ncbiRefseq <- function(genome, chr, from, to) {
-  e(Gviz::UcscTrack(genome = genome, chromosome = chr, 
-    track = "NCBI RefSeq", table = "ncbiRefSeq", 
-    from = from, to = to,
-    trackType = "GeneRegionTrack", 
-    rstarts = "exonStarts", rends = "exonEnds", 
-    gene = "name2", symbol = "name2", 
-    transcript = "name", strand = "strand", 
-    fill = "#8282d2", name = "NCBI RefSeq",
-    showId = T, geneSymbol = TRUE
-  ))
+track_ncbiRefseq <- function(genome, chr, from, to, db_dir = .prefix("ucsc_tracks", "db")) {
+  dir.create(db_dir, F)
+  file <- file.path(db_dir, paste0("ncbiRefSeq_", genome, "_", chr, "_", from, "_", to, ".rds"))
+  if (file.exists(file)) {
+    readRDS(file)
+  } else {
+    track <- e(Gviz::UcscTrack(genome = genome, chromosome = chr, 
+        from = from, to = to,
+        track = "NCBI RefSeq", table = "ncbiRefSeq", 
+        trackType = "GeneRegionTrack", 
+        rstarts = "exonStarts", rends = "exonEnds", 
+        gene = "name2", symbol = "name2", 
+        transcript = "name", strand = "strand", 
+        fill = "#8282d2", name = "NCBI RefSeq",
+        showId = T, geneSymbol = TRUE
+        ))
+    saveRDS(track, file)
+    track
+  }
 }
 
 get_cpgisland_GRranges <- function(genome) {
@@ -322,3 +385,10 @@ sortCh <- function(x, decreasing = F, as.factor = F) {
   x
 }
 
+pseudo_ranges <- function(range, chr, strand = "*") {
+  GenomicRanges::GRanges(
+    seqnames = S4Vectors::Rle(chr),
+    range = IRanges::IRanges(range[1], range[2]),
+    strand = S4Vectors::Rle(strand)
+  )
+}

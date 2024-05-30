@@ -235,6 +235,7 @@ setMethod("step3", signature = c(x = "job_gsea"),
     FUN = function(x, name) {
       x <- .file_fig(x)
       genes <- dplyr::filter(lst[[ name ]]$plot.data.gene, all.mapped != "")$labels
+      attr(x, "genes") <- genes
       attr(x, "lich") <- new_lich(
         list("Interactive figure" = paste0("\\url{https://www.genome.jp/pathway/", name, "}"),
           "Enriched genes" = paste0(unique(genes), collapse = ", ")

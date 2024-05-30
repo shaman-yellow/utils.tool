@@ -77,6 +77,10 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     }
     edges <- as_tibble(igraph::as_data_frame(res.str$graph))
     edges <- dplyr::distinct(edges, from, to, .keep_all = T)
+    if (species == 9606) {
+      message("`use.anno` not available for non hsa.")
+      use.anno <- F
+    }
     if (use.anno) {
       message("Get PPI annotation from:\n\t", file_anno)
       anno <- ftibble(file_anno)
@@ -99,7 +103,7 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     attr(edges, "lich") <- new_lich(des_edges)
     x$edges <- edges
     p.ppi <- plot_network.str(graph, label = label)
-    p.ppi <- .set_lab(wrap(p.ppi), sig(x), "raw PPI network")
+    p.ppi <- .set_lab(wrap(p.ppi, 4.5, 3), sig(x), "raw PPI network")
     ## hub genes
     hub_genes <- cal_mcc.str(res.str, "Symbol", F)
     graph_mcc <- get_subgraph.mcc(res.str$graph, hub_genes, top = tops)
@@ -383,7 +387,7 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
     p <- p + scale_shape_manual(values = c(24, 21, 22, 23), labels = label.shape)
   }
   if (!is.null(HLs)) {
-    data <- dplyr::filter(dataNodes, name %in% !!HLs)
+    data <- dplyr::filter(dataNodes, Symbol %in% !!HLs)
     p <- p + geom_point(data = data, aes(x = x, y = y), shape = 21, color = "red", size = 20)
   }
   p

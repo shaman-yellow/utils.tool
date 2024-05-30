@@ -49,7 +49,10 @@ setMethod("step0", signature = c(x = "job_enrich"),
 
 # Biological Process, Molecular Function, and Cellular Component groups
 setMethod("step1", signature = c(x = "job_enrich"),
-  function(x, organism = c("hsa", "mmu"), orgDb = c("org.Hs.eg.db", "org.Mm.eg.db"), cl = 4, maxShow.kegg = 10,
+  function(x, organism = c("hsa", "mmu", "rno"),
+    orgDb = switch(organism,
+      hsa = "org.Hs.eg.db", mmu = "org.Mm.eg.db", rno = "org.Rn.eg.db"),
+    cl = 4, maxShow.kegg = 10,
     maxShow.go = 10, use = c("p.adjust", "pvalue"))
   {
     step_message("Use clusterProfiler for enrichment.")
@@ -97,7 +100,7 @@ setMethod("step2", signature = c(x = "job_enrich"),
   function(x, pathways, which.lst = 1, species = x$organism,
     name = paste0("pathview", gs(Sys.time(), " |:", "_")),
     search = "pathview",
-    external = F, gene.level = NULL)
+    external = F, gene.level = NULL, gene.level.name = "hgnc_symbol")
   {
     step_message("Use pathview to visualize reults pathway.")
     require(pathview)
@@ -117,7 +120,8 @@ setMethod("step2", signature = c(x = "job_enrich"),
         }
       )
       message("Note that only hgnc_symbol support for this feature: `gene.level`")
-      names(gene.level) <- x$annotation$entrezgene_id[ match(names(gene.level), x$annotation$hgnc_symbol) ]
+      names(gene.level) <- x$annotation$entrezgene_id[ match(names(gene.level),
+        x$annotation[[ gene.level.name ]]) ]
     }
     dir.create(name, F)
     setwd(name)

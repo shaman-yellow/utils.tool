@@ -2786,12 +2786,14 @@ new_col <- function(..., lst = NULL, fun = function(x) x[ !is.na(x) & x != ""]) 
   }
   lst <- vapply(lst, function(x) length(fun(unique(x))), double(1))
   data <- data.frame(var = names(lst), value = unname(lst))
+  pal <- color_set2()
   p <- ggplot(data, aes(x = reorder(var, value), y = value, fill = value)) +
     geom_col(width = .5) +
     geom_text(aes(x = var, y = value + max(value) * .01, label = value), hjust = 0, size = 3) +
     ylim(c(0, max(data$value) * 1.2)) +
     coord_flip() +
     labs(x = "", y = "") +
+    scale_fill_gradient(low = pal[2], high = pal[1]) +
     rstyle("theme") +
     theme(legend.position = "")
   wrap(p, 7, nrow(data) * .5 + .5)

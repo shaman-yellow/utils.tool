@@ -268,29 +268,30 @@ setMethod("map", signature = c(x = "job_limma"),
   })
 
 plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
-  fc = .3, seed = 1, HLs = NULL)
+  fc = .3, seed = 1, HLs = NULL, use.fc = "logFC", label.fc = "log2(FC)",
+  label.p = paste0("-log10(", use, ")"))
 {
   set.seed(seed)
   if (!any(label == colnames(top_table))) {
     if (any("rownames" == colnames(top_table)))
       label <- "rownames"
   }
-  data <- dplyr::select(top_table, !!rlang::sym(label), logFC, !!rlang::sym(use))
+  data <- dplyr::select(top_table, !!rlang::sym(label), !!rlang::sym(use.fc), !!rlang::sym(use))
   data <- dplyr::mutate(data,
-    change = ifelse(logFC > abs(fc), "up",
-      ifelse(logFC < -abs(fc), "down", "stable"))
+    change = ifelse(!!rlang::sym(use.fc) > abs(fc), "up",
+      ifelse(!!rlang::sym(use.fc) < -abs(fc), "down", "stable"))
   )
   pal <- color_set2()
-  p <- ggplot(data, aes(x = logFC, y = -log10(!!rlang::sym(use)), color = change)) + 
+  p <- ggplot(data, aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use)), color = change)) + 
     geom_point(alpha = 0.8, stroke = 0, size = 1.5) + 
     scale_color_manual(values = c("down" = pal[1], "stable" = "grey90", "up" = pal[2])) +
     geom_hline(yintercept = -log10(0.05), linetype = 4, size = 0.8) +
     geom_vline(xintercept = c(-abs(fc), abs(fc)), linetype = 4, size = 0.8) + 
-    labs(x = "log2(FC)", y = paste0("-log10(", use, ")")) + 
+    labs(x = label.fc, y = label.p) + 
     ggrepel::geom_text_repel(
       data = dplyr::distinct(rbind(
         dplyr::slice_min(data, !!rlang::sym(use), n = 10),
-        dplyr::slice_max(data, abs(logFC), n = 20)
+        dplyr::slice_max(data, abs(!!rlang::sym(use.fc)), n = 20)
         )), 
       aes(label = !!rlang::sym(label)), size = 3) +
     rstyle("theme") +
@@ -299,8 +300,8 @@ plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
     data <- dplyr::filter(data, !!rlang::sym(label) %in% HLs)
     p <- p +
       ggrepel::geom_label_repel(data = data,
-        aes(x = logFC, y = -log10(!!rlang::sym(use)), label = !!rlang::sym(label))) +
-      geom_point(data = data, aes(x = logFC, y = -log10(!!rlang::sym(use))),
+        aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use)), label = !!rlang::sym(label))) +
+      geom_point(data = data, aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use))),
         color = "darkred", shape = 21, fill = "transparent", size = 3, stroke = .5)
   }
   p

@@ -16,9 +16,12 @@
     method = "R package `biomaRt` used for gene annotation"
     ))
 
-job_biomart <- function(mart_dataset, global = T)
+job_biomart <- function(mart_dataset, global = T, clear = F)
 {
   x <- .job_biomart()
+  if (clear) {
+    options(biomart = NULL)
+  }
   x$mart <- new_biomart(mart_dataset)
   if (global) {
     options(mart_dataset = mart_dataset)
@@ -37,7 +40,8 @@ setMethod("step0", signature = c(x = "job_biomart"),
 
 setMethod("step1", signature = c(x = "job_biomart"),
   function(x, values,
-    filters = c("ensembl_transcript_id", "ensembl_gene_id", "hgnc_symbol", "mgi_symbol", "entrezgene_id"),
+    filters = c("ensembl_transcript_id", "ensembl_gene_id",
+      "hgnc_symbol", "mgi_symbol", "entrezgene_id", "rgd_symbol"),
     attrs = NULL, mode = x$mart_dataset)
   {
     step_message("Get annotation.")
@@ -46,7 +50,9 @@ setMethod("step1", signature = c(x = "job_biomart"),
       if (mode == "hsa") {
         attrs <- general_attrs()
       } else if (mode == "mmu") {
-        attrs <- c("mgi_symbol", "ensembl_transcript_id", "ensembl_gene_id", "entrezgene_id", "hgnc_symbol", "description")
+        attrs <- c("mgi_symbol", "ensembl_transcript_id", "ensembl_gene_id", "entrezgene_id", "description")
+      } else if (mode == "rno") {
+        attrs <- c("rgd_symbol", "ensembl_transcript_id", "ensembl_gene_id", "entrezgene_id", "description")
       }
     }
     attrs <- unique(c(attrs, filters))
