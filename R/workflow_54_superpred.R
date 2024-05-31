@@ -47,10 +47,12 @@ setMethod("step1", signature = c(x = "job_superpred"),
         Sys.sleep(3)
         ele <- link$findElement("xpath",
           "//form//div//input[@id='smiles_string']/../div[@class='input-group-append']/button")
-        ele$sendKeysToElement(list("Search", key = "enter"))
+        # ele$sendKeysToElement(list("Search", key = "enter"))
+        ele$clickElement()
         Sys.sleep(3)
         ele <- link$findElement("xpath", "//table//td/button[@type='submit']")
-        ele$sendKeysToElement(list("Start Calculation", key = "enter"))
+        # ele$sendKeysToElement(list("Start Calculation", key = "enter"))
+        ele$clickElement()
         ele <- F
         n <- 0L
         while ((is.logical(ele) | inherits(ele, "try-error")) & n < 20L) {

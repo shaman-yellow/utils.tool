@@ -17,8 +17,8 @@ fig <- setClass("fig",
   prototype = NULL)
 
 setMethod("$", signature = c(x = "fig"),
-  function(x){
-    attr(x, "lich")
+  function(x, name){
+    attr(x, name)
   })
 
 f <- function(file) {

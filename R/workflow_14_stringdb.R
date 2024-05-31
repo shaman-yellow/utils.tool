@@ -70,7 +70,7 @@ setMethod("step1", signature = c(x = "job_stringdb"),
       res.str <- x@params$res.str
     }
     if (is.null(x@params$graph)) {
-      graph <- fast_layout.str(res.str, sdb, layout = layout)
+      graph <- fast_layout.str(res.str, sdb, layout = layout, seed = x$seed)
       x@params$graph <- graph
     } else {
       graph <- x@params$graph 
@@ -259,7 +259,7 @@ create_interGraph <- function(sdb, data, col = "name", rm.na = T) {
   list(mapped = mapped, graph = graph)
 }
 
-fast_layout.str <- function(res.str, sdb, layout = "fr", seed = 10) {
+fast_layout.str <- function(res.str, sdb, layout = "fr", seed = runif(1, max = 1000000000)) {
   ## get annotation
   target <- paste0(sdb$input_directory, "/", sdb$species, ".protein.info.v",
     sdb$version, ".txt")
@@ -335,16 +335,17 @@ plot_network.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
 
 plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   label.size = 4, node.size = 12, sc = 5, ec = 5, 
-  arr.len = 2, edge.color = 'lightblue', edge.width = 1,
+  arr.len = 2, edge.color = NULL, edge.width = 1,
   lab.fill = if (is.null(levels)) "MCC score" else "Levels",
   label = "genes", HLs = NULL, arrow = F, shape = F, levels = NULL,
-  label.shape = c(from = "from", to = "to"), ...)
+  label.shape = c(from = "from", to = "to"), netType = c("physical", "functional"), ...)
 {
   dataNodes <- ggraph::get_nodes()(graph)
   if (is.null(levels)) {
     fill <- "MCC_score"
     dataNodes <- dplyr::mutate(dataNodes, Levels = ifelse(is.na(MCC_score), 0, MCC_score))
-    scale_fill_gradient <- scale_fill_gradient(low = "lightyellow", high = "red")
+    pal <- rev(color_set2())
+    scale_fill_gradient <- scale_fill_gradient(low = pal[1], high = pal[2])
   } else {
     fill <- "Levels"
     if (!is.data.frame(levels)) {
@@ -361,25 +362,30 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
     geom_node_point <- geom_node_point(
       data = dataNodes,
       aes(x = x, y = y, fill = !!rlang::sym(fill), shape = type),
-      size = node.size, stroke = .3)
+      size = node.size, stroke = .3, alpha = .7)
   } else {
     geom_node_point <- geom_node_point(
       data = dataNodes,
       aes(x = x, y = y, fill = !!rlang::sym(fill)),
-      size = node.size, shape = 21, stroke = .3)
+      size = node.size, shape = 21, stroke = .3, alpha = .7)
   }
+  if (is.null(edge.color)) {
+    edge.color <- sample(color_set()[1:10], 1)
+  }
+  netType <- match.arg(netType)
   p <- ggraph(graph) +
-    geom_edge_arc(
+    ggraph::geom_edge_arc(
+      aes(x = x, y = y, edge_linetype = !!netType),
       start_cap = circle(sc, 'mm'),
       end_cap = circle(ec, 'mm'),
       arrow = if (arrow) arrow(length = unit(arr.len, 'mm')) else NULL,
-      color = edge.color, width = edge.width) +
+      color = edge.color, width = edge.width, alpha = .5) +
     geom_node_point +
     geom_node_text(aes(label = !!rlang::sym(label)), size = label.size) +
     scale_fill_gradient +
     scale_x_continuous(limits = zoRange(graph$x, scale.x)) +
     scale_y_continuous(limits = zoRange(graph$y, scale.y)) +
-    labs(fill = lab.fill, shape = "Type") +
+    labs(fill = lab.fill, shape = "Type", edge_linetype = "Interaction") +
     theme_void() +
     theme(plot.margin = margin(r = .05, unit = "npc")) +
     geom_blank()

@@ -46,6 +46,7 @@ setMethod("step1", signature = c(x = "job_dmr"),
       use.fc = "delta", label.fc = "Delta",
     )
     p.volcano <- wrap(p.volcano, 5, 4)
+    p.volcano <- .set_lab(p.volcano, sig(x), "All DMR volcano plot")
     p.distri <- new_pie(object(x)@seqnames, title = "DMR distribution")
     p.distri <- wrap(p.distri, 7, 5)
     p.distri <- .set_lab(p.distri, sig(x), "DMR distribution")
@@ -125,6 +126,9 @@ setMethod("step2", signature = c(x = "job_dmr"),
 setMethod("vis", signature = c(x = "job_dmr"),
   function(x, chr, subset = NULL, ucscRefseq = F, zo = 1.2, symbol = NULL, ...)
   {
+    if (length(symbol) > 1) {
+      stop("`symbol` should be a length 1 character.")
+    }
     if (!is.null(symbol) && missing(chr)) {
       chr <- as.character(object(x)[ which(object(x)$symbol == symbol) ]@seqnames)
       message("Found chr of ", symbol, " in ", chr)
@@ -134,7 +138,7 @@ setMethod("vis", signature = c(x = "job_dmr"),
     }
     p <- plot_dmr(object(x), chr, x$genome, subset.cpgIsland = subset,
       ucscRefseq = ucscRefseq, zo = zo, gr.cpgIsland = x$cpgIsland, symbol = symbol, ...)
-    p <- .set_lab(p, sig(x), chr, "DMR annotation")
+    p <- .set_lab(p, sig(x), chr, paste0(symbol, " DMR annotation"))
     p
   })
 
@@ -319,7 +323,7 @@ get_cpgisland_GRranges <- function(genome) {
   cpgIsland <- GenomicRanges::GRanges(
     seqnames = S4Vectors::Rle(cpgIsland$chr),
     ranges = IRanges::IRanges(start = cpgIsland$start, end = cpgIsland$end),
-    strand = Rle(rep("*", nrow(cpgIsland)))
+    strand = S4Vectors::Rle(rep("*", nrow(cpgIsland)))
   )
   cpgIsland
 }
