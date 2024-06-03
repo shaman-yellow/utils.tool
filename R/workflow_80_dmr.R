@@ -14,7 +14,8 @@
     pg = "dmr",
     info = c("https://bioconductor.org/packages/release/bioc/vignettes/Gviz/inst/doc/Gviz.html"),
     cite = "[@VisualizingGenHahne2016]",
-    method = "R package `Gviz` were used for methylation data visualization"
+    method = "R package `Gviz` were used for methylation data visualization",
+    tag = "methyl:dmr"
     ))
 
 job_dmr <- function(data, genome = c("hg38", "mm10", "rn6"),

@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("https://github.com/mindee/doctr"),
     cite = "",
-    method = "Python tool `doctr` <https://github.com/mindee/doctr> used for interpreted character from images"
+    method = "Python tool `doctr` <https://github.com/mindee/doctr> used for interpreted character from images",
+    tag = "ocr"
     ))
 
 job_ocr <- function()

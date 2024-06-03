@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("https://hub.docker.com/r/chambm/pwiz-skyline-i-agree-to-the-vendor-licenses"),
     cite = "[@ACrossPlatforChambe2012]",
-    method = "The CLI tool of `msconvert` used for converting between file formats of MASS data (from .raw to .mzML)"
+    method = "The CLI tool of `msconvert` used for converting between file formats of MASS data (from .raw to .mzML)",
+    tag = "mass"
     ))
 
 job_msconvert <- function(wd, files)

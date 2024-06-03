@@ -14,7 +14,8 @@
     pg = "tcmsp2",
     info = c("Tutorial: https://www.tcmsp-e.com/#/home"),
     cite = "[@TcmspADatabaRuJi2014]",
-    method = "Website `TCMSP` <https://tcmsp-e.com/> used for data source"
+    method = "Website `TCMSP` <https://tcmsp-e.com/> used for data source",
+    tag = "db:tcmsp, pharm"
     ))
 
 job_tcmsp2 <- function(herbs)

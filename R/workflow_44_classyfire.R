@@ -14,7 +14,8 @@
     info = c(""),
     cite = "[@PubchemSubstanKimS2015; @ClassyfireAutDjoumb2016]",
     method = paste0("Database `PubChem` used for querying information (e.g., InChIKey, CID) of chemical compounds; ",
-      "Tools of `Classyfire` used for get systematic classification of chemical compounds")
+      "Tools of `Classyfire` used for get systematic classification of chemical compounds"),
+    tag = "cpd:class"
     ))
 
 setGeneric("asjob_classyfire", 

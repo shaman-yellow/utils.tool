@@ -14,7 +14,8 @@
     pg = "epifactor",
     info = c("https://epifactors.autosome.org/description"),
     cite = "[@Epifactors2022Maraku2023]",
-    method = "Database `EpiFactors` used for screening epigenetic regulators"
+    method = "Database `EpiFactors` used for screening epigenetic regulators",
+    tag = "epi"
     ))
 
 job_epifactor <- function(use = c("protein"), version = "v2.0")

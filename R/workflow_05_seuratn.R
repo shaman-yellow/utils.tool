@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("Tutorial: https://github.com/satijalab/seurat/wiki"),
     cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]",
-    method = "R package `Seurat` used for multiple dataset integration"
+    method = "R package `Seurat` used for multiple dataset integration",
+    tag = "scrna:anno"
     ))
 
 job_seuratn <- function(dirs, names = NULL)

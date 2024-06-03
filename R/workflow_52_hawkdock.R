@@ -13,7 +13,8 @@
   prototype = prototype(
     info = "http://cadd.zju.edu.cn/hawkdock/",
     cite = "[@HawkdockAWebWeng2019]",
-    method = "`HawkDock` webservers used for protein–protein docking"
+    method = "`HawkDock` webservers used for protein–protein docking",
+    tag = "dock:protein+protein"
     ))
 
 job_hawkdock <- function(symbols, .layout = NULL)

@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("Tutorial: https://www.metaboanalyst.ca"),
     cite = "[@Metaboanalyst4Chong2018]",
-    method = "`MetaboAnalyst` used for metabolomic data analysis"
+    method = "`MetaboAnalyst` used for metabolomic data analysis",
+    tag = "meta"
     ))
 
 job_metabo <- function()

@@ -17,7 +17,8 @@
       "https://bioconductor.org/packages/release/bioc/vignettes/Gviz/inst/doc/Gviz.html#43_DataTrack"
       ),
     cite = "[@MissmethylAnPhipso2016; @MinfiAFlexibAryee2014; @VisualizingGenHahne2016; @CallingDifferePeters2021]",
-    method = "R package `missMethyl`, `minfi`, `Gviz`, `DMRcate` were used for analysing methylation array data"
+    method = "R package `missMethyl`, `minfi`, `Gviz`, `DMRcate` were used for analysing methylation array data",
+    tag = "methyl:array"
     ))
 
 job_methy <- function()

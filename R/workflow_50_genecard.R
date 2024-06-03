@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("https://www.genecards.org/"),
     cite = "[@TheGenecardsSStelze2016]",
-    method = "The Human Gene Database `GeneCards` used for disease related genes prediction"
+    method = "The Human Gene Database `GeneCards` used for disease related genes prediction",
+    tag = "dis:genecards"
     ))
 
 job_genecardn <- function(...) {

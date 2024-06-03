@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("http://rnamd.org/m6a/api.php"),
     cite = "[@M6aAtlasV20Liang2024]",
-    method = "The API of `m6A-Atlas` used for obtaining m6A related data from the website"
+    method = "The API of `m6A-Atlas` used for obtaining m6A related data from the website",
+    tag = "m6a:site"
     ))
 
 job_m6a <- function(species = c("HomoSapiens", "MusMusculus"))

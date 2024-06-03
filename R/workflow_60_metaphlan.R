@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("https://github.com/biobakery/MetaPhlAn/wiki/MetaPhlAn-4"),
     cite = "[@ExtendingAndIBlanco2023]",
-    method = "`MetaPhlAn` used for profiling the composition of microbial communities from metagenomic data"
+    method = "`MetaPhlAn` used for profiling the composition of microbial communities from metagenomic data",
+    tag = "metagenome"
     ))
 
 setMethod("step0", signature = c(x = "job_mpa"),

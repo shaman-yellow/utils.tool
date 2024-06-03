@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("https://github.com/OpenGene/fastp"),
     cite = "[@UltrafastOnePChen2023]",
-    method = "`Fastp` used for Fastq data preprocessing"
+    method = "`Fastp` used for Fastq data preprocessing",
+    tag = "fastq"
     ))
 
 job_fastp <- function(path)

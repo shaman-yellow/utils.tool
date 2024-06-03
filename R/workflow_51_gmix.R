@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("Tutorial: https://github.com/satijalab/gmix/wiki"),
     cite = "[@TheDisgenetKnPinero2019; @TheGenecardsSStelze2016; @PharmgkbAWorBarbar2018]",
-    method = "Databses of `DisGeNet`, `GeneCards`, `PharmGKB` used for collating disease related targets"
+    method = "Databses of `DisGeNet`, `GeneCards`, `PharmGKB` used for collating disease related targets",
+    tag = "mix"
     ))
 
 job_gmix <- function(disease, fuzzy = NULL,

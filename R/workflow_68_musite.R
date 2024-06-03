@@ -14,7 +14,8 @@
     pg = "musitePython",
     info = c("https://github.com/duolinwang/MusiteDeep_web"),
     cite = "[@MusitedeepADWang2020]",
-    method = "Python tool `MusiteDeep` was used for protein post-translational modification site prediction and visualization"
+    method = "Python tool `MusiteDeep` was used for protein post-translational modification site prediction and visualization",
+    tag = "musite"
     ))
 
 job_musite <- function(symbols)

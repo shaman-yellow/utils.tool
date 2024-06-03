@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c(""),
     cite = "[@MungesumstatsMurphy2021; @TheMrcIeuOpeElswor2020; @TheMrBasePlaHemani2018]",
-    method = "R package `MungeSumstats` used for downloading or formatting GWAS summary data (from Open GWAS)"
+    method = "R package `MungeSumstats` used for downloading or formatting GWAS summary data (from Open GWAS)",
+    tag = "gwas"
     ))
 
 job_ogwas <- function(traits, ...)

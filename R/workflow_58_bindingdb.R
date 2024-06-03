@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("https://www.bindingdb.org/rwd/bind/chemsearch/marvin/Download.jsp"),
     cite = "[@BindingdbIn20Gilson2016]",
-    method = "The `BindingDB` database was used for discovering association between Ligands and Receptors"
+    method = "The `BindingDB` database was used for discovering association between Ligands and Receptors",
+    tag = "target"
     ))
 
 job_bindingdb <- function(file_db = .prefix("BindingDB_All_202401.tsv", "db"))

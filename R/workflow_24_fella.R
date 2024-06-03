@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("..."),
     cite = "[@FellaAnRPacPicart2018]",
-    method = "R package `FELLA` used for metabolite enrichment analysis"
+    method = "R package `FELLA` used for metabolite enrichment analysis",
+    tag = "enrich:fella"
     ))
 
 job_fella <- function(kegg) {

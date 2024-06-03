@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("https://github.com/grimbough/biomaRt/issues/61"),
     cite = "[@MappingIdentifDurinc2009]",
-    method = "The `biomart` was used for mapping genes between organism (e.g., mgi_symbol to hgnc_symbol)"
+    method = "The `biomart` was used for mapping genes between organism (e.g., mgi_symbol to hgnc_symbol)",
+    tag = "gene:anno"
     ))
 
 job_biomart2 <- function(values,

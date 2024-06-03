@@ -14,7 +14,8 @@
     pg = "ctd",
     info = c("https://ctdbase.org/downloads/"),
     cite = "[@ComparativeToxDavis2023]",
-    method = "The Comparative Toxicogenomics Database (CTD) used for finding relationship between chemicals and disease"
+    method = "The Comparative Toxicogenomics Database (CTD) used for finding relationship between chemicals and disease",
+    tag = "ctd"
     ))
 
 # https://github.com/r-dbi/RMariaDB

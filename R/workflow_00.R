@@ -16,9 +16,11 @@
     pg = "character",
     cite = "character",
     method = "character",
-    sig = "character"
+    sig = "character",
+    tag = "character"
     ),
   prototype = prototype(step = 0L,
+    tag = character(1),
     params = list(wd = ".", remote = "remote")
     ))
 
@@ -370,6 +372,7 @@ setGeneric("step1",
     if (identical(sig(x), character(0))) {
       name <- substitute(x)
       sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
+      attr(sig, "name") <- as.character(name)
       sig(x) <- sig
     }
     x$seed <- sample(1:100, 1)
@@ -465,7 +468,46 @@ stepPostModify <- function(x, n) {
     if (!is.null(x@tables[[ n ]]))
       names(x@tables)[ n ] <- paste0("step", n)
   }
+  writeJobSlotsAutoCompletion(attr(x@sig, "name"))
   x
+}
+
+writeAllCompletion <- function(jobs = .get_job_list(extra = NULL)) {
+  updAlls(jobs)
+  lapply(jobs,
+    function(x) {
+      writeJobSlotsAutoCompletion(x)
+    })
+  invisible()
+}
+
+updAlls <- function(names = .get_job_list(extra = NULL), envir = .GlobalEnv) {
+  lapply(names,
+    function(x) {
+      obj <- get(x, envir = envir)
+      if (is(obj, "job")) {
+        if (inherits(try(validObject(obj), T), "try-error")) {
+          obj <- upd(obj)
+          assign(x, obj, envir = envir)
+        }
+      }
+    })
+}
+
+writeJobSlotsAutoCompletion <- function(x, envir = .GlobalEnv) {
+  ## x is character(1)
+  if (!is.character(x)) {
+    stop("`x` must be character(1).")
+  }
+  dir <- getOption("SelectCompletion")
+  dir.create(dir, F, recursive = T)
+  obj <- get(x, envir = envir)
+  if (!is.null(dir) || !is(obj, "job")) {
+    filename <- file.path(dir, paste0(class(obj), "__", x, ".R"))
+    content <- treeObj(x, envir = envir)
+    writeLines(content, filename)
+    message("Setup completion: ", filename)
+  }
 }
 
 convertPlots <- function(x, n) {
@@ -776,6 +818,9 @@ setMethod("upd", signature = c(x = "ANY"),
     new@plots <- x@plots
     new@tables <- x@tables
     new@step <- x@step
+    if (any(slotNames(x) == "sig")) {
+      new@sig <- x@sig
+    }
     new
   })
 
@@ -895,7 +940,7 @@ activate_base <- function(env_pattern = "base", env_path = "~/miniconda3/envs/",
   e(reticulate::import("platform"))
 }
 
-treeObj <- function(obj, stops = c("gg", "wrap"), maxdepth = 10L) {
+treeObj <- function(obj, stops = c("gg", "wrap"), maxdepth = 10L, envir = parent.frame(1)) {
   depth <- 0L
   subsL1 <- ""
   form <- function(x) {
@@ -908,7 +953,7 @@ treeObj <- function(obj, stops = c("gg", "wrap"), maxdepth = 10L) {
     depth <<- depth + 1L
     lst <- lapply(names,
       function(oname) {
-        obj <- eval(parse(text = oname))
+        obj <- eval(parse(text = oname), envir = envir)
         isThats <- vapply(stops, function(x) is(obj, x), logical(1))
         if (any(isThats)) {
           names <- NULL
@@ -1309,6 +1354,7 @@ loads <- function(file = "workflow.rds", ...) {
     injobs <- readRDS(rds)
     options(internal_job = injobs)
   }
+  writeAllCompletion()
 }
 
 remotejob <- function(wd, remote = "remote") {

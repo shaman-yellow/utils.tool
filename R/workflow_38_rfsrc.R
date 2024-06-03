@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c(""),
     cite = "",
-    method = "R package `randomForestSRC` for feature selection"
+    method = "R package `randomForestSRC` for feature selection",
+    tag = "fea"
     ))
 
 job_rfsrc <- function()

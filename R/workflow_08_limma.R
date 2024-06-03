@@ -14,6 +14,7 @@
     info = c("|log~2~(FC)| &gt; 0.03, P-value or adjusted P-value &lt; 0.05"),
     cite = "[@LimmaPowersDiRitchi2015; @EdgerDifferenChen]",
     method = "R package `Limma` and `edgeR` used for differential expression analysis",
+    tag = "rna:diff",
     params = list(isTcga = F, normed = F)
     ))
 

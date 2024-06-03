@@ -18,7 +18,8 @@
       "https://docs.qiime.org/2023.7/data-resources/",
       collapse = "\n"),
     cite = "[@ReproducibleIBolyen2019; @TheBiologicalMcdona2012; @Dada2HighResCallah2016; @ErrorCorrectinHamday2008; @MicrobialCommuHamday2009]",
-    method = "`Qiime2` used for gut microbiome 16s rRNA analysis"
+    method = "`Qiime2` used for gut microbiome 16s rRNA analysis",
+    tag = "16s:qiime2+mp"
     ))
 
 .qzv <- setClass("qzv", 

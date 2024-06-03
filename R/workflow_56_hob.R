@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("https://github.com/whymin/HOB"),
     cite = "[@HobpreAccuratWeiM2022]",
-    method = "Python tool of `HOB` was used for prediction of human oral bioavailability"
+    method = "Python tool of `HOB` was used for prediction of human oral bioavailability",
+    tag = "hob"
     ))
 
 job_hob <- function(smiles)

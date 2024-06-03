@@ -14,7 +14,8 @@
     pg = "ucscTable",
     info = c("https://genome.ucsc.edu/cgi-bin/hgTables"),
     cite = "[@RtracklayerAnLawren2009]",
-    method = "R package `rtracklayer` used for UCSC data query"
+    method = "R package `rtracklayer` used for UCSC data query",
+    tag = "ucsc"
     ))
 
 # DNAseI hypersensitive sites

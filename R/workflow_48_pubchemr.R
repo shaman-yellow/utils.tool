@@ -16,7 +16,8 @@
   prototype = prototype(
     info = c("Tutorial: https://github.com/satijalab/pubchemr/wiki"),
     cite = "",
-    method = "R package `PubChemR` used for querying compounds information"
+    method = "R package `PubChemR` used for querying compounds information",
+    tag = "cpd:info"
     ))
 
 job_pubchemr <- function(cids)

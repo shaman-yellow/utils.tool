@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("https://tcmsp-e.com/tcmsp.php"),
     cite = "[@TcmspADatabaRuJi2014]",
-    method = "Website `TCMSP` <https://tcmsp-e.com/tcmsp.php> used for data source"
+    method = "Website `TCMSP` <https://tcmsp-e.com/tcmsp.php> used for data source",
+    tag = "db:tcmsp"
     ))
 
 job_tcmsp <- function(herbs, db = get_tcmsp_data())

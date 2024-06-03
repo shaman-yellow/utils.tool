@@ -14,7 +14,8 @@
     info = paste0("Tutorial: http://pachterlab.github.io/kallisto/manual.html",
       "\nhttps://ftp.ensembl.org/pub/release-110/fasta/"),
     cite = "[@NearOptimalPrBray2016]",
-    method = "`Kallisto` used for RNA-seq mapping and quantification"
+    method = "`Kallisto` used for RNA-seq mapping and quantification",
+    tag = "raw:rna"
     ))
 
 setGeneric("asjob_kall", 

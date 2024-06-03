@@ -17,7 +17,8 @@
       "\nhttps://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/latest/hg38.fa.gz",
       "\nhttps://console.cloud.google.com/storage/browser/genomics-public-data/resources/broad/hg38/v0"
       ),
-    method = "The analysis of WES/WGS were refer to GATK workflow"
+    method = "The analysis of WES/WGS were refer to GATK workflow",
+    tag = "wes:raw, wes:filter"
     ))
 
 setGeneric("asjob_gatk", 

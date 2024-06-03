@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("http://www.gsea-msigdb.org/gsea/downloads.jsp"),
     method = "R package `ClusterProfiler` used for GSEA enrichment",
-    cite = "[@ClusterprofilerWuTi2021]"
+    cite = "[@ClusterprofilerWuTi2021]",
+    tag = "enrich:gsea"
     ))
 
 setGeneric("asjob_gsea", 

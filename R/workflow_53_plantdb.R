@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("https://plantaedb.com/"),
     cite = "",
-    method = "The Database `PlantaeDB` <https://plantaedb.com/> used for collating data of herbal ingredients"
+    method = "The Database `PlantaeDB` <https://plantaedb.com/> used for collating data of herbal ingredients",
+    tag = "db:plant"
     ))
 
 job_plantdb <- function(query)

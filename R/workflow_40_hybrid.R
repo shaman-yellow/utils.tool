@@ -14,7 +14,8 @@
     info = c(""),
     cite = "[@FastAndEffectRehmsm2004; @CircbaseADatGlazar2014]",
     method = paste0("`RNAhybrid` used as a means for microRNA target prediction (circRNA-miRNA) and ",
-      "`circBase` used for querying circRNA sequences")
+      "`circBase` used for querying circRNA sequences"),
+    tag = "bindrna:circ+mi"
     ))
 
 job_hybrid <- function(mirna, circrna, circFa = NULL)

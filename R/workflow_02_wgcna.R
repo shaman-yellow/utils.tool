@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("Tutorial: https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/index.html"),
     cite = "[@WgcnaAnRPacLangfe2008]",
-    method = "R package `WGCNA` used for gene co-expression analysis"
+    method = "R package `WGCNA` used for gene co-expression analysis",
+    tag = "wgcna"
     ))
 
 setGeneric("asjob_wgcna", 

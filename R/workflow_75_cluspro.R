@@ -14,7 +14,8 @@
     pg = "cluspro",
     info = c("https://cluspro.bu.edu/help.php"),
     cite = "[@TheClusproWebKozako2017]",
-    method = "The `ClusPro` server used for Protein-Protein docking"
+    method = "The `ClusPro` server used for Protein-Protein docking",
+    tag = "dock:protein+protein"
     ))
 
 job_cluspro <- function(symbols, .layout = NULL)

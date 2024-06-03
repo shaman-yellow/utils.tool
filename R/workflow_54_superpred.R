@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("https://prediction.charite.de/subpages/target_prediction.php"),
     cite = "[@SuperpredUpdaNickel2014]",
-    method = "Web tool of `Super-PRED` used for drug-targets relationship prediction"
+    method = "Web tool of `Super-PRED` used for drug-targets relationship prediction",
+    tag = "target:sp"
     ))
 
 job_superpred <- function(smiles)

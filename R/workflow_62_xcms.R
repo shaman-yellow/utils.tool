@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c(""),
     cite = "[@XcmsProcessinSmith2006]",
-    method = "R package `xcms` used for MASS data preprocessing (Feature Detection)"
+    method = "R package `xcms` used for MASS data preprocessing (Feature Detection)",
+    tag = "mass"
     ))
 
 job_xcms <- function()

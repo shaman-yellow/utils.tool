@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("https://tfbsdb.systemsbiology.net/"),
     cite = "[@CausalMechanisPlaisi2016]",
-    method = "The `Transcription Factor Target Gene Database` (<https://tfbsdb.systemsbiology.net/>) was used for discovering relationship between transcription factors and genes. "
+    method = "The `Transcription Factor Target Gene Database` (<https://tfbsdb.systemsbiology.net/>) was used for discovering relationship between transcription factors and genes. ",
+    tag = "tf"
     ))
 
 job_tfbs <- function(genes)

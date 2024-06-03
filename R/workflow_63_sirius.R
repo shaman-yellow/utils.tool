@@ -14,7 +14,8 @@
     pg = "sirius",
     info = c("https://boecker-lab.github.io/docs.sirius.github.io/"),
     cite = "[@Sirius4ARapDuhrko2019; @SearchingMolecDuhrko2015; @SystematicClasDuhrko2021; @AssigningConfiHoffma2021]",
-    method = "`SIRIUS` 5 (`SIRIUS`, `CSI:FingerID`, `CANOPUS`, `COSMIC`) used for compounds identification and prediction with MASS spectra."
+    method = "`SIRIUS` 5 (`SIRIUS`, `CSI:FingerID`, `CANOPUS`, `COSMIC`) used for compounds identification and prediction with MASS spectra.",
+    tag = "lcms:sirius"
     ))
 
 job_sirius <- function(mgf, ion = c("mix", "pos", "neg"), pg = "sirius")

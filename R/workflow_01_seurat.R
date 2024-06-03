@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("Tutorial: https://satijalab.org/seurat/articles/pbmc3k_tutorial.html"),
     cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]",
-    method = "The R package `Seurat` used for scRNA-seq processing"
+    method = "The R package `Seurat` used for scRNA-seq processing",
+    tag = "scrna:anno"
     ))
 
 job_seurat <- function(dir = NULL, project = get_filename(sub("/$", "", dir)),

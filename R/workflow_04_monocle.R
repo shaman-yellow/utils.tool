@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("Tutorial: https://cole-trapnell-lab.github.io/monocle3/docs/getting_started/"),
     cite = "[@ReversedGraphQiuX2017; @TheDynamicsAnTrapne2014]",
-    method = "R package `Monocle3` used for cell pseudotime analysis"
+    method = "R package `Monocle3` used for cell pseudotime analysis",
+    tag = "scrna:pseudo"
     ))
 
 setGeneric("do_monocle", 

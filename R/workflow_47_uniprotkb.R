@@ -14,7 +14,8 @@
     info = c("https://www.uniprot.org/help/api_queries"),
     cite = "",
     method = paste0("The API of `UniProtKB` (<https://www.uniprot.org/help/api_queries>) ",
-      "used for mapping of names or IDs of proteins")
+      "used for mapping of names or IDs of proteins"),
+    tag = "raw:protein"
     ))
 
 job_uniprotkb <- function(query, db_file = "uniprotkb/query.rds", organism_id = 9606)

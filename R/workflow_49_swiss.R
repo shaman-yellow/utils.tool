@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("http://www.swisstargetprediction.ch/index.php"),
     cite = "[@SwisstargetpredDaina2019]",
-    method = "Web tool of `SwissTargetPrediction` used for drug-targets prediction"
+    method = "Web tool of `SwissTargetPrediction` used for drug-targets prediction",
+    tag = "target:swiss"
     ))
 
 job_swiss <- function(smiles)

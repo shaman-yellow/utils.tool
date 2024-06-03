@@ -14,7 +14,8 @@
     pg = "scfea",
     info = c("https://github.com/changwn/scFEA/tree/master"),
     cite = "[@AGraphNeuralAlgham2021]",
-    method = "The `scFEA` (python) was used to estimate cell-wise metabolic via single cell RNA-seq data"
+    method = "The `scFEA` (python) was used to estimate cell-wise metabolic via single cell RNA-seq data",
+    tag = "scrna:flux"
     ))
 
 setGeneric("asjob_scfea", 

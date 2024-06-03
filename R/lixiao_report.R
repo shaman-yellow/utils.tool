@@ -17,11 +17,9 @@ send_eval <- function(to,
 send_registers <- function(to,
   subject = "业务表格更新",
   content = "Hello, 慧姐\n\n这是每月末需提交的更新的业务登记表。\n\nBest wishes!",
-  time = Sys.time(),
-  month = lubridate::month(time),
-  year = lubridate::year(time),
-  path_summary = paste0(.prefix(), "summary"),
-  atts = c(paste0(path_summary, "/", "生信组表格登记-黄礼闯.xlsx")))
+  path_summary = .prefix("summary"),
+  atts = c(file.path(path_summary, "生信组表格登记-黄礼闯.xlsx"),
+    file.path(path_summary, "type_list.xlsx")))
 {
   send_that(to, subject, content, atts)
 }
@@ -710,6 +708,33 @@ show.ic <- function(info, a = .03, k = .028, base_wage = 6000)
   representation = representation(),
   prototype = NULL)
 
+get_all_tags <- function(rm = NULL, jobs = .get_job_list()) {
+  if (length(jobs)) {
+    tags <- vapply(jobs, FUN.VALUE = character(1),
+      function(x) {
+        tags <- ""
+        if (is(x, "character")) {
+          x <- get(x, envir = .GlobalEnv)
+        }
+        if (is(x, "job")) {
+          if (!is.null(rm)) {
+            if (class(x) %in% rm) {
+              return("")
+            }
+          }
+          if (inherits(try(validObject(x), T), "try-error")) {
+            x <- upd(x)
+          }
+          tags <- x@tag
+        }
+        tags
+      })
+    paste0(unique(unlist(strsplit(tags, ", "))), collapse = ", ")
+  } else {
+    return("")
+  }
+}
+
 items <- function(
   belong = as.Date(receive_date),
   coef = cal_coef(eval),
@@ -724,7 +749,7 @@ items <- function(
   score = od_get_score(),
   member = "黄礼闯",
   save = ".items.rds",
-  tags = character(0),
+  tags = get_all_tags(),
   note = character(1),
   class = c("实验单生信", "标书生信", "SCI生信", "SCI+标书生信", "-"),
   isLatest = F,

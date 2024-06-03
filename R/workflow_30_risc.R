@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("Tutorial: https://github.com/bioinfoDZ/RISC"),
     cite = "[@RobustIntegratLiuY2021]",
-    method = "R package `RISC` used for scRNA-seq data integration"
+    method = "R package `RISC` used for scRNA-seq data integration",
+    tag = "scrna:integrate:risc"
     ))
 
 setGeneric("asjob_risc", 

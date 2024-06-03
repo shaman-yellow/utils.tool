@@ -12,7 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("..."),
-    method = "GEO <https://www.ncbi.nlm.nih.gov/geo/> used for expression dataset aquisition"
+    method = "GEO <https://www.ncbi.nlm.nih.gov/geo/> used for expression dataset aquisition",
+    tag = "raw:geo"
     ))
 
 .job_publish <- setClass("job_publish", 

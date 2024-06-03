@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("Tutorial: https://www.bioconductor.org/packages/release/bioc/html/STRINGdb.html"),
     cite = "[@TheStringDataSzklar2021; @CytohubbaIdenChin2014]",
-    method = "R package `STEINGdb` used for PPI network construction"
+    method = "R package `STEINGdb` used for PPI network construction",
+    tag = "ppi:stringdb"
     ))
 
 job_stringdb <- function(data)

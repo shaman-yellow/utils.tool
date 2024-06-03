@@ -12,7 +12,8 @@
     others = "ANY"),
   prototype = prototype(
     info = c("https://bioconductor.org/packages/release/bioc/html/infercnv.html"),
-    method = "Package inferCNV used for CNV anlysis and cancer cell prediction"
+    method = "Package inferCNV used for CNV anlysis and cancer cell prediction",
+    tag = "scrna:cancer"
     ))
 
 setGeneric("asjob_infercnv", 
