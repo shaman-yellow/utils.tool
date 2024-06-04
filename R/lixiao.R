@@ -1822,18 +1822,34 @@ set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
 
 set_index <- function(fig = T, tab = T) {
   if (knitr::is_latex_output()) {
+    symbol <- function(num) {
+      paste0("\n\n\\begin{center}\\vspace{1.5cm}\\pgfornament[anchor=center,ydelta=0pt,width=8cm]{",
+        num, "}\\end{center}")
+    }
     cat("\\pagenumbering{roman}\n\n")
+    cat(symbol(84))
     cat("\\tableofcontents\n\n")
-    if (fig)
+    if (fig) {
+      cat(symbol(88))
       cat("\\listoffigures\n\n")
-    if (tab)
+    }
+    if (tab) {
+      cat(symbol(89))
       cat("\\listoftables\n\n")
+    }
     cat("\\newpage\n\n")
     cat("\\pagenumbering{arabic}\n\n")
   }
 }
 
+set_appendix <- function() {
+  if (knitr::is_latex_output()) {
+    cat("\\newpage\n\n")
+  }
+}
+
 autor_preset <- function(echo = F, eval = F, ...) {
+  options(autor_unnamed_number = 1)
   knitr::opts_chunk$set(
     echo = echo, eval = eval, message = F, warning = F,
     fig.cap = character(0), collapse = F,

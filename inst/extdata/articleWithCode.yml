@@ -15,7 +15,10 @@ output:
     # toc_depth: 4
     latex_engine: xelatex
 header-includes:
+  \usepackage{tikz}
+  \usepackage{auto-pst-pdf}
   \usepackage{pgfornament}
+  \usepackage{pstricks-add}
   \usepackage{caption}
   \captionsetup{font={footnotesize},width=6in}
   \renewcommand{\dblfloatpagefraction}{.9}

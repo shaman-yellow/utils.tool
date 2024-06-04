@@ -355,7 +355,8 @@ setMethod("step5", signature = c(x = "job_vina"),
       facet_wrap(as.formula(paste0("~ Hmisc::capitalize(paste0(", facet, ", \" (CID: \", PubChem_id, \")\"))")),
         ncol = 1, scales = "free_y") +
       theme()
-    p.res_vina <- wrap(p.res_vina, 7, nrow(data) + 1)
+    height <- nrow(data) + 1
+    p.res_vina <- wrap(p.res_vina, 8, if (height > 9.5) 9.5 else height)
     p.res_vina <- .set_lab(p.res_vina, sig(x), "Overall combining Affinity")
     x@tables[[ 5 ]] <- namel(res_dock, unique_tops = data)
     x@plots[[ 5 ]] <- namel(p.res_vina)

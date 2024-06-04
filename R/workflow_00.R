@@ -125,7 +125,15 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
   })
 
 .lab_out <- function(x) {
-  writeLines(Hmisc::capitalize(gs(gs(lab(x), "(?<![a-zA-Z])ids[ \\-]?", "", perl = T), " |_|\\.", "-")))
+  x <- lab(x)
+  if (is.null(x)) {
+    x <- getOption("autor_unnamed_number", 1)
+    options(autor_unnamed_number = x + 1)
+    x <- paste0("Unnamed-", x)
+    writeLines(x)
+    return(invisible())
+  }
+  writeLines(Hmisc::capitalize(gs(gs(x, "(?<![a-zA-Z])ids[ \\-]?", "", perl = T), " |_|\\.", "-")))
 }
 
 .set_lab <- function(x, sig, group = NULL, body = NULL, suffix = NULL) {
@@ -468,7 +476,11 @@ stepPostModify <- function(x, n) {
     if (!is.null(x@tables[[ n ]]))
       names(x@tables)[ n ] <- paste0("step", n)
   }
-  writeJobSlotsAutoCompletion(attr(x@sig, "name"))
+  varName <- attr(x@sig, "name")
+  if (!is.null(varName) && length(varName)) {
+    assign(varName, x)
+    writeJobSlotsAutoCompletion(varName, environment())
+  }
   x
 }
 
