@@ -2,6 +2,8 @@
 # workflow of cardinal
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+# http://maldi-msi.org/index.php?option=com_content&view=article&id=189&Itemid=69#ImzMLConverter
+
 .job_cardinal <- setClass("job_cardinal", 
   contains = c("job"),
   representation = representation(
