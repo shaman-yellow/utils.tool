@@ -17,14 +17,19 @@
     tag = "scrna:anno"
     ))
 
-job_seuratn <- function(dirs, names = NULL)
+job_seuratn <- function(dirs, names = NULL, mode = c("sc", "st"), st.filename = "filtered_feature_bc_matrix.h5")
 {
+  mode <- match.arg(mode)
   n <- 0L
   object <- pbapply::pblapply(dirs,
     function(dir) {
       n <<- n + 1L
       project <- names[n]
-      suppressMessages(job_seurat(dir, project = project))@object
+      if (mode == "sc") {
+        suppressMessages(job_seurat(dir, project = project))@object
+      } else {
+        suppressMessages(job_seuratSp(dir, filename = st.filename))@object
+      }
     })
   .job_seuratn(object = object)
 }
@@ -57,11 +62,31 @@ setMethod("step1", signature = c(x = "job_seuratn"),
           }
           return(obj)
         }))
-    object(x) <- e(lapply(object(x), Seurat::SCTransform,
-        method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = T,
-        ))
-    x@params$anchor.features <- e(Seurat::SelectIntegrationFeatures(object(x), nfeatures = 3000))
+    fakeAssays <- F
+    object(x) <- e(lapply(object(x),
+        function(x) {
+          if (any(names(x@assays) == "Spatial")) {
+            # names(x@assays)[ names(x@assays) == "Spatial" ] <- "RNA"
+            message("Due to issue, copy 'Spatial' to 'RNA'.")
+            x[["RNA"]] <- x[["Spatial"]]
+            fakeAssays <<- T
+          }
+          if (!any(names(x@assays) == "SCT")) {
+            Seurat::SCTransform(x,
+              method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = T,
+              assay = x@active.assay
+            )
+          } else x
+        }))
+    x@params$anchor.features <- e(Seurat::SelectIntegrationFeatures(object(x), nfeatures = nfeatures))
     object(x) <- e(Seurat::PrepSCTIntegration(object(x), anchor.features = x@params$anchor.features))
+    if ( fakeAssays ) {
+      object(x) <- lapply(object(x),
+        function(x) {
+          x[[ "RNA" ]] <- NULL
+          x
+        })
+    }
     return(x)
   })
 

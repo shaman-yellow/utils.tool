@@ -2,6 +2,8 @@
 # work and function
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # asNamespace("base")
+# 
+ 
 
 setClass("aplot")
 setClassUnion("can_not_be_draw", c("recordedplot", "aplot"))

@@ -830,7 +830,7 @@ setMethod("upd", signature = c(x = "ANY"),
     new@plots <- x@plots
     new@tables <- x@tables
     new@step <- x@step
-    if (any(slotNames(x) == "sig")) {
+    if (!inherits(try(x@sig, T), "try-error")) {
       new@sig <- x@sig
     }
     new
@@ -1028,7 +1028,7 @@ view_obj_for_vim <- function(x, y) {
           alls <- alls[alls[, 1] == classY, ]
         }
         if (is.matrix(alls)) {
-          useWhich <- menu(paste0(alls[, 1], ", ", alls[, 2]), title = "Show which?")
+          useWhich <- menu(apply(alls, 1, paste0, collapse = ", "), title = "Show which?")
         } else if (is.character(alls)) {
           useWhich <- integer(0)
         }

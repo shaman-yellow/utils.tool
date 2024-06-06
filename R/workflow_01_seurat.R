@@ -709,7 +709,7 @@ identify.mouseMacroPhe <- function(x, use = "scsa_cell",
 }
 
 scsa_annotation <- function(
-  x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = 1.5,
+  x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = .5,
   org = c("Human", "Mouse"),
   cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_annotation",
   onlyUseRefMarkers = F)
@@ -718,12 +718,14 @@ scsa_annotation <- function(
     tissue <- gs(tissue, "\\s", "\\\\ ")
   }
   org <- match.arg(org)
-  prop <- prop.table(table(grpl(rownames(object(x)), "^[A-Z][a-z]")))
-  if (prop[[ "TRUE" ]] > .5 && org == "Human") {
-    isThat <- usethis::ui_yeah("Match org of 'Human', but most of genes is Mouse like symbol, continue?")
-    if (!isThat) {
-      stop("...")
-    }
+  prop <- as.list(prop.table(table(grpl(rownames(object(x)), "^[A-Z][a-z]"))))
+  if (!is.null(prop[[ "TRUE" ]])) {
+    if (prop[[ "TRUE" ]] > .5 && org == "Human") {
+      isThat <- usethis::ui_yeah("Match org of 'Human', but most of genes is Mouse like symbol, continue?")
+      if (!isThat) {
+        stop("...")
+      }
+    }  
   }
   if (!is.null(ref.markers)) {
     .check_columns(ref.markers, c("cell", "markers"))
