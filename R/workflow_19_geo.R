@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("..."),
     method = "GEO <https://www.ncbi.nlm.nih.gov/geo/> used for expression dataset aquisition",
-    tag = "raw:geo"
+    tag = "raw:geo",
+    analysis = "GEO 数据获取"
     ))
 
 .job_publish <- setClass("job_publish", 

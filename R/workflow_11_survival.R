@@ -13,7 +13,8 @@
   prototype = prototype(
     info = c("..."),
     method = "R package `survival` and `survminer` used for survival analysis",
-    tag = "surv"
+    tag = "surv",
+    analysis = "Survival 生存分析"
     ))
 
 setGeneric("asjob_survival", 

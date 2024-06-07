@@ -15,7 +15,8 @@
     info = c("https://ccsb.scripps.edu/adcp/tutorial-redocking/"),
     cite = "[@DockingFlexiblZhang2019; @AutositeAnAuRavind2016; @AutodockfrAdvRavind2015]",
     method = "`ADCP` and `ADFR` software used for auto molecular docking (docking peptides)",
-    tag = "dock:pep"
+    tag = "dock:pep",
+    analysis = "ADCP, ADFR peptides docking"
     ))
 
 job_adcp <- function(cids, hgnc_symbols)

@@ -15,7 +15,8 @@
     info = c("https://github.com/JinYSun/D-GCAN"),
     cite = "[@PredictionOfDSunJ2022]",
     method = "The deep learning method `D-GCAN` (python) was used for prediction of drug-likeness",
-    tag = "dl"
+    tag = "dl",
+    analysis = "D-GCAN Drug-Likeness 预测"
     ))
 
 job_dl <- function(smiles, force_cpu = F)

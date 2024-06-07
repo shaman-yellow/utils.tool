@@ -15,7 +15,8 @@
     info = c("https://github.com/paulgeeleher/pRRophetic2; https://osf.io/5xvsg; https://github.com/paulgeeleher/pRRophetic2/tree/master/pRRophetic/vignettes; https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4167990/"),
     cite = "[@PrropheticAnGeeleh2014]",
     method = "R Package `pRRophetic` was used for Prediction of Clinical Chemotherapeutic Response",
-    tag = "prr"
+    tag = "prr",
+    analysis = "pRRophetic2 药物化学反应预测"
     ))
 
 job_prr <- function(data, drug = prr_drug())

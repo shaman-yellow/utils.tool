@@ -15,7 +15,8 @@
       "https://www.nature.com/scitable/topicpage/quantitative-trait-locus-qtl-analysis-53904/"),
     cite = "[@TheGtexConsorNone2020]",
     method = "The QTL data were abtained from GTEx database",
-    tag = "rnaedit:edqtl"
+    tag = "rnaedit:edqtl",
+    analysis = "GTEx edQTL 数据获取"
     ))
 
 job_edqtl <- function(mode = c("edqtl", "eqtl"))

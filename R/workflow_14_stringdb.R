@@ -14,7 +14,8 @@
     info = c("Tutorial: https://www.bioconductor.org/packages/release/bioc/html/STRINGdb.html"),
     cite = "[@TheStringDataSzklar2021; @CytohubbaIdenChin2014]",
     method = "R package `STEINGdb` used for PPI network construction",
-    tag = "ppi:stringdb"
+    tag = "ppi:stringdb",
+    analysis = "STRINGdb PPI 分析"
     ))
 
 job_stringdb <- function(data)

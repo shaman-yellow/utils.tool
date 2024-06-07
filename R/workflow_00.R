@@ -17,10 +17,12 @@
     cite = "character",
     method = "character",
     sig = "character",
-    tag = "character"
+    tag = "character",
+    analysis = "character"
     ),
   prototype = prototype(step = 0L,
     tag = character(1),
+    analysis = character(1),
     params = list(wd = ".", remote = "remote")
     ))
 
@@ -133,7 +135,10 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
     writeLines(x)
     return(invisible())
   }
-  writeLines(Hmisc::capitalize(gs(gs(x, "(?<![a-zA-Z])ids[ \\-]?", "", perl = T), " |_|\\.", "-")))
+  tmp <- getOption("RmdLabelFile", tempfile(pattern = "label", fileext = ".txt"))
+  label <- Hmisc::capitalize(gs(gs(x, "(?<![a-zA-Z])ids[ \\-]?", "", perl = T), " |_|\\.", "-"))
+  label <- paste0("#| ", label)
+  writeLines(label, tmp)
 }
 
 .set_lab <- function(x, sig, group = NULL, body = NULL, suffix = NULL) {
@@ -377,12 +382,12 @@ setMethod("step0", signature = c(x = "character"),
 
 setGeneric("step1",
   function(x, ...) {
-    if (identical(sig(x), character(0))) {
-      name <- substitute(x)
-      sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
-      attr(sig, "name") <- as.character(name)
-      sig(x) <- sig
-    }
+    # if (identical(sig(x), character(0))) {
+    name <- substitute(x)
+    sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
+    attr(sig, "name") <- as.character(name)
+    sig(x) <- sig
+    # }
     x$seed <- sample(1:100, 1)
     x <- checkAddStep(x, 1L)
     x <- standardGeneric("step1")
@@ -1062,9 +1067,8 @@ view_obj_for_vim <- function(x, y) {
     writeLines(text, file)
   }
   .vimPre <- function(name = "Content", howto = "vsplit") {
-    .C("nvimcom_msg_to_nvim",
-      paste0("ShowRObj(\"", howto, "\", \"", name, "\", \"r\")"),
-      PACKAGE = "nvimcom")
+    msg <- paste0("ShowRObj(\"", howto, "\", \"", name, "\", \"r\")")
+    .C("nvimcom_msg_to_nvim", msg, PACKAGE = "nvimcom")
   }
   .prepare_vimShow(text)
   invisible(.vimPre(name, howto))

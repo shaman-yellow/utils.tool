@@ -14,7 +14,8 @@
     info = c("Tutorial: http://bio-annotation.cn/gutMDisorder"),
     cite = "[@GutmdisorderACheng2019]",
     method = "Database `gutMDisorder` used for finding associations between gut microbiota and metabolites",
-    tag = "link:meta+micro"
+    tag = "link:meta+micro",
+    analysis = "GutMDisorder 获取微生物和代谢物关联数据"
     ))
 
 job_gutmd <- function(db = .prefix("Gut Microbe and Metabolite-human.txt", "db"))

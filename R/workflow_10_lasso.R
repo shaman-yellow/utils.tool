@@ -14,7 +14,8 @@
     info = c("..."),
     cite = "[@EfsAnEnsemblNeuman2017]",
     method = "R package `glmnet` used for LASSO analysis and EFS used for feature selection",
-    tag = "filter:lasso"
+    tag = "filter:lasso",
+    analysis = "Lasso 回归"
     ))
 
 setGeneric("asjob_lasso", 

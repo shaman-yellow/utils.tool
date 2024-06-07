@@ -153,6 +153,9 @@
     `methyl:array` = "甲基化芯片数据分析",
     `methyl:dmr` = "差异甲基化分析、可视化",
     `cpg` = "CpG islands 数据获取",
-    `ucsc` = "UCSC table 数据获取、基因位点注释"
+    `ucsc` = "UCSC table 数据获取、基因位点注释",
+    `cardinal` = "空间代谢组数据分析:Cardinal",
+    `maf` = "变异注释分析和可视化:maftools",
+    `bt2` = "基因组比对:Bowtie 2"
   )
 }

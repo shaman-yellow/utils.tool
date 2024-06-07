@@ -18,7 +18,8 @@
       "\nhttps://console.cloud.google.com/storage/browser/genomics-public-data/resources/broad/hg38/v0"
       ),
     method = "The analysis of WES/WGS were refer to GATK workflow",
-    tag = "wes:raw, wes:filter"
+    tag = "wes:raw, wes:filter",
+    analysis = "GATK WES/WGS Workflow"
     ))
 
 setGeneric("asjob_gatk", 

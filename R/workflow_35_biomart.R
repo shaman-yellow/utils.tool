@@ -14,7 +14,8 @@
     info = c("https://www.bioconductor.org/packages/release/bioc/html/biomaRt.html"),
     cite = "[@MappingIdentifDurinc2009]",
     method = "R package `biomaRt` used for gene annotation",
-    tag = "gene:anno"
+    tag = "gene:anno",
+    analysis = "Biomart 基因注释"
     ))
 
 job_biomart <- function(mart_dataset, global = T, clear = F)

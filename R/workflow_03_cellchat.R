@@ -13,7 +13,8 @@
     info = c("Tutorial: https://htmlpreview.github.io/?https://github.com/sqjin/CellChat/blob/master/tutorial/CellChat-vignette.html"),
     cite = "[@InferenceAndAJinS2021]",
     method = "R package `CellChat` used for cell communication analysis",
-    tag = "scrna:cellchat"
+    tag = "scrna:cellchat",
+    analysis = "CellChat 细胞通讯分析"
     ))
 
 setGeneric("asjob_cellchat", 

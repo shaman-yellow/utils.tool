@@ -13,7 +13,9 @@
   prototype = prototype(
     info = c("https://github.com/BenLangmead/bowtie2"),
     cite = "[@ScalingReadAlLangme2019; @FastGappedReaLangme2012; @UltrafastAndMLangme2009]",
-    method = "The tool of `Bowtie2` was used for alignment of DNA sequences to the human genome"
+    method = "The tool of `Bowtie2` was used for alignment of DNA sequences to the human genome",
+    tag = "bt2",
+    analysis = "Bowtie 2 基因组比对"
     ))
 
 job_bowtie2 <- function(metadata, wd = ".", workers = 10, command = "bowtie2")

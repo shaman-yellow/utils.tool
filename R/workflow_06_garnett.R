@@ -13,7 +13,8 @@
   prototype = prototype(
     info = "Tutorial: https://cole-trapnell-lab.github.io/garnett/docs/#1b-train-your-own-classifier",
     method = "`Garnett` used for cell types annotation",
-  tag = "scrna:anno"
+  tag = "scrna:anno",
+  analysis = "Garnett 微生物信息注释"
   ))
 
 setGeneric("asjob_garnett", 

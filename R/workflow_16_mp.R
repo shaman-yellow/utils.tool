@@ -14,7 +14,8 @@
     info = c("Tutorial: https://bioconductor.org/packages/release/bioc/vignettes/MicrobiotaProcess/inst/doc/MicrobiotaProcess.html"),
     cite = "[@MicrobiotaproceXuSh2023]",
     method = "R package `MicrobiotaProcess` used for microbiome data visualization",
-    tag = "16s:qiime2+mp"
+    tag = "16s:qiime2+mp",
+    analysis = "MicrobiotaProcess 可视化"
     ))
 
 setGeneric("asjob_mp", 

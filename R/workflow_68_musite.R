@@ -15,7 +15,8 @@
     info = c("https://github.com/duolinwang/MusiteDeep_web"),
     cite = "[@MusitedeepADWang2020]",
     method = "Python tool `MusiteDeep` was used for protein post-translational modification site prediction and visualization",
-    tag = "musite"
+    tag = "musite",
+    analysis = "MusiteDeep 蛋白质转录后修饰位点预测"
     ))
 
 job_musite <- function(symbols)

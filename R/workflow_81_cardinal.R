@@ -16,7 +16,9 @@
     pg = "cardinal",
     info = c("https://cardinalmsi.org/"),
     cite = "[@CardinalV3ABemis2023]",
-    method = "The R package `Cardinal` used for analyzing mass spectrometry imaging datasets"
+    method = "The R package `Cardinal` used for analyzing mass spectrometry imaging datasets",
+    tag = "cardinal",
+    analysis = "Cardinal 空间代谢组数据分析"
     ))
 
 job_cardinal <- function()

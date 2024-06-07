@@ -14,7 +14,8 @@
     info = c("Tutorial: https://satijalab.org/seurat/articles/pbmc3k_tutorial.html"),
     cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]",
     method = "The R package `Seurat` used for scRNA-seq processing",
-    tag = "scrna:anno"
+    tag = "scrna:anno",
+    analysis = "Seurat 单细胞数据分析"
     ))
 
 job_seurat <- function(dir = NULL, project = get_filename(sub("/$", "", dir)),
@@ -387,7 +388,7 @@ plot_pca.seurat <- function(x) {
       p + theme_minimal()
     })
   p.pca_pcComponents <- patchwork::wrap_plots(p.pca_pcComponents, ncol = 2)
-  p.pca_1v2 <- e(Seurat::DimPlot(x, reduction = "pca", cols = ggsci::pal_npg()(10)))
+  p.pca_1v2 <- e(Seurat::DimPlot(x, reduction = "pca", cols = color_set()))
   p.pca_1v2 <- wrap(p.pca_1v2, 6, 5)
   p.pca_heatmap <- e(Seurat::DimHeatmap(
       x, dims = 1:10, cells = 500,

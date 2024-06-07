@@ -14,7 +14,8 @@
     info = c("Tutorial: https://github.com/bioinfoDZ/RISC"),
     cite = "[@RobustIntegratLiuY2021]",
     method = "R package `RISC` used for scRNA-seq data integration",
-    tag = "scrna:integrate:risc"
+    tag = "scrna:integrate:risc",
+    analysis = "RISC 单细胞数据集集成"
     ))
 
 setGeneric("asjob_risc", 

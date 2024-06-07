@@ -16,7 +16,8 @@
       "\nhttps://github.com/biobakery/biobakery/wiki/biobakery_workflows#2-metagenome-profiling"),
     cite = "[@BiobakeryAMeMciver2017]",
     method = "`Biobakery` used for metagenome preprocessing",
-    tag = "metagenome"
+    tag = "metagenome",
+    analysis = "Biobakery 宏基因组数据前处理"
     ))
 
 setGeneric("asjob_biobakery", 

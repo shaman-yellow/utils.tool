@@ -14,7 +14,8 @@
     info = c("Tutorial: https://github.com/satijalab/annova/wiki"),
     cite = "[@AnnovarFunctiWang2010]",
     method = "`Annova` used for mutation annotation",
-    tag = "annova"
+    tag = "annova",
+    analysis = "Annota 变异注释"
     ))
 
 setGeneric("asjob_annova", 

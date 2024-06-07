@@ -14,7 +14,8 @@
     info = c("http://service.tartaglialab.com/static_files/shared/documentation_omics2.html"),
     cite = "[@ICatIRapidArmaos2021]",
     method = "The `catRAPID omics` v2.1 used for protein binding with RNA prediction.",
-    tag = "rbp"
+    tag = "rbp",
+    analysis = "CatRAPID omics RBP 预测"
     ))
 
 job_catr <- function(protein, rna)

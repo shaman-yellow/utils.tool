@@ -18,7 +18,8 @@
       ),
     cite = "[@MissmethylAnPhipso2016; @MinfiAFlexibAryee2014; @VisualizingGenHahne2016; @CallingDifferePeters2021]",
     method = "R package `missMethyl`, `minfi`, `Gviz`, `DMRcate` were used for analysing methylation array data",
-    tag = "methyl:array"
+    tag = "methyl:array",
+    analysis = "missMethyl, DMRcate, Gviz Methyl-seq 数据分析"
     ))
 
 job_methy <- function()

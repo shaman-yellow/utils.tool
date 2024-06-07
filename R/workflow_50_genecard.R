@@ -14,7 +14,8 @@
     info = c("https://www.genecards.org/"),
     cite = "[@TheGenecardsSStelze2016]",
     method = "The Human Gene Database `GeneCards` used for disease related genes prediction",
-    tag = "dis:genecards"
+    tag = "dis:genecards",
+    analysis = "GeneCards 基因获取"
     ))
 
 job_genecardn <- function(...) {

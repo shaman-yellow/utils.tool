@@ -14,7 +14,8 @@
     info = c("https://plantaedb.com/"),
     cite = "",
     method = "The Database `PlantaeDB` <https://plantaedb.com/> used for collating data of herbal ingredients",
-    tag = "db:plant"
+    tag = "db:plant",
+    analysis = "PlantaeDB 植物成分信息获取"
     ))
 
 job_plantdb <- function(query)

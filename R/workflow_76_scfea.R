@@ -15,7 +15,8 @@
     info = c("https://github.com/changwn/scFEA/tree/master"),
     cite = "[@AGraphNeuralAlgham2021]",
     method = "The `scFEA` (python) was used to estimate cell-wise metabolic via single cell RNA-seq data",
-    tag = "scrna:flux"
+    tag = "scrna:flux",
+    analysis = "scFEA 单细胞数据的代写通量预测"
     ))
 
 setGeneric("asjob_scfea", 

@@ -14,7 +14,8 @@
     info = c("https://hub.docker.com/r/chambm/pwiz-skyline-i-agree-to-the-vendor-licenses"),
     cite = "[@ACrossPlatforChambe2012]",
     method = "The CLI tool of `msconvert` used for converting between file formats of MASS data (from .raw to .mzML)",
-    tag = "mass"
+    tag = "mass",
+    analysis = "Msconvert 质谱数据转换"
     ))
 
 job_msconvert <- function(wd, files)

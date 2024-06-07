@@ -15,7 +15,8 @@
     info = c("https://www.unitmp.org/"),
     cite = "[@UnitmpUnifiedDobson2024; @TheHumanTransDobson2015]",
     method = "The UNIfied database of TransMembrane Proteins (UniTmp) was used for transmembrane protein information retrieving",
-    tag = "unitmp"
+    tag = "unitmp",
+    analysis = "UniTmp 跨膜蛋白数据获取"
     ))
 
 job_unitmp <- function(mode = c("htp_all", "htp_exists"), db = .prefix("unitmp", "db"))

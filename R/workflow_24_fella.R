@@ -14,7 +14,8 @@
     info = c("..."),
     cite = "[@FellaAnRPacPicart2018]",
     method = "R package `FELLA` used for metabolite enrichment analysis",
-    tag = "enrich:fella"
+    tag = "enrich:fella",
+    analysis = "FELLA 代谢物富集分析"
     ))
 
 job_fella <- function(kegg) {
@@ -53,17 +54,45 @@ setMethod("step1", signature = c(x = "job_fella"),
     } else {
       db <- x$db
     }
-    obj.lst <- enrich_fella(x$ids.lst, db)
-    names(obj.lst) <- names(x$ids.lst)
-    x$graph.lst <- graph_fella(obj.lst, db)
+    enrich.lst <- enrich_fella(x$ids.lst, db)
+    names(enrich.lst) <- names(x$ids.lst)
+    x$graph.lst <- graph_fella(enrich.lst, db)
     p.enrich <- lapply(x$graph.lst, function(x) wrap(plotGraph_fella(x)))
     p.enrich <- .set_lab(p.enrich, sig(x), names(p.enrich), "enrichment with algorithm PageRank")
-    x@plots[[ 1 ]] <- namel(p.enrich)
     t.enrich <- lapply(x$graph.lst, tibble::as_tibble)
     t.enrich <- .set_lab(t.enrich, sig(x), names(t.enrich), "data of enrichment with algorithm PageRank")
-    x@tables[[ 1 ]] <- namel(t.enrich)
+    # results tables
+    x$resTable <- lapply(enrich.lst,
+      function(x) {
+        res <- sapply(c("pagerank", "diffusion", "hypergeom"), simplify = F,
+          function(method) {
+            res <- FELLA::generateResultsTable(
+              object = x, method = method, threshold = .1, data = db
+            )
+            if (method == "hypergeom") {
+              input <- FELLA::getInput(x)
+              res <- dplyr::mutate(res, Compound_Ratio = CompoundHits / length(input))
+            }
+            res
+          })
+        res
+      })
+    t.hypergeom <- lapply(x$resTable,
+      function(x) {
+        x <- as_tibble(x$hypergeom)
+        dplyr::rename(x, Description = KEGG.name, Count = CompoundHits, pvalue = p.value)
+      })
+    p.hypergeom <- lapply(t.hypergeom,
+      function(x) {
+        x <- plot_kegg(x, use = "pvalue", ratio = "Compound_Ratio")
+        lab(x) <- paste0("Compounds hypergeom ", lab(x))
+        x
+      })
+    x@tables[[ 1 ]] <- namel(t.enrich, t.hypergeom)
+    x@plots[[ 1 ]] <- namel(p.enrich, p.hypergeom)
     x$org <- org
     x$db_dir <- db_dir
+    x$enrich.lst <- enrich.lst
     return(x)
   })
 

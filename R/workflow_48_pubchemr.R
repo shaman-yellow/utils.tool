@@ -17,7 +17,8 @@
     info = c("Tutorial: https://github.com/satijalab/pubchemr/wiki"),
     cite = "",
     method = "R package `PubChemR` used for querying compounds information",
-    tag = "cpd:info"
+    tag = "cpd:info",
+    analysis = "PubChem 化合物信息获取"
     ))
 
 job_pubchemr <- function(cids)

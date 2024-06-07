@@ -14,7 +14,8 @@
     info = c("https://github.com/biobakery/MetaPhlAn/wiki/MetaPhlAn-4"),
     cite = "[@ExtendingAndIBlanco2023]",
     method = "`MetaPhlAn` used for profiling the composition of microbial communities from metagenomic data",
-    tag = "metagenome"
+    tag = "metagenome",
+    analysis = "MetaPhlAn 微生物宏基因组的群落信息分析"
     ))
 
 setMethod("step0", signature = c(x = "job_mpa"),

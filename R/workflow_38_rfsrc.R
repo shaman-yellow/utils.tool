@@ -14,7 +14,8 @@
     info = c(""),
     cite = "",
     method = "R package `randomForestSRC` for feature selection",
-    tag = "fea"
+    tag = "fea",
+    analysis = "RandomForestSRC 随机森林"
     ))
 
 job_rfsrc <- function()

@@ -14,7 +14,8 @@
     info = c("Tutorial: https://github.com/navinlabcode/copykat"),
     cite = "[@DelineatingCopGaoR2021]",
     method = "R package `copyKAT` used for aneuploid cell or cancer cell prediction",
-    tag = "scrna:cancer"
+    tag = "scrna:cancer",
+    analysis = "CopyKAT 癌细胞鉴定"
     ))
 
 job_kat <- function(x, use = names(x@object@assays)[[1]])

@@ -15,7 +15,8 @@
       "\nhttps://portal.gdc.cancer.gov/"),
     cite = "[@TcgabiolinksAColapr2015]",
     method = "R package `TCGAbiolinks` used for abtain TCGA dataset",
-    tag = "db:TCGA"
+    tag = "db:TCGA",
+    analysis = "TCGA 数据获取"
     ))
 
 job_tcga <- function(project)

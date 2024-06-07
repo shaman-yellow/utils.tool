@@ -14,7 +14,8 @@
     info = c("..."),
     cite = "[@HerbAHighThFang2021]",
     method = "Website `HERB` <http://herb.ac.cn/> used for TCM data source",
-    tag = "pharm, herb:HERB"
+    tag = "pharm, herb:HERB",
+    analysis = "HERB 网络药理学"
     ))
 
 job_herb <- function(herbs, db = get_herb_data())

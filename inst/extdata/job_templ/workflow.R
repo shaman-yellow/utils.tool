@@ -14,7 +14,9 @@
     pg = "seurat",
     info = c("Tutorial: https://github.com/satijalab/seurat/wiki"),
     cite = "",
-    method = ""
+    method = "",
+    tag = "seurat",
+    analysis = ""
     ))
 
 job_seurat <- function()

@@ -14,7 +14,8 @@
     info = c("https://github.com/mindee/doctr"),
     cite = "",
     method = "Python tool `doctr` <https://github.com/mindee/doctr> used for interpreted character from images",
-    tag = "ocr"
+    tag = "ocr",
+    analysis = "Doctr OCR 识别"
     ))
 
 job_ocr <- function()

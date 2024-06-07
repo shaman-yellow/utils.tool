@@ -14,7 +14,8 @@
     info = c("Tutorial: https://www.metaboanalyst.ca"),
     cite = "[@Metaboanalyst4Chong2018]",
     method = "`MetaboAnalyst` used for metabolomic data analysis",
-    tag = "meta"
+    tag = "meta",
+    analysis = "MetaboAnalyst 代谢物分析"
     ))
 
 job_metabo <- function()

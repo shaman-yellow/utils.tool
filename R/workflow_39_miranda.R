@@ -15,7 +15,8 @@
     cite = "[@Enrigh2003; @MirbaseFromMKozoma2019]",
     method = paste0("The tool of `miRanda` used for predicting mRNA targets for microRNAs (miRNA) ",
       "and `miRBase` used for getting sequence of miRNA"),
-    tag = "bindrna:mi+m"
+    tag = "bindrna:mi+m",
+    analysis = "MiRanda 预测 microRNAs-mRNA 结合"
     ))
 
 job_miranda <- function(mirna, rna)

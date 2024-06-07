@@ -14,7 +14,8 @@
     info = c("https://github.com/OpenGene/fastp"),
     cite = "[@UltrafastOnePChen2023]",
     method = "`Fastp` used for Fastq data preprocessing",
-    tag = "fastq"
+    tag = "fastq",
+    analysis = "Fastp 质量控制 (QC)"
     ))
 
 job_fastp <- function(path)

@@ -14,7 +14,8 @@
     info = c("Tutorials: https://autodock-vina.readthedocs.io/en/latest/docking_basic.html"),
     cite = "[@AutodockVina1Eberha2021; @AutogridfrImpZhang2019; @AutodockCrankpZhang2019; @AutositeAnAuRavind2016; @AutodockfrAdvRavind2015]",
     method = "The CLI tools of `AutoDock vina` and `ADFR` software used for auto molecular docking",
-    tag = "dock:vina"
+    tag = "dock:vina",
+    analysis = "AutoDock vina 分子对接"
     ))
 
 job_vina <- function(cids, hgnc_symbols, .layout = NULL)

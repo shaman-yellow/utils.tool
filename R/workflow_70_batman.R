@@ -15,7 +15,8 @@
     info = c("http://bionet.ncpsb.org.cn/batman-tcm/#/home"),
     cite = "[@BatmanTcm20Kong2024]",
     method = "Database `BATMAN-TCM` was used as source data of TCM ingredients and target proteins",
-    tag = "herb:BATMAN, pharm"
+    tag = "herb:BATMAN, pharm",
+    analysis = "BATMAN 网络药理学"
     ))
 
 job_batman <- function(herbs, db = get_batman_data())

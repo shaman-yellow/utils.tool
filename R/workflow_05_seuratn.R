@@ -14,7 +14,8 @@
     info = c("Tutorial: https://github.com/satijalab/seurat/wiki"),
     cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]",
     method = "R package `Seurat` used for multiple dataset integration",
-    tag = "scrna:anno"
+    tag = "scrna:anno",
+    analysis = "Seurat 集成单细胞数据分析"
     ))
 
 job_seuratn <- function(dirs, names = NULL, mode = c("sc", "st"), st.filename = "filtered_feature_bc_matrix.h5")
@@ -62,14 +63,14 @@ setMethod("step1", signature = c(x = "job_seuratn"),
           }
           return(obj)
         }))
-    fakeAssays <- F
+    fakeRNAassayFromSpatial <- F
     object(x) <- e(lapply(object(x),
         function(x) {
           if (any(names(x@assays) == "Spatial")) {
-            # names(x@assays)[ names(x@assays) == "Spatial" ] <- "RNA"
+            # https://github.com/satijalab/seurat/issues/8216
             message("Due to issue, copy 'Spatial' to 'RNA'.")
             x[["RNA"]] <- x[["Spatial"]]
-            fakeAssays <<- T
+            fakeRNAassayFromSpatial <<- T
           }
           if (!any(names(x@assays) == "SCT")) {
             Seurat::SCTransform(x,
@@ -80,7 +81,7 @@ setMethod("step1", signature = c(x = "job_seuratn"),
         }))
     x@params$anchor.features <- e(Seurat::SelectIntegrationFeatures(object(x), nfeatures = nfeatures))
     object(x) <- e(Seurat::PrepSCTIntegration(object(x), anchor.features = x@params$anchor.features))
-    if ( fakeAssays ) {
+    if (fakeRNAassayFromSpatial) {
       object(x) <- lapply(object(x),
         function(x) {
           x[[ "RNA" ]] <- NULL

@@ -14,7 +14,8 @@
     info = "http://cadd.zju.edu.cn/hawkdock/",
     cite = "[@HawkdockAWebWeng2019]",
     method = "`HawkDock` webservers used for protein–protein docking",
-    tag = "dock:protein+protein"
+    tag = "dock:protein+protein",
+    analysis = "HawkDock 蛋白对接"
     ))
 
 job_hawkdock <- function(symbols, .layout = NULL)

@@ -15,7 +15,8 @@
     cite = "",
     method = paste0("The API of `UniProtKB` (<https://www.uniprot.org/help/api_queries>) ",
       "used for mapping of names or IDs of proteins"),
-    tag = "raw:protein"
+    tag = "raw:protein",
+    analysis = "UniprotKB 蛋白质信息获取"
     ))
 
 job_uniprotkb <- function(query, db_file = "uniprotkb/query.rds", organism_id = 9606)

@@ -14,7 +14,8 @@
     info = c(""),
     cite = "[@MungesumstatsMurphy2021; @TheMrcIeuOpeElswor2020; @TheMrBasePlaHemani2018]",
     method = "R package `MungeSumstats` used for downloading or formatting GWAS summary data (from Open GWAS)",
-    tag = "gwas"
+    tag = "gwas",
+    analysis = "MungeSumstats 获取 GWAS 数据"
     ))
 
 job_ogwas <- function(traits, ...)

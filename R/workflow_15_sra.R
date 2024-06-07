@@ -11,7 +11,8 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("...")
+    info = c("..."),
+    analysis = "SRA 原始数据获取"
     ))
 
 job_sra <- function(project, wd = "sra_data")

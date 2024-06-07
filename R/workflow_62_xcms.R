@@ -14,7 +14,8 @@
     info = c(""),
     cite = "[@XcmsProcessinSmith2006]",
     method = "R package `xcms` used for MASS data preprocessing (Feature Detection)",
-    tag = "mass"
+    tag = "mass",
+    analysis = "XCMS 质谱数据预处理"
     ))
 
 job_xcms <- function()

@@ -15,7 +15,8 @@
     info = c("https://cluspro.bu.edu/help.php"),
     cite = "[@TheClusproWebKozako2017]",
     method = "The `ClusPro` server used for Protein-Protein docking",
-    tag = "dock:protein+protein"
+    tag = "dock:protein+protein",
+    analysis = "ClusPro 蛋白质-蛋白质对接预测"
     ))
 
 job_cluspro <- function(symbols, .layout = NULL)

@@ -14,7 +14,8 @@
     info = c("https://prediction.charite.de/subpages/target_prediction.php"),
     cite = "[@SuperpredUpdaNickel2014]",
     method = "Web tool of `Super-PRED` used for drug-targets relationship prediction",
-    tag = "target:sp"
+    tag = "target:sp",
+    analysis = "Super-PRED 药物靶点预测"
     ))
 
 job_superpred <- function(smiles)

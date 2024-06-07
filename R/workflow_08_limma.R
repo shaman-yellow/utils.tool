@@ -14,8 +14,9 @@
     info = c("|log~2~(FC)| &gt; 0.03, P-value or adjusted P-value &lt; 0.05"),
     cite = "[@LimmaPowersDiRitchi2015; @EdgerDifferenChen]",
     method = "R package `Limma` and `edgeR` used for differential expression analysis",
+    params = list(isTcga = F, normed = F),
     tag = "rna:diff",
-    params = list(isTcga = F, normed = F)
+    analysis = "Limma 差异分析"
     ))
 
 job_limma_normed <- function(data, metadata, genes = NULL) {

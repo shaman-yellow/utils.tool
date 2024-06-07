@@ -15,7 +15,8 @@
       "\nhttps://ftp.ensembl.org/pub/release-110/fasta/"),
     cite = "[@NearOptimalPrBray2016]",
     method = "`Kallisto` used for RNA-seq mapping and quantification",
-    tag = "raw:rna"
+    tag = "raw:rna",
+    analysis = "Kallisto RNA-seq 定量"
     ))
 
 setGeneric("asjob_kall", 

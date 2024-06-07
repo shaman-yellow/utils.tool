@@ -14,7 +14,8 @@
     info = c("http://www.gsea-msigdb.org/gsea/downloads.jsp"),
     method = "R package `ClusterProfiler` used for GSEA enrichment",
     cite = "[@ClusterprofilerWuTi2021]",
-    tag = "enrich:gsea"
+    tag = "enrich:gsea",
+    analysis = "ClusterProfiler GSEA 富集分析"
     ))
 
 setGeneric("asjob_gsea", 

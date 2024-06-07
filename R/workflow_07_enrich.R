@@ -14,7 +14,8 @@
     info = c("..."),
     cite = "[@ClusterprofilerWuTi2021]",
     method = "R package `ClusterProfiler` used for gene enrichment analysis",
-    tag = "enrich:clusterProfiler"
+    tag = "enrich:clusterProfiler",
+    analysis = "ClusterProfiler 富集分析"
     ))
 
 job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_id")
@@ -170,7 +171,7 @@ setGeneric("asjob_enrich",
   function(x, ...) standardGeneric("asjob_enrich"))
 
 setMethod("asjob_enrich", signature = c(x = "job_seurat"),
-  function(x, exclude.pattern = "macroph", exclude.use = "scsa_cell",
+  function(x, exclude.pattern = NULL, exclude.use = NULL,
     ignore.case = T, marker.list = x@params$contrasts, geneType = "hgnc_symbol")
   {
     if (is.null(marker.list)) {
@@ -289,27 +290,27 @@ vis_enrich.kegg <- function(lst, cutoff = .1, maxShow = 10,
 }
 
 plot_kegg <- function(data, cutoff = .1, maxShow = 10,
-  use = c("p.adjust", "pvalue"), facet = ".id", pattern = NULL)
+  use = c("p.adjust", "pvalue"), pattern = NULL, ...)
 {
   use <- match.arg(use)
   data <- .format_enrich(data, use, cutoff, maxShow, pattern)
-  p <- .plot_kegg(data, use)
+  p <- .plot_kegg(data, use, ...)
   p <- wrap(p, 8, 2 + nrow(data) * .2)
   p <- .set_lab(p, "KEGG-enrichment")
   p
 }
 
-.plot_kegg <- function(data, use) {
+.plot_kegg <- function(data, use, ratio = "GeneRatio", count = "Count") {
   p <- ggplot(data) +
-    geom_point(aes(x = reorder(Description, GeneRatio),
-        y = GeneRatio, size = Count, fill = !!rlang::sym(use)),
+    geom_point(aes(x = reorder(Description, !!rlang::sym(ratio)),
+        y = !!rlang::sym(ratio), size = !!rlang::sym(count), fill = !!rlang::sym(use)),
       shape = 21, stroke = 0, color = "transparent") +
     scale_fill_gradient(high = "grey90", low = "darkred") +
     scale_size(range = c(4, 6)) +
-    labs(x = "", y = "Gene Ratio") +
+    labs(x = "", y = "Hits Ratio") +
     guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
     coord_flip() +
-    ylim(zoRange(data$GeneRatio, 1.3)) +
+    ylim(zoRange(data[[ ratio ]], 1.3)) +
     rstyle("theme")
   p
 }
@@ -373,8 +374,10 @@ plot_go <- function(data, cutoff = .1, maxShow = 10,
       less <- dplyr::distinct(less)
     }
   }
-  less <- dplyr::mutate(less, GeneRatio = as_double.ratioCh(GeneRatio))
-  less <- dplyr::arrange(less, GeneRatio)
+  if (!is.null(data$GeneRatio)) {
+    less <- dplyr::mutate(less, GeneRatio = as_double.ratioCh(GeneRatio))
+    less <- dplyr::arrange(less, GeneRatio)
+  }
   less
 }
 

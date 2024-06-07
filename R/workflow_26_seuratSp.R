@@ -15,7 +15,8 @@
       "\nAdditional: https://ludvigla.github.io/STUtility_web_site/index.html"),
     cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]",
     method = "R package `Seurat` used for spatial scRNA-seq analysis",
-    tag = "scrna:strna"
+    tag = "scrna:strna",
+    analysis = "Seurat 空间转录组分析"
     ))
 
 job_seuratSp <- function(dir, ...)

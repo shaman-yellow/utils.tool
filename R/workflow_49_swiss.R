@@ -14,7 +14,8 @@
     info = c("http://www.swisstargetprediction.ch/index.php"),
     cite = "[@SwisstargetpredDaina2019]",
     method = "Web tool of `SwissTargetPrediction` used for drug-targets prediction",
-    tag = "target:swiss"
+    tag = "target:swiss",
+    analysis = "SwissTargetPrediction 药物靶点预测"
     ))
 
 job_swiss <- function(smiles)
