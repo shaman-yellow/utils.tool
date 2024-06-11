@@ -391,8 +391,26 @@ setGeneric("step1",
     x$seed <- sample(1:100, 1)
     x <- checkAddStep(x, 1L)
     x <- standardGeneric("step1")
-    stepPostModify(x, 1)
+    x <- stepPostModify(x, 1)
+    .append_heading(x@analysis)
+    x
   })
+
+job_append_heading <- function (x) {
+  if (is(x, "job")) {
+    .append_heading(x@analysis)
+  } else {
+    stop("Not a Job.")
+  }
+}
+
+.append_heading <- function(x) {
+  if (requireNamespace("nvimcom")) {
+    if (nchar(x)) {
+      .C("nvimcom_msg_to_nvim", paste0("CheckAndAppendHeading('", x, "')"), PACKAGE = "nvimcom")
+    }
+  }
+}
 
 setGeneric("step2",
   function(x, ...) {
