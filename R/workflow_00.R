@@ -1014,10 +1014,13 @@ treeObj <- function(obj, stops = c("gg", "wrap"), maxdepth = 10L, envir = parent
   nvimcom:::nvim_viewobj(x, howto = howto)
 }
 
-view_obj_for_vim <- function(x, y) {
+view_obj_for_vim <- function(x, y, view = T) {
   if (isGeneric(x)) {
     if (nchar(y)) {
       classY <- class(eval(parse(text = y), envir = .GlobalEnv))
+      if (length(classY) > 1) {
+        classY <- classY[1]
+      }
       message("Class of target: ", classY)
       obj <- try(selectMethod(x, classY), silent = T)
     } else {
@@ -1047,9 +1050,9 @@ view_obj_for_vim <- function(x, y) {
       }
       obj <- selectMethod(x, sigs)
     }
-    assign(name <- ".tmpfun", obj, envir = .GlobalEnv)
-    .view_obj(name)
-  } else {
+    assign(x <- ".tmpfun", obj, envir = .GlobalEnv)
+  }
+  if (view) {
     .view_obj(x)
   }
 }
@@ -1371,6 +1374,10 @@ loads <- function(file = "workflow.rds", ...) {
     options(internal_job = injobs)
   }
   writeAllCompletion()
+  # if (isNamespaceLoaded("nvimcom")) {
+    # pkgload::unload("nvimcom")
+    # require("nvimcom")
+  # }
 }
 
 remotejob <- function(wd, remote = "remote") {
