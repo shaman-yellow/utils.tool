@@ -392,13 +392,17 @@ setGeneric("step1",
     x <- checkAddStep(x, 1L)
     x <- standardGeneric("step1")
     x <- stepPostModify(x, 1)
-    .append_heading(x@analysis)
+    job_append_heading(x)
     x
   })
 
 job_append_heading <- function (x) {
   if (is(x, "job")) {
-    .append_heading(x@analysis)
+    heading <- x@analysis
+    if (length(x@sig)) {
+      heading <- paste0(heading, " (", x@sig, ")")
+    }
+    .append_heading(heading)
   } else {
     stop("Not a Job.")
   }

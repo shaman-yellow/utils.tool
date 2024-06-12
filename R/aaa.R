@@ -495,7 +495,7 @@ slots_mapply <- function(x, fun, ...){
     return(res)
   }
 
-space <- function(env = .GlobalEnv, all.names = T) {
+spacing <- space <- function(env = .GlobalEnv, all.names = T) {
   names <- ls(envir = env, all.names = all.names)
   info <- vapply(names, FUN.VALUE = character(1),
     function(name) {
