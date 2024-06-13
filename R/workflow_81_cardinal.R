@@ -21,12 +21,15 @@
     analysis = "Cardinal 空间代谢组数据分析"
     ))
 
-job_cardinal <- function(files, names = NULL, ...)
+job_cardinal <- function(files, names = NULL, groups = NULL, ...)
 {
   if ( !is.null(names) ) {
     if ( length(files) != length(names) ) {
       stop("files and the names must be the same length.")
     }
+  }
+  if ( is.null(groups) ) {
+    stop("`groups` can not be NULL.")
   }
   n <- 0L
   objects <- pbapply::pblapply(files,
@@ -36,6 +39,7 @@ job_cardinal <- function(files, names = NULL, ...)
       if ( !is.null(names) ) {
         Cardinal::pixelData(object)$run <- factor(names[ n ])
       }
+      Cardinal::pixelData(object)$group <- factor(groups[ n ])
       object
     })
   if (length(objects) > 1) {
@@ -70,6 +74,7 @@ setMethod("step1", signature = c(x = "job_cardinal"),
         wrap(x, 10, 5)
       })
     t.features <- as_tibble(data.frame(Cardinal::featureData(x@object)))
+    t.features <- dplyr::mutate(t.features, i = 1:nrow(t.features), .before = mz)
     x@plots[[ 1 ]] <- plots
     x@tables[[ 1 ]] <- namel(t.features)
     return(x)
@@ -77,8 +82,84 @@ setMethod("step1", signature = c(x = "job_cardinal"),
 
 setMethod("step2", signature = c(x = "job_cardinal"),
   function(x){
-    step_message("Statistic.")
-    
+    step_message("Statistic (PCA).")
+    x$pca <- e(Cardinal::PCA(object(x)))
+    p.pca <- Cardinal::plot(x$pca, type = "x", groups = x$pca@pixelData$group)
+    p.pca <- wrap(p.pca, 8, 6)
+    p.pca <- .set_lab(p.pca, sig(x), "PCA plot")
+    x@plots[[ 2 ]] <- namel(p.pca)
+    return(x)
+  })
+
+setMethod("step3", signature = c(x = "job_cardinal"),
+  function(x, formula = "~ group", show = 10,
+    use.segment = F, workers = 5, ...)
+  {
+    step_message("Segment-based means testing.")
+    if ( use.segment ) {
+      object <- Cardinal::spatialDGMM(object(x), groups = Cardinal::run(object(x)),
+        BPPARAM = BiocParallel::MulticoreParam(workers), ...)
+    } else {
+      object <- object(x)
+    }
+    x$mtest <- Cardinal::meansTest(object, as.formula(formula), samples = Cardinal::run(object(x)))
+    t.tops <- as_tibble(data.frame(Cardinal::topFeatures(x$mtest)))
+    t.tops <- dplyr::filter(t.tops, fdr < .05)
+    t.tops <- .set_lab(t.tops, sig(x), "Significant differences features")
+    x@tables[[ 3 ]] <- namel(t.tops)
+    get_data.mtest <- function(x, i) {
+      x <- lapply(x[ i ],
+        function(obj) {
+          obj$data
+        })
+      names(x) <- paste0("I = ", i)
+      x <- frbind(x, idcol = "features")
+      x <- dplyr::mutate(x, features = sortCh(features, F, T))
+      x
+    }
+    data <- get_data.mtest(x$mtest, tops <- head(t.tops$i, show))
+    p.boxTops <- .map_boxplot2(data, F, x = "group", y = "intensity",
+      ids = "features", scales = "free_y",
+      xlab = "Group", ylab = "Normalized Itensity"
+    )
+    p.boxTops <- wrap(p.boxTops)
+    p.boxTops$tops <- tops
+    p.boxTops <- .set_lab(p.boxTops, sig(x), "boxplot of top features")
+    x@plots[[ 3 ]] <- namel(p.boxTops)
+    return(x)
+  })
+
+setMethod("map", signature = c(x = "job_cardinal", ref = "df"),
+  function(x, ref, order_by = "i", distinct = T, tol = .01, ...)
+  {
+    message("Merge identification data into feature data and top tables.")
+    if (x@step < 1L) {
+      stop("The value got TRUE: `x@step < 1L`")
+    }
+    fun_merge <- function(x, ref, distinct, ...) {
+      x <- as_tibble(tol_merge(x, ref,
+          main_col = "mz", sub_col = "mz", tol = tol, ...
+          ))
+      x <- dplyr::arrange(x, !!!rlang::syms(as.list(order_by)))
+      if (distinct) {
+        x <- dplyr::distinct(x, i, .keep_all = T)
+      }
+      x
+    }
+    if (!is.null(x$t.featuresRaw)) {
+      x@tables$step1$t.features <- x$t.featuresRaw
+    } else {
+      x$t.featuresRaw <- x@tables$step1$t.features
+    }
+    x@tables$step1$t.features <- fun_merge(x@tables$step1$t.features, ref, distinct, ...)
+    if (x@step >= 3L) {
+      if (!is.null(x$t.topsRaw)) {
+        x@tables$step3$t.tops <- x$t.topsRaw
+      } else {
+        x$t.topsRaw <- x@tables$step3$t.tops
+      }
+      x@tables$step3$t.tops <- fun_merge(x@tables$step3$t.tops, ref, distinct, ...)
+    }
     return(x)
   })
 
@@ -90,10 +171,12 @@ setMethod("focus", signature = c(x = "job_cardinal"),
   })
 
 setMethod("vis", signature = c(x = "job_cardinal"),
-  function(x, mz = NULL, layout = c(1, length(ids(x))), ...)
+  function(x, i = NULL, mz = NULL, layout = c(1, length(ids(x))), ...)
   {
-    wrap(Cardinal::image(object(x), mz = mz, layout = layout, ...),
+    p <- wrap(Cardinal::image(object(x), i = i, mz = mz, layout = layout, ...),
       1.5 + 1.5 * layout[2], 2.5 * layout[1])
+    p <- .set_lab(p, sig(x), paste0("image plot of Feature ", i))
+    p
   })
 
 setMethod("ids", signature = c(x = "job_cardinal"),

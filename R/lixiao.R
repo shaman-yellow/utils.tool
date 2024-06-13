@@ -1873,13 +1873,19 @@ autorm <- function(names) {
   autoRegisters <<- autoRegisters[ -which(names(autoRegisters) %in% names) ]
 }
 
-autosv <- function(x, name, ...) {
+autosv <- function(x, name, ..., showtext = F) {
   if (!exists("autoRegisters")) {
     autoRegisters <- character(0)
   }
   if (!any(name == names(autoRegisters))) {
     if (!is(x, "files"))
+      if (showtext) {
+        options(SHOWTEXT = T)
+      }
       file <- select_savefun(x)(x, name, ...)
+      if (showtext) {
+        options(SHOWTEXT = F)
+      }
     else if (file.exists(x)) {
       file <- as.character(x)
       if (is(x, "file_fig")) {

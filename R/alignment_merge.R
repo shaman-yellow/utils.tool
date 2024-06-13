@@ -76,6 +76,7 @@ tol_merge <- function(main, sub, main_col = "mz",
   ## expand merge
   df <- merge(main, sub, by = "...id", all.x = T, allow.cartesian = T)
   df$...diff <- abs(df[[ main_col ]] - df[[ sub_col ]])
+  df <- dplyr::arrange(df, abs(...diff))
   df <- dplyr::filter(df, ...diff <= !!tol)
   ## get the non-merged
   backup <- backup[!backup$...seq %in% df$...seq, ]

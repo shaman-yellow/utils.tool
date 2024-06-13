@@ -227,22 +227,24 @@ setMethod("map", signature = c(x = "job_lasso"),
   p
 }
 
-.map_boxplot2 <- function(data, pvalue, x = "group") {
-  p <- ggplot(data, aes(x = !!rlang::sym(x), y = value, color = group)) +
+.map_boxplot2 <- function(data, pvalue, x = "group", y = "value",
+  xlab = "Group", ylab = "Value", ids = "var", ...)
+{
+  p <- ggplot(data, aes(x = !!rlang::sym(x), y = !!rlang::sym(y), color = !!rlang::sym(x))) +
     geom_boxplot(outlier.shape = NA, fill = "transparent") +
-    geom_jitter(aes(x = !!rlang::sym(x), y = value, fill = group),
+    geom_jitter(aes(x = !!rlang::sym(x), y = !!rlang::sym(y), fill = !!rlang::sym(x)),
       stroke = 0, shape = 21, width = .1, color = "transparent") +
-    facet_wrap(~ var) +
+    facet_wrap(ggplot2::vars(!!rlang::sym(ids)), ...) +
     scale_fill_manual(values = color_set()) +
     scale_color_manual(values = color_set()) +
-    labs(x = "Group", y = "Value") +
-    theme_light() +
+    labs(x = xlab, y = ylab) +
+    theme_minimal() +
     theme(legend.position = "none",
       axis.text.x = element_text(angle = 45, hjust = 1)) +
     geom_blank()
   if (pvalue) {
-    fn <- fivenum(data$value)
-    levels <- 2 * seq(length(unique(data$group)) - 1)
+    fn <- fivenum(data[[ y ]])
+    levels <- 2 * seq(length(unique(data[[ x ]])) - 1)
     hs <- fn[4] + abs(fn[5] - fn[1]) / levels
     p <- ggpval::add_pval(p, heights = hs, pval_text_adj = (fn[5] - fn[1]) / 15)
   }

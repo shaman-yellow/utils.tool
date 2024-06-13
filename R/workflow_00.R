@@ -1284,6 +1284,9 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
   lst <- c(namel(p.co_job, p.jobde), p.use_freq, namel(p.fr1, p.fr2))
   jobs_used <- p.use_freq$p.ind.pop$data
   attr(lst, "jobs_used") <- jobs_used
+  ##########################################
+  p.tags <- new_pie(unlist(data$tags.cn))
+  lst$p.tags <- wrap(p.tags, 10, 8)
   lst
 }
 
@@ -1371,9 +1374,9 @@ setMethod("res", signature = c(x = "local_db"),
   }
 }
 
-saves <- function(file = "workflow.rds", ...) {
+saves <- function(file = "workflow.rds", saveInjobs = T, ...) {
   injobs <- getOption("internal_job")
-  if (!is.null(injobs)) {
+  if (!is.null(injobs) && saveInjobs) {
     rds <- .get_savesInternalRds(file)
     saveRDS(injobs, rds)
   }
