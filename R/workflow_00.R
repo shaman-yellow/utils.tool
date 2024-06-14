@@ -128,14 +128,14 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
 
 .lab_out <- function(x) {
   x <- lab(x)
+  tmp <- getOption("RmdLabelFile", tempfile(pattern = "label", fileext = ".txt"))
   if (is.null(x)) {
     x <- getOption("autor_unnamed_number", 1)
     options(autor_unnamed_number = x + 1)
-    x <- paste0("Unnamed-", x)
-    writeLines(x)
+    x <- paste0("#| Unnamed-", x)
+    writeLines(x, tmp)
     return(invisible())
   }
-  tmp <- getOption("RmdLabelFile", tempfile(pattern = "label", fileext = ".txt"))
   label <- Hmisc::capitalize(gs(gs(x, "(?<![a-zA-Z])ids[ \\-]?", "", perl = T), " |_|\\.", "-"))
   label <- paste0("#| ", label)
   writeLines(label, tmp)
@@ -397,14 +397,16 @@ setGeneric("step1",
   })
 
 job_append_heading <- function (x) {
-  if (is(x, "job")) {
-    heading <- x@analysis
-    if (length(x@sig)) {
-      heading <- paste0(heading, " (", x@sig, ")")
+  if (getOption("job_appending", F)) {
+    if (is(x, "job")) {
+      heading <- x@analysis
+      if (length(x@sig)) {
+        heading <- paste0(heading, " (", x@sig, ")")
+      }
+      .append_heading(heading)
+    } else {
+      stop("Not a Job.")
     }
-    .append_heading(heading)
-  } else {
-    stop("Not a Job.")
   }
 }
 

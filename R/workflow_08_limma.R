@@ -148,6 +148,13 @@ setMethod("step2", signature = c(x = "job_limma"),
               if (!is.null(x$from_scfea)) {
                 ## the genes belong to the module
                 obj <- map(obj, colnames(obj)[1], x$genes, colnames(x$genes)[1], "gene", col = "gene")
+                dic <- nl(x$compounds_annotation$name, x$compounds_annotation$kegg, T)
+                obj <- dplyr::mutate(obj, compounds = strsplit(name, " -> "),
+                  kegg = lapply(compounds,
+                    function(x) {
+                      dplyr::recode(x, !!!dic)
+                    })
+                )
               }
               obj
             })

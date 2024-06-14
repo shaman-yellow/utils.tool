@@ -43,8 +43,10 @@ setMethod("asjob_scfea", signature = c(x = "job_seurat"),
     }
     data <- object(x)@assays[[ assay ]]@counts
     data <- data[ rownames(data) %in% refs, ]
+    metadata <- meta(x)
     if (!is.null(cells)) {
       data <- data[, cells]
+      metadata <- metadata[cells, ]
     }
     message("Dim: ", paste0(dim(data), collapse = ", "))
     message("Max: ", max(apply(data, 2, max)))
@@ -54,9 +56,11 @@ setMethod("asjob_scfea", signature = c(x = "job_seurat"),
       }
     }
     dir.create(dir, F)
-    expr_file <- paste0(dir, "/data.csv")
+    expr_file <- file.path(dir, "data.csv")
     data.table::fwrite(data.frame(data, check.names = F), expr_file, row.names = T)
-    job_scfea(expr_file, org = org)
+    x <- job_scfea(expr_file, org = org)
+    x@params <- c(x@params, list(metadata = metadata, from_seurat = T))
+    x
   })
 
 job_scfea <- function(expr_file, org = c("mouse", "human"), test = F)
@@ -148,7 +152,12 @@ setMethod("step2", signature = c(x = "job_scfea"),
     }
     t.anno <- ftibble(paste0(dir_db, "/", x$module_annotation))
     t.anno <- dplyr::mutate(t.anno, name = paste0(Compound_IN_name, " -> ", Compound_OUT_name))
-    x@tables[[ 2 ]] <- namel(t.flux, t.anno, t.balance, t.moduleGenes)
+    t.compounds <- tibble::tibble(
+      name = c(t.anno$Compound_IN_name, t.anno$Compound_OUT_name),
+      kegg = c(t.anno$Compound_IN_ID, t.anno$Compound_OUT_ID)
+    )
+    t.compounds <- dplyr::distinct(t.compounds)
+    x@tables[[ 2 ]] <- namel(t.flux, t.anno, t.balance, t.moduleGenes, t.compounds)
     x@plots[[ 2 ]] <- namel(p.loss)
     return(x)
   })
@@ -170,6 +179,10 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_seurat"),
 setMethod("asjob_limma", signature = c(x = "job_scfea"),
   function(x, metadata, group, scale_sample = T, scale_var = F, ...)
   {
+    if (missing(metadata) && !is.null(x$from_seurat)) {
+      message("Use metadata from `x$metadata`")
+      metadata <- x$metadata
+    }
     if (missing(metadata) || missing(group)) {
       stop("missing(metadata) || missing(group)")
     }
@@ -197,8 +210,11 @@ setMethod("asjob_limma", signature = c(x = "job_scfea"),
       metadata <- dplyr::relocate(metadata, sample, group)
     }
     cli::cli_alert_info("job_limma_normed")
+    compounds_annotation <- x@tables$step2$t.compounds
     x <- job_limma_normed(counts, metadata, genes = genes)
+    x@analysis <- "Limma 代谢通量差异分析"
     x$from_scfea <- T
+    x$compounds_annotation <- compounds_annotation
     return(x)
   })
 

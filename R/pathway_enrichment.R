@@ -149,6 +149,7 @@ plotGraph_fella <- function(
 {
   set.seed(seed)
   layout <- ggraph::create_layout(graph, layout = layout)
+  nodes <- dplyr::filter(ggraph::get_nodes()(layout), type != "Reaction")
   ggraph(layout) + 
     geom_edge_fan(
       aes(edge_width = weight),
@@ -161,11 +162,17 @@ plotGraph_fella <- function(
         shape = input,
         size = type),
       stroke = 0.1) + 
-    ggraph::geom_node_text(
-      aes(label = abbrev.name),
+    ggrepel::geom_label_repel(
+      data = dplyr::filter(nodes, input == "Input"),
+      aes(x = x, y = y, label = abbrev.name, colour = type),
+      size = 3,
+      family = .font) +
+    ggrepel::geom_label_repel(
+      data = dplyr::filter(nodes, input != "Input"),
+      aes(x = x, y = y, label = abbrev.name, colour = type),
       size = 3,
       family = .font,
-      color = "black") +
+      max.overlaps = 5) +
     scale_shape_manual(values = shape) +
     scale_color_manual(values = color) +
     scale_size_manual(values = size) +

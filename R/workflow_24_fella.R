@@ -57,11 +57,12 @@ setMethod("step1", signature = c(x = "job_fella"),
     enrich.lst <- enrich_fella(x$ids.lst, db)
     names(enrich.lst) <- names(x$ids.lst)
     x$graph.lst <- graph_fella(enrich.lst, db)
-    p.enrich <- lapply(x$graph.lst, function(x) wrap(plotGraph_fella(x)))
+    p.enrich <- lapply(x$graph.lst, function(x) wrap(plotGraph_fella(x), 10, 7))
     p.enrich <- .set_lab(p.enrich, sig(x), names(p.enrich), "enrichment with algorithm PageRank")
     t.enrich <- lapply(x$graph.lst, tibble::as_tibble)
     t.enrich <- .set_lab(t.enrich, sig(x), names(t.enrich), "data of enrichment with algorithm PageRank")
     # results tables
+    x$inputs <- lapply(enrich.lst, FELLA::getInput)
     x$resTable <- lapply(enrich.lst,
       function(x) {
         res <- sapply(c("pagerank", "diffusion", "hypergeom"), simplify = F,
@@ -82,6 +83,7 @@ setMethod("step1", signature = c(x = "job_fella"),
         x <- as_tibble(x$hypergeom)
         dplyr::rename(x, Description = KEGG.name, Count = CompoundHits, pvalue = p.value)
       })
+    t.hypergeom <- .set_lab(t.hypergeom, sig(x), "data of enrichment with algorithm Hypergeom")
     p.hypergeom <- lapply(t.hypergeom,
       function(x) {
         x <- plot_kegg(x, use = "pvalue", ratio = "Compound_Ratio")
