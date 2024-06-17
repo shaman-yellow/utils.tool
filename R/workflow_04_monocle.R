@@ -206,6 +206,7 @@ setMethod("step3", signature = c(x = "job_monocle"),
       graph_test.sig <- dplyr::filter(graph_test, q_value < .05)
       graph_test.sig <- dplyr::arrange(graph_test.sig, dplyr::desc(morans_I), q_value)
       graph_test.sig <- dplyr::rename(graph_test.sig, gene_id = 1)
+      graph_test.sig <- .set_lab(graph_test.sig, sig(x), "Graph Test Significant genes")
     } else {
       graph_test <- x@tables[[ 3 ]]$graph_test
       graph_test.sig <- x@tables[[ 3 ]]$graph_test.sig
@@ -421,9 +422,10 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_monocle"),
 
 setMethod("map", signature = c(x = "job_monocle", ref = "character"),
   function(x, ref, branches = NULL, enrich = NULL, seurat = NULL, HLs = NULL,
-    assay = NULL, enrichExtra = NULL, group_by = NULL, ...)
+    assay = NULL, enrichExtra = NULL, group_by = NULL, use.enrich = c("go", "kegg"), ...)
   {
     message("Plot pseudotime heatmap.")
+    use.enrich <- match.arg(use.enrich)
     if (is.null(seurat)) {
       if (is.null(x$sr_sub)) {
         stop("Object Seurat (`x$sr_sub`) should provided.")
@@ -485,13 +487,13 @@ setMethod("map", signature = c(x = "job_monocle", ref = "character"),
         dat <- lst[[1]]
       }
       p.hp <- plot_pseudo_heatmap.seurat(dat, enrich = enrich, HLs = HLs, enrichExtra = enrichExtra,
-        group_by = group_by, ...)
+        group_by = group_by, use.enrich = use.enrich, ...)
       p.hp <- wrap(p.hp, 5 + length(lst) * 3, 8)
     } else {
       p.hp <- plot_pseudo_heatmap.seurat(
         prepare_pseudo_heatmap_tidydata(seurat, pseudotime),
         enrich = enrich, HLs = HLs, enrichExtra = enrichExtra,
-        group_by = group_by, ...
+        group_by = group_by, use.enrich = use.enrich, ...
       )
       p.hp <- wrap(p.hp, 5, 8)
     }
@@ -499,8 +501,27 @@ setMethod("map", signature = c(x = "job_monocle", ref = "character"),
     # ComplexHeatmap::top_annotation
     # ComplexHeatmap::HeatmapAnnotation
     p.hp <- .set_lab(p.hp, sig(x), "Pseudotime heatmap of genes")
+    .append_heading("Pseudotime Heatmap")
     p.hp
   })
+
+map.fluxGene <- function(x, ref, branches = NULL, enrich = NULL, seurat = NULL, HLs = NULL,
+  assay = NULL, enrichExtra = NULL, group_by = NULL, ...)
+{
+  if (!is(ref, 'df')) {
+    stop("The value got TRUE: `!is(ref, 'df')`")
+  }
+  belong.flux <- reframe_col(dplyr::select(ref, gene, name), "gene",
+    function(x) unlist(strsplit(unlist(x), "-")))
+  belong.flux <- dplyr::relocate(belong.flux, gene, Metabolic_flux = name)
+  if (!is.null(enrichExtra)) {
+    message("`enrichExtra` overwrite by `belong.flux`.")
+  }
+  enrichExtra <- belong.flux
+  ref <- belong.flux$gene
+  map(x, ref, branches = branches, enrich = enrich, seurat = seurat, HLs = HLs,
+    assay = assay, enrichExtra = enrichExtra, group_by = group_by, ...)
+}
 
 prepare_pseudo_heatmap_tidydata <- function(seurat, pseudotime, rev.pseudotime = F)
 {
@@ -526,7 +547,7 @@ plot_pseudo_heatmap.seurat <- function(dat, enrich = NULL,
   if (!is.null(enrich)) {
     if (is(enrich, "job_enrich")) {
       use.enrich <- paste0("res.", use.enrich)
-      enrich <- enrich@tables$step1[[ use.enrich ]]$ids
+      enrich <- enrich@tables$step1[[ use.enrich ]][[1]]
       if (use.enrich == "res.go") {
         enrich <- split(enrich, ~ ont)
         enrich <- lapply(enrich,
@@ -536,22 +557,32 @@ plot_pseudo_heatmap.seurat <- function(dat, enrich = NULL,
             x <- dplyr::reframe(dplyr::group_by(x, Description), genes = unlist(geneName_list))
           })
         names(enrich) <- paste0("GO_", names(enrich))
-        if (!is.null(enrichExtra)) {
-          message("Use first column of `enrichExtra` as ID.")
-          enrichExtra <- dplyr::rename(enrichExtra, genes = 1)
-          enrichExtra <- tidyr::pivot_longer(enrichExtra, -genes, names_to = "ont", values_to = "Description")
-          enrichExtra <- split(enrichExtra, ~ ont)
-          enrich <- c(enrichExtra, enrich)
+      } else if (use.enrich == "res.kegg") {
+        .enrich <- enrich
+        enrich <- dplyr::filter(enrich, p.adjust < !!cutoff.enrich)
+        if (!nrow(enrich)) {
+          message("No results for `cutoff.enrich`: ", cutoff.enrich, "\nCancel filter.")
+          enrich <- .enrich
         }
-        for (col in names(enrich)) {
-          ## Here, the higher rank pathway will be priority to match
-          dat <- map(dat, "rownames", enrich[[ col ]], "genes", "Description", col = col)
-          dat[[ col ]] <- ifelse(is.na(dat[[ col ]]), "No match", dat[[ col ]])
-          dat[[ col ]] <- factor(dat[[ col ]], levels = c(unique(enrich[[ col ]]$Description), "No match"))
-          dat[[ col ]] <- droplevels(dat[[ col ]])
-        }
-        anno_enrich <- names(enrich)
+        enrich <- head(enrich, top.enrich)
+        enrich <- dplyr::reframe(dplyr::group_by(enrich, Description), genes = unlist(geneName_list))
+        enrich <- list(KEGG = enrich)
       }
+      if (!is.null(enrichExtra)) {
+        message("Use first column of `enrichExtra` as ID.")
+        enrichExtra <- dplyr::rename(enrichExtra, genes = 1)
+        enrichExtra <- tidyr::pivot_longer(enrichExtra, -genes, names_to = "ont", values_to = "Description")
+        enrichExtra <- split(enrichExtra, ~ ont)
+        enrich <- c(enrichExtra, enrich)
+      }
+      for (col in names(enrich)) {
+        ## Here, the higher rank pathway will be priority to match
+        dat <- map(dat, "rownames", enrich[[ col ]], "genes", "Description", col = col)
+        dat[[ col ]] <- ifelse(is.na(dat[[ col ]]), "No match", dat[[ col ]])
+        dat[[ col ]] <- factor(dat[[ col ]], levels = c(unique(enrich[[ col ]]$Description), "No match"))
+        dat[[ col ]] <- droplevels(dat[[ col ]])
+      }
+      anno_enrich <- names(enrich)
     }
   } else {
     use.enrich <- ""
@@ -599,7 +630,7 @@ plot_pseudo_heatmap.seurat <- function(dat, enrich = NULL,
   # p.hp <- tidyHeatmap::annotation_line(p.hp, Pseudo_Time, show_annotation_name = F)
   p.hp <- tidyHeatmap::annotation_tile(p.hp, Pseudo_Time, show_annotation_name = F)
   # p.hp@top_annotation$color[[ which(p.hp@top_annotation$col_name == "Pseudo_Time") ]] <- fun_color(0, maxBreak, T, "seq")
-  if (use.enrich == "res.go") {
+  if (!is.null(enrich)) {
     dat <- dplyr::ungroup(dat)
     allAnno <- lapply(dplyr::select(dat, dplyr::all_of(anno_enrich)), levels)
     palAnno <- head(color_set(T), length(unlist(allAnno)))

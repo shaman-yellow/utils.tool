@@ -21,7 +21,7 @@
 job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_id")
 {
   if (!is(ids, "list")) {
-    ids <- list(ids = ids)
+    ids <- list(ids = rm.no(ids))
   }
   if (is.null(names(ids))) {
     stop("is.null(names(ids))")

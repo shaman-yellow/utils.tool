@@ -185,7 +185,9 @@ setMethod("step2", signature = c(x = "job_limma"),
     plots <- c(plots, namel(p.volcano))
     tables <- namel(tops)
     if (!is.null(x$from_scfea)) {
-      belong.flux <- reframe_col(dplyr::select(tops[[1]], gene, name), "gene", function(x) unlist(x))
+      message("Gene names split by '-'.")
+      belong.flux <- reframe_col(dplyr::select(ref, gene, name), "gene",
+        function(x) unlist(strsplit(unlist(x), "-")))
       belong.flux <- dplyr::relocate(belong.flux, gene, Metabolic_flux = name)
       belong.flux <- .set_lab(belong.flux, sig(x), "Differential metabolic flux related Genes")
       tables <- c(tops, namel(belong.flux))

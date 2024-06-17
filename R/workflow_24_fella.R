@@ -103,3 +103,19 @@ setMethod("clear", signature = c(x = "job_fella"),
     x@params$db <- NULL
     callNextMethod(x, ..., name = "fl")
   })
+
+setMethod("map", signature = c(x = "job_enrich", ref = "job_fella"),
+  function(x, ref, use.x = "kegg", use.ref = "hypergeom") {
+    if (use.ref == "hypergeom") {
+      ref <- ref@tables$step1$t.hypergeom[[1]][[ "KEGG.id" ]]
+    } else {
+      stop("...")
+    }
+    data <- x@tables$step1$res.kegg[[1]]
+    data <- dplyr::filter(data, ID %in% !!ref)
+    data <- .set_lab(data, sig(x), "Co-enriched KEGG pathway data")
+    p.kegg <- plot_kegg(data, maxShow = 30, use = "pvalue")
+    p.kegg <- .set_lab(p.kegg, sig(x), "Co-enriched KEGG pathway")
+    .append_heading("代谢物与基因共同富集的 KEGG 通路")
+    return(namel(data, p.kegg))
+  })

@@ -395,7 +395,7 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
     p <- p + scale_shape_manual(values = c(24, 21, 22, 23), labels = label.shape)
   }
   if (!is.null(HLs)) {
-    data <- dplyr::filter(dataNodes, Symbol %in% !!HLs)
+    data <- dplyr::filter(dataNodes, name %in% !!HLs)
     p <- p + geom_point(data = data, aes(x = x, y = y), shape = 21, color = "red", size = 20)
   }
   p

@@ -16,7 +16,7 @@
     cite = "[@AGraphNeuralAlgham2021]",
     method = "The `scFEA` (python) was used to estimate cell-wise metabolic via single cell RNA-seq data",
     tag = "scrna:flux",
-    analysis = "scFEA 单细胞数据的代写通量预测"
+    analysis = "scFEA 单细胞数据的代谢通量预测"
     ))
 
 setGeneric("asjob_scfea", 
@@ -238,4 +238,36 @@ setMethod("set_remote", signature = c(x = "job_scfea"),
       x$dir <- "."
     }
     return(x)
+  })
+
+setMethod("intersect", signature = c(x = "job_limma", y = "character"),
+  function(x, y, key = 1, use = "kegg", split = if (use == "kegg") "\\+" else NULL,
+    x.name = "Diff_flux", y.name = "Diff_meta")
+  {
+    if (is.null(x$from_scfea)) {
+      stop("The value got TRUE: `is.null(x$from_scfea)`")
+    }
+    if (is.null(x@tables$step2[[ key ]])) {
+      stop("The value got TRUE: `is.null(x@tables$step2[[ key ]])`")
+    }
+    data <- x@tables$step2[[ key ]]
+    if (!is.null(split) && use == "kegg") {
+      data <- dplyr::mutate(data,
+        kegg_split = lapply(kegg,
+          function(x) {
+            unlist(strsplit(x, split))
+          }))
+      alls <- unlist(data$kegg_split)
+      p.venn <- new_venn(lst = nl(c(x.name, y.name), list(alls, y)))
+      data <- dplyr::filter(data,
+        vapply(kegg_split,
+          function(x) {
+            any(x %in% y)
+          }, logical(1))
+      )
+      .append_heading("交集：差异代谢物+单细胞差异代谢通量相关代谢物")
+      return(namel(data, p.venn))
+    } else {
+      stop("...")
+    }
   })

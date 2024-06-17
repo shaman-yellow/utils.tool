@@ -396,24 +396,25 @@ setGeneric("step1",
     x
   })
 
-job_append_heading <- function (x) {
+job_append_heading <- function (x, mutate = T) {
   if (getOption("job_appending", F)) {
     if (is(x, "job")) {
       heading <- x@analysis
       if (length(x@sig)) {
         heading <- paste0(heading, " (", x@sig, ")")
       }
-      .append_heading(heading)
+      .append_heading(heading, mutate)
     } else {
       stop("Not a Job.")
     }
   }
 }
 
-.append_heading <- function(x) {
+.append_heading <- function(x, mutate = F) {
+  args <- paste0("CheckAndAppendHeading('", x, "'", if (mutate) ", 1" else ", 0", ")")
   if (requireNamespace("nvimcom")) {
     if (nchar(x)) {
-      .C("nvimcom_msg_to_nvim", paste0("CheckAndAppendHeading('", x, "')"), PACKAGE = "nvimcom")
+      .C("nvimcom_msg_to_nvim", args, PACKAGE = "nvimcom")
     }
   }
 }

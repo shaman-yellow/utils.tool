@@ -171,8 +171,21 @@ setMethod("focus", signature = c(x = "job_cardinal"),
   })
 
 setMethod("vis", signature = c(x = "job_cardinal"),
-  function(x, i = NULL, mz = NULL, layout = c(1, length(ids(x))), ...)
+  function(x, i = NULL, mz = NULL, layout = c(1, length(ids(x))), ids = NULL, use.ids = NULL, ...)
   {
+    if (!is.null(ids) && !is.null(use.ids)) {
+      meta <- dplyr::filter(x@tables$step1$t.features, !!rlang::sym(use.ids) %in% ids)
+      meta <- .set_lab(meta, sig(x), "metadata-of-visualized-metabolites")
+      p.lst <- lapply(meta$i,
+        function(i) {
+          wrap(Cardinal::image(object(x), i = i, layout = layout, ...),
+            1.5 + 1.5 * layout[2], 2.5 * layout[1])
+        })
+      names(p.lst) <- paste0("Feature_", meta$i, "_", meta[[ use.ids ]])
+      p.lst <- .set_lab(p.lst, sig(x), names(p.lst), "image-visualization")
+      lab(p.lst) <- "Feature image visualizations"
+      return(namel(p.lst, meta))
+    }
     p <- wrap(Cardinal::image(object(x), i = i, mz = mz, layout = layout, ...),
       1.5 + 1.5 * layout[2], 2.5 * layout[1])
     p <- .set_lab(p, sig(x), paste0("image plot of Feature ", i))
