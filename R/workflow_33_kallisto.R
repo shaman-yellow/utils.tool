@@ -67,10 +67,10 @@ setMethod("step2", signature = c(x = "job_kall"),
     step_message("Mapping to reference genome.")
     pbapply::pbapply(x$metadata, 1,
       function(info) {
-        path <- get_path(info[[ "forward-absolute-filepath" ]])
+        path <- dirname(info[[ "forward-absolute-filepath" ]])
         dir.create(normed_output <- paste0(path, "/", output), F)
-        i1 <- get_filename(info[[ "forward-absolute-filepath" ]])
-        i2 <- get_filename(info[[ "reverse-absolute-filepath" ]])
+        i1 <- basename(info[[ "forward-absolute-filepath" ]])
+        i2 <- basename(info[[ "reverse-absolute-filepath" ]])
         dir <- paste0(output, "/", get_realname(info[[ "forward-absolute-filepath" ]]))
         if (!dir.exists(normed_dir <- paste0(path, "/", dir))) {
           cdRun("kallisto quant -i ", x$idx,

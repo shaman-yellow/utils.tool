@@ -457,7 +457,7 @@ vina <- function(lig, recep, dir = "vina_space",
     file.copy(c(recep, lig), wd)
     .message_info("Generating affinity maps", subdir)
     .cdRun <- function(...) cdRun(..., path = wd)
-    files <- get_filename(c(lig, recep))
+    files <- basename(c(lig, recep))
     .cdRun(pg("prepare_gpf.py"), " -l ", files[1], " -r ", files[2], " -y")
     if (!is.null(excludes.atom)) {
       message("Excludes atom type: ", paste0(excludes.atom, collapse = ", "))
@@ -549,7 +549,7 @@ summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$")
     function(file) {
       lines <- readLines(file)
       if (length(lines) >= 1) {
-        name <- gsub("_out\\.pdbqt", "", get_filename(file))
+        name <- gsub("_out\\.pdbqt", "", basename(file))
         top <- stringr::str_extract(lines[2], "[\\-0-9.]{1,}")
         top <- as.double(top)
         names(top) <- name
@@ -661,7 +661,7 @@ prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {
   file <- lapply(files,
     function(file) {
       if (!is.null(file)) {
-        newfile <- gsub("\\.pdb$", ".pdbqt", get_filename(file))
+        newfile <- gsub("\\.pdb$", ".pdbqt", basename(file))
         newfile <- paste0(mkdir.pdbqt, "/", newfile)
         system(paste0("prepare_receptor -r ", file, " -o ", newfile, " -A hydrogens"))
         return(newfile)

@@ -160,13 +160,13 @@ setMethod("step2", signature = c(x = "job_limma"),
             })
         }
       }
-      tops <- .set_lab(tops, sig(x), paste("data", gs(names(tops), "-", "vs")), "DEGs")
-      lab(tops) <- paste(sig(x), "data", "DEGs")
+      tops <- .set_lab(tops, sig(x), paste("data", gs(names(tops), "-", "vs")))
+      lab(tops) <- paste(sig(x), "data")
       if (length(tops) >= 2) {
         lst <- lapply(tops, function(x) x[[ label ]])
         names(lst) <- gs(names(lst), "\\s*-\\s*", " vs ")
         p.contrast_cols <- new_col(lst = lst)
-        p.contrast_cols <- .set_lab(p.contrast_cols, sig(x), "All DEGs of contrasts")
+        p.contrast_cols <- .set_lab(p.contrast_cols, sig(x), "All Difference Feature of contrasts")
         plots <- c(plots, namel(p.contrast_cols))
       }
     } else {
@@ -180,8 +180,8 @@ setMethod("step2", signature = c(x = "job_limma"),
         p
       }
     )
-    p.volcano <- .set_lab(p.volcano, sig(x), gs(names(p.volcano), "-", "vs"), "DEGs")
-    lab(p.volcano) <- paste(sig(x), "volcano plot", "DEGs")
+    p.volcano <- .set_lab(p.volcano, sig(x), gs(names(p.volcano), "-", "vs"))
+    lab(p.volcano) <- paste(sig(x), "volcano plot")
     plots <- c(plots, namel(p.volcano))
     tables <- namel(tops)
     if (!is.null(x$from_scfea)) {
@@ -239,7 +239,7 @@ setMethod("step3", signature = c(x = "job_limma"),
       intersect(tops[[ 2 ]], tops[[ 3 ]])
     ))
     p.sets_intersection <- new_upset(lst = tops)
-    p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "DEGs", "intersection")
+    p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "Difference", "intersection")
     x@plots[[ 3 ]] <- namel(p.sets_intersection)
     return(x)
   })

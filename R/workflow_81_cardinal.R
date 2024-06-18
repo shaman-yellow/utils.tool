@@ -75,6 +75,7 @@ setMethod("step1", signature = c(x = "job_cardinal"),
       })
     t.features <- as_tibble(data.frame(Cardinal::featureData(x@object)))
     t.features <- dplyr::mutate(t.features, i = 1:nrow(t.features), .before = mz)
+    t.features <- .set_lab(t.features, sig(x), "all features")
     x@plots[[ 1 ]] <- plots
     x@tables[[ 1 ]] <- namel(t.features)
     return(x)

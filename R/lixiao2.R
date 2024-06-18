@@ -41,7 +41,7 @@ kall_quant <- function(path, pattern = "[1-2]\\.QC\\.fastq\\.gz$",
 read_kall_quant <- function(path) {
   files <- list.files(path, "abundance.tsv$", full.names = T, recursive = T)
   metadata <- data.frame(file = files)
-  metadata <- dplyr::mutate(metadata, directory = get_path(file),
+  metadata <- dplyr::mutate(metadata, directory = dirname(file),
     sample = get_realname(directory)
   )
   n <- 0
@@ -295,6 +295,9 @@ cl <- function(...) {
 
 cls <- function(...) {
   lst <- list(...)
+  if (any(vapply(lst, function(x) !is(x, "column"), logical(1)))) {
+    return(cl(...))
+  }
   cl.heights <- vapply(lst, function(x) x@rel.height, numeric(1))
   cl.widths <- 1 / cl.heights
   rel.cl.widths <- cl.widths / sum(cl.widths)
@@ -315,10 +318,14 @@ setMethod("render", signature = c(x = "columns"),
     writeLines(lines, name)
     system(paste0(engine, " ", name))
     path <- get_savedir("figs")
-    files <- list.files(".", get_realname(name))
+    files <- list.files(".", tools::file_path_sans_ext(name))
     file.copy(files, path, T)
     file.remove(files)
-    browseURL(paste0(path, "/", gs(name, ".tex$", ".pdf")))
+    res <- paste0(path, "/", gs(name, ".tex$", ".pdf"))
+    res <- .file_fig(res)
+    coms <- rapply_get_frame_files(x)
+    attr(res, "lich") <- new_lich(list(Composition = paste0(coms, collapse = " \\newline ")))
+    res
   })
 
 setMethod("render", signature = c(x = "column"),
@@ -328,6 +335,19 @@ setMethod("render", signature = c(x = "column"),
     x <- cls(x)
     render(x, name, engine)
   })
+
+rapply_get_frame_files <- function(x) {
+  rapplyDo <- function(x) {
+    if (is(x, "list")) {
+      return(lapply(x, rapplyDo))
+    } else if (is(x, "figs_frame") || is(x, "fig_frame")) {
+      return(x@file)
+    } else {
+      stop("Class: ", paste0(class(x), collapse = ", "))
+    }
+  }
+  unlist(rapplyDo(x))
+}
 
 setGeneric("astex", 
   function(x, ...) standardGeneric("astex"))
@@ -381,6 +401,46 @@ pictureMergeHead <- function(width = 20, height = 20) {
     "left = 3mm, right = 3mm, top = 3mm, bottom = 3mm}")
   c(head, page)
 }
+
+
+setGeneric("re", 
+  function(x, ...) standardGeneric("re"))
+
+setMethod("re", signature = c(x = "character"),
+  function(x, f.width = 1, f.height = 1){
+    cache <- getOption("cache", "cache")
+    if (dir.exists(cache)) {
+      if (!exists("autoZoom")) {
+        autoZoom <- list()
+      } else {
+        autoZoom <- autoZoom
+      }
+      filename <- basename(x)
+      name <- tools::file_path_sans_ext(filename)
+      last_code <- if (is.null(autoZoom[[ name ]])) {
+        c(1, 1)
+      } else {
+        autoZoom[[ name ]]
+      }
+      if (identical(last_code, c(f.width, f.height))) {
+        message("Identical: last_code, current_code")
+        return(x)
+      }
+      rds <- file.path(cache, paste0(name, ".rds"))
+      if (file.exists(rds)) {
+        data <- readRDS(rds)
+        if (!is(data, "wrap")) {
+          data <- wrap(data)
+        }
+        data <- zoom(data, f.width, f.height)
+        message("Re-scale the figure.")
+        select_savefun(data)(data, name)
+        autoZoom[[ name ]] <- c(f.width, f.height)
+        autoZoom <<- autoZoom
+      }
+    }
+    return(x)
+  })
 
 # ==========================================================================
 # extract infomation from mail

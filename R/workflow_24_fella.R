@@ -84,10 +84,11 @@ setMethod("step1", signature = c(x = "job_fella"),
         dplyr::rename(x, Description = KEGG.name, Count = CompoundHits, pvalue = p.value)
       })
     t.hypergeom <- .set_lab(t.hypergeom, sig(x), "data of enrichment with algorithm Hypergeom")
+    sig <- sig(x)
     p.hypergeom <- lapply(t.hypergeom,
       function(x) {
         x <- plot_kegg(x, use = "pvalue", ratio = "Compound_Ratio")
-        lab(x) <- paste0("Compounds hypergeom ", lab(x))
+        lab(x) <- paste0(sig, " Compounds hypergeom ", lab(x))
         x
       })
     x@tables[[ 1 ]] <- namel(t.enrich, t.hypergeom)

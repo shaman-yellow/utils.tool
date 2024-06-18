@@ -164,7 +164,7 @@ testSection <- function(file, pattern, level = 2, render = rmarkdown::render) {
   }
   content <- lines[ start.pos:end.pos ]
   lines <- c(yml, "", content)
-  writeLines(lines, nfile <- paste0("_temptest_", get_filename(file)))
+  writeLines(lines, nfile <- paste0("_temptest_", basename(file)))
   if (!is.null(render)) {
     output <- render(nfile)
     op(output)
@@ -183,8 +183,8 @@ getyml <- function(lines) {
 
 arrange_figsPath <- function(file, pattern = "^!\\[.*\\]", to = NULL, overwrite = F)
 {
-  path <- get_path(file)
-  filename <- get_filename(file)
+  path <- dirname(file)
+  filename <- basename(file)
   if (!is.null(to)) {
     if (!dir.exists(to)) {
       stop("dir.exists(to) == F")
@@ -199,7 +199,7 @@ arrange_figsPath <- function(file, pattern = "^!\\[.*\\]", to = NULL, overwrite 
   fun <- function(n) {
     line <- lines[n]
     file <- gsub("\"", "", stringr::str_extract(line, "(?<=\\]\\().*(?=\\))"))
-    filename <- get_filename(file)
+    filename <- basename(file)
     nfile <- file.path(dir, filename)
     line <- gsub("\\]\\(.*\\)", paste0("](", nfile, ")"), line)
     file.copy(file, dir, overwrite)

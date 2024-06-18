@@ -14,7 +14,7 @@ sumText <- function(num, simplify = T, files = paste0("ch", num, ".md")) {
 
 format_chname <- function(dir, pattern = "ch[0-9]{1,}\\.md", num = 3){
   files <- list.files(dir, pattern, full.names = T)
-  names <- get_filename(files)
+  names <- basename(files)
   count <- nchar(stringr::str_extract(names, "[0-9]{1,}"))
   mapply(files, count, USE.NAMES = F,
     FUN = function(file, c){

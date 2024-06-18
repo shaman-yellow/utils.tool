@@ -18,7 +18,7 @@
     analysis = "Seurat 单细胞数据分析"
     ))
 
-job_seurat <- function(dir = NULL, project = get_filename(sub("/$", "", dir)),
+job_seurat <- function(dir = NULL, project = basename(sub("/$", "", dir)),
   min.cells = 3, min.features = 200, file_h5 = NULL, ...)
 {
   if (!is.null(file_h5)) {
@@ -466,7 +466,10 @@ setMethod("vis", signature = c(x = "job_seurat"),
   })
 
 setMethod("focus", signature = c(x = "job_seurat"),
-  function(x, features, group.by = x@params$group.by){
+  function(x, features, group.by = x@params$group.by, sp = F, ...){
+    if (sp) {
+      return(focus(.job_seuratSp(object = object(x)), features, ...))
+    }
     p.vln <- wrap(e(Seurat::VlnPlot(
         object(x), features = features, group.by = group.by,
         pt.size = 0, alpha = .3, cols = color_set()
@@ -518,11 +521,11 @@ prepare_10x <- function(target, pattern, single = F, col.gene = 1, check = T) {
     dir.create(dir, F)
     lapply(files,
       function(x)
-        file.rename(x, paste0(dir, "/", gs(get_filename(x), ".*_", "")))
+        file.rename(x, paste0(dir, "/", gs(basename(x), ".*_", "")))
     )
     expected <- c("barcodes.tsv.gz", "features.tsv.gz", "matrix.mtx.gz")
     alls <- list.files(dir, full.names = T)
-    allnames <- get_filename(alls)
+    allnames <- basename(alls)
     if (!all(expected %in% allnames)) {
       message("Got all files: ", paste0(allnames, collapse = ", "))
       notGet <- expected[ !expected %in% allnames ]
@@ -540,7 +543,7 @@ prepare_10x <- function(target, pattern, single = F, col.gene = 1, check = T) {
     if (!missing(pattern)) {
       stop("`pattern` not supported while single == T")
     }
-    path <- get_path(target)
+    path <- dirname(target)
     name <- get_realname(target)
     dir <- paste0(path, "/", name)
     if (file.exists(dir)) {

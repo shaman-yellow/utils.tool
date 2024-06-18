@@ -83,7 +83,7 @@ format_bindingdb.tsv <- function(file,
 }
 
 get_realname <- function(filename) {
-  name <- get_filename(filename)
+  name <- basename(filename)
   gsub("\\..*$", "", name)
 }
 
@@ -162,7 +162,7 @@ get_c2_data <- function(pattern = NULL,
 
 writeWraps <- function(lst, dir, width = 7, height = 7, ..., postfix = ".pdf") 
 {
-  fun <- function(p, file) write_graphics(p, file, mkdir = get_path(file))
+  fun <- function(p, file) write_graphics(p, file, mkdir = dirname(file))
   writeDatas(lst, dir, fun = fun, postfix = postfix)
 }
 
@@ -1750,7 +1750,7 @@ auto_method <- function(rm = NULL, class = "job", envir = .GlobalEnv, exclude = 
 
 get_job_source <- function(jobs = .get_job_list(type = "class"), path = "~/utils.tool/") {
   files <- list.files(path, "workflow.*\\.R$", full.names = T, recursive = T)
-  names <- get_filename(files)
+  names <- basename(files)
   jobs <- gs(jobs, "^job_", "")
   isThat <- vapply(names, FUN.VALUE = logical(1),
     function(name) {
@@ -1873,25 +1873,30 @@ autorm <- function(names) {
   autoRegisters <<- autoRegisters[ -which(names(autoRegisters) %in% names) ]
 }
 
-autosv <- function(x, name, ..., showtext = F) {
+autosv <- function(x, name, ..., showtext = F, cache = T) {
   if (!exists("autoRegisters")) {
     autoRegisters <- character(0)
   }
   if (!any(name == names(autoRegisters))) {
-    if (!is(x, "files"))
+    if (!is(x, "files")) {
       if (showtext) {
         options(SHOWTEXT = T)
+      }
+      if (!is(x, "df") && cache) {
+        cache <- getOption("cache", "cache")
+        dir.create(cache, F)
+        saveRDS(x, file.path(cache, paste0(name, ".rds")))
       }
       file <- select_savefun(x)(x, name, ...)
       if (showtext) {
         options(SHOWTEXT = F)
       }
-    else if (file.exists(x)) {
+    } else if (file.exists(x)) {
       file <- as.character(x)
       if (is(x, "file_fig")) {
         .dir <- get_savedir("figs")
-        nfile <- paste0(.dir, "/", name, strx(file, "\\.[^.]+$"))
-        if (get_path(file) != .dir) {
+        nfile <- file.path(.dir, paste0(name, strx(file, "\\.[^.]+$")))
+        if (file != nfile) {
           file.copy(file, nfile, T)
         }
         file <- nfile
@@ -1914,7 +1919,7 @@ setGeneric("autor",
 ## Be carefull, if the method not passed into this sub method,
 ## the reference of table or figure may be error, unless the `name`
 ## is identical with the chunk label.
-## **Note**
+## NOTE:
 ## the `name` decided the auto reference, savename, and the values
 ## in `autoRegisters`.
 ## However, the 'fig.cap' was decided by chunk label, unless
@@ -2272,7 +2277,7 @@ setMethod("abstract", signature = c(x = "lich", name = "character", latex = "log
         text <- x[[ name ]]
         text <- gs(text, "\\\\href\\{", "\\\\url{")
         ch <- c("\n\\textbf{", name, ":}\n\n\\vspace{0.5em}\n")
-        ch <- c(ch, strwrap(stringr::str_trunc(text, 300), indent = 4, width = 60))
+        ch <- c(ch, strwrap(stringr::str_trunc(text, 800), indent = 4, width = 60))
         ch <- c(ch, "\n\\vspace{2em}\n")
         ch
       })
@@ -2301,13 +2306,17 @@ sumDir <- function(dir, sum.ex = NULL) {
   files <- fix.tex(files)
   paste0("注：文件夹", fix.tex(dir), "共包含", num, "个文件。\n",
     sum.ex, "\n",
-    paste0(
-      "\\begin{enumerate}",
-      "\\tightlist\n",
-      paste0(paste0("\\item ", files), collapse = "\n"),
-      "\n\\end{enumerate}",
-      collapse = "\n")
+    .enumerate_items0(files)
   )
+}
+
+.enumerate_items0 <- function(items) {
+  paste0(
+    "\\begin{enumerate}",
+    "\\tightlist\n",
+    paste0(paste0("\\item ", items), collapse = "\n"),
+    "\n\\end{enumerate}",
+    collapse = "\n")
 }
 
 fix.tex <- function(str) {

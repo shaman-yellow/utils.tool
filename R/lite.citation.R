@@ -75,12 +75,12 @@ shunt_bib <- function(bib, keys, export = "library.bib"){
 }
 
 asTex.rmd <- function(file.md, yaml = paste0(.expath, "/", "article.yml"),
-  export = paste0("tex_", sub("\\.[a-z]*$", "", get_filename(file.md))),
+  export = paste0("tex_", sub("\\.[a-z]*$", "", basename(file.md))),
   bib = paste0(.expath, "/library.bib"), style = paste0(.expath, "/style.csl"))
 {
   dir.create(export)
   file.copy(file.md, nfile.md <- paste0(export, "/",
-      sub("\\.[a-z]*$", ".Rmd", get_filename(file.md))), T)
+      sub("\\.[a-z]*$", ".Rmd", basename(file.md))), T)
   md <- readLines(nfile.md)
   fig.pos <- grep("^!\\[.*\\]\\(.*\\)", md)
   fig.num <- 1
@@ -93,7 +93,7 @@ asTex.rmd <- function(file.md, yaml = paste0(.expath, "/", "article.yml"),
       } else {
         prefix <- character(1)
       }
-      nfile <- gsub("fig[0-9]\\.", prefix, get_filename(file))
+      nfile <- gsub("fig[0-9]\\.", prefix, basename(file))
       whether <- file.copy(file, paste0(export, "/", nfile), T)
       if (!whether) stop("The file of figure not found")
       gsub(file, nfile, ch, fixed = T)
@@ -101,7 +101,7 @@ asTex.rmd <- function(file.md, yaml = paste0(.expath, "/", "article.yml"),
   yml <- c("---", readLines(yaml), "---\n")
   writeLines(c(yml, md), nfile.md)
   shunt_bib(bib, extract_ref(nfile.md), paste0(export, "/", "library.bib"))
-  file.copy(style, paste0(export, "/", get_filename(style)), T)
+  file.copy(style, paste0(export, "/", basename(style)), T)
   writeLines("Done")
 }
 
@@ -287,19 +287,19 @@ comb_ref <- function(n, ref) {
   paste0(" [", com, "]")
 }
 
-get_path <- function(path_str){
-  vapply(path_str, FUN.VALUE = character(1),
-    USE.NAMES = F,
-    function(str){
-      if (!grepl("/", str))
-        return(".")
-      stringr::str_extract(str, ".*(?=/)")
-    })
-}
+# dirname <- function(path_str){
+  # vapply(path_str, FUN.VALUE = character(1),
+  #   USE.NAMES = F,
+  #   function(str){
+  #     if (!grepl("/", str))
+  #       return(".")
+  #     stringr::str_extract(str, ".*(?=/)")
+  #   })
+# }
 
-get_filename <- function(path_str){
-  stringr::str_extract(path_str, "[^/]*$")
-}
+# get_filename <- function(path_str){
+  # stringr::str_extract(path_str, "[^/]*$")
+# }
 
 
 # ==========================================================================

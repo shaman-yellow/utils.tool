@@ -155,7 +155,7 @@ setMethod("set_index", signature = setMissing("set_index",
   })
 
 inht2 <- inclu.fig.ht2 <- function(src, caption = "...",
-  file = get_filename(src), parent = "/docs/notes/",
+  file = basename(src), parent = "/docs/notes/",
   parent.ex = "figs", width = "100%", height = NULL,
   rel.path = paste0(hugoDir, "/content/en"))
 {

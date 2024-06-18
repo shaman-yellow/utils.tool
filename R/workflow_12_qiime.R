@@ -240,7 +240,7 @@ setMethod("step5", signature = c(x = "job_qiime"),
           )
         })
     )
-    qzvs <- sapply(get_filename(c(ga, gb)), simplify = F,
+    qzvs <- sapply(basename(c(ga, gb)), simplify = F,
       function(dir) {
         new_qzv(dir)
       })

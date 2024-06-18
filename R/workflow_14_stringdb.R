@@ -126,7 +126,7 @@ setMethod("filter", signature = c(x = "job_stringdb"),
     lab.fill = "log2FC",
     ## this top is used for 'from' or 'to'
     top = 10, use.top = c("from", "to"),
-    top_in = NULL, keep.ref = F,
+    top_in = NULL, keep.ref = T,
     arrow = T, ...)
   {
     message("Search and filter: ref.x in from, ref.y in to; or, reverse.")
@@ -135,9 +135,7 @@ setMethod("filter", signature = c(x = "job_stringdb"),
     data <- dplyr::select(data, dplyr::ends_with(use))
     data <- dplyr::rename(data, from = 1, to = 2)
     if (keep.ref) {
-      tmpData <- dplyr::filter(data, from %in% c(ref.x, ref.y), to %in% c(ref.x, ref.y))
-      tmpDataNodes <- unique(c(tmpData$from, tmpData$to))
-      data <- dplyr::filter(data, from %in% tmpDataNodes, to %in% tmpDataNodes)
+      data <- dplyr::filter(data, from %in% c(ref.x, ref.y), to %in% c(ref.x, ref.y))
     } else {
       data <- dplyr::filter(data,
         (from %in% ref.x & to %in% ref.y) | (from %in% ref.y & to %in% ref.x)
@@ -266,7 +264,7 @@ fast_layout.str <- function(res.str, sdb, layout = "fr", seed = runif(1, max = 1
   target <- paste0(sdb$input_directory, "/", sdb$species, ".protein.info.v",
     sdb$version, ".txt")
   dir.create(dir <- paste0(sdb$input_directory, "/temp"), F)
-  if (!file.exists(file <- paste0(dir, "/", get_filename(target)))) {
+  if (!file.exists(file <- paste0(dir, "/", basename(target)))) {
     file.copy(gfile <- paste0(target, ".gz"), dir)
     R.utils::gunzip(paste0(file, ".gz"))
   }
@@ -454,6 +452,7 @@ get_subgraph.mcc <- function(igraph, resMcc, top = 10)
   nodes <- dplyr::filter(data$vertices, name %in% !!tops)
   nodes <- merge(nodes, resMcc, by.x = "name", by.y = "STRING_id", all.x = T)
   edges <- dplyr::filter(data$edges, (from %in% !!tops) & (to %in% !!tops))
+  nodes <- dplyr::distinct(nodes, name, .keep_all = T)
   igraph <- igraph::graph_from_data_frame(edges, F, nodes)
   igraph <- dedup.edges(igraph)
   igraph

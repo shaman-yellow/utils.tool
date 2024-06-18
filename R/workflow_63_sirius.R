@@ -98,7 +98,7 @@ setMethod("set_remote", signature = c(x = "job_sirius"),
       rem_dir.create(wd)
     }
     x$local_mgf <- x$mgf
-    x$mgf <- paste0(x$wd, "/", get_filename(x$local_mgf))
+    x$mgf <- paste0(x$wd, "/", basename(x$local_mgf))
     if (rem_file.exists(x$mgf)) {
       isThat <- usethis::ui_yeah("Mgf file exsists, continue?")
       if (!isThat) {

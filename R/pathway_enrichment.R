@@ -163,16 +163,16 @@ plotGraph_fella <- function(
         size = type),
       stroke = 0.1) + 
     ggrepel::geom_label_repel(
-      data = dplyr::filter(nodes, input == "Input"),
-      aes(x = x, y = y, label = abbrev.name, colour = type),
-      size = 3,
-      family = .font) +
-    ggrepel::geom_label_repel(
       data = dplyr::filter(nodes, input != "Input"),
       aes(x = x, y = y, label = abbrev.name, colour = type),
       size = 3,
       family = .font,
       max.overlaps = 5) +
+    ggrepel::geom_label_repel(
+      data = dplyr::filter(nodes, input == "Input"),
+      aes(x = x, y = y, label = abbrev.name, colour = type),
+      size = 3,
+      family = .font) +
     scale_shape_manual(values = shape) +
     scale_color_manual(values = color) +
     scale_size_manual(values = size) +

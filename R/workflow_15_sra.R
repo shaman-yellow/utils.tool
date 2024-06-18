@@ -65,7 +65,7 @@ setMethod("step3", signature = c(x = "job_sra"),
     cli::cli_alert_info("fastq-dump --gzip --split-3")
     pbapply::pblapply(x@params$all_sra, cl = workers,
         function(file) {
-          path <- get_path(file)
+          path <- dirname(file)
           if (length(list.files(path, pattern)) == 0)
             cdRun("fastq-dump --gzip --split-3 ", file, " -O ", path)
         })

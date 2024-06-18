@@ -38,7 +38,7 @@ setMethod("step1", signature = c(x = "job_fastp"),
     } else {
       fqs <- list.files(object(x), paste0(suffix, "$"), full.names = T, recursive = T)
     }
-    fqs_path <- unique(get_path(fqs))
+    fqs_path <- unique(dirname(fqs))
     fqs_path <- fqs_path[!grepl("fastp_qc$", fqs_path)]
     if (is.remote(x)) {
       pbapply::pblapply(fqs_path, fastp_pair.remote,
@@ -59,7 +59,7 @@ setMethod("step2", signature = c(x = "job_fastp"),
     } else {
       reports <- list.files(object(x), pattern_report, full.names = T, recursive = T)
     }
-    dirs <- get_path(get_path(reports))
+    dirs <- dirname(dirname(reports))
     metadata <- data.frame(SampleName = get_realname(gs(dirs, "/$", "")),
       dirs = dirs, reports = reports)
     metadata <- mutate(metadata, Run = SampleName)

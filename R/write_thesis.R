@@ -11,10 +11,10 @@ inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
 {
   if (!file.exists(saveDir))
     dir.create(saveDir)
-  upper <- get_path(image)
+  upper <- dirname(image)
   if (is.na(upper))
     upper <- "."
-  file <- get_filename(image)
+  file <- basename(image)
   ## backup for figure
   if (grepl("\\.pdf$", file)) {
     savename <- paste0(saveDir, "/", sub("\\.pdf$", ".png", file))
@@ -65,10 +65,10 @@ prepare.fig <- function(image, saveDir = "thesis_fig", dpi = 300)
 {
   if (!file.exists(saveDir))
     dir.create(saveDir)
-  upper <- get_path(image)
+  upper <- dirname(image)
   if (is.na(upper))
     upper <- "."
-  file <- get_filename(image)
+  file <- basename(image)
   ## backup for figure
   if (grepl("\\.pdf$", file)) {
     savename <- paste0(saveDir, "/", sub("\\.pdf$", ".png", file))
@@ -94,7 +94,7 @@ inclu.capt <- function(img, saveDir = "thesis_fig") {
   if (!file.exists(saveDir)) {
     dir.create(saveDir)
   }
-  filename <- get_filename(img)
+  filename <- basename(img)
   savename <- paste0(saveDir, "/", filename)
   if (!file.exists(savename)) {
     png(savename, 1000, 1000, res = 150)
@@ -409,8 +409,8 @@ custom_render <- function(file, theme = 'thesis', fix = fix_spell,
     }
   }
   ## output
-  filename <- get_filename(file)
-  filepath <- get_path(file)
+  filename <- basename(file)
+  filepath <- dirname(file)
   writeLines(md, nfile <- paste0(filepath, "/", "_temp_", filename))
   if (!is.null(fun_render))
     fun_render(nfile)

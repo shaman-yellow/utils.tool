@@ -19,7 +19,7 @@ get_codes.dir <- function(dir, files = NULL, pattern = "\\.R$") {
   }
   files <- files[grepl(pattern, files)]
   codes <- sapply(files, readLines, simplify = F)
-  names(codes) <- vapply(names(codes), get_filename, character(1))
+  names(codes) <- vapply(names(codes), basename, character(1))
   codes
 }
 

@@ -57,7 +57,7 @@ setMethod("step2", signature = c(x = "job_adcp"),
       })
     pdbqts <- lapply(unlist(pdbs),
       function(file) {
-        file <- get_filename(file)
+        file <- basename(file)
         cdRun("reduce ", file, " > ", fileH <- gs(file, "\\.pdb$", "_H.pdb"),
           path = dir)
         if (file.exists(paste0(dir, "/", fileH))) {
@@ -125,7 +125,7 @@ adcp <- function(lig, recep, timeLimit = 3600, dir = "adcp_space", stout = "/tmp
   dir.create(wd, F)
   file.copy(c(recep, lig), wd)
   .message_info("Generate the target file containing the affinity maps: ", subdir)
-  files <- get_filename(c(lig, recep))
+  files <- basename(c(lig, recep))
   cdRun("agfr -r ", files[2],
     " -l ", files[1],
     " -o ", subdir,

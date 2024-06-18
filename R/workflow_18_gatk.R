@@ -54,7 +54,7 @@ setMethod("step1", signature = c(x = "job_gatk"),
     tmpdir = "~/disk_sdb1") 
   {
     step_message("Prepare reference data (human) for mapping.")
-    path <- get_path(geneRef_file)
+    path <- dirname(geneRef_file)
     if (!file.exists(geneRef_file)) {
       cdRun("wget https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/latest/hg38.fa.gz",
         path = path)
@@ -347,9 +347,9 @@ WorkflowGatk.picard_BuildBamIndex <- function(x) {
 WorkflowGatk.elprep_prepare <- function(x) {
   cli::cli_alert_info("elprep fasta-to-eflasta")
   if (is.null(x@params$ref_elfasta)) {
-    geneRef_file <- get_filename(x@params$geneRef_file)
+    geneRef_file <- basename(x@params$geneRef_file)
     ref_elfasta <- paste0(get_realname(geneRef_file), ".elfasta")
-    path <- get_path(x@params$geneRef_file)
+    path <- dirname(x@params$geneRef_file)
     if (!is_workflow_object_exists(ref_elfasta, path = path)) {
       cdRun(x@params$elprep, " fasta-to-elfasta", " ", geneRef_file, " ", ref_elfasta,
         path = path)
@@ -360,8 +360,8 @@ WorkflowGatk.elprep_prepare <- function(x) {
   if (is.null(x@params$elsites)) {
     elsites <- pbapply::pblapply(x@params$knownSites,
       function(file) {
-        path <- get_path(file)
-        filename <- get_filename(file)
+        path <- dirname(file)
+        filename <- basename(file)
         real <- gs(filename, "\\.[a-z]+$", "")
         elsites <- paste0(real, ".elsites")
         if (!is_workflow_object_exists(elsites, path = path)) {
@@ -435,8 +435,8 @@ WorkflowGatk.gatk_prepare_refVcf <- function(x) {
   }
   lapply(x@params$vqsr_resource,
     function(file) {
-      path <- get_path(file)
-      filename <- get_filename(file)
+      path <- dirname(file)
+      filename <- basename(file)
       if (!is_workflow_object_exists(paste0(filename, ".idx"), path = path)) {
         cdRun(x@params$gatk, " IndexFeatureFile",
           " -I ", filename, path = path)

@@ -25,7 +25,7 @@ job_unitmp <- function(mode = c("htp_all", "htp_exists"), db = .prefix("unitmp",
   url <- switch(mode, htp_all = "https://htp.unitmp.org/data/HTP/data/d.2.1/sets/htp_all.xml",
     htp_exists = "https://htp.unitmp.org/data/HTP/data/d.2.1/sets/Exists.xml"
   )
-  file <- paste0(db, "/", get_filename(url))
+  file <- paste0(db, "/", basename(url))
   if (!file.exists(file)) {
     message("Download file from URL:", url)
     xmlStr <- RCurl::getURL(url)

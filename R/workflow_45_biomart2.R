@@ -72,7 +72,7 @@ setMethod("step1", signature = c(x = "job_biomart2"),
             "'", urls[[ gn ]], "'")
         })
       db <- list(extra = db)
-      packing_as_rdata_list(savepath, "^G.*\\.tsv$", get_filename(rdata), dedup = F, extra = db)
+      packing_as_rdata_list(savepath, "^G.*\\.tsv$", basename(rdata), dedup = F, extra = db)
       db <- extract_rdata_list(rdata)
       db <- frbind(db, fill = T)
       # values <- object(x) %>% .[ !. %in% db[[1]] ]

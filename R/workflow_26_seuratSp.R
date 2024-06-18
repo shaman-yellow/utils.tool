@@ -77,6 +77,16 @@ setMethod("vis", signature = c(x = "job_seuratSp"),
     .set_lab(p, sig(x), "The", gs(group.by, "_", "-"))
   })
 
+setMethod("focus", signature = c(x = "job_seuratSp"),
+  function(x, features, names = NULL){
+    if (!is.null(names)) {
+      names(object(x)@images) <- names
+    }
+    p.spatial <- e(Seurat::SpatialFeaturePlot(object(x), features = features))
+    p.spatial <- .set_lab(wrap(as_grob(p.spatial)), sig(x), "Spatial feature plot")
+    p.spatial
+  })
+
 setMethod("step4", signature = c(x = "job_seuratSp"),
   function(x, ...){
     x <- callNextMethod(x, ...)

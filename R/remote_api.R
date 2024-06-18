@@ -210,7 +210,7 @@ list.remote <- function(path, pattern, remote = "remote",
     files <- system(paste0("ssh ", remote, " '", before,
         " find ", path, " ", options, "'"),
       intern = T)
-    files[ grepl(pattern, get_filename(files)) ]
+    files[ grepl(pattern, basename(files)) ]
   } else if (length(path) > 1) {
     if (!full.names) {
       files <- system(paste0("ssh ", remote, " ",
@@ -227,7 +227,7 @@ list.remote <- function(path, pattern, remote = "remote",
     files <- lapply(files,
       function(files) {
         files <- files[ -length(files) ]
-        files[ grepl(pattern, get_filename(files)) ]
+        files[ grepl(pattern, basename(files)) ]
       })
     names(files) <- path
     files

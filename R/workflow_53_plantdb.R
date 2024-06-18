@@ -195,28 +195,28 @@ tryGetLink.plantaedb <- function(x, sep = " ### ", ...) {
 }
 
 get_bindingdb_data <- function(url = "https://www.bindingdb.org/bind/downloads/BindingDB_All_202401_tsv.zip",
-  save = paste0(.prefix(name = "db"), get_filename(url)),
+  save = paste0(.prefix(name = "db"), basename(url)),
   file_unzip = gs(gs(save, ".zip$", ""), "_tsv$", ".tsv"))
 {
   if (!file.exists(file_unzip)) {
     if (!file.exists(save)) {
       cdRun("wget ", url, " -O ", save)
     }
-    utils::unzip(save, exdir = get_path(save))
+    utils::unzip(save, exdir = dirname(save))
   }
 }
 
 get_drugbank_data <- function(url = "https://go.drugbank.com/releases/5-1-11/downloads/all-full-database",
   user = c("202011113511016@zcmu.edu.cn", "qiu23224856"),
   save = .prefix("drugbank/drugbank_all_full_database.xml.zip", "db"),
-  file_unzip = paste0(get_path(save), "/full database.xml"))
+  file_unzip = paste0(dirname(save), "/full database.xml"))
 {
   if (!file.exists(file_unzip)) {
     if (!file.exists(save)) {
-      dir.create(get_path(save), F)
+      dir.create(dirname(save), F)
       cdRun("wget ", " --http-user=", user[1], " --http-passwd=", user[2], " ", url, " -O ", save)
     }
-    utils::unzip(save, exdir = get_path(save))
+    utils::unzip(save, exdir = dirname(save))
   }
 }
 

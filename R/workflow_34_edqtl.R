@@ -40,7 +40,7 @@ job_edqtl <- function(mode = c("edqtl", "eqtl"))
   x <- .job_edqtl()
   files <- list.files(lst$path, "txt.gz$", full.names = T, recursive = T)
   x$metadata <- tibble::tibble(
-    tissue = stringr::str_extract(get_filename(files), "^[^.]*"),
+    tissue = stringr::str_extract(basename(files), "^[^.]*"),
     files = files
   )
   x$db_path <- lst$path
@@ -128,7 +128,7 @@ setMethod("map", signature = c(x = "job_edqtl", ref = "job_publish"),
     return(x)
   })
 
-.check_untar <- function(file, path = get_path(file)) {
+.check_untar <- function(file, path = dirname(file)) {
   recordfile <- paste0(path, "/.check_untar")
   if (!file.exists(recordfile)) {
     untar(file, exdir = path)

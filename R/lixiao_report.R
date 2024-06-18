@@ -261,7 +261,7 @@ backup_jobs <- function(alls, time = Sys.time(),
     function(dir) {
       files <- list.files(dir, ".*\\.zip", full.names = T)
       if (length(files) > 1) {
-        n <- menu(get_filename(files), title = "Select a zip file to backup.")
+        n <- menu(basename(files), title = "Select a zip file to backup.")
         files <- files[n]
       }
       if (!length(files)) {
@@ -274,7 +274,7 @@ backup_jobs <- function(alls, time = Sys.time(),
       }
       if (length(files)) {
         num <<- num + 1L
-        .cp_job(files, paste0(thedir, "/", num, "_", get_filename(files)))
+        .cp_job(files, paste0(thedir, "/", num, "_", basename(files)))
       }
     })
   unlist(res)
@@ -299,9 +299,9 @@ move_raw_all <- function(alls, time, before = F, to = "~/disk_sdb1",
   pbapply::pblapply(data$.dir,
     function(dir) {
       path <- grpf(list.dirs(dir), paste0(paste0(prefix, "[^/]+$"), collapse = "|"))
-      path <- path[ !get_path(path) %in% path ]
+      path <- path[ !dirname(path) %in% path ]
       if (length(path)) {
-        target <- paste0(to, "/", get_filename(gs(dir, "/$", "")))
+        target <- paste0(to, "/", basename(gs(dir, "/$", "")))
         if (!dir.exists(target)) {
           dir.create(target)
         }
@@ -315,11 +315,11 @@ move_raw_all <- function(alls, time, before = F, to = "~/disk_sdb1",
 move_rds <- function(from, to, exclude = c(".items.rds", ".injobs.rds")) {
   lapply(from,
     function(path) {
-      dirname <- get_filename(gs(path, "/$", ""))
+      dirname <- basename(gs(path, "/$", ""))
       target <- paste0(to, "/", dirname)
       dir.create(target, F)
       files <- list.files(path, pattern = ".rds$|.RData$|.Rdata$|.rdata$", full.names = T, all.files = T)
-      thefilenames <- get_filename(files)
+      thefilenames <- basename(files)
       files <- files[ !thefilenames %in% exclude ]
       lapply(files,
         function(file) {
@@ -389,7 +389,7 @@ get_orders <- function(
         coef = as.double(coef),
         date = as.Date(date),
         receive_date = as.Date(receive_date),
-        .dir = get_path(file),
+        .dir = dirname(file),
         tags.list = lapply(strsplit(tags, ","), gs, "\\s", ""),
         tags.cn = recode_tags(tags.list)
       )
@@ -610,6 +610,37 @@ plot_report_summary <- function(cover_file = .prefix("cover_page.pdf"))
   cover <- into(outline("Cover"), cover)
   p.rep <- xf(cover = 1, null = .1, lst = 1, null = .1, tab = 1, null = .1, fig = 1)
   wrap(p.rep, 9, 5)
+}
+
+generate_tiffs <- function(pattern = "^MAIN-Fig.*\\.pdf", dir = get_savedir("figs"), output = file.path(dir, "TIFF")) {
+  dir.create(output, F)
+  files <- list.files(dir, pattern, full.names = T)
+  lapply(files,
+    function(x) {
+      newfile <- file.path(output, paste0(tools::file_path_sans_ext(basename(x)), ".tiff"))
+      pdf_convert(x, "tiff", filenames = newfile, dpi = 300)
+    })
+  return(output)
+}
+
+get_md_titles <- function(file = "index.Rmd") {
+  lines <- readLines(file)
+  inchunk <- F
+  isInChunk <- vapply(lines, FUN.VALUE = integer(1),
+    function(x) {
+      if (grpl(x, "^```")) {
+        inchunk <<- !inchunk
+        return(-1L)
+      } else {
+        if (inchunk) {
+          return(1L)
+        } else {
+          return(0L)
+        }
+      }
+    })
+  lineOutChunk <- lines[ isInChunk == 0 ]
+  grpf(lineOutChunk, "^#")
 }
 
 order_packaging <- function(target = "output.pdf", register = autoRegisters, ...)
@@ -1173,7 +1204,7 @@ deparse_mail <- function(dir = "mail",
     lapply(atts,
       function(att) {
         bins <- att$get_payload(decode = T)
-        filename <- att$get_filename()
+        filename <- att$basename()
         if (length(filename) == 0) {
           return()
         }

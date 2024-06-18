@@ -67,8 +67,8 @@ job_scfea <- function(expr_file, org = c("mouse", "human"), test = F)
 {
   org <- match.arg(org)
   x <- .job_scfea()
-  x$dir <- get_path(expr_file)
-  x$input_file <- get_filename(expr_file)
+  x$dir <- dirname(expr_file)
+  x$input_file <- basename(expr_file)
   if (org == "mouse") {
     x$moduleGene_file <- "module_gene_complete_mouse_m168.csv"
     x$stoichiometry_matrix <- "cmMat_complete_mouse_c70_m168.csv"
@@ -265,6 +265,7 @@ setMethod("intersect", signature = c(x = "job_limma", y = "character"),
             any(x %in% y)
           }, logical(1))
       )
+      data <- .set_lab(data, sig(x), "intersection-flux-data")
       .append_heading("交集：差异代谢物+单细胞差异代谢通量相关代谢物")
       return(namel(data, p.venn))
     } else {

@@ -1307,7 +1307,7 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
   prototype = NULL)
 
 new_db <- function(db_file, idcol) {
-  path <- get_path(db_file)
+  path <- dirname(db_file)
   if (!dir.exists(path)) {
     dir.create(path)
   }
