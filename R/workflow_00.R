@@ -2,9 +2,11 @@
 # for wrap various of analysis workflow contains many steps
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+setClass("virtual_job", "VIRTUAL")
+
 #' @exportClass job
 .job <- setClass("job", 
-  contains = c(),
+  contains = c("virtual_job"),
   representation = representation(
     object = "ANY",
     params = "ANY",
@@ -166,11 +168,11 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
   return(x)
 }
 
-setMethod("sig", signature = c(x = "job"),
+setMethod("sig", signature = c(x = "virtual_job"),
   function(x){
     x@sig
   })
-setReplaceMethod("sig", signature = c(x = "job"),
+setReplaceMethod("sig", signature = c(x = "virtual_job"),
   function(x, value){
     initialize(x, sig = value)
   })
@@ -404,8 +406,6 @@ job_append_heading <- function (x, mutate = T) {
         heading <- paste0(heading, " (", x@sig, ")")
       }
       .append_heading(heading, mutate)
-    } else {
-      stop("Not a Job.")
     }
   }
 }

@@ -420,10 +420,6 @@ textSh <- function(..., sep = "", exdent = 4, ending = "\n",
   stringr::str_trunc(text, width = width, ellipsis = ellipsis)
 }
 
-gett <- function(obj){
-    system(paste("echo", obj, "| xsel -b -i"))
-  }
-
 # ==========================================================================
 # get external grob
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

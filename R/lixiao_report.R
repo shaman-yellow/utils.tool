@@ -623,26 +623,6 @@ generate_tiffs <- function(pattern = "^MAIN-Fig.*\\.pdf", dir = get_savedir("fig
   return(output)
 }
 
-get_md_titles <- function(file = "index.Rmd") {
-  lines <- readLines(file)
-  inchunk <- F
-  isInChunk <- vapply(lines, FUN.VALUE = integer(1),
-    function(x) {
-      if (grpl(x, "^```")) {
-        inchunk <<- !inchunk
-        return(-1L)
-      } else {
-        if (inchunk) {
-          return(1L)
-        } else {
-          return(0L)
-        }
-      }
-    })
-  lineOutChunk <- lines[ isInChunk == 0 ]
-  grpf(lineOutChunk, "^#")
-}
-
 order_packaging <- function(target = "output.pdf", register = autoRegisters, ...)
 {
   idname <- gidn()
@@ -875,6 +855,9 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
     stringr::str_extract(items$info, paste0("(?<=", key, "：)", "[^ ]+"))
   }
   sale <- ext("销售")
+  if (!length(sale)) {
+    sale <- NA
+  }
   if (is.na(sale)) {
     sale <- odk("sale")
   }
@@ -882,6 +865,9 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
     idn <- paste0(idn, "+销售：", sale)
   }
   client <- ext("客户")
+  if (!length(client)) {
+    client <- NA
+  }
   if (is.na(client)) {
     client <- odk("client")
     if (is.null(client)) {
