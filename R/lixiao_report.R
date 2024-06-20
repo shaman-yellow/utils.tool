@@ -612,7 +612,10 @@ plot_report_summary <- function(cover_file = .prefix("cover_page.pdf"))
   wrap(p.rep, 9, 5)
 }
 
-generate_tiffs <- function(pattern = "^MAIN-Fig.*\\.pdf", dir = get_savedir("figs"), output = file.path(dir, "TIFF")) {
+generate_tiffs <- function(pattern = "^MAIN-Fig.*\\.pdf",
+  dir = get_savedir("figs"), output = "TIFF")
+{
+  output <- file.path(dir, output)
   dir.create(output, F)
   files <- list.files(dir, pattern, full.names = T)
   lapply(files,
@@ -623,9 +626,9 @@ generate_tiffs <- function(pattern = "^MAIN-Fig.*\\.pdf", dir = get_savedir("fig
   return(output)
 }
 
-order_packaging <- function(target = "output.pdf", register = autoRegisters, ...)
+order_packaging <- function(target = "output.pdf",
+  register = autoRegisters, idname = gidn(), ...)
 {
-  idname <- gidn()
   report <- paste0(idname, ".pdf")
   file.copy(target, report, T)
   package_results(head = NULL, masterZip = NULL, report = report, ...)
