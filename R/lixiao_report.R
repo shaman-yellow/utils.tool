@@ -4,7 +4,7 @@
 
 send_eval <- function(to,
   subject = "需要评估绩效的业务",
-  content = "Hello, 慧姐\n\n这是这个月需要评估绩效的业务 (各个业务 ICDTM 的汇总)，已附在表格中。\n\nBest wishes!",
+  content = "Hello, 慧姐\n\n这是这个月需要评估绩效的业务 (各个业务 ICDTM 的汇总，如有系数为0，则为空置，待评估)，已附在表格中。\n\nBest wishes!",
   time = Sys.time(),
   month = lubridate::month(time),
   year = lubridate::year(time),
@@ -1193,7 +1193,7 @@ deparse_mail <- function(dir = "mail",
     lapply(atts,
       function(att) {
         bins <- att$get_payload(decode = T)
-        filename <- att$basename()
+        filename <- att$get_filename()
         if (length(filename) == 0) {
           return()
         }

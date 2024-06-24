@@ -280,7 +280,7 @@ as_gt.flex <- function(obj, page.width = 650) {
     }
   }
   gt <- tab_options(gt, table.font.size = px(10.5), footnotes.font.size = px(8))
-  if (knitr::is_latex_output()) {
+  if (needTex()) {
     chunk_label <- knitr::opts_current$get("tab.id")
     gt <- as_latex_with_caption(gt, chunk_label, caption)
   }

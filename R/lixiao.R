@@ -1822,6 +1822,15 @@ set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
   writeLines(content)
 }
 
+needTex <- function() {
+  isThat <- getOption("needTex", T)
+  if (isThat && knitr::is_latex_output()) {
+    return(T)
+  } else {
+    return(F)
+  }
+}
+
 set_index <- function(fig = T, tab = T) {
   if (knitr::is_latex_output()) {
     symbol <- function(num) {
@@ -1930,7 +1939,7 @@ setGeneric("autor",
 setMethod("autor", signature = c(x = "ANY", name = "missing"),
   function(x, ...){
     if (is(x, "rms") || is(x, "validate")) {
-      if (knitr::is_latex_output()) {
+      if (needTex()) {
         options(prType = "latex")
       } else {
         options(prType = "plain")
@@ -1975,7 +1984,7 @@ setMethod("autor", signature = c(x = "can_be_draw", name = "character"),
 ## autor for data.frame
 setMethod("autor", signature = c(x = "df", name = "character"),
   function(x, name, ..., asis = getOption("autor_asis", T)){
-    if (knitr::is_latex_output()) {
+    if (needTex()) {
       cat("\\begin{center}\\vspace{1.5cm}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{89}\\end{center}")
     }
     if (any(vapply(x, class, character(1)) == "list")) {
@@ -1995,7 +2004,7 @@ setMethod("autor", signature = c(x = "df", name = "character"),
       }
     }
     include(x, name, ...)
-    if (knitr::is_latex_output()) {
+    if (needTex()) {
       cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{89}\\vspace{1.5cm}\\end{center}")
     }
   })
@@ -2003,7 +2012,7 @@ setMethod("autor", signature = c(x = "df", name = "character"),
 ## autor for figures of file
 setMethod("autor", signature = c(x = "fig", name = "character"),
   function(x, name, ..., asis = getOption("autor_asis", T)){
-    if (knitr::is_latex_output()) {
+    if (needTex()) {
       cat("\\begin{center}\\vspace{1.5cm}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{88}\\end{center}")
     }
     file <- autosv(x, name, ...)
@@ -2016,7 +2025,7 @@ setMethod("autor", signature = c(x = "fig", name = "character"),
         abstract(lich, name = name)
       }
     }
-    if (knitr::is_latex_output()) {
+    if (needTex()) {
       cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{88}\\vspace{1.5cm}\\end{center}")
     }
   })
@@ -2024,12 +2033,12 @@ setMethod("autor", signature = c(x = "fig", name = "character"),
 setMethod("autor", signature = c(x = "files", name = "character"),
   function(x, name, ..., asis = getOption("autor_asis", T)){
     file <- autosv(x, name, ...)
-    if (knitr::is_latex_output()) {
+    if (needTex()) {
       cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{85}\\vspace{1.5cm}\\end{center}")
     }
     if (asis)
       abstract(x, name, ...)
-    if (knitr::is_latex_output()) {
+    if (needTex()) {
       cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{85}\\vspace{1.5cm}\\end{center}")
     }
   })
@@ -2219,7 +2228,7 @@ setMethod("abstract", signature = c(x = "ANY", name = "character", latex = "miss
     } else if (restype != "asis") {
       warning("restype != \"asis\"")
     }
-    if (knitr::is_latex_output()) {
+    if (needTex()) {
       latex <- T
     } else {
       latex <- NULL
@@ -2335,11 +2344,13 @@ sumTbl <- function(x, key, sum.ex = NULL, mustSum = getOption("abstract.mustSum"
 }
 
 locate_file <- function(name, des = "对应文件为") {
-  if (!exists('autoRegisters'))
-    stop("!exists('autoRegisters')")
-  if (!file.exists(autoRegisters[[ name ]]))
-    stop("file.exists(autoRegisters[[ name ]] == F)")
-  cat("\n**(", des, " `", autoRegisters[[ name ]], "`)**", "\n", sep = "")
+  if (needTex()) {
+    if (!exists('autoRegisters'))
+      stop("!exists('autoRegisters')")
+    if (!file.exists(autoRegisters[[ name ]]))
+      stop("file.exists(autoRegisters[[ name ]] == F)")
+    cat("\n**(", des, " `", autoRegisters[[ name ]], "`)**", "\n", sep = "")  
+  }
 }
 
 text_roundrect <- function(str, collapse = "\n") {
