@@ -656,15 +656,19 @@ package_results <- function(
   clientZip = "client.zip", masterZip = "master.zip",
   clear = T, external_file = "order_material", extras = NULL)
 {
-  if (!file.exists(external_file)) {
-    stop("file.exists(external_file)")
-  } else {
-    if (length(exters <- list.files(external_file, full.names = T)) == 0) {
-      stop("Guess you have forget to save the order material file to `external_file`.")
+  if (!is.null(external_file)) {
+    if (!file.exists(external_file)) {
+      stop("file.exists(external_file)")
     } else {
-      dir.create(extern0 <- "报单相关资料", F)
-      file.copy(exters, extern0, T, T)
+      if (length(exters <- list.files(external_file, full.names = T)) == 0) {
+        stop("Guess you have forget to save the order material file to `external_file`.")
+      } else {
+        dir.create(extern0 <- "报单相关资料", F)
+        file.copy(exters, extern0, T, T)
+      }
     }
+  } else {
+    extern0 <- NULL
   }
   files.client <- c(report, main, extern0, extras)
   files.client <- files.client[ !duplicated(normalizePath(files.client)) ]
