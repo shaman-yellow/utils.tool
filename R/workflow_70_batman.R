@@ -182,7 +182,7 @@ get_batman_data <- function(savedir = .prefix("batman", "db"), reload = F) {
   if (!dir.exists(savedir)) {
     dir.create(savedir)
   }
-  rdata <- paste0(savedir, "/all.rds")
+  rdata <- file.path(savedir, "all.rds")
   if (!file.exists(rdata) || reload) {
     url_base <- "http://batman2.cloudna.cn/downloadApiFile/data/browser/"
     files <- c(
@@ -193,7 +193,7 @@ get_batman_data <- function(savedir = .prefix("batman", "db"), reload = F) {
     lst <- pbapply::pblapply(files,
       function(file) {
         url <- paste0(url_base, file)
-        target <- paste0(savedir, "/", file)
+        target <- file.path(savedir, file)
         if (!file.exists(target)) {
           x <- RCurl::getURLContent(url)
           writeBin(as.vector(x), target)
