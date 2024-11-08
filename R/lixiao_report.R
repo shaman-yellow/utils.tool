@@ -367,7 +367,7 @@ thismonth <- function(data = get_orders(),
 }
 
 get_orders <- function(
-  dir = .prefix(), pattern = ".items.rds",
+  dir = .prefix(), pattern = "\\.items.*\\.rds",
   base_wage = list("2023-07-01" = 3000, "2023-08-01" = 4500, "2023-09-01" = 6000),
   setFill = .setFill.orders())
 {
@@ -759,8 +759,12 @@ items <- function(
   eval = ic(),
   type = od_guess_type(),
   title = od_get_title(),
-  status = "完成",
+  status = NA_character_,
   date = Sys.Date(),
+  start = NA,
+  end = NA,
+  finish = NA,
+  client = "",
   info = od_get_info(),
   id = od_get_id(),
   receive_date = od_get_date(),
@@ -769,7 +773,7 @@ items <- function(
   save = ".items.rds",
   tags = get_all_tags(),
   note = character(1),
-  class = c("实验单生信", "标书生信", "SCI生信", "SCI+标书生信", "-"),
+  class = "生信分析",
   isLatest = F,
   lock = F)
 {
@@ -824,6 +828,9 @@ items <- function(
     }
   }
   if (file.exists(save)) {
+    if (!usethis::ui_yeah("File exists, use this?")) {
+      return(writeLines("Stopped."))
+    }
     info <- readRDS(save)
     if (is.null(info$isLatest)) {
       items$date <- info$date

@@ -63,6 +63,7 @@ cite_show <- function(keys, as.character = T,
     ifsets <- dplyr::mutate(ifsets, fuzzy = prefix(Name))
     options(IF_sets = ifsets)
   }
+  keys <- gs(keys, "^@", "")
   names <- paste0(keys, ".", keys)
   eles <- lapply(names,
     function(name) {
