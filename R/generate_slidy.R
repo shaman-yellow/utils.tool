@@ -26,17 +26,16 @@ preprocess_bib <- function(file = file.path(.expath, "library.bib")) {
   writeLines(unlist(lst), "library.bib")
 }
 
-.bib <- c()
-
-reload_bib <- function(file = "library.bib",
+reload_bib <- function(file = file.path(.expath, "library.bib"),
   exclude = c("doi", "urldate", "issn", "address", "isbn"))
 {
-  bib <- bibtex::read.bib(file)
-  bib <- fix_bib(bib, exclude)
-  if (bindingIsLocked(".bib", topenv())) {
-    unlockBinding(".bib", topenv())
+  latestTime <- fs::file_info(file)$modification_time
+  oldTime <- getOption("bib_last_modify")
+  if (is.null(oldTime) || !identical(latestTime, oldTime)) {
+    bib <- bibtex::read.bib(file)
+    bib <- fix_bib(bib, exclude)
+    options(bibentrys = bib, bib_last_modify = latestTime)
   }
-  assign(".bib", bib, envir = topenv())
 }
 
 fix_bib <- function(bib, exclude = c("doi", "urldate", "issn", "address", "isbn"))
@@ -49,6 +48,39 @@ fix_bib <- function(bib, exclude = c("doi", "urldate", "issn", "address", "isbn"
     })
   bib <- do.call(c, bib)
   return(bib)
+}
+
+cite_show <- function(keys, as.character = T,
+  bibentry = getOption("bibentrys"),
+  ifsets = getOption("IF_sets"),
+  prefix = function(x) gs(tolower(x), "[^a-z]|^[Tt][Hh][Ee] ", ""))
+{
+  reload_bib()
+  bibentry <- getOption("bibentrys")
+  if (is.null(ifsets)) {
+    ifsets <- ftibble(file.path(.expath, "2023JCR.csv"))
+    ifsets <- dplyr::select(ifsets, Name, IF, Class)
+    ifsets <- dplyr::mutate(ifsets, fuzzy = prefix(Name))
+    options(IF_sets = ifsets)
+  }
+  names <- paste0(keys, ".", keys)
+  eles <- lapply(names,
+    function(name) {
+      bib <- bibentry[[ name ]]
+      year <- bib$year
+      journal <- bib$journal
+      fuzzy <- prefix(journal)
+      which <- match(fuzzy, ifsets$fuzzy)
+      list(year = year, journal = journal, IF = ifsets$IF[which],
+        Class = ifsets$Class[which], fuzzy = fuzzy)
+    })
+  if (as.character) {
+    text <- vapply(eles,
+      function(x) {
+        paste0("(", x$year, ", **IF:", x$IF, "**, ", x$Class, ", ", x$journal, ")")
+      }, character(1))
+    paste0(text, "[@", keys, "]")
+  } else eles
 }
 
 citethis <- function(..., trunc = T, trunc.author = 1, trunc.title = F,
@@ -66,9 +98,8 @@ citethis <- function(..., trunc = T, trunc.author = 1, trunc.title = F,
         }
       }, character(1))
     keys <- paste0(keys, ".", keys)
-    if (!exists(".bib", where = topenv())) {
-      reload_bib()
-    }
+    reload_bib()
+    .bib <- getOption("bibentrys")
     all <- names(.bib)
     bib <- .bib[ match(keys, all) ]
   } else {

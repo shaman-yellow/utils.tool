@@ -1796,29 +1796,46 @@ get_job_source <- function(jobs = .get_job_list(type = "class"), path = "~/utils
 }
 
 set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
-  coverpage = .prefix("cover_page.pdf"), institution = "@立效研究院")
+  coverpage = .prefix("cover_page.pdf"), institution = "铂赛")
 {
   options(title = title)
-  content <- strwrap(paste0("\\begin{titlepage}
-      \\newgeometry{top=7.5cm}
-      \\ThisCenterWallPaper{1.12}{", coverpage, "}
-      \\begin{center}
-      \\textbf{\\Huge ", title, "}
-      \\vspace{4em}
-      \\begin{textblock}{10}(3,5.9)
-      \\huge \\textbf{\\textcolor{white}{", date, "}}
-      \\end{textblock}
-      \\begin{textblock}{10}(3,7.3)
-      \\Large \\textcolor{black}{", author, "}
-      \\end{textblock}
-      \\begin{textblock}{10}(3,11.3)
-      \\Large \\textcolor{black}{", institution, "}
-      \\end{textblock}
-      \\end{center}
-      \\end{titlepage}
-      \\restoregeometry
-      "
-      ), 50)
+  if (institution == "铂赛") {
+    content <- strwrap(paste0("\\begin{titlepage}
+        \\newgeometry{top=7.5cm}
+        \\ThisCenterWallPaper{1.12}{", coverpage, "}
+        \\begin{center}
+        \\textbf{\\huge ", title, "}
+        \\vspace{4em}
+        \\begin{textblock}{10}(3.2,9.25)
+        \\huge \\textbf{\\textcolor{black}{", date, "}}
+        \\end{textblock}
+        \\end{center}
+        \\end{titlepage}
+        \\restoregeometry
+        "
+        ), 50)
+  } else if (institution == "@立效研究院") {
+    content <- strwrap(paste0("\\begin{titlepage}
+        \\newgeometry{top=7.5cm}
+        \\ThisCenterWallPaper{1.12}{", coverpage, "}
+        \\begin{center}
+        \\textbf{\\Huge ", title, "}
+        \\vspace{4em}
+        \\begin{textblock}{10}(3,5.9)
+        \\huge \\textbf{\\textcolor{white}{", date, "}}
+        \\end{textblock}
+        \\begin{textblock}{10}(3,7.3)
+        \\Large \\textcolor{black}{", author, "}
+        \\end{textblock}
+        \\begin{textblock}{10}(3,11.3)
+        \\Large \\textcolor{black}{", institution, "}
+        \\end{textblock}
+        \\end{center}
+        \\end{titlepage}
+        \\restoregeometry
+        "
+        ), 50)
+  }
   writeLines(content)
 }
 
