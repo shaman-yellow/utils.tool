@@ -4,6 +4,11 @@
 
 setClass("virtual_job", "VIRTUAL")
 
+.meth <- setClass("meth", 
+  contains = c("list"),
+  representation = representation(params = "list"),
+  prototype = NULL)
+
 #' @exportClass job
 .job <- setClass("job", 
   contains = c("virtual_job"),
@@ -18,6 +23,7 @@ setClass("virtual_job", "VIRTUAL")
     pg = "character",
     cite = "character",
     method = "character",
+    meth = "list",
     sig = "character",
     tag = "character",
     analysis = "character"
@@ -25,8 +31,56 @@ setClass("virtual_job", "VIRTUAL")
   prototype = prototype(step = 0L,
     tag = character(1),
     analysis = character(1),
+    meth = .meth(),
     params = list(wd = ".", remote = "remote")
     ))
+
+setGeneric("meth", 
+  function(x, ...) standardGeneric("meth"))
+setMethod("meth", 
+  signature = c(x = "ANY"),
+  function(x){
+    x@meth
+  })
+
+setGeneric("meth<-", 
+  function(x, value) standardGeneric("meth<-"))
+setReplaceMethod("meth", signature = c(x = "ANY"),
+  function(x, value){
+    initialize(x, meth = value)
+  })
+
+collate_details <- function(tag = "meth", envir = parent.frame(1)) {
+  expr <- stringr::str_extract(unlist(knitr::knit_code$get()),
+    paste0("(?<=^#' @", tag, " ).*"))
+  expr <- expr[ !is.na(expr) ]
+  if (length(expr)) {
+    text <- lapply(expr, glue::glue, .sep = "\n", .envir = envir)
+    writeLines(unlist(text))
+  }
+}
+
+get_meth <- function(x) {
+  header <- NULL
+  if (is(x, "job")) {
+    if (length(x@analysis)) {
+      if (length(x@sig)) {
+        sig <- glue::glue("(Dataset: {x@sig})")
+      } else {
+        sig <- ""
+      }
+      header <- paste("## ", x@analysis, sig)
+    }
+  }
+  c("", header, "", meth(x))
+}
+
+setMethod("show", 
+  signature = c(object = "meth"),
+  function(object){
+    lapply(object, writeLines)
+    writeLines("\n")
+  })
 
 # setValidity("job", 
 #   function(object){

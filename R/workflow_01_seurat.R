@@ -28,7 +28,9 @@ job_seurat <- function(dir = NULL, project = basename(sub("/$", "", dir)),
   }
   object <- e(Seurat::CreateSeuratObject(counts = data, project = project,
       min.cells = min.cells, min.features = min.features, ...))
-  .job_seurat(object = object)
+  x <- .job_seurat(object = object)
+  meth(x)$step0 <- glue::glue("")
+  x
 }
 
 setMethod("step0", signature = c(x = "job_seurat"),

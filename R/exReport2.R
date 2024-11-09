@@ -64,7 +64,7 @@ write_thesisDocxEn <- function(report, savename, title,
   write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun, ...)
 }
 
-write_articlePdf <- function(report, savename, title,
+write_articlePdf <- function(report, savename = "output.Rmd", title = "",
   change_include_fun = NULL,
   yml = readLines(file.path(.expath, "articleWithCode.yml")),
   origin_include_fun = "knitr::include_graphics", ...)
