@@ -54,6 +54,10 @@ collate_details <- function(tag = "meth", envir = parent.frame(1)) {
   expr <- stringr::str_extract(unlist(knitr::knit_code$get()),
     paste0("(?<=^#' @", tag, " ).*"))
   expr <- expr[ !is.na(expr) ]
+  sys <- Sys.info()
+  expr <- c("## 数据分析平台", "",
+    "在 {paste(sys[[ 'sysname' ]], sys[[ 'nodename' ]], sys[[ 'machine' ]])} ({sys[[ 'release' ]]}) 上，使用 {R.Version()$version.string} (https://www.r-project.org/) 对数据统计分析与整合分析。",
+    "")
   if (length(expr)) {
     text <- lapply(expr, glue::glue, .sep = "\n", .envir = envir)
     writeLines(unlist(text))
@@ -260,14 +264,16 @@ setMethod("pg", signature = c(x = "character"),
 
 pg_local_recode <- function() {
   lst <- list(
-    qiime = "~/miniconda3/bin/conda run -n qiime2 qiime",
-    musitePython = "~/miniconda3/bin/conda run -n musite python3",
+    conda = "~/disk_sda1/miniconda3/bin/conda",
+    conda_env = "~/disk_sda1/miniconda3/envs",
+    qiime = "~/disk_sda1/miniconda3/bin/conda run -n qiime2 qiime",
+    musitePython = "~/disk_sda1/miniconda3/bin/conda run -n musite python3",
     musitePTM = "~/MusiteDeep_web/MusiteDeep/predict_multi_batch.py",
     musitePTM2S = "~/MusiteDeep_web/PTM2S/ptm2Structure.py",
     dl = normalizePath("~/D-GCAN/DGCAN"),
     dl_dataset = normalizePath("~/D-GCAN/dataset"),
     dl_model = normalizePath("~/D-GCAN/DGCAN/model"),
-    scfeaPython = "~/miniconda3/bin/conda run -n scFEA python",
+    scfeaPython = "~/disk_sda1/miniconda3/bin/conda run -n scFEA python",
     scfea = "~/scFEA/src/scFEA.py",
     scfea_db = "~/scFEA/data",
     musiteModel = normalizePath("~/MusiteDeep_web/MusiteDeep/models"),
@@ -277,27 +283,30 @@ pg_local_recode <- function() {
     scsa = "python3 ~/SCSA/SCSA.py",
     scsa_db = "~/SCSA/whole_v2.db",
     pymol = "pymol",
-    obgen = "obgen",
-    sirius = .prefix("sirius/bin/sirius", "op")
+    # sirius = .prefix("sirius/bin/sirius", "op"),
+    obgen = "obgen"
   )
 }
 
 pg_remote_recode <- function() {
+  conda_remote <- getOption("conda_remote", "~/miniconda3")
   lst <- list(
-    qiime = "~/miniconda3/bin/conda run -n qiime2 qiime",
-    fastp = "~/miniconda3/bin/conda run -n base fastp",
-    bcftools = "~/miniconda3/bin/conda run -n base bcftools",
-    elprep = "~/miniconda3/bin/conda run -n base elprep",
-    # biobakery_workflows = "~/miniconda3/bin/conda run -n biobakery biobakery_workflows",
-    bowtie2 = "~/miniconda3/bin/conda run -n base bowtie2",
-    samtools = "~/miniconda3/bin/conda run -n base samtools",
-    metaphlan = "~/miniconda3/bin/conda run -n mpa metaphlan",
-    merge_metaphlan_tables.py = "~/miniconda3/bin/conda run -n mpa merge_metaphlan_tables.py",
+    qiime = "{conda_remote}/bin/conda run -n qiime2 qiime",
+    fastp = "{conda_remote}/bin/conda run -n base fastp",
+    bcftools = "{conda_remote}/bin/conda run -n base bcftools",
+    elprep = "{conda_remote}/bin/conda run -n base elprep",
+    # biobakery_workflows = "{conda_remote}/bin/conda run -n biobakery biobakery_workflows",
+    bowtie2 = "{conda_remote}/bin/conda run -n base bowtie2",
+    samtools = "{conda_remote}/bin/conda run -n base samtools",
+    metaphlan = "{conda_remote}/bin/conda run -n mpa metaphlan",
+    merge_metaphlan_tables.py = "{conda_remote}/bin/conda run -n mpa merge_metaphlan_tables.py",
     sirius = "~/operation/sirius/bin/sirius",
-    scfeaPython = "~/miniconda3/bin/conda run -n scFEA python",
-    scfea = "/data/hlc/scFEA/src/scFEA.py",
-    scfea_db = "/data/hlc/scFEA/data"
+    scfeaPython = "{conda_remote}/bin/conda run -n scFEA python",
+    scfea = "~/scFEA/src/scFEA.py",
+    scfea_db = "~/scFEA/data"
   )
+  envir <- environment()
+  lapply(lst, glue::glue, .envir = envir)
 }
 
 #' @exportMethod object
@@ -378,7 +387,7 @@ setReplaceMethod("others", signature = c(x = "job"),
 setGeneric("set_remote", 
   function(x, ...) {
     x <- standardGeneric("set_remote")
-    set_remote.default(x, tmpdir = "/data/hlc/tmp",
+    set_remote.default(x, tmpdir = getOption("remote_tmpdir", NULL),
       map_local = paste0(gs(class(x), "^job_", ""), "_local"),
       remote = "remote"
     )
@@ -435,6 +444,14 @@ setMethod("step0", signature = c(x = "character"),
     step0(fun())
     options(method_name = paste0("job_", sig))
   })
+
+set_sig <- function(x) {
+  name <- substitute(x)
+  sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
+  attr(sig, "name") <- as.character(name)
+  sig(x) <- sig
+  return(x)
+}
 
 setGeneric("step1",
   function(x, ...) {
@@ -724,14 +741,17 @@ e <- function(expr, text = NULL, internal = T, n = NULL) {
 }
 
 parallel <- function(x, fun, workers = 3) {
-  if (isNamespaceLoaded("future")) {
-    e(pkgload::unload("future"))
-  }
+  # if (isNamespaceLoaded("future")) {
+    # e(pkgload::unload("future"))
+  # }
   options(future.globals.maxSize = Inf)
   e(future::plan(future::multicore, workers = workers))
   x <- fun(x)
-  e(future::plan(future::sequential))
   x
+}
+
+parallel_collect <- function() {
+  future::value(future::future(Sys.getpid()))
 }
 
 show_nonstandardGenericFunction <- selectMethod(
@@ -1431,7 +1451,7 @@ setMethod("res", signature = c(x = "local_db"),
   }
 }
 
-saves <- function(file = "workflow.rds", saveInjobs = T, ...) {
+saves <- function(file = "workflow.rdata", saveInjobs = T, ...) {
   injobs <- getOption("internal_job")
   if (!is.null(injobs) && saveInjobs) {
     rds <- .get_savesInternalRds(file)
@@ -1446,7 +1466,7 @@ saves <- function(file = "workflow.rds", saveInjobs = T, ...) {
   save.image(file, ...)
 }
 
-loads <- function(file = "workflow.rds", ...) {
+loads <- function(file = "workflow.rdata", ...) {
   if (file.exists(file)) {
     load(file, envir = .GlobalEnv)
   }

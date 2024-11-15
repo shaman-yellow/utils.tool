@@ -738,7 +738,7 @@ show_lst.ch <- function(lst, width = 60) {
     representation(),
   prototype = NULL)
 
-new_lich <- function(lst) {
+new_lich <- function(lst, sep = ", ") {
   if (!is(lst, "list")) {
     message("Not 'list', try format as 'list'.")
     lst <- list(Content = lst)
@@ -751,7 +751,7 @@ new_lich <- function(lst) {
   if (is.null(names(lst))) {
     stop("The `lst` without names.")
   }
-  lst <- lapply(lst, paste0, collapse = ", ")
+  lst <- lapply(lst, paste0, collapse = sep)
   .lich(lst)
 }
 
@@ -1795,11 +1795,17 @@ get_job_source <- function(jobs = .get_job_list(type = "class"), path = "~/utils
   }
 }
 
-set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
-  coverpage = .prefix("cover_page.pdf"), institution = "铂赛")
+set_cover.bosai <- function(info, title = info$title, author = "黄礼闯", date = Sys.Date(),
+  coverpage = NULL, institution = "铂赛")
 {
-  options(title = title)
-  if (institution == "铂赛") {
+  if (is.null(coverpage)) {
+    if (info$type == "思路设计") {
+      coverpage <- .prefix("cover_page_idea.pdf")
+    } else {
+      coverpage <- .prefix("cover_page_analysis.pdf")
+    }
+  }
+  if (info$type == "思路设计") {
     content <- strwrap(paste0("\\begin{titlepage}
         \\newgeometry{top=7.5cm}
         \\ThisCenterWallPaper{1.12}{", coverpage, "}
@@ -1814,21 +1820,24 @@ set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
         \\restoregeometry
         "
         ), 50)
-  } else if (institution == "@立效研究院") {
+  } else {
     content <- strwrap(paste0("\\begin{titlepage}
-        \\newgeometry{top=7.5cm}
+        \\newgeometry{top=6.5cm}
         \\ThisCenterWallPaper{1.12}{", coverpage, "}
         \\begin{center}
-        \\textbf{\\Huge ", title, "}
+        \\textbf{\\huge ", title, "}
         \\vspace{4em}
-        \\begin{textblock}{10}(3,5.9)
-        \\huge \\textbf{\\textcolor{white}{", date, "}}
+        \\begin{textblock}{10}(3,4.85)
+        \\Large \\textbf{\\textcolor{black}{", info$id, "}}
         \\end{textblock}
-        \\begin{textblock}{10}(3,7.3)
-        \\Large \\textcolor{black}{", author, "}
+        \\begin{textblock}{10}(3,5.8)
+        \\Large \\textbf{\\textcolor{black}{", author, "}}
         \\end{textblock}
-        \\begin{textblock}{10}(3,11.3)
-        \\Large \\textcolor{black}{", institution, "}
+        \\begin{textblock}{10}(3,6.75)
+        \\Large \\textbf{\\textcolor{black}{", info$type, "}}
+        \\end{textblock}
+        \\begin{textblock}{10}(3,7.7)
+        \\Large \\textbf{\\textcolor{black}{", info$client, "}}
         \\end{textblock}
         \\end{center}
         \\end{titlepage}
@@ -1836,6 +1845,33 @@ set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
         "
         ), 50)
   }
+  writeLines(content)
+}
+
+set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
+  coverpage = .prefix("cover_page.pdf"), institution = "@立效研究院")
+{
+  options(title = title)
+  content <- strwrap(paste0("\\begin{titlepage}
+      \\newgeometry{top=7.5cm}
+      \\ThisCenterWallPaper{1.12}{", coverpage, "}
+      \\begin{center}
+      \\textbf{\\Huge ", title, "}
+      \\vspace{4em}
+      \\begin{textblock}{10}(3,5.9)
+      \\huge \\textbf{\\textcolor{white}{", date, "}}
+      \\end{textblock}
+      \\begin{textblock}{10}(3,7.3)
+      \\Large \\textcolor{black}{", author, "}
+      \\end{textblock}
+      \\begin{textblock}{10}(3,11.3)
+      \\Large \\textcolor{black}{", institution, "}
+      \\end{textblock}
+      \\end{center}
+      \\end{titlepage}
+      \\restoregeometry
+      "
+      ), 50)
   writeLines(content)
 }
 
@@ -2263,11 +2299,11 @@ setMethod("abstract", signature = c(x = "df", name = "character", latex = "logic
       cat(abs, "\n")
     locate_file(name)
     if (!is.null(summary)) {
-      cat(text_roundrect(fix.tex(
+      cat(text_roundrect(
             c(sumTbl(x, key, sum.ex),
               .enumerate_items(.get_des(colnames(x)))
             )
-            )))
+            ))
     }
   })
 
@@ -2307,7 +2343,7 @@ setMethod("abstract", signature = c(x = "lich", name = "character", latex = "log
         ch <- c(ch, "\n\\vspace{2em}\n")
         ch
       })
-    cat(text_roundrect(paste0(fix.tex(unlist(str)), collapse = "\n")))
+    cat(text_roundrect(paste0(unlist(str), collapse = "\n")))
   })
 
 setMethod("abstract", signature = c(x = "files", name = "character", latex = "logical"),
@@ -2329,8 +2365,7 @@ sumDir <- function(dir, sum.ex = NULL) {
   num <- length(files)
   if (length(files) > 5)
     files <- c(head(files, n = 5), "...")
-  files <- fix.tex(files)
-  paste0("注：文件夹", fix.tex(dir), "共包含", num, "个文件。\n",
+  paste0("注：文件夹", dir, "共包含", num, "个文件。\n",
     sum.ex, "\n",
     .enumerate_items0(files)
   )
@@ -2346,7 +2381,7 @@ sumDir <- function(dir, sum.ex = NULL) {
 }
 
 fix.tex <- function(str) {
-  gsub("_", "\\\\_", str)
+  gsub("([_&])", "\\\\\\1", str)
 }
 
 sumTbl <- function(x, key, sum.ex = NULL, mustSum = getOption("abstract.mustSum")) {
@@ -2371,10 +2406,11 @@ locate_file <- function(name, des = "对应文件为") {
 }
 
 text_roundrect <- function(str, collapse = "\n") {
-  paste0("\\begin{center}",
-    "\\begin{tcolorbox}[colback=gray!10, colframe=gray!50, width=0.9\\linewidth, arc=1mm, boxrule=0.5pt]",
-    str, "\\end{tcolorbox}\n\\end{center}", collapse = collapse
-  )
+  fix.tex(
+    paste0("\\begin{center}",
+      "\\begin{tcolorbox}[colback=gray!10, colframe=gray!50, width=0.9\\linewidth, arc=1mm, boxrule=0.5pt]",
+      str, "\\end{tcolorbox}\n\\end{center}", collapse = collapse
+      ))
 }
 
 # ==========================================================================

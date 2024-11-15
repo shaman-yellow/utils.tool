@@ -10,7 +10,7 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://htmlpreview.github.io/?https://github.com/sqjin/CellChat/blob/master/tutorial/CellChat-vignette.html"),
+    info = c("https://htmlpreview.github.io/?https://github.com/sqjin/CellChat/blob/master/tutorial/CellChat-vignette.html"),
     cite = "[@InferenceAndAJinS2021]",
     method = "R package `CellChat` used for cell communication analysis",
     tag = "scrna:cellchat",
@@ -40,7 +40,9 @@ setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
         object = object(x), group.by = group.by, assay = assay,
         ...
         ))
-    .job_cellchat(object = object, params = list(group.by = group.by))
+    x <- .job_cellchat(object = object, params = list(group.by = group.by))
+    meth(x)$step0 <- glue::glue("以 `CellChat` R 包 ({packageVersion('CellChat')}) {cite_show('InferenceAndAJinS2021')} 对单细胞数据进行细胞通讯分析。以 `CellChat::createCellChat` 将 `Seurat` 对象的 {assay} Assay 转化为 CellChat 对象。")
+    return(x)
   })
 
 setMethod("step0", signature = c(x = "job_cellchat"),
@@ -52,7 +54,7 @@ setMethod("step0", signature = c(x = "job_cellchat"),
 
 setMethod("step1", signature = c(x = "job_cellchat"),
   function(x, db = CellChat::CellChatDB.human,
-    ppi = CellChat::PPI.human, cl = 4, python = "/usr/bin/python3")
+    ppi = CellChat::PPI.human, cl = 4, python = NULL, debug = F)
   {
     step_message("One step forward computation of most.
       yellow{{In a nutshell, this do:
@@ -67,31 +69,33 @@ setMethod("step1", signature = c(x = "job_cellchat"),
       to smooth gene expression level (set NULL to cancel).
       "
     )
-    if (!is.null(python)) {
-      e(base::Sys.setenv(RETICULATE_PYTHON = python))
-      e(reticulate::py_config())
+    if (!debug) {
+      if (!is.null(python)) {
+        e(base::Sys.setenv(RETICULATE_PYTHON = python))
+        e(reticulate::py_config())
+      }
+      p.showdb <- e(CellChat::showDatabaseCategory(db))
+      p.showdb <- wrap(p.showdb, 8, 4)
+      object(x)@DB <- db
+      future::plan("multisession", workers = cl)
+      object(x) <- e(CellChat::subsetData(object(x)))
+      ## cell communication
+      object(x) <- e(CellChat::identifyOverExpressedGenes(object(x)))
+      object(x) <- e(CellChat::identifyOverExpressedInteractions(object(x)))
+      if (!is.null(ppi)) {
+        object(x) <- e(CellChat::projectData(object(x), ppi))
+      }
+      object(x) <- e(CellChat::computeCommunProb(object(x)))
+      object(x) <- e(CellChat::filterCommunication(object(x), min.cells = 10))
+      lp_net <- as_tibble(CellChat::subsetCommunication(object(x)))
+      object(x) <- e(CellChat::computeCommunProbPathway(object(x)))
+      pathway_net <- as_tibble(CellChat::subsetCommunication(object(x), slot.name = "netP"))
+      object(x) <- e(CellChat::aggregateNet(object(x)))
+      p.comms <- plot_communication.cellchat(object(x))
+      p.comms <- .set_lab(p.comms, sig(x), paste("overall communication", c("count", "weight", "individuals")))
+      ## Signaling role of cell groups
+      object(x) <- e(CellChat::netAnalysis_computeCentrality(object(x), slot.name = "netP"))
     }
-    p.showdb <- e(CellChat::showDatabaseCategory(db))
-    p.showdb <- wrap(p.showdb, 8, 4)
-    object(x)@DB <- db
-    future::plan("multisession", workers = cl)
-    object(x) <- e(CellChat::subsetData(object(x)))
-    ## cell communication
-    object(x) <- e(CellChat::identifyOverExpressedGenes(object(x)))
-    object(x) <- e(CellChat::identifyOverExpressedInteractions(object(x)))
-    if (!is.null(ppi)) {
-      object(x) <- e(CellChat::projectData(object(x), ppi))
-    }
-    object(x) <- e(CellChat::computeCommunProb(object(x)))
-    object(x) <- e(CellChat::filterCommunication(object(x), min.cells = 10))
-    lp_net <- as_tibble(CellChat::subsetCommunication(object(x)))
-    object(x) <- e(CellChat::computeCommunProbPathway(object(x)))
-    pathway_net <- as_tibble(CellChat::subsetCommunication(object(x), slot.name = "netP"))
-    object(x) <- e(CellChat::aggregateNet(object(x)))
-    p.comms <- plot_communication.cellchat(object(x))
-    p.comms <- .set_lab(p.comms, sig(x), paste("overall communication", c("count", "weight", "individuals")))
-    ## Signaling role of cell groups
-    object(x) <- e(CellChat::netAnalysis_computeCentrality(object(x), slot.name = "netP"))
     ## Clustering
     object <- object(x)
     res <- try(
@@ -107,12 +111,15 @@ setMethod("step1", signature = c(x = "job_cellchat"),
       message("Due to error, escape from clustering; But the object was returned.")
       object(x) <- object
     }
+    p.commHpAll <- CellChat::netVisual_heatmap(object(x), color.heatmap = "Reds", signaling = NULL)
+    p.commHpAll <- .set_lab(wrap(p.commHpAll), sig(x), "All Cell communication heatmap")
     #  Interaction net count plot and interaction weight
     #  plot. The thicker the line represented, the more
     #  the number of interactions, and the stronger the interaction
     #  weights/strength between the two cell types
-    x@plots[[ 1 ]] <- c(namel(p.showdb), p.comms)
+    x@plots[[ 1 ]] <- c(namel(p.showdb, p.commHpAll), p.comms)
     x@tables[[ 1 ]] <- namel(lp_net, pathway_net)
+    meth(x)$step1 <- glue::glue("参照 {x@info} 分析 scRNA-seq 数据。")
     return(x)
   })
 
@@ -132,10 +139,8 @@ setMethod("step2", signature = c(x = "job_cellchat"),
       pathways <- object(x)@netP$pathways
     }
     sapply <- pbapply::pbsapply
-    cell_comm_heatmap <- e(sapply(c("ALL", pathways), simplify = F,
+    cell_comm_heatmap <- e(sapply(pathways, simplify = F,
       function(name) {
-        if (name == "ALL")
-          name <- NULL
         main <- try(CellChat::netVisual_heatmap(
           object(x), color.heatmap = "Reds", signaling = name), T)
         if (inherits(main, "try-error")) {
@@ -350,6 +355,9 @@ setMethod("select_pathway", signature = c(x = "job_cellchat"),
     }
   })
 
-unique.lps <- function(x) {
+unique.lps <- function(x, use = c("ligand", "receptor")) {
+  if (is.data.frame(x)) {
+    x <- unlist(lapply(use, function(n) x[[ n ]]))
+  }
   unique(unlist(stringr::str_extract_all(x, "[^_]+")))
 }

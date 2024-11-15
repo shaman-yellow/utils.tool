@@ -284,11 +284,7 @@ smartEsApply <- function(X, MARGIN, FUN, convert_to_dense, ...) {
   environment(FUN) <- e1
   if (is(X, "Seurat")) {
     exprs <- function(x) {
-      if (x@active.assay == "integrated") {
-        x@assays[[ x@active.assay ]]@scale.data
-      } else {
-        x@assays[[ x@active.assay ]]@data
-      }
+      x@assays[[ x@active.assay ]]@scale.data
     }
   } else if (is(X, "cell_data_set")) {
     exprs <- function(x) {

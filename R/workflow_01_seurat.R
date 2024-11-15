@@ -95,12 +95,13 @@ setMethod("step2", signature = c(x = "job_seurat"),
     x@plots[[ 2 ]] <- plot_pca.seurat(object(x))
     x@plots[[ 2 ]]$p.pca_rank <- .set_lab(
       x@plots[[ 2 ]]$p.pca_rank, sig(x), "Ranking of principle components")
+    meth(x)$step1 <- glue::glue("使用 Seurat R 包 ({packageVersion('Seurat')}) 进行单细胞数据质量控制 (QC) 和下游分析。依据 <{x@info}> 为指导对单细胞数据预处理。一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。建议线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。使用 Seurat::SCTransform 函数对数据标准化。再PCA降维。")
     message("Dim: ", paste0(dim(object(x)), collapse = ", "))
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_seurat"),
-  function(x, dims = 1:15, resolution = 1.2, force = F){
+  function(x, dims = 1:15, resolution = 1.2, reduction = "pca", force = F){
     step_message("This contains several execution: Cluster the cells, UMAP
       reduction, Cluster biomarker (Differential analysis). Object were
       performed with:
@@ -125,13 +126,14 @@ setMethod("step3", signature = c(x = "job_seurat"),
     # if (isNamespaceLoaded("future")) {
       # e(pkgload::unload("future"))
     # }
-    object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims))
+    object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims, reduction = reduction))
     object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution))
-    object(x) <- e(Seurat::RunUMAP(object(x), dims = dims))
-    p.umap <- e(Seurat::DimPlot(object(x), reduction = "umap", cols = color_set(T)))
+    object(x) <- e(Seurat::RunUMAP(object(x), dims = dims, reduction = reduction))
+    p.umap <- e(Seurat::DimPlot(object(x), cols = color_set(T)))
     p.umap <- wrap(p.umap, 6, 5)
     p.umap <- .set_lab(p.umap, sig(x), "UMAP", "Clustering")
     x@plots[[ 3 ]] <- namel(p.umap)
+    meth(x)$step3 <- glue::glue("在 1-{max(dims)} PC 维度下，以 Seurat::FindNeighbors 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 Seurat::FindClusters 函数识别细胞群并以 Seurat::RunUMAP 进行 UMAP 聚类。")
     return(x)
   })
 
@@ -185,13 +187,13 @@ setMethod("step4", signature = c(x = "job_seurat"),
   })
 
 setMethod("step5", signature = c(x = "job_seurat"),
-  function(x, workers = NULL)
+  function(x, workers = NULL, min.pct = .25, logfc.threshold = .25)
   {
     step_message("Find all Marders for Cell Cluster.")
     fun <- function(x) {
       markers <- as_tibble(
-        e(Seurat::FindAllMarkers(object(x), min.pct = 0.25,
-            logfc.threshold = 0.25, only.pos = T))
+        e(Seurat::FindAllMarkers(object(x), min.pct = min.pct,
+            logfc.threshold = logfc.threshold, only.pos = T))
       )
     }
     if (!is.null(workers)) {
@@ -208,20 +210,57 @@ setMethod("step5", signature = c(x = "job_seurat"),
       x@plots[[ 5 ]] <- namel(p.toph)
     }
     x@tables[[ 5 ]] <- list(all_markers = markers, all_markers_no_filter = all_markers_no_filter)
+    meth(x)$step5 <- glue::glue("以 `Seurat::FindAllMarkers` (LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}) 为所有细胞群寻找 Markers。")
     return(x)
   })
 
 setMethod("step6", signature = c(x = "job_seurat"),
-  function(x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = 1.5,
+  function(x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = 1.5, filter.pct = .7,
     org = c("Human", "Mouse"),
-    cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_cell")
+    cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_cell",
+    method = c("gpt", "scsa"), n = 30)
   {
-    step_message("Use SCSA to annotate cell types (<https://github.com/bioinfo-ibms-pumc/SCSA>).")
-    lst <- do.call(scsa_annotation, as.list(environment()))
-    x <- lst$x
-    x@tables[[ 6 ]] <- list(scsa_res_all = lst$scsa_res_all)
-    x@params$group.by <- lst$res.col
-    x@plots[[ 6 ]] <- list(p.map_scsa = lst$p.map_scsa)
+    method <- match.arg(method)
+    if (method == "gpt") {
+      step_message("Use ChatGPT (ChatGPT-4o) to annotate cell types.")
+      all_markers <- x@tables$step5$all_markers
+      if (!is.null(filter.pct)) {
+        all_markers <- dplyr::filter(all_markers, pct.1 >= filter.pct)
+      }
+      query <- prepare_GPTmessage_for_celltypes(tissue, all_markers, n = n)
+      if (usethis::ui_yeah("Get results from clipboard?")) {
+        feedback <- get_clipboard()
+        if (length(feedback) != query$ncluster) {
+          stop(glue::glue("The res number ({nrow(res)}) not match cluster number ({query$ncluster})."))
+        }
+        res <- parse_GPTfeedback(feedback)
+        seqs <- match(object(x)@meta.data[[ "seurat_clusters"]], 0:(query$ncluster - 1))
+        object(x)@meta.data[[ "ChatGPT_cell"]] <- res$cells[ seqs ]
+        ## heatmap
+        p.markers <- e(Seurat::DoHeatmap(object(x), features = res$markers,
+            group.by = "ChatGPT_cell", raster = T, group.colors = color_set(), label = F))
+        p.markers <- .set_lab(p.markers, sig(x), "Markers in cell types")
+        attr(p.markers, "lich") <- new_lich(namel(ChatGPT_Query = query$query, feedback), sep = "\n")
+        ## dim plot
+        p.map_gpt <- e(Seurat::DimPlot(
+            object(x), reduction = "umap", label = F, pt.size = .7,
+            group.by = "ChatGPT_cell", cols = color_set()
+            ))
+        p.map_gpt <- wrap(as_grob(p.map_gpt), 7, 4)
+        p.map_gpt <- .set_lab(p.map_gpt, sig(x), "ChatGPT", "Cell type annotation")
+        x@plots[[ 6 ]] <- namel(p.map_gpt, p.markers)
+        meth(x)$step6 <- glue::glue("以 ChatGPT-4o 注释细胞类型 {cite_show('Assessing_GPT_4_Hou_W_2024')}。将每一个细胞群的 Top {n} 基因提供给 ChatGPT，使其注释细胞类型。询问信息为：\n\n{text_roundrect(query$message)}")
+      } else {
+        stop("Terminated.")
+      }
+    } else {
+      step_message("Use SCSA to annotate cell types (<https://github.com/bioinfo-ibms-pumc/SCSA>).")
+      lst <- do.call(scsa_annotation, as.list(environment()))
+      x <- lst$x
+      x@tables[[ 6 ]] <- list(scsa_res_all = lst$scsa_res_all)
+      x@params$group.by <- lst$res.col
+      x@plots[[ 6 ]] <- list(p.map_scsa = lst$p.map_scsa)
+    }
     return(x)
   })
 
@@ -409,15 +448,19 @@ plot_pca.seurat <- function(x) {
     })
   p.pca_heatmap <- patchwork::wrap_plots(p.pca_heatmap)
   p.pca_heatmap <- wrap(p.pca_heatmap, 12, 6)
-  p.pca_rank <- e(Seurat::ElbowPlot(x))
-  p.pca_rank$layers[[1]]$aes_params$size <- 5
-  p.pca_rank$layers[[1]]$aes_params$alpha <- .5
-  p.pca_rank$layers[[1]]$aes_params$colour <- "brown"
+  p.pca_rank <- pretty_elbowplot(e(Seurat::ElbowPlot(x)))
   p.pca_rank <- wrap(p.pca_rank, 4, 4)
   namel(
     p.pca_pcComponents,
     p.pca_1v2, p.pca_heatmap, p.pca_rank
   )
+}
+
+pretty_elbowplot <- function(plot) {
+  plot$layers[[1]]$aes_params$size <- 5
+  plot$layers[[1]]$aes_params$alpha <- .5
+  plot$layers[[1]]$aes_params$colour <- "brown"
+  plot
 }
 
 setMethod("getsub", signature = c(x = "job_seurat"),
@@ -787,4 +830,33 @@ matchCellMarkers <- function(lst.markers, ref, least = 2) {
     }
   )
   lst
+}
+
+parse_GPTfeedback <- function(feedback) {
+  res <- gs(feedback, "^[0-9]+\\. |\\.$", "")
+  res <- strsplit(res, "\\. ")
+  cells <- vapply(res, function(x) strsplit(x[1], "; ")[[1]][1], character(1))
+  markers <- lapply(res, function(x) strsplit(x[2], "; "))
+  markers <- markers[ order(cells) ]
+  markers <- unique(gs(unlist(markers), "\\s", ""))
+  namel(markers, cells)
+}
+
+prepare_GPTmessage_for_celltypes <- function(tissue, marker_list, n = 10, toClipboard = T)
+{
+  message <- glue::glue("Identify cell types of {tissue} cells using the following markers separately for each row. Only provide the cell type name (for each row). Show numbers before the name. Some can be a mixture of multiple cell types (separated by '; ', end with '. '). Then, provide at least 1 and at most 3 classical markers that distinguish the cell type from other cells (separated by '; ').  (e.g., 1. X Cell; Y Cell. Marker1; Marker2; Marker3)")
+  message("`marker_list` should be table output from seurat (column: cluster, gene)")
+  marker_list <- split(marker_list$gene, marker_list$cluster)
+  ncluster <- length(marker_list)
+  if (!is.null(n)) {
+    marker_list <- lapply(marker_list, head, n = n)
+  }
+  markers <- vapply(marker_list, paste0, character(1), collapse = ",")
+  markers <- paste0(seq_along(markers), ". ", markers)
+  markers <- paste(markers, collapse = "\n")
+  query <- paste0(message, "\n", markers)
+  if (toClipboard) {
+    gett(query)
+  }
+  return(list(query = query, message = message, ncluster = ncluster))
 }

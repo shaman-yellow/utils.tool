@@ -41,7 +41,16 @@ setMethod("asjob_scfea", signature = c(x = "job_seurat"),
       }
       refs <- fun_test(file)
     }
-    data <- object(x)@assays[[ assay ]]@counts
+    objAssay <- object(x)@assays[[ assay ]]
+    if (isMultiAssays(objAssay)) {
+      message("Combined data from multiple layers of the assay.")
+      data <- integrateLayers(objAssay)@assays$RNA$counts
+    } else {
+      data <- objAssay@counts
+      if (identical(dim(data), c(0L, 0L))) {
+        data <- objAssay@data
+      }
+    }
     data <- data[ rownames(data) %in% refs, ]
     metadata <- meta(x)
     if (!is.null(cells)) {
@@ -60,14 +69,37 @@ setMethod("asjob_scfea", signature = c(x = "job_seurat"),
     data.table::fwrite(data.frame(data, check.names = F), expr_file, row.names = T)
     x <- job_scfea(expr_file, org = org)
     x@params <- c(x@params, list(metadata = metadata, from_seurat = T))
-    x
+    meth(x)$step0 <- glue::glue("将 Seurat 的 `{assay}` Assay 作为输入数据，以 `scFEA` 预测细胞的代谢通量 {cite_show('AGraphNeuralAlgham2021')}。")
+    return(x)
   })
+
+isMultiAssays <- function(assay) {
+  if (is(assay, "Assay5")) {
+    return(length(assay@layers) > 1)
+  } else {
+    F
+  }
+}
+
+integrateLayers <- function(assay) {
+  names <- names(assay@layers)
+  objs <- sapply(names, simplify = F,
+    function(name) {
+      do.call(`$`, list(assay, name))
+    })
+  commonGenes <- ins(lst = lapply(objs, function(x) rownames(x)))
+  objs <- lapply(objs, function(x) x[ commonGenes, ])
+  obj <- SeuratObject::CreateSeuratObject(counts = do.call(cbind, objs))
+  obj@meta.data$.layer <- unlist(lapply(names, function(name) rep(name, ncol(objs[[ name ]]))))
+  return(obj)
+}
 
 job_scfea <- function(expr_file, org = c("mouse", "human"), test = F)
 {
   org <- match.arg(org)
   x <- .job_scfea()
-  x$dir <- dirname(expr_file)
+  x$wd <- dirname(expr_file)
+  x$dir <- "."
   x$input_file <- basename(expr_file)
   if (org == "mouse") {
     x$moduleGene_file <- "module_gene_complete_mouse_m168.csv"
@@ -105,10 +137,10 @@ setMethod("step1", signature = c(x = "job_scfea"),
   {
     step_message("Run prediction.")
     if (!is.remote(x)) {
-      dir.create("output")
+      dir.create(file.path(x$wd, "output"))
     }
     rem_run(
-      pg("scfeaPython", is.remote(x)), " ", pg("scfea", is.remote(x)),
+      scriptPrefix(x), pg("scfeaPython", is.remote(x)), " ", pg("scfea", is.remote(x)),
       " --data_dir ", pg("scfea_db", is.remote(x)),
       " --input_dir ", x$dir,
       " --test_file ", x$input_file,
@@ -119,9 +151,6 @@ setMethod("step1", signature = c(x = "job_scfea"),
       " --output_flux_file ", "flux.csv",
       " --output_balance_file ", "balance.csv"
     )
-    if (is.remote(x)) {
-      cdRun("scp -r ", x$remote, ":", x$wd, "/* ", x$map_local)
-    }
     return(x)
   })
 
@@ -129,9 +158,10 @@ setMethod("step2", signature = c(x = "job_scfea"),
   function(x){
     step_message("Collate results.")
     if (is.remote(x)) {
+      cdRun("scp -r ", x$remote, ":", x$wd, "/* ", x$map_local)
       dir <- x$map_local
     } else {
-      dir <- x$dir
+      dir <- x$wd
     }
     t.balance <- ftibble(paste0(dir, "/", "balance.csv"))
     t.flux <- ftibble(paste0(dir, "/", "flux.csv"))
@@ -219,11 +249,13 @@ setMethod("asjob_limma", signature = c(x = "job_scfea"),
   })
 
 setMethod("set_remote", signature = c(x = "job_scfea"),
-  function(x, wd = "/data/hlc/scfea", remote = "remote")
+  function(x, wd = "scfea", remote = "remote")
   {
     if (!is.remote(x)) {
       x$set_remote <- T
       x$remote <- remote
+      local_wd <- x$wd
+      x$wd <- "."
       if (rem_file.exists(wd)) {
         isThat <- usethis::ui_yeah("Dir exists, remove all files ?")
         if (isThat) {
@@ -233,8 +265,8 @@ setMethod("set_remote", signature = c(x = "job_scfea"),
       rem_dir.create(wd)
       x$wd <- wd
       rem_dir.create("output")
-      cdRun("scp ", paste0(x$dir, "/data.csv"), " ", remote, ":", wd)
-      x$map_local <- x$dir
+      cdRun("scp ", file.path(local_wd, "data.csv"), " ", remote, ":", wd)
+      x$map_local <- local_wd
       x$dir <- "."
     }
     return(x)
@@ -272,3 +304,4 @@ setMethod("intersect", signature = c(x = "job_limma", y = "character"),
       stop("...")
     }
   })
+

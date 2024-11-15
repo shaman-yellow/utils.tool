@@ -18,8 +18,71 @@ rem_run <- function(...) {
   }
 }
 
+remoteRun <- function(..., path, run_after_cd = NULL,
+  postfix = NULL, remote = "remote", tmpdir = NULL, x)
+{
+  expr <- paste0(unlist(list(...)), collapse = "")
+  if (missing(x)) {
+    x <- get("x", parent.frame(1))
+  }
+  if (missing(remote)) {
+    remote <- x@params$remote
+  }
+  if (missing(postfix)) {
+    postfix <- x@params$postfix
+  }
+  if (!is.null(postfix)) {
+    expr <- postfix(expr)
+  }
+  if (missing(tmpdir)) {
+    tmpdir <- x@params$tmpdir
+  }
+  if (!is.null(tmpdir))
+    expr <- c(paste0("export TMPDIR=", tmpdir), expr)
+  if (missing(path)) {
+    path <- x@params$wd
+  }
+  if (!is.null(run_after_cd)) {
+    expr <- c(run_after_cd, expr)
+  }
+  if (!is.null(path)) {
+    expr <- c(paste0("cd ", path), expr)
+  }
+  heading <- getOption("scriptHeading")
+  if (!is.null(heading)) {
+    expr <- c(heading, "", expr)
+  }
+  script <- tempfile("remote_Script_", fileext = ".sh")
+  writeLines(expr, script)
+  writeLines(crayon::yellow(paste0("The script file for remote is: ", script)))
+  remote_script <- file.path(path, basename(script))
+  system(paste0("scp ", script, " ", remote, ":", remote_script))
+  cmd <- paste0("ssh ", remote, " '", getOption("remoteRun", "bash"), " ", remote_script, "'")
+  cli::cli_alert_info(cmd)
+  system(cmd)
+}
+
+set_remoteRun <- function(remoteRun = "bash", scriptHeading = NULL, scriptPrefix = NULL) {
+  options(remoteRun = remoteRun,
+    scriptHeading = scriptHeading,
+    scriptPrefix = scriptPrefix
+  )
+}
+
+scriptPrefix <- function(x) {
+  if (!is.remote(x)) {
+    return()
+  }
+  prefix <- getOption("scriptPrefix")
+  if (is.null(prefix)) {
+    return(NULL)
+  } else {
+    return(paste0(prefix, " "))
+  }
+}
+
 rem_list.files <- function(path, pattern,
-  all.files = F, full.names = F, recursive = F)
+  all.files = F, full.names = F, recursive = F, x)
 {
   if (!check_remote()) {
     if (length(path) > 1) {
@@ -29,7 +92,9 @@ rem_list.files <- function(path, pattern,
         full.names = full.names, recursive = recursive)
     }
   } else {
-    x <- get("x", envir = parent.frame(1))
+    if (missing(x)) {
+      x <- get("x", envir = parent.frame(1))
+    }
     list.remote(path, pattern, all.files = all.files,
       full.names = full.names, recursive = recursive,
       remote = x@params$remote, x = x
@@ -235,41 +300,3 @@ list.remote <- function(path, pattern, remote = "remote",
     stop("The path may be character(0).")
   }
 }
-
-remoteRun <- function(..., path, run_after_cd = NULL,
-  postfix = NULL, remote = "remote", tmpdir = "/data/hlc/tmp", x)
-{
-  expr <- paste0(unlist(list(...)), collapse = "")
-  if (missing(x)) {
-    x <- get("x", parent.frame(1))
-  }
-  if (missing(remote)) {
-    remote <- x@params$remote
-  }
-  if (missing(postfix)) {
-    postfix <- x@params$postfix
-  }
-  if (!is.null(postfix)) {
-    expr <- postfix(expr)
-  }
-  if (missing(tmpdir)) {
-    tmpdir <- x@params$tmpdir
-  }
-  if (!is.null(tmpdir))
-    expr <- c(paste0("export TMPDIR=", tmpdir), expr)
-  if (missing(path)) {
-    path <- x@params$wd
-  }
-  if (!is.null(run_after_cd)) {
-    expr <- c(run_after_cd, expr)
-  }
-  if (!is.null(path)) {
-    expr <- c(paste0("cd ", path), expr)
-  }
-  script <- tempfile("remote_Script_", fileext = ".sh")
-  writeLines(expr, script)
-  writeLines(crayon::yellow(paste0("The script file for remote is: ", script)))
-  system(paste0("ssh ", remote, " < ", script))
-}
-
-

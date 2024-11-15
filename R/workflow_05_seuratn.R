@@ -11,7 +11,7 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://github.com/satijalab/seurat/wiki"),
+    info = c("https://satijalab.org/seurat/articles"),
     cite = "[@IntegratedAnalHaoY2021; @ComprehensiveIStuart2019]",
     method = "R package `Seurat` used for multiple dataset integration",
     tag = "scrna:anno",
@@ -88,6 +88,7 @@ setMethod("step1", signature = c(x = "job_seuratn"),
           x
         })
     }
+    meth(x)$step1 <- glue::glue("使用 Seurat R 包 ({packageVersion('Seurat')}) 进行数据质量控制 (QC) 和下游分析。一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。使用 Seurat::SCTransform 函数对数据标准化。随后，以 Seurat::SelectIntegrationFeatures (返还{nfeatures}个基因) 和 Seurat::PrepSCTIntegration 选择用于整合多重数据集的基因。")
     return(x)
   })
 
@@ -116,7 +117,8 @@ setMethod("step2", signature = c(x = "job_seuratn"),
       object(x) <- res
     }
     object(x) <- e(Seurat::RunPCA(object(x), verbose = FALSE))
-    x <- .job_seurat(object = object(x), step = 2L)
+    x <- .job_seurat(object = object(x), step = 2L, meth = x@meth, sig = x@sig)
     x@plots[[ 2 ]] <- plot_pca.seurat(object(x))
+    meth(x)$step2 <- glue::glue("以 Seurat::FindIntegrationAnchors，和 Seurat::IntegrateData 整合多个数据集，并 PCA 降维。")
     x
   })

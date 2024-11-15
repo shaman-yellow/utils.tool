@@ -46,7 +46,8 @@ setMethod("asjob_risc", signature = c(x = "list"),
     x <- e(lapply(x,
         function(x) {
           use <- if (is(x, "job_seuratSp")) "Spatial" else "RNA"
-          counts <- object(x)@assays[[ use ]]@counts
+          warnings("`Assay` of Seurat has been updated to 'Assay5'")
+          counts <- object(x)@assays[[ use ]]$counts
           rownames(counts) <- gs(rownames(counts), "\\.[0-9]*", "")
           counts <- counts[!duplicated(rownames(counts)), ]
           genes <- data.frame(index = 1:nrow(counts))

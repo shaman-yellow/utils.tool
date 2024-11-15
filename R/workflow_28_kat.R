@@ -18,9 +18,14 @@
     analysis = "CopyKAT 癌细胞鉴定"
     ))
 
-job_kat <- function(x, use = names(x@object@assays)[[1]])
+job_kat <- function(x, use = names(x@object@assays)[[1]], layer = "counts")
 {
-  object <- x@object@assays[[ use ]]@counts
+  assay <- x@object@assays[[ use ]]
+  if (is(assay, "Assay5")) {
+    object <- do.call(`$`, list(assay, layer))
+  } else {
+    stop("`x@object@assays[[ use ]]` is not 'Assay5'.")
+  }
   rownames(object) <- gs(rownames(object), "\\.[0-9]*$", "")
   .job_kat(object = object)
 }
@@ -29,8 +34,8 @@ setGeneric("asjob_kat",
   function(x, ...) standardGeneric("asjob_kat"))
 
 setMethod("asjob_kat", signature = c(x = "job_seurat"),
-  function(x, use = names(x@object@assays)[[1]]){
-    job_kat(x, use)
+  function(x, use = names(x@object@assays)[[1]], layer = "counts"){
+    job_kat(x, use, layer)
   })
 
 setMethod("step0", signature = c(x = "job_kat"),
@@ -70,6 +75,7 @@ setMethod("step1", signature = c(x = "job_kat"),
       )
       try(rm(list = c("full.anno", "cyclegenes", "DNA.hg20"), envir = .GlobalEnv), silent = T)
       x$res_copykat <- res_copykat
+      meth(x)$step1 <- glue::glue("R 包 `CopyKAT` 用于鉴定恶性细胞 {cite_show('DelineatingCopGaoR2021')}。`CopyKAT` 可以区分整倍体与非整倍体，其中非整倍体被认为是肿瘤细胞，而整倍体是正常细胞 {cite_show('CausesAndConsGordon2012')}。")
     }
     return(x)
   })
@@ -85,6 +91,47 @@ setMethod("step2", signature = c(x = "job_kat"),
       copykat_cell = ifelse(copykat.pred == "aneuploid", "Cancer cell", "Normal cell")
     )
     x@tables[[ 2 ]] <- namel(res_copykat)
+    return(x)
+  })
+
+setMethod("step3", signature = c(x = "job_kat"),
+  function(x, name = x@params$wd) {
+    step_message("save heatmap.")
+    if (!is.null(x@params$res_copykat)) {
+      x@params$res_copykat <- NULL
+      x@object <- NULL
+      file <- select_savefun(x@plots$step2$p.copykat)(x@plots$step2$p.copykat,
+        name = name)
+      newfile <- gs(file, "\\.pdf$", ".png")
+      pdf_convert(file, filenames = newfile, dpi = 300)
+      fig <- .file_fig(newfile)
+      fig <- .set_lab(fig, sig(x), "malignant cells prediction heatmap")
+      x@plots$step3$p.copykat <- fig
+    }
+    return(x)
+  })
+
+setMethod("merge", 
+  signature = c(x = "job_seurat", y = "job_kat"),
+  function(x, y, ref = "ChatGPT_cell", to = "copykat_cell") {
+    if (!any(colnames(x@object@meta.data) == ref)) {
+      stop("`ref` not found in meta.data.")
+    }
+    res <- y@tables$step2$res_copykat
+    fun_cell <- function(x) gs(colnames(x@object), "_[0-9]+", "")
+    res <- res$copykat_cell[ match(fun_cell(x), res$cell.names) ]
+    res <- ifelse(is.na(res) | vapply(res, function(x) identical(x, "Normal cell"), logical(1)),
+      x@object@meta.data[[ ref ]], res)
+    x@object@meta.data[[ to ]] <- res
+    p.map_cancer <- e(Seurat::DimPlot(
+        object(x), reduction = "umap", label = F, pt.size = .7,
+        group.by = "copykat_cell", cols = color_set()
+        ))
+    p.map_cancer <- wrap(as_grob(p.map_cancer), 7, 4)
+    p.map_cancer <- .set_lab(p.map_cancer, sig(x), "Cancer", "Cell type annotation")
+    x@params$p.map_cancer <- p.map_cancer
+    meth(x)$merge <- glue::glue("将 `CopyKAT` 的预测结果映射细胞注释中。")
+    .append_heading(glue::glue("Seurat 癌细胞注释 ({x@sig})"), T)
     return(x)
   })
 
@@ -210,18 +257,3 @@ plot_heatmap.copyKAT <- function(copykat.obj) {
       col = RColorBrewer::brewer.pal(n = 8, name = "Dark2")[3:4], cex = 0.9, bty = 'n')
   }
 }
-
-setMethod("clear", signature = c(x = "job_kat"),
-  function(x, name = x@params$wd){
-    if (!is.null(x@params$res_copykat)) {
-      x@params$res_copykat <- NULL
-      x@object <- NULL
-      file <- select_savefun(x@plots$step2$p.copykat)(x@plots$step2$p.copykat,
-        name = name)
-      newfile <- gs(file, "\\.pdf$", ".png")
-      pdf_convert(file, filenames = newfile, dpi = 300)
-      x@plots$step2$p.copykat <- .file_fig(newfile)
-    }
-    callNextMethod(x, name = name)
-    return(x)
-  })

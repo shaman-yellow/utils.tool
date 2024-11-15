@@ -106,7 +106,7 @@ setMethod("set_remote", signature = c(x = "job_fastp"),
   {
     set_remote.default(x, tmpdir, map_local, remote)
     x@params$postfix <- function(x) {
-      x[1] <- gs(x[1], "^fastp", "~/miniconda3/bin/conda run -n base fastp")
+      x[1] <- gs(x[1], "^fastp", pg("fastp"))
       x
     }
     return(x)

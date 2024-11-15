@@ -538,7 +538,7 @@ try_fqs_meta <- function(metadata, filepath, filter = F) {
   metadata
 }
 
-activate_qiime <- function(env_pattern = "qiime", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda") {
+activate_qiime <- function(env_pattern = "qiime", env_path = pg("conda_env"), conda = pg("conda")) {
   activate_base(env_pattern, env_path, conda)
 }
 
