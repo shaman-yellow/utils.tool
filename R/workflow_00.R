@@ -32,7 +32,8 @@ setClass("virtual_job", "VIRTUAL")
     tag = character(1),
     analysis = character(1),
     meth = .meth(),
-    params = list(wd = ".", remote = "remote")
+    params = list(wd = ".", remote = "remote"),
+    others = list()
     ))
 
 setGeneric("meth", 
@@ -337,7 +338,45 @@ setReplaceMethod("plots", signature = c(x = "job"),
   })
 
 plotsAdd <- function(x, ...) {
-  formatNames(getNamesOfCall(substitute(list(...))))
+  jobSlotAdd(x, "plots", ...)
+}
+
+tablesAdd <- function(x, ...) {
+  jobSlotAdd(x, "tables", ...)
+}
+
+jobSlotAdd <- function(x, name, ...) {
+  calls <- getNamesOfCall(substitute(list(...)))
+  objs <- list(...)
+  names(objs) <- calls
+  labs <- formatNames(calls)
+  db <- if (length(slot(x, name)) >= x@step) {
+    slot(x, name)[[ x@step ]]
+  } else {
+    list()
+  }
+  slot(x, name)[[ x@step ]] <- c(db, .set_lab_batch(objs, labs, sig(x)))
+  return(x)
+}
+
+methodAdd <- function(x, glueString, env = parent.frame(1)) {
+	meth(x)[[ paste0("step", x@step) ]] <- glue::glue("$2", .envir = env)
+  return(x)
+}
+
+.set_lab_batch <- function(objs, labs, sig) {
+  mapply(objs, labs, SIMPLIFY = F,
+    FUN = function(obj, lab) {
+      if (is.null(lab(obj))) {
+        obj <- .set_lab(obj, sig, lab)
+      }
+      return(obj)
+    })
+}
+
+formatNames <- function(names) {
+  names <- gsub("\\.|_", " ", sub("^[a-z]\\.", "", names))
+  gsub("([a-z])([A-Z])", "\\1 \\2", names)
 }
 
 #' @exportMethod tables
@@ -572,19 +611,36 @@ setGeneric("step12",
   })
 
 stepPostModify <- function(x, n) {
+  cli::cli_h1("Job finished & Start post modify")
   x <- convertPlots(x, n)
+  xname <- attr(x@sig, "name")
+  news <- c()
   if (length(x@plots) >= n) {
     if (!is.null(x@plots[[ n ]]))
       names(x@plots)[ n ] <- paste0("step", n)
+    new_plots <- paste0(xname, "@plots$step", x@step, "$", names(x@plots[[ x@step ]]))
+    cli::cli_alert_info("Plot news:")
+    lapply(new_plots, cli::cli_alert_success)
+    news <- c(news, new_plots)
   }
   if (length(x@tables) >= n) {
     if (!is.null(x@tables[[ n ]]))
       names(x@tables)[ n ] <- paste0("step", n)
+    new_tables <- paste0(xname, "@tables$step", x@step, "$", names(x@tables[[ x@step ]]))
+    cli::cli_alert_info("Table news:")
+    lapply(new_tables, cli::cli_alert_success)
+    news <- c(news, new_tables)
   }
-  varName <- attr(x@sig, "name")
-  if (!is.null(varName) && length(varName)) {
-    assign(varName, x)
-    writeJobSlotsAutoCompletion(varName, environment())
+  isNewParams <- !names(x@params) %in% x@others$.oldParams
+  if (any(isNewParams)) {
+    cli::cli_alert_info("Params news:")
+    new_params <- paste0(xname, "@params$", names(x@params)[ isNewParams ])
+    lapply(new_params, cli::cli_alert_success)
+    news <- c(news, new_params)
+  }
+  if (!is.null(xname) && length(xname)) {
+    assign(xname, x)
+    writeJobSlotsAutoCompletion(xname, environment())
   }
   x
 }
@@ -617,6 +673,9 @@ writeJobSlotsAutoCompletion <- function(x, envir = .GlobalEnv) {
     stop("`x` must be character(1).")
   }
   dir <- getOption("SelectCompletion")
+  if (is.null(dir)) {
+    return()
+  }
   dir.create(dir, F, recursive = T)
   obj <- get(x, envir = envir)
   if (!is.null(dir) || !is(obj, "job")) {
@@ -703,6 +762,7 @@ checkAddStep <- function(x, n, clear_tables_plots = T) {
   }
   message(crayon::green("Running", STEP), ":")
   x@step <- n
+  x@others$.oldParams <- names(x@params)
   x
 }
 
