@@ -336,6 +336,10 @@ setReplaceMethod("plots", signature = c(x = "job"),
     initialize(x, object = value)
   })
 
+plotsAdd <- function(x, ...) {
+  formatNames(getNamesOfCall(substitute(list(...))))
+}
+
 #' @exportMethod tables
 setMethod("tables", signature = c(x = "job"),
   function(x){
@@ -679,7 +683,7 @@ rapply2 <- function(x, fun, class, ...) {
   }
 }
 
-checkAddStep <- function(x, n) {
+checkAddStep <- function(x, n, clear_tables_plots = T) {
   STEP <- paste0("step", n)
   if (getOption("step_check", T)) {
     if (x@step >= n)
@@ -692,6 +696,10 @@ checkAddStep <- function(x, n) {
         step_message(x@info, show_end = NULL)
       }
     }
+  }
+  if (clear_tables_plots) {
+    x@plots[[ n ]] <- NULL
+    x@tables[[ n ]] <- NULL
   }
   message(crayon::green("Running", STEP), ":")
   x@step <- n

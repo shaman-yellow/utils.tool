@@ -165,19 +165,23 @@ n <- function(name, n){
 namel <- function(...){
   call <- substitute(list(...))
   lst <- list(...)
+  names(lst) <- getNamesOfCall(call)
+  lst
+}
+
+getNamesOfCall <- function(call) {
   if (is.null(names(call))) {
     names <- lapply(2:length(call), function(n) as.character(call)[n])
   } else {
     names <- vapply(2:length(call), FUN.VALUE = character(1),
-                    function(n) {
-                      if (names(call)[n] == "")
-                        as.character(call)[n]
-                      else
-                        names(call)[n]
-                    })
+      function(n) {
+        if (names(call)[n] == "")
+          as.character(call)[n]
+        else
+          names(call)[n]
+      })
   }
-  names(lst) <- names
-  lst
+  return(names)
 }
 
 #' @export repSuffix
