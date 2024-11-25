@@ -205,6 +205,7 @@ general_attrs <- function(pdb = F, ensembl_transcript_id = F) {
     "chromosome_name",
     "start_position",
     "end_position",
+    # "gene_biotype",
     "description")
   if (pdb) {
     attrs <- c(attrs, "pdb")

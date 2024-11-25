@@ -58,8 +58,10 @@ setMethod("step1", signature = c(x = "job_kat"),
       dir.create(path, F)
       setwd(path)
       x@params$wd <- path
-      if (isNamespaceLoaded("copykat") & !test) {
+      if (isNamespaceLoaded("copykat") && !test) {
         pkgload::unload("copykat")
+      } else {
+        e(pkgload::load_all("~/copykat"))
       }
       full.anno <- dplyr::mutate(
         copykat::full.anno, hgnc_symbol = gs(hgnc_symbol, "\\.[0-9]*", ""))

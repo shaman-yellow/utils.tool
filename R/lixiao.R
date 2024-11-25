@@ -147,8 +147,8 @@ get_c2_data <- function(pattern = NULL,
     .prefix("mouse_c2_v5p2.rdata", "db")
   }
   if (!file.exists(path)) {
-    ## download_url <- "https://bioinf.wehi.edu.au/software/MSigDB/human_c2_v5p2.rdata"
-    stop("file.exists(path) == F")
+    url <- paste0("https://bioinf.wehi.edu.au/software/MSigDB/", basename(path))
+    utils::download.file(url, path)
   }
   name <- load(path)
   db <- get(name)
@@ -1631,6 +1631,12 @@ order_publish <- function(file = "index.Rmd", output = "output.Rmd", title = "",
   browseURL(fun(file, output, title))
 }
 
+order_publish.bosai <- function(file = "index.Rmd", output = "output.Rmd", title = "",
+  fun = write_thesisDocxEn)
+{
+  browseURL(fun(file, output, title))
+}
+
 auto_material <- function(class = "job_PUBLISH", envir = .GlobalEnv) {
   names <- .get_job_list(envir)
   info <- lapply(names,
@@ -1851,28 +1857,30 @@ set_cover.bosai <- function(info, title = info$title, author = "黄礼闯", date
 set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
   coverpage = .prefix("cover_page.pdf"), institution = "@立效研究院")
 {
-  options(title = title)
-  content <- strwrap(paste0("\\begin{titlepage}
-      \\newgeometry{top=7.5cm}
-      \\ThisCenterWallPaper{1.12}{", coverpage, "}
-      \\begin{center}
-      \\textbf{\\Huge ", title, "}
-      \\vspace{4em}
-      \\begin{textblock}{10}(3,5.9)
-      \\huge \\textbf{\\textcolor{white}{", date, "}}
-      \\end{textblock}
-      \\begin{textblock}{10}(3,7.3)
-      \\Large \\textcolor{black}{", author, "}
-      \\end{textblock}
-      \\begin{textblock}{10}(3,11.3)
-      \\Large \\textcolor{black}{", institution, "}
-      \\end{textblock}
-      \\end{center}
-      \\end{titlepage}
-      \\restoregeometry
-      "
-      ), 50)
-  writeLines(content)
+  if (knitr::is_latex_output()) {
+    options(title = title)
+    content <- strwrap(paste0("\\begin{titlepage}
+        \\newgeometry{top=7.5cm}
+        \\ThisCenterWallPaper{1.12}{", coverpage, "}
+        \\begin{center}
+        \\textbf{\\Huge ", title, "}
+        \\vspace{4em}
+        \\begin{textblock}{10}(3,5.9)
+        \\huge \\textbf{\\textcolor{white}{", date, "}}
+        \\end{textblock}
+        \\begin{textblock}{10}(3,7.3)
+        \\Large \\textcolor{black}{", author, "}
+        \\end{textblock}
+        \\begin{textblock}{10}(3,11.3)
+        \\Large \\textcolor{black}{", institution, "}
+        \\end{textblock}
+        \\end{center}
+        \\end{titlepage}
+        \\restoregeometry
+        "
+        ), 50)
+    writeLines(content)
+  }
 }
 
 needTex <- function() {
@@ -1884,7 +1892,7 @@ needTex <- function() {
   }
 }
 
-set_index <- function(fig = T, tab = T) {
+set_index <- function(fig = T, tab = T, for_docx = F) {
   if (knitr::is_latex_output()) {
     symbol <- function(num) {
       paste0("\n\n\\begin{center}\\vspace{1.5cm}\\pgfornament[anchor=center,ydelta=0pt,width=8cm]{",
@@ -1903,6 +1911,17 @@ set_index <- function(fig = T, tab = T) {
     }
     cat("\\newpage\n\n")
     cat("\\pagenumbering{arabic}\n\n")
+  } else if (knitr::pandoc_to("docx") && for_docx) {
+    cat("<!---BLOCK_TOC--->")
+    if (fig) {
+      cat("\\newpage")
+      cat("<!---BLOCK_TOC{seq_id: 'fig'}--->")
+    }
+    if (tab) {
+      cat("\\newpage")
+      cat("<!---BLOCK_TOC{seq_id: 'tab'}--->")
+    }
+    cat("\\newpage")
   }
 }
 
@@ -2072,12 +2091,15 @@ setMethod("autor", signature = c(x = "fig", name = "character"),
     if (asis) {
       abstract(x, name = name, ...)
     }
-    include(x, name, ...)
     if (!is.null(lich <- attr(x, "lich"))) {
       if (asis) {
         abstract(lich, name = name)
       }
     }
+    if (!knitr::is_latex_output()) {
+      return(include(x, name, ...))
+    }
+    include(x, name, ...)
     if (needTex()) {
       cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{88}\\vspace{1.5cm}\\end{center}")
     }
@@ -2147,7 +2169,8 @@ setMethod("include", signature = c(x = "df"),
       x <- trunc_table(x)
       print(knitr::kable(x, "markdown", caption = as_caption(name)))
     } else {
-      print(x)
+      x <- trunc_table(x)
+      print(knitr::kable(x, "markdown", caption = as_caption(name)))
     }
   })
 
@@ -2406,11 +2429,13 @@ locate_file <- function(name, des = "对应文件为") {
 }
 
 text_roundrect <- function(str, collapse = "\n") {
-  fix.tex(
-    paste0("\\begin{center}",
-      "\\begin{tcolorbox}[colback=gray!10, colframe=gray!50, width=0.9\\linewidth, arc=1mm, boxrule=0.5pt]",
-      str, "\\end{tcolorbox}\n\\end{center}", collapse = collapse
-      ))
+  if (knitr::is_latex_output()) {
+    fix.tex(
+      paste0("\\begin{center}",
+        "\\begin{tcolorbox}[colback=gray!10, colframe=gray!50, width=0.9\\linewidth, arc=1mm, boxrule=0.5pt]",
+        str, "\\end{tcolorbox}\n\\end{center}", collapse = collapse
+        ))
+  }
 }
 
 # ==========================================================================

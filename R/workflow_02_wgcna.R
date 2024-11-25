@@ -11,7 +11,7 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("Tutorial: https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/index.html"),
+    info = c("https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/index.html"),
     cite = "[@WgcnaAnRPacLangfe2008]",
     method = "R package `WGCNA` used for gene co-expression analysis",
     tag = "wgcna",
@@ -60,15 +60,22 @@ setMethod("step0", signature = c(x = "job_wgcna"),
   })
 
 setMethod("step1", signature = c(x = "job_wgcna"),
-  function(x){
+  function(x, mutate_name = T){
     step_message("Cluster sample tree.",
     "This do:",
     "generate `x@params$raw_sample_tree`; `x@plots[[ 1 ]]`"
     )
-    raw_sample_tree <- draw_sampletree(params(x)$datExpr0)
+    if (mutate_name) {
+      dat <- params(x)$datExpr0
+      rownames(dat) <- paste0(object(x)$targets$group, "_", seq_along(object(x)$targets$group))
+      raw_sample_tree <- draw_sampletree(dat)
+    } else {
+      raw_sample_tree <- draw_sampletree(params(x)$datExpr0)
+    }
     raw_sample_tree.p <- wrap(recordPlot(), nrow(params(x)$datExpr0) * .8, nrow(params(x)$datExpr0))
     x@params$raw_sample_tree <- raw_sample_tree
     x@plots[[ 1 ]] <- list(raw_sample_tree = raw_sample_tree.p)
+    meth(x)$step1 <- glue::glue("以 R 包 `WGCNA` ({packageVersion('WGCNA')}) {cite_show('WgcnaAnRPacLangfe2008')} 对数据作共表达分析。分析方法参考 <{x@info}>。")
     return(x)
   })
 
@@ -90,7 +97,7 @@ setMethod("step2", signature = c(x = "job_wgcna"),
   })
 
 setMethod("step3", signature = c(x = "job_wgcna"),
-  function(x, powers = 1:50, cores = 7){
+  function(x, powers = 1:50, cores = 4){
     step_message("Analysis of network topology for soft-thresholding powers. ",
       "This do: ",
       "Generate x@params$sft; plots in `x@plots[[ 3 ]]`. "
@@ -99,11 +106,12 @@ setMethod("step3", signature = c(x = "job_wgcna"),
     sft <- cal_sft(params(x)$datExpr, powers = powers)
     x@params$sft <- sft
     x@plots[[ 3 ]] <- list(sft = wrap(plot_sft(sft), 10, 5))
+    meth(x)$step3 <- glue::glue("以 `WGCNA::pickSoftThreshold` 预测最佳 soft thresholding powers。")
     return(x)
   })
 
 setMethod("step4", signature = c(x = "job_wgcna"),
-  function(x, power = x@params$sft$powerEstimate, cores = 7, ...){
+  function(x, power = x@params$sft$powerEstimate, cores = 4, ...){
     step_message("One-step network construction and module detection.
       Extra parameters would passed to `cal_module`.
       This do: Generate `x@params$MEs`; plots (net) in `x@plots[[ 4 ]]`.
@@ -117,6 +125,7 @@ setMethod("step4", signature = c(x = "job_wgcna"),
       net <- .wgcNet(net)
     x@plots[[ 4 ]] <- list(net = net)
     x@params$MEs <- get_eigens(net)
+    meth(x)$step4 <- glue::glue("选择 power 为 {power}, 以 `WGCNA::blockwiseModules` 创建共表达网络，检测基因模块。")
     return(x)
   })
 

@@ -285,9 +285,7 @@ vis_enrich.kegg <- function(lst, cutoff = .1, maxShow = 10,
       p <- .plot_kegg(data, use)
       p
     })
-  if (length(lst) == 1) {
-    attr(res, "use.p") <- use.p
-  }
+  attr(res, "use.p") <- use.p
   res
 }
 

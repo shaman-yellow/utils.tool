@@ -46,18 +46,23 @@ setMethod("step1", signature = c(x = "job_katn"),
       function(path) {
         if (dir.exists(path)) {
           stop(glue::glue("{path} exists."))
-        } else {
-          dir.create(path)
         }
       })
     meth(x)$step1 <- glue::glue("R 包 `CopyKAT` 用于鉴定恶性细胞 {cite_show('DelineatingCopGaoR2021')}。`CopyKAT` 可以区分整倍体与非整倍体，其中非整倍体被认为是肿瘤细胞，而整倍体是正常细胞 {cite_show('CausesAndConsGordon2012')}。由于 `CopyKAT` 不适用于多样本数据 (无法应对批次效应) ，因此，对各个样本独立执行 `CopyKAT`。")
     object(x) <- pbapply::pblapply(object(x),
       function(obj) {
         n <<- n + 1L
-        cli::cli_alert_info(glue::glue("Running {n}: {getwd()}"))
-        obj <- step1(obj, workers, paths[n])
+        wd <- getwd()
+        writeLines("")
+        cli::cli_alert_info(glue::glue("Running {n}: {wd}"))
+        obj <- try(step1(obj, workers, paths[n]))
+        if (inherits(obj, "try-error")) {
+          setwd(wd)
+          return(obj)
+        }
         obj <- step2(obj)
         obj <- step3(obj)
+        saveRDS(obj, file.path(path, "res.rds"))
         gc()
         return(obj)
       })

@@ -66,11 +66,12 @@ setMethod("step1", signature = c(x = "job_limma"),
   function(x,
     group = if (x$normed) x$metadata$group else x@object$samples$group,
     batch = if (x$normed) x$metadata$batch else x@object$samples$batch,
-    design = if (is.null(batch)) mx(~ 0 + group) else mx(~ 0 + group + batch),
+    formula = if (is.null(batch)) "~ 0 + group" else "~ 0 + group + batch",
+    design = mx(as.formula(formula)),
     min.count = 10,
     no.filter = if (x$normed) T else F,
     no.norm = no.filter,
-    norm_vis = F)
+    norm_vis = F, pca = F)
   {
     step_message("Preprocess expression data.")
     plots <- list()
@@ -100,9 +101,10 @@ setMethod("step1", signature = c(x = "job_limma"),
         E = object(x)
       )
     }
-    if (F) {
+    if (pca) {
       pca <- pca_data.long(as_data_long(object(x)))
       p.pca <- plot_andata(pca)
+      plots <- c(plots, namel(p.pca))
     }
     if (length(plots)) {
       x@plots[[ 1 ]] <- plots
@@ -110,6 +112,9 @@ setMethod("step1", signature = c(x = "job_limma"),
     x@params$group <- group
     x@params$design <- design
     x$.metadata <- .set_lab(x$.metadata, sig(x), "metadata")
+    if (!no.norm) {
+      meth(x)$step1 <- glue::glue("以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 进行差异分析。以 `edgeR::filterByExpr` 过于 count 数量小于 {min.count} 的基因。以 `edgeR::calcNormFactors`，`limma::voom` 转化 count 数据为 log2 counts-per-million (logCPM)。分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。随后，以 公式 {formula} 创建设计矩阵 (design matrix) 用于线性分析。")
+    }
     return(x)
   })
 
@@ -121,7 +126,7 @@ setMethod("step2", signature = c(x = "job_limma"),
     step_message("Difference test.")
     use <- match.arg(use)
     if (is.null(contrasts)) {
-      if (length(alist(...)) == 0) {
+      if (!length(alist(...))) {
         contr <- NULL
       } else {
         contr <- limma::makeContrasts(..., levels = x@params$design)
@@ -132,6 +137,7 @@ setMethod("step2", signature = c(x = "job_limma"),
     ## here, remove batch effect
     ## limma::removeBatchEffect
     if (batch) {
+      message("Note: `limma::removeBatchEffect` would convert the object class.")
       object(x) <- e(limma::removeBatchEffect(object(x),
           batch = object(x)$targets$batch, design = x@params$design, group = x$targets$group
           ))
@@ -172,6 +178,7 @@ setMethod("step2", signature = c(x = "job_limma"),
     } else {
       tops <- NULL
     }
+    print(glue::glue("use: {label}"))
     p.volcano <- lapply(tops, plot_volcano, label = label, use = use, fc = cut.fc, seed = x$seed, HLs = HLs)
     p.volcano <- lapply(p.volcano,
       function(p) {
@@ -194,6 +201,9 @@ setMethod("step2", signature = c(x = "job_limma"),
     }
     x@tables[[ 2 ]] <- tables
     x@plots[[ 2 ]] <- plots
+    if (!is.null(contr)) {
+      meth(x)$step2 <- glue::glue("使用 `limma::lmFit`, `limma::contrasts.fit`, `limma::eBayes` 差异分析对比组：{paste0(gsub('-', 'vs', colnames(contr)), collapse = ', ')}。以 `limma::topTable` 提取所有结果，并过滤得到 {use} 小于 {use.cut}，|Log2(FC)| 大于 {cut.fc} 的统计结果。")
+    }
     return(x)
   })
 
@@ -213,7 +223,8 @@ setMethod("group", signature = c(x = "job_limma"),
   })
 
 setMethod("step3", signature = c(x = "job_limma"),
-  function(x, names = NULL, use = "all", use.gene = "hgnc_symbol", fun_filter = rm.no){
+  function(x, names = NULL, use = "all", use.gene = "hgnc_symbol", fun_filter = rm.no, trunc = NULL)
+  {
     step_message("Sets intersection.")
     tops <- x@tables$step2$tops
     if (use != "all") {
@@ -230,6 +241,7 @@ setMethod("step3", signature = c(x = "job_limma"),
         lapply(lst, fun_filter)
       })
     tops <- unlist(tops, recursive = F)
+    names(tops) <- gs(names(tops), "-", "vs")
     x$sets_intersection <- tops
     message("The guess use dataset combination of:\n",
       "\t ", names(tops)[1], " %in% ", names(tops)[4], "\n",
@@ -238,11 +250,31 @@ setMethod("step3", signature = c(x = "job_limma"),
       intersect(tops[[ 1 ]], tops[[ 4 ]]),
       intersect(tops[[ 2 ]], tops[[ 3 ]])
     ))
-    p.sets_intersection <- new_upset(lst = tops)
+    p.hp <- plot_genes_heatmap.elist(x$normed_data, unlist(tops), use.gene)
+    p.hp <- .set_lab(wrap(p.hp), sig(x), "Heatmap of DEGs")
+    p.sets_intersection <- new_upset(lst = tops, trunc = trunc)
     p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "Difference", "intersection")
-    x@plots[[ 3 ]] <- namel(p.sets_intersection)
+    x@plots[[ 3 ]] <- namel(p.sets_intersection, p.hp)
     return(x)
   })
+
+plot_genes_heatmap.elist <- function(normed_data, degs, use = "hgnc_symbol") {
+  degs <- unique(degs)
+  normed_data <- normed_data[ normed_data$genes[[ use ]] %in% degs, ]
+  rownames(normed_data) <- normed_data$genes[[ use ]]
+  metadata <- dplyr::select(as_tibble(normed_data$targets), sample, group)
+  p.hp <- plot_genes_heatmap(normed_data$E, metadata)
+  return(p.hp)
+}
+
+plot_genes_heatmap <- function(data, metadata) {
+  data <- dplyr::rename(as_tibble(data), genes = rownames)
+  data <- tidyr::pivot_longer(data, !genes, names_to = "sample", values_to = "expression")
+  data <- tbmerge(data, metadata, by = "sample", all.x = T)
+  maxBreak <- max(ceiling(abs(range(data$expression))))
+  tidyHeatmap::heatmap(dplyr::group_by(data, group), genes, sample, expression,
+    palette_value = fun_color(-maxBreak, maxBreak))
+}
 
 .guess_intersect <- function(tops) {
   unique(c(
@@ -324,12 +356,12 @@ setMethod("asjob_wgcna", signature = c(x = "job_limma"),
     if (is.null(object <- x@params$normed_data))
       stop("is.null(x@params$normed_data)")
     rownames(object) <- object$genes[[ use ]]
+    if (!is.null(filter_genes)) {
+      object <- object[ object$genes[[ use ]] %in% filter_genes, ]
+    }
     log_counts <- as_tibble(object$E)
     gene_annotation <- select(as_tibble(object$genes), -1)
     log_counts[[1]] <- gene_annotation[[1]]
-    if (!is.null(filter_genes)) {
-      log_counts <- filter(log_counts, rownames %in% filter_genes)
-    }
     job_wgcna(select(object$targets, sample, group),
       log_counts, gene_annotation)
   })
@@ -516,7 +548,7 @@ filter_low.dge <- function(dge, group., min.count = 10, prior.count = 2) {
   p <- ggplot(data) +
     geom_density(aes(x = value, color = sample), alpha = .7) +
     geom_vline(xintercept = cutoff, linetype = "dashed") +
-    facet_wrap(~ factor(.id, c("Raw", "Filtered"))) +
+    facet_wrap(~ factor(.id, c("Raw", "Filtered")), scales = "free_y") +
     labs(x = "Log2-cpm", y = "Density")
   if (length(unique(data$sample)) > 50) {
     p <- p + theme(legend.position = "none")
@@ -600,7 +632,12 @@ prepare_expr_data <- function(metadata, counts, genes, message = T)
   } else {
     metadata <- dplyr::rename(metadata, sample = 1)
   }
+  cli::cli_alert_info("Only keep samples record in `metadata`.")
   counts <- dplyr::select(counts, 1, dplyr::all_of(metadata$sample))
+  if (ncol(counts) != nrow(metadata) + 1) {
+    stop("ncol(counts) != nrow(metadata) + 1")
+  }
+  cli::cli_alert_info("`make.names` for sample names.")
   metadata$sample %<>% make.names()
   colnames(counts) %<>% make.names()
   ## sort genes
@@ -620,8 +657,11 @@ prepare_expr_data <- function(metadata, counts, genes, message = T)
       print(check.na)
     }
   }
-  counts <- dplyr::select(counts, -1)
+  counts <- data.frame(dplyr::select(counts, -1))
   colnames(counts) <- metadata$sample
+  rownames(counts) <- genes[[1]]
+  cli::cli_alert_info("Please Check the head count data:")
+  print(counts[1:10, 1:5])
   namel(counts, metadata, genes)
 }
 

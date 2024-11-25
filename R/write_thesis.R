@@ -58,6 +58,12 @@ inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
     height <- width / ratio
   }
   knitr::opts_current$set(fig.height = height, fig.width = width)
+  # if (knitr::opts_current$get("results") == "asis") {
+  #   label <- knitr::opts_current$get("label")
+  #   cat(glue::glue("![{{label}}]({{savename}}){#{{label}}}", .open = "{{", .close = "}}"))
+  # } else {
+  #   knitr::include_graphics(savename)
+  # }
   knitr::include_graphics(savename)
 }
 

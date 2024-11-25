@@ -20,8 +20,56 @@
 setGeneric("asjob_survival", 
   function(x, ...) standardGeneric("asjob_survival"))
 
+setMethod("asjob_survival", signature = c(x = "job_lasso"),
+  function(x, use.group = "uni_cox", base_method = median, sig.uni_cox = NULL, force = F)
+  {
+    if (x@step < 3L && !force) {
+      stop("x@step < 3L")
+    }
+    use.group <- match.arg(use.group)
+    if (use.group == "uni_cox") {
+      if (is.null(sig.uni_cox)) {
+        sig.uni_cox <- x$sig.uni_cox
+        if (is.null(sig.uni_cox)) {
+          stop("`sig.uni_cox` not found.")
+        }
+      }
+      use_genes <- sig.uni_cox$feature
+      data <- as_tibble(x@object)
+      data <- dplyr::select(data, 1, dplyr::all_of(use_genes))
+      if (!identical(colnames(data)[-1], use_genes)) {
+        stop("Gene names not match.")
+      }
+      data <- dplyr::mutate(data,
+        risk_score = apply(data[, -1, drop = F], 1,
+          function(exprs) {
+            sum(sig.uni_cox$coef * exprs)
+          }),
+        score_group = ifelse(risk_score > base_method(risk_score), "High", "Low")
+      )
+      data$days_to_last_follow_up <- x$time
+      data$vital_status <- x$target
+      p.surv_genes_hp <- plot_genes_heatmap(
+        t(x@object)[colnames(x@object) %in% use_genes, ],
+        dplyr::select(data, sample = rownames, group = score_group)
+      )
+      p.surv_genes_hp <- .set_lab(wrap(p.surv_genes_hp, 9, 6), sig(x),
+        "risk score related genes heatmap")
+      x <- .job_survival(object = data)
+      x$p.surv_genes_hp <- p.surv_genes_hp
+      x$fun_group <- function(score) ifelse(score > x$cutoff, "High", "Low")
+      x$genes_surv <- "risk_score"
+      x$fun_status <- sur_status
+      x$time <- "days_to_last_follow_up"
+      x$status <- "vital_status"
+      x$cutoff <- base_method(data$risk_score)
+      meth(x)$step0 <- glue::glue("将 Univariate COX 回归系数用于风险评分计算，根据中位风险评分 {x$cutoff} 将患者分为低危组和高危组。")
+    }
+    return(x)
+  })
+
 setMethod("asjob_survival", signature = c(x = "job_limma"),
-  function(x, use.filter, use = "gene_name",
+  function(x, genes_surv, use = "gene_name",
     time = "days_to_last_follow_up", status = "vital_status")
   {
     if (x@step < 1)
@@ -29,7 +77,7 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     if (x@step > 1) {
       object(x) <- x@params$normed_data
     }
-    i.pos <- object(x)$genes[[ use ]] %in% use.filter
+    i.pos <- object(x)$genes[[ use ]] %in% genes.surv
     j.pos <- !is.na(object(x)$targets[[ status ]])
     object(x) <- e(limma::`[.EList`(object(x), i.pos, j.pos))
     object <- object(x)
@@ -39,9 +87,11 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     data <- dplyr::bind_cols(data, select(as_tibble(object$targets), -1))
     data <- relocate(data, 1, !!rlang::sym(time), !!rlang::sym(status))
     x <- .job_survival(object = data)
-    x@params$time <- time
-    x@params$status <- status
-    x@params$use.filter <- use.filter
+    x$time <- time
+    x$status <- status
+    x$genes_surv <- genes_surv
+    x$fun_group <- sur_group_median
+    x$fun_status <- sur_status
     return(x)
   })
 
@@ -55,28 +105,63 @@ setMethod("step0", signature = c(x = "job_survival"),
   })
 
 setMethod("step1", signature = c(x = "job_survival"),
-  function(x, fun_group = sur_group_median, fun_status = sur_status){
-    step_message("Survival test.
-      "
-    )
-    data <- rename(object(x), time = !!rlang::sym(x@params$time),
-      status = !!rlang::sym(x@params$status),
-    )
-    sym <- rlang::sym
-    lst <- e(sapply(x@params$use.filter, simplify = F,
-      function(gene) {
-        data <- select(data, time, status, !!sym(gene))
-        data <- mutate(data, group = fun_group(!!sym(gene)), status = fun_status(status))
+  function(x, genes_surv = x$genes_surv, fun_group = x$fun_group,
+    fun_status = x$fun_status, time = x$time, status = x$status)
+  {
+    step_message("Survival test.")
+    data <- rename(object(x), time = !!rlang::sym(time),
+      o_status = !!rlang::sym(status))
+    if (time == "days_to_last_follow_up") {
+      data <- dplyr::mutate(data, time = time / 30)
+    }
+    cli::cli_alert_info("survival::survfit")
+    lst <- sapply(genes_surv, simplify = F,
+      function(genes) {
+        data <- select(data, time, o_status, !!!rlang::syms(genes))
+        data <- mutate(data, group = fun_group(!!!rlang::syms(genes)),
+          status = fun_status(o_status))
         fit <- survival::survfit(survival::Surv(time, status) ~ group, data = data)
+        title <- paste0(genes, collapse = " & ")
         p.surv <- survminer::ggsurvplot(fit, data = data,
-          pval = T, conf.int = T, risk.table = T, title = gene,
+          pval = T, conf.int = T, risk.table = T, title = title,
           ggtheme = theme_bw()
         )
-        p.surv <- wrap(p.surv, 7, 8)
-        namel(p.surv, fit)
-      }))
-    x@plots[[ 1 ]] <- lapply(lst, function(x) x$p.surv)
-    x@params$fit <- lapply(lst, function(x) x$fit)
+        p.surv$table <- p.surv$table + labs(x = "time (month)")
+        p.surv <- wrap(p.surv, 6.5, 5)
+        p.surv <- .set_lab(p.surv, sig(x), "survival curve of", title)
+        # timeROC
+        if (length(genes) == 1) {
+          require(survival)
+          times <- c(1, 3, 5)
+          cols <- c("blue", "red", "orange")
+          roc <- timeROC::timeROC(data$time / 12, data$status, data[[ genes ]], cause = 1,
+            times = times)
+          legends <- mapply(times, cols, 1:3,
+            FUN = function(time, col, n) {
+              plot(roc, time, col = col, add = (time != 1), title = "")
+              glue::glue("AUC at {time} year: {round(roc[[ 'AUC' ]][n], 2)}")
+            })
+          legend("bottomright", legends, text.col = cols, bty = "n")
+          p.roc <- wrap(recordPlot(), 7, 7)
+          p.roc <- .set_lab(p.roc, sig(x), "time ROC")
+          data <- dplyr::mutate(data,
+            var = ifelse(time / 12 <= 1, "year 1",
+              ifelse(time / 12 <= 3, "year 3", "year 5")),
+            group = o_status, value = !!rlang::sym(genes)
+          )
+          p.boxplot <- wrap(.map_boxplot2(data, T, ylab = genes), 6, 6)
+          p.boxplot <- .set_lab(p.boxplot, sig(x), glue::glue("boxplot of {genes}"))
+        } else {
+          p.roc <- NULL
+          roc <- NULL
+          p.boxplot <- NULL
+        }
+        namel(p.surv, fit, p.roc, roc, p.boxplot)
+      })
+    x@plots[[ 1 ]] <- lapply(lst,
+      function(x) list(p.surv = x$p.surv, p.roc = x$p.roc, p.boxplot = x$p.boxplot))
+    x@params$models <- lapply(lst, function(x) list(fit = x$fit, roc = x$roc))
+    meth(x)$step1 <- glue::glue("以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。以 R 包 `timeROC` ({packageVersion('timeROC')}) 绘制 1, 3, 5 年生存曲线。")
     return(x)
   })
 
@@ -85,5 +170,5 @@ sur_group_median <- function(x) {
 }
 
 sur_status <- function(x) {
-  ifelse(x == "Dead", 0, 1)
+  ifelse(x == "Alive", 0, 1)
 }

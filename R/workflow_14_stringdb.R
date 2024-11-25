@@ -56,6 +56,10 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     filter.exp = 0, filter.text = 0)
   {
     step_message("Create PPI network.")
+    network_type <- match.arg(network_type, c("physical", "full"))
+    if (!dir.exists(input_directory)) {
+      dir.create(input_directory)
+    }
     if (is.null(x@params$sdb)) {
       message("Use STRINGdb network type of '", network_type, "'")
       sdb <- new_stringdb(species = species, network_type = network_type,
@@ -117,6 +121,7 @@ setMethod("step1", signature = c(x = "job_stringdb"),
       namel(hub_genes)
     )
     x@params$tops <- tops
+    meth(x)$step1 <- glue::glue("以 R 包 `STEINGdb` ({packageVersion('STRINGdb')}) {cite_show('TheStringDataSzklar2021')} 构建 PPI 网络。数据版本为 {version}，互作类型为 {network_type}。以 Cytohubba {cite_show('CytohubbaIdenChin2014')} 的算法计算 MCC score (在 R 中计算) 。随后，以 `ggraph` 可视化网络 ({packageVersion('ggraph')})。")
     return(x)
   })
 

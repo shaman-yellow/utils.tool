@@ -57,8 +57,8 @@ collate_details <- function(tag = "meth", envir = parent.frame(1)) {
   expr <- expr[ !is.na(expr) ]
   sys <- Sys.info()
   expr <- c("## 数据分析平台", "",
-    "在 {paste(sys[[ 'sysname' ]], sys[[ 'nodename' ]], sys[[ 'machine' ]])} ({sys[[ 'release' ]]}) 上，使用 {R.Version()$version.string} (https://www.r-project.org/) 对数据统计分析与整合分析。",
-    "")
+    glue::glue("在 {paste(sys[[ 'sysname' ]], sys[[ 'nodename' ]], sys[[ 'machine' ]])} ({sys[[ 'release' ]]}) 上，使用 {R.Version()$version.string} (https://www.r-project.org/) 对数据统计分析与整合分析。"),
+    "", expr)
   if (length(expr)) {
     text <- lapply(expr, glue::glue, .sep = "\n", .envir = envir)
     writeLines(unlist(text))

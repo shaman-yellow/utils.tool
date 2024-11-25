@@ -60,6 +60,7 @@ setMethod("step1", signature = c(x = "job_geo"),
       anno = about[[ 1 ]]@annotation,
       anno.db = try(.get_biocPackage.gpl(about[[ 1 ]]@annotation), T)
     )
+    meth(x)$step1 <- glue::glue("以 R 包 `GEOquery` ({packageVersion('GEOquery')}) 获取 {object(x)} 数据集。")
     return(x)
   })
 
@@ -74,9 +75,21 @@ setMethod("step1", signature = c(x = "job_geo"),
 }
 
 setMethod("step2", signature = c(x = "job_geo"),
-  function(x, filter_regex = NULL){
+  function(x, filter_regex = NULL, baseDir = .prefix("GEO", "db")){
     step_message("Download geo datasets.")
-    e(GEOquery::getGEOSuppFiles(object(x), filter_regex = filter_regex))
+    if (!dir.exists(baseDir)) {
+      dir.create(baseDir)
+    }
+    dir <- file.path(baseDir, object(x))
+    continue <- 1L
+    if (dir.exists(dir)) {
+      continue <- usethis::ui_yeah(glue::glue("File exists ({dir}), continue?"))
+    }
+    if (continue) {
+      e(GEOquery::getGEOSuppFiles(object(x), filter_regex = filter_regex,
+          baseDir = baseDir))
+      x$dir <- dir
+    }
     return(x)
   })
 
@@ -94,6 +107,7 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
     if (is.null(use.col)) {
       if (any(colnames(genes) == "rownames")) {
         if (any(grpl(colnames(genes), "Gene Symbol"))) {
+          message("Rename 'Gene Symbol' as: hgnc_symbol")
           genes <- dplyr::relocate(genes, rownames, hgnc_symbol = `Gene Symbol`)
         }
       } else {
@@ -123,7 +137,14 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
       x$genes <- genes
       x
     } else {
-      job_limma(new_dge(metadata, counts, genes))
+      cli::cli_alert_info("new_dge")
+      res <- try(job_limma(new_dge(metadata, counts, genes)))
+      if (inherits(res, "try-error")) {
+        Terror <<- namel(metadata, counts, genes)
+        stop("Error. Check `Terror`.")
+      } else {
+        return(res)
+      }
     }
   })
 

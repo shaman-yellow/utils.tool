@@ -156,6 +156,7 @@
     `ucsc` = "UCSC table 数据获取、基因位点注释",
     `cardinal` = "空间代谢组数据分析:Cardinal",
     `maf` = "变异注释分析和可视化:maftools",
-    `bt2` = "基因组比对:Bowtie 2"
+    `bt2` = "基因组比对:Bowtie 2",
+    `mfuzz` = "对基因聚类分析mfuzz"
   )
 }

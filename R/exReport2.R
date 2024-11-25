@@ -58,7 +58,7 @@ write_thesisDocx <- function(report, savename, title,
 
 write_thesisDocxEn <- function(report, savename, title,
   change_include_fun = "inclu.fig",
-  yml = readLines(paste0(.expath, "en_thesis.yml")),
+  yml = readLines(file.path(.expath, "en_thesis.yml")),
   origin_include_fun = "knitr::include_graphics", ...)
 {
   write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun, ...)

@@ -129,12 +129,14 @@ setMethod("filter", signature = c(x = "job_tcga"),
   })
 
 setMethod("step2", signature = c(x = "job_tcga"),
-  function(x){
+  function(x, dir = .prefix("GDCdata", "db")){
     step_message("Download data from TCGA.")
     e(lapply(object(x),
         function(query) {
-          TCGAbiolinks::GDCdownload(query)
+          TCGAbiolinks::GDCdownload(query, directory = dir)
         }))
+    x$dir <- dir
+    meth(x)$step2 <- glue::glue("以 R 包 `TCGAbiolinks` ({packageVersion('TCGAbiolinks')}) {cite_show('TcgabiolinksAColapr2015')} 获取 TCGA 数据集。")
     return(x)
   })
 
@@ -147,7 +149,7 @@ setMethod("step3", signature = c(x = "job_tcga"),
     if (is.null(lst.query))
       stop("is.null(lst.query)")
     x@params$queries <- object(x)
-    obj <- e(TCGAbiolinks::GDCprepare(query = lst.query))
+    obj <- e(TCGAbiolinks::GDCprepare(query = lst.query, directory = x$dir))
     if (query == "RNA") {
       p.vital <- new_pie(SummarizedExperiment::colData(obj)[[ use ]])
       x@plots[[ 3 ]] <- namel(p.vital)
@@ -169,10 +171,11 @@ setGeneric("asjob_limma",
   function(x, ...) standardGeneric("asjob_limma"))
 
 setMethod("asjob_limma", signature = c(x = "job_tcga"),
-  function(x, col_id = "sample", row_id = "gene_id", group = "vital_status",
+  function(x, ..., col_id = "sample", row_id = "gene_id", group = "vital_status",
     get_treatment = T)
   {
     step_message("Use `object(x)@assays@data$unstranded` converted as job_limma.")
+    filter_sample <- rlang::enquos(...)
     metadata <- data.frame(object(x)@colData)
     metadata <- dplyr::relocate(metadata, !!rlang::sym(col_id))
     # tumor, 01~09; normal, 10~19
@@ -180,12 +183,19 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
         as.numeric(substr(rownames(metadata), 14, 15)) < 10,
         'tumor', 'normal'))
     metadata <- dplyr::mutate(metadata, group = !!rlang::sym(group))
-    p.isTumor <- new_pie(metadata$isTumor)
     genes <- data.frame(object(x)@rowRanges)
     genes <- dplyr::relocate(genes, !!rlang::sym(row_id))
     counts <- object(x)@assays@data$unstranded
     colnames(counts) <- metadata[[ col_id ]]
     rownames(counts) <- genes[[ row_id ]]
+    if (length(filter_sample)) {
+      message("Filter by: ", paste0(filter_sample, collapse = ", "))
+      onrow <- nrow(metadata)
+      metadata <- dplyr::filter(metadata, !!!(filter_sample))
+      nnrow <- nrow(metadata)
+      message(glue::glue("Filter out: {onrow - nnrow}"))
+      counts <- counts[, colnames(counts) %in% metadata[[ col_id]] ]
+    }
     object <- e(edgeR::DGEList(counts, samples = metadata, genes = genes))
     project <- x$project
     x <- job_limma(object)
@@ -194,11 +204,27 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
       x <- .get_treatment.lm.tc(x, "R", name_suffix = ".radiation")
     }
     x <- meta(x, group)
+    p.group <- new_pie(metadata[[ group ]], "Group distribution")
+    p.group <- .set_lab(p.group, sig(x), "Group distribution")
+    p.isTumor <- new_pie(metadata$isTumor, "Tumor distribution")
+    p.isTumor <- .set_lab(p.isTumor, sig(x), "Tumor distribution")
+    t.common <- dplyr::select(metadata, age_at_index, vital_status, gender, tumor_grade,
+      ajcc_pathologic_stage, classification_of_tumor)
+    x$t.common <- t.common
+    x$p.group <- p.group
     x$p.isTumor <- p.isTumor
     x$isTcga <- T
     x$project <- project
+    # if (!is.null(filter_follow_up)) {
+      # meth(x)$step0 <- glue::glue("以 days_to_last_follow_up 大于 {filter_follow_up} 用于分析。")
+    # }
     return(x)
   })
+
+summary_tibble <- function(data, markdown = T, ...) {
+  e(summarytools::st_options(use.x11 = FALSE))
+  e(summarytools::dfSummary(data, style = if (markdown) "grid" else "multiline", ...))
+}
 
 .get_treatment.lm.tc <- function(x,
   type = c("Pharmaceutical Therapy, NOS", "Radiation Therapy, NOS"),

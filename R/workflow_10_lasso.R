@@ -22,12 +22,9 @@ setGeneric("asjob_lasso",
   function(x, ...) standardGeneric("asjob_lasso"))
 
 setMethod("asjob_lasso", signature = c(x = "job_limma"),
-  function(x, use.filter = NULL, use = "gene_name", from_normed = T, fun_scale = function(x) scale(x + 1)){
-    step_message("The default, 'job_limma' from 'job_tcga' were adapted to
-      convertion.
-      "
-    )
-    if (from_normed) {
+  function(x, use.filter = NULL, use = "gene_name", from_normed = T, fun_scale = function(x) log2(x + 1)){
+    step_message("The default, 'job_limma' from 'job_tcga' were adapted to convertion.")
+    if (from_normed && x@step == 1L) {
       message("Ignore param `fun_scale`")
       if (!is(x@params$normed_data, 'EList'))
         stop("is(x@params$normed_data, 'EList') == F")
@@ -37,21 +34,35 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
       } else {
         object <- x@params$normed_data
       }
-      mtx <- t(object$E)
+      message("Use function `scale` to normalize data.")
+      mtx <- scale(t(object$E))
       colnames(mtx) <- object$genes[[ use ]]
       x <- .job_lasso(object = mtx)
       x@params$metadata <- as_tibble(object$targets)
     } else {
-      message("Ignore param `use.filter`")
-      if (x@step != 0L) {
-        stop("x@step != 0L")
+      if (x@step == 0L) {
+        message(glue::glue("x@step == 0L, use raw counts."))
       }
-      mtx <- object(x)$counts
+      genes <- object(x)$genes
+      counts <- object(x)$counts
+      if (!is.null(use.filter)) {
+        pos <- genes[[ use ]] %in% use.filter
+        genes <- genes[pos, ]
+        counts <- counts[pos, ]
+        if (any(duplicated(genes[[ use ]]))) {
+          cli::cli_alert_warning("Duplicated names (genes) founds. Unique herein.")
+          keep <- !duplicated(genes[[ use ]])
+          genes <- genes[keep, ]
+          counts <- counts[keep, ]
+        }
+      }
+      mtx <- t(counts)
       if (!is.null(fun_scale)) {
+        message("Use `fun_scale` to scale the data.")
         mtx <- fun_scale(mtx)
+        attr(mtx, "scaled:center") <- attr(mtx, "scaled:scale") <- NULL
       }
-      mtx <- t(mtx)
-      colnames(mtx) <- object(x)$genes[[ use ]]
+      colnames(mtx) <- genes[[ use ]]
       metadata <- as_tibble(object(x)$samples)
       x <- .job_lasso(object = mtx)
       x@params$metadata <- metadata
@@ -59,16 +70,18 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
     return(x)
   })
 
+job_lasso <- function(data, metadata) {
+  .job_lasso(object = data, params = list(metadata = metadata))
+}
+
 setMethod("step0", signature = c(x = "job_lasso"),
   function(x){
-    step_message("Prepare your data with function `asjob_lasso`.
-      "
-    )
+    step_message("Prepare your data with function `asjob_lasso`. ")
   })
 
 setMethod("step1", signature = c(x = "job_lasso"),
   function(x, target = x@params$metadata$group, levels = c("Alive", "Dead"),
-    n.train = .8, seed = 555)
+    time = x@params$metadata$days_to_last_follow_up, n.train = .8, seed = 555)
   {
     step_message("Data preparation.")
     len <- nrow(object(x))
@@ -76,71 +89,137 @@ setMethod("step1", signature = c(x = "job_lasso"),
     set.seed(seed)
     wh.train <- sample(all, round(len * n.train))
     wh.valid <- all[!all %in% wh.train]
-    x@params$train <- object(x)[wh.train, ]
-    x@params$valid <- object(x)[wh.valid, ]
-    x@params$train.target <- target[wh.train]
-    x@params$valid.target <- target[wh.valid]
-    x@params$levels <- levels
+    x$train <- object(x)[wh.train, ]
+    x$valid <- object(x)[wh.valid, ]
+    x$train.target <- target[wh.train]
+    x$valid.target <- target[wh.valid]
+    x$train.time <- time[wh.train]
+    x$valid.time <- time[wh.valid]
+    x$time <- time
+    x$target <- target
+    x$levels <- levels
+    x$wh.train <- wh.train
     p.all <- gtitle(new_pie(target)@data, "All")
-    p.train <- gtitle(new_pie(x@params$train.target)@data, "Train")
-    p.valid <- gtitle(new_pie(x@params$valid.target)@data, "Validate")
+    p.train <- gtitle(new_pie(x$train.target)@data, "Train")
+    p.valid <- gtitle(new_pie(x$valid.target)@data, "Validate")
     p.consist <- wrap(xf(p.all = 1, p.train = 1, p.valid = 1), 6, 2)
     x@plots[[ 1 ]] <- namel(p.consist)
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_lasso"),
-  function(x, top = 30){
+  function(x, top = 30, efs = F){
     step_message("Evaluate variable (genes) importance.")
-    target <- x@params$train.target
-    target <- ifelse(target == x@params$levels[1], 0L, 1L)
-    data <- data.frame(cbind(x@params$train, target))
-    efs <- e(EFS::ensemble_fs(data, ncol(data), runs = 10))
-    colnames(efs) <- colnames(object(x))
-    p.efs <- plot_colStack.efs(efs, top = top)
-    tops <- attr(p.efs, "tops")
-    x@params$tops <- tops
-    x@tables[[ 2 ]] <- namel(efs)
-    x@plots[[ 2 ]] <- namel(p.efs)
+    if (efs) {
+      target <- x@params$train.target
+      target <- ifelse(target == x$levels[1], 0L, 1L)
+      data <- data.frame(cbind(x$train, target))
+      efs <- e(EFS::ensemble_fs(data, ncol(data), runs = 10))
+      colnames(efs) <- colnames(object(x))
+      p.efs <- plot_colStack.efs(efs, top = top)
+      tops <- attr(p.efs, "tops")
+      x@params$tops <- tops
+      x@tables[[ 2 ]] <- namel(efs)
+      x@plots[[ 2 ]] <- namel(p.efs)
+    }
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_lasso"),
-  function(x, family = "binomial", nfold = 10, use_tops = T){
-    if (use_tops) {
-      fun <- function(mtx) mtx[, colnames(mtx) %in% x@params$tops ]
-      x@params$train %<>% fun()
-      x@params$valid %<>% fun()
+  function(x, family = "cox", nfold = 10, use_tops = F, use_data = c("train", "all"),
+    uni_cox = T, multi_cox = F, multi_cox.inherits = T, glmnet_funname = c("cv.glmnet", "glmnet"))
+  {
+    if (use_tops && !is.null(x$tops)) {
+      fun <- function(mtx) mtx[, colnames(mtx) %in% x$tops ]
+      x$train %<>% fun()
+      x$valid %<>% fun()
     }
-    x@params$model <- e(glmnet::cv.glmnet(
-        x@params$train, x@params$train.target,
-        alpha = 1, family = family, nfold = nfold
-        ))
-    model <- x@params$model
-    p.model <- wrap(as_grob(expression(plot(model)), environment()), 6, 6)
-    levels <- x@params$levels
-    res <- sapply(c("lambda.min", "lambda.1se"), simplify = F,
-      function(lam) {
-        preds <- e(stats::predict(model, newx = x@params$valid, s = model[[ lam ]]))
-        roc <- e(pROC::roc(x@params$valid.target, as.numeric(preds), plot = F, levels = levels))
-        namel(preds, roc)
-      })
-    x@params$preds <- lapply(res, function(lst) lst$preds)
-    x@params$roc <- lapply(res, function(lst) lst$roc)
-    x@params$coef <- coefficients(model, s = c(lambda.min = model$lambda.min,
-        lambda.1se = model$lambda.1se))
-    p.roc <- lapply(x@params$roc,
-      function(roc) {
-        plot_roc(roc)
-      })
-    coef <- as_tibble(Matrix::as.matrix(x@params$coef))
-    coef <- arrange(coef, dplyr::desc(abs(lambda.min)))
-    coef <- rename(coef, variable = rownames)
-    p.coef <- plot_sig(filter(coef, !grepl("Inter", variable)))
-    x@plots[[ 3 ]] <- namel(p.model, p.roc, p.coef)
-    x@tables[[ 3 ]] <- namel(coef)
+    x$use_data <- use_data <- match.arg(use_data)
+    if (use_data == "train") {
+      data <- x$train
+      target <- x$train.target
+      time <- x$train.time
+      valid <- x$valid
+      valid.target <- x$valid.target
+    } else if (use_data == "all") {
+      valid <- data <- object(x)
+      valid.target <- target <- x$target
+      time <- x$time
+    }
+    if (family == "cox") {
+      message(glue::glue("Use family of {family}, switch target to: 0 or 1."))
+      target <- ifelse(target == x$levels[1], 0L, 1L)
+      target <- survival::Surv(time = time, event = target)
+    }
+    plots <- list()
+    if (family == "cox" && uni_cox) {
+      # Univariate lasso
+      cli::cli_alert_info("survival::coxph")
+      uni_cox <- pbapply::pblapply(colnames(data),
+        function(feature) {
+          res <- survival::coxph(as.formula(paste0("target ~ `", feature, "`")),
+              data.frame(data, check.names = F))
+          summary(res)$coefficients[1, ]
+        })
+      uni_cox <- do.call(dplyr::bind_rows, uni_cox)
+      x$uni_cox <- uni_cox <- dplyr::mutate(uni_cox, feature = !!colnames(data), .before = 1)
+      sig.uni_cox <- dplyr::mutate(uni_cox, p.adjust = stats::p.adjust(`Pr(>|z|)`, "fdr"))
+      sig.uni_cox <- dplyr::filter(sig.uni_cox, `Pr(>|z|)` < .05)
+      x$sig.uni_cox <- dplyr::rename(sig.uni_cox, pvalue = `Pr(>|z|)`)
+      meth(x)$step3 <- glue::glue("以 R 包 `survival` ({packageVersion('survival')}) 进行单因素 COX 回归 (`survival::coxph`)。筛选 `Pr(>|z|)` < .05` 的基因。")
+    }
+    if (multi_cox) {
+      if (multi_cox.inherits) {
+        cli::cli_alert_info("Inherits results (significant feature) from Univariate COX.")
+        data <- data[, colnames(data) %in% sig.uni_cox$feature ]
+        valid <- valid[, colnames(valid) %in% sig.uni_cox$feature ]
+      }
+      multi_cox <- list()
+      # Multivariate
+      glmnet_funname <- match.arg(glmnet_funname)
+      if (glmnet_funname == "cv.glmnet") {
+        multi_cox$model <- e(glmnet::cv.glmnet(data, target,
+            alpha = 1, family = family, nfold = nfold
+            ))  
+      } else if (glmnet_funname == "glmnet") {
+        stop("The following process has not been setup.")
+        multi_cox$model <- e(glmnet::glmnet(data, target,
+            alpha = 1, family = family))  
+      }
+      model <- multi_cox$model
+      p.model <- wrap(as_grob(expression(plot(model)), environment()), 6, 6)
+      levels <- x$levels
+      types.coef <- c("lambda.min", "lambda.1se")
+      res <- sapply(types.coef, simplify = F,
+        function(lam) {
+          preds <- e(stats::predict(model, newx = valid, s = model[[ lam ]]))
+          roc <- e(pROC::roc(valid.target, as.numeric(preds), plot = F, levels = levels))
+          namel(preds, roc)
+        })
+      multi_cox$preds <- lapply(res, function(lst) lst$preds)
+      multi_cox$roc <- lapply(res, function(lst) lst$roc)
+      multi_cox$coef <- coefficients(model, s = c(lambda.min = model$lambda.min,
+          lambda.1se = model$lambda.1se))
+      p.roc <- lapply(multi_cox$roc,
+        function(roc) {
+          plot_roc(roc)
+        })
+      coef <- as_tibble(Matrix::as.matrix(multi_cox$coef))
+      colnames(coef)[-1] <- types.coef
+      coef <- arrange(coef, dplyr::desc(abs(lambda.min)))
+      coef <- rename(coef, variable = rownames)
+      p.coef <- plot_sig(filter(coef, !grepl("Inter", variable)))
+      plots <- c(plots, namel(p.model, p.roc, p.coef))
+      x$multi_cox <- multi_cox
+      meth(x)$step3 <- glue::glue("以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 LASSO 处罚的 {family} 回归。具体的，以 `{glmnet_funname}` 函数作 {nfold} 交叉验证获得模型。")
+    }
+    if (length(plots)) {
+      x@plots[[ 3 ]] <- plots
+    }
     return(x)
   })
+
+
 
 plot_roc <- function(roc) {
   wrap(as_grob(
@@ -228,7 +307,7 @@ setMethod("map", signature = c(x = "job_lasso"),
 }
 
 .map_boxplot2 <- function(data, pvalue, x = "group", y = "value",
-  xlab = "Group", ylab = "Value", ids = "var", ...)
+  xlab = "Group", ylab = "Value", ids = "var", test = "wilcox.test", ...)
 {
   p <- ggplot(data, aes(x = !!rlang::sym(x), y = !!rlang::sym(y), color = !!rlang::sym(x))) +
     geom_boxplot(outlier.shape = NA, fill = "transparent") +
@@ -246,7 +325,7 @@ setMethod("map", signature = c(x = "job_lasso"),
     fn <- fivenum(data[[ y ]])
     levels <- 2 * seq(length(unique(data[[ x ]])) - 1)
     hs <- fn[4] + abs(fn[5] - fn[1]) / levels
-    p <- ggpval::add_pval(p, heights = hs, pval_text_adj = (fn[5] - fn[1]) / 15)
+    p <- ggpval::add_pval(p, heights = hs, pval_text_adj = (fn[5] - fn[1]) / 15, test = test)
   }
   p
 }
