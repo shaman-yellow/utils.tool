@@ -221,7 +221,7 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     return(x)
   })
 
-summary_tibble <- function(data, markdown = T, ...) {
+summary_tibble <- function(data, markdown = knitr::is_latex_output(), ...) {
   e(summarytools::st_options(use.x11 = FALSE))
   e(summarytools::dfSummary(data, style = if (markdown) "grid" else "multiline", ...))
 }

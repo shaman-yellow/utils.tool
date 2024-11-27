@@ -631,7 +631,7 @@ order_packaging <- function(target = "output.pdf",
 {
   report <- paste0(idname, ".pdf")
   file.copy(target, report, T)
-  package_results(head = NULL, masterZip = NULL, report = report, ...)
+  package_results(main = register, head = NULL, masterZip = NULL, report = report, ...)
   zipfiles <- list.files(".", "[\u4e00-\u9fa5]+.*\\.zip")
   zipfiles <- zipfiles[ zipfiles != paste0(idname, ".zip") ]
   if (length(zipfiles)) {

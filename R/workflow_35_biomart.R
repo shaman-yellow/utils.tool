@@ -61,6 +61,7 @@ setMethod("step1", signature = c(x = "job_biomart"),
     anno <- filter_biomart(x$mart, attrs, filters, values)
     anno <- .set_lab(anno, sig(x), "genes", "annotation")
     x$anno <- anno
+    x <- methodAdd(x, "以 R 包 `biomaRt` ({packageVersion('biomaRt')}) 对基因进行注释，获取各数据库 ID 或注释信息，以备后续分析。")
     return(x)
   })
 

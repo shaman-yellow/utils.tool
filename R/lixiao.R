@@ -2323,10 +2323,10 @@ setMethod("abstract", signature = c(x = "df", name = "character", latex = "logic
     locate_file(name)
     if (!is.null(summary)) {
       cat(text_roundrect(
-            c(sumTbl(x, key, sum.ex),
-              .enumerate_items(.get_des(colnames(x)))
-            )
-            ))
+          c(sumTbl(x, key, sum.ex),
+            .enumerate_items(.get_des(colnames(x)))
+          )
+          ))
     }
   })
 

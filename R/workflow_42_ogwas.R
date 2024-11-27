@@ -22,6 +22,7 @@ job_ogwas <- function(traits, ...)
 {
   x <- .job_ogwas()
   object(x) <- as_tibble(e(MungeSumstats::find_sumstats(traits = traits)))
+  lab(object(x)) <- "Traits in Open GWAS"
   x
 }
 

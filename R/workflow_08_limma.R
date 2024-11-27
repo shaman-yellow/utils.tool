@@ -19,6 +19,40 @@
     analysis = "Limma 差异分析"
     ))
 
+setMethod("snap", 
+  signature = c(x = "job_limma"),
+  function(x, ref, group = "group"){
+    if (missing(ref)) {
+      meta <- x$.metadata
+      if (is.null(meta)) {
+        meta <- x$normed_data$targets
+        if (is.null(meta)) {
+          meta <- x$metadata
+        }
+      }
+      metalst <- split(meta$sample, meta[[ group ]])
+      each <- vapply(names(metalst), function(x) paste0(x, " (", length(metalst[[x]]), ") "), character(1))
+      glue::glue("共 {nrow(meta)} 个样本，分 {length(unique(meta[[ group ]]))} 组，分别为 {paste(each, collapse = ', ')}。")  
+    } else if (ref == 2) {
+      tops <- x@tables$step2$tops
+      vs <- paste0(gs(names(tops), "-", "vs"), collapse = ", ")
+      glue::glue("差异分析 {vs} (若 A vs B，则为前者比后者，LogFC 大于 0 时，A 表达量高于 B)")
+    } else if (ref == 3) {
+      # tops <- x@tables$step2$tops
+      # stats <- lapply(tops,
+        # function(x) {
+        #   up <- nrow(dplyr::filter(x, LogFC > 0))
+        #   down <- nrow(dplyr::filter(x, LogFC < 0))
+        # })
+      raws <- x@plots$step3$p.sets_intersection$raw
+      sums <- lapply(c("\\.up$", "\\.down$"),
+        function(pattern) length(unique(unlist(raws[ grpl(names(raws), pattern)])))
+      )
+      alls <- length(unique(unlist(raws)))
+      glue::glue("所有上调 DEGs 有 {sums[[1]]} 个，下调共 {sums[[2]]}；一共 {alls} 个 (非重复)。")
+    }
+  })
+
 job_limma_normed <- function(data, metadata, genes = NULL) {
   .check_columns(metadata, c("sample", "group"))
   metadata <- dplyr::slice(metadata, match(colnames(data), sample))
@@ -167,7 +201,7 @@ setMethod("step2", signature = c(x = "job_limma"),
         }
       }
       tops <- .set_lab(tops, sig(x), paste("data", gs(names(tops), "-", "vs")))
-      lab(tops) <- paste(sig(x), "data")
+      lab(tops) <- paste(sig(x), "DEGs data")
       if (length(tops) >= 2) {
         lst <- lapply(tops, function(x) x[[ label ]])
         names(lst) <- gs(names(lst), "\\s*-\\s*", " vs ")
@@ -355,12 +389,22 @@ setMethod("asjob_wgcna", signature = c(x = "job_limma"),
     step_message("Use `x@params$normed_data` converted as job_wgcna.")
     if (is.null(object <- x@params$normed_data))
       stop("is.null(x@params$normed_data)")
-    rownames(object) <- object$genes[[ use ]]
+    if (is.null(use)) {
+      if (any(duplicated(rownames(object$genes)))) {
+        stop("The rownames of `object$genes` has duplicated value.")
+      }
+      rownames(object) <- rownames(object$genes)
+    } else {
+      if (any(duplicated(object$genes[[ use ]]))) {
+        stop(glue::glue("The column of `use`: {use} has duplicated value."))
+      }
+      rownames(object) <- object$genes[[ use ]]
+    }
     if (!is.null(filter_genes)) {
       object <- object[ object$genes[[ use ]] %in% filter_genes, ]
     }
     log_counts <- as_tibble(object$E)
-    gene_annotation <- select(as_tibble(object$genes), -1)
+    gene_annotation <- as_tibble(object$genes)
     log_counts[[1]] <- gene_annotation[[1]]
     job_wgcna(select(object$targets, sample, group),
       log_counts, gene_annotation)
@@ -383,6 +427,37 @@ setMethod("tops", signature = c(x = "job_limma"),
     features <- features[!is.na(features) & features != ""]
     features <- unlist(strsplit(features, " /// "), use.names = F)
     gs(features, "\\.[0-9]*$", "")
+  })
+
+setMethod("cal_corp", 
+  signature = c(x = "job_limma", y = "job_limma"),
+  function(x, y, from, to, names = NULL, use = if (x$isTcga) "gene_name" else "hgnc_symbol",
+    theme = NULL, HLs = NULL, mode = c("heatmap", "linear"))
+  {
+    message("Filter out others.")
+    eval(use)
+    x <- x$normed_data
+    x <- x[x$genes[[ use ]] %in% from, ]
+    if (!nrow(x)) {
+      stop('!nrow(x), No any genes found')
+    }
+    y <- y$normed_data
+    y <- y[y$genes[[ use ]] %in% to, ]
+    if (!nrow(y)) {
+      stop('!nrow(y), No any genes found')
+    }
+    message("Got common sample.")
+    commonSample <- ins(x$targets$sample, y$targets$sample)
+    if (!length(commonSample)) {
+      stop("No any common sample.")
+    }
+    x <- x[, x$targets$sample %in% commonSample]
+    y <- y[, y$targets$sample %in% commonSample]
+    message("`rbind` for genes.")
+    x$E <- rbind(x$E, y$E)
+    x$genes <- rbind(x$genes, y$genes)
+    newjob <- .job_limma(params = list(normed_data = x))
+    cal_corp(newjob, NULL, from, to, names, use, theme, HLs, mode)
   })
 
 setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
@@ -502,7 +577,7 @@ setMethod("vis", signature = c(x = "corp"),
 setMethod("getsub", signature = c(x = "job_limma"),
   function(x, tnbc = F){
     if (tnbc) {
-      if (!is.null(x$isTcga) && identical(x$project, "TCGA-BRCA")) {
+      if (x$isTcga && identical(x$project, "TCGA-BRCA")) {
         cli::cli_alert_info("get_data.rot2016")
         pb.rot <- get_data.rot2016()
         isTnbc <- gs(object(x)$samples$sample, "[A-Z]$", "") %in%
@@ -514,7 +589,7 @@ setMethod("getsub", signature = c(x = "job_limma"),
         x$pb <- pb.rot
         .add_internal_job(pb.rot)
       } else {
-        stop("!is.null(x$isTcga) && identical(x$project, 'TCGA-BRCA')")
+        stop("!x$isTcga && identical(x$project, 'TCGA-BRCA')")
       }
       message("Dim: ", paste0(dim(object(x)), collapse = ", "))
     }

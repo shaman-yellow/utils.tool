@@ -36,6 +36,9 @@ setClass("virtual_job", "VIRTUAL")
     others = list()
     ))
 
+setGeneric("snap", 
+  function(x, ...) standardGeneric("snap"))
+
 setGeneric("meth", 
   function(x, ...) standardGeneric("meth"))
 setMethod("meth", 
@@ -65,7 +68,7 @@ collate_details <- function(tag = "meth", envir = parent.frame(1)) {
   }
 }
 
-get_meth <- function(x) {
+get_meth <- function(x, setHeader = T) {
   header <- NULL
   if (is(x, "job")) {
     if (length(x@analysis)) {
@@ -77,7 +80,11 @@ get_meth <- function(x) {
       header <- paste("## ", x@analysis, sig)
     }
   }
-  c("", header, "", meth(x))
+  if (setHeader) {
+    c("", header, "", meth(x))
+  } else {
+    c("", meth(x), "")
+  }
 }
 
 setMethod("show", 
@@ -360,7 +367,7 @@ jobSlotAdd <- function(x, name, ...) {
 }
 
 methodAdd <- function(x, glueString, env = parent.frame(1)) {
-	meth(x)[[ paste0("step", x@step) ]] <- glue::glue("$2", .envir = env)
+	meth(x)[[ paste0("step", x@step) ]] <- glue::glue(glueString, .envir = env)
   return(x)
 }
 
@@ -376,7 +383,7 @@ methodAdd <- function(x, glueString, env = parent.frame(1)) {
 
 formatNames <- function(names) {
   names <- gsub("\\.|_", " ", sub("^[a-z]\\.", "", names))
-  gsub("([a-z])([A-Z])", "\\1 \\2", names)
+  gsub("([a-z0-9])([A-Z])", "\\1 \\2", names)
 }
 
 #' @exportMethod tables

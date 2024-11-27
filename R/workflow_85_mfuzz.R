@@ -24,6 +24,15 @@ job_mfuzz <- function()
   .job_mfuzz()
 }
 
+setMethod("snap", signature = c(x = "job_mfuzz"),
+  function(x, up, down){
+    alls <- x$clusters$cluster
+    ups <- length(names(alls)[alls %in% up])
+    downs <- length(names(alls)[alls %in% down])
+    seqs <- paste(colnames(x@object@assayData$exprs), collapse = ", ")
+    glue::glue("按照 {seqs} 顺序, 在 Mfuzz 聚类中，{paste(up, collapse = ', ')} 为按时序上调，共 {ups} 个，{paste(down, collapse = ', ')} 为按时序下调，共 {downs} 个。其他基因为离散变化。")
+  })
+
 setMethod("step0", signature = c(x = "job_mfuzz"),
   function(x){
     step_message("Prepare your data with function `job_mfuzz`.")

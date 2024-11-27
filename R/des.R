@@ -21,6 +21,9 @@
   excludes = c("id", ".id"))
 {
   files <- list.files(dir, pattern, full.names = T, recursive = T)
+  if (!length(files)) {
+    return(list())
+  }
   lst <- lapply(files,
     function(file) {
       lines <- readLines(file)
@@ -44,7 +47,8 @@
     vapply(lst, function(x) x[2], character(1)))
   lst <- lst[ !duplicated(names(lst)) ]
   lst <- lst[ !names(lst) %in% excludes ]
-  lapply(lst, function(x) gs(x, "([{}])", "\\\\\\1"))
+  lst <- lapply(lst, function(x) gs(x, "([{}])", "\\\\\\1"))
+  lst
 }
 
 .tag_anno <- function() {

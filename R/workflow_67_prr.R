@@ -74,8 +74,8 @@ setMethod("asjob_prr", signature = c(x = "job_limma"),
   function(x, drug = prr_drug())
   {
     drug <- match.arg(drug)
-    if (is.null(x$isTcga)) {
-      stop("is.null(x$isTcga)")
+    if (!x$isTcga) {
+      stop("!x$isTcga")
     }
     if (x@step < 1L) {
       stop("x@step < 1L")
