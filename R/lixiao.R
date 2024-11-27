@@ -1631,12 +1631,6 @@ order_publish <- function(file = "index.Rmd", output = "output.Rmd", title = "",
   browseURL(fun(file, output, title))
 }
 
-order_publish.bosai <- function(file = "index.Rmd", output = "output.Rmd", title = "",
-  fun = write_thesisDocxEn)
-{
-  browseURL(fun(file, output, title))
-}
-
 auto_material <- function(class = "job_PUBLISH", envir = .GlobalEnv) {
   names <- .get_job_list(envir)
   info <- lapply(names,
@@ -1801,58 +1795,6 @@ get_job_source <- function(jobs = .get_job_list(type = "class"), path = "~/utils
   }
 }
 
-set_cover.bosai <- function(info, title = info$title, author = "黄礼闯", date = Sys.Date(),
-  coverpage = NULL, institution = "铂赛")
-{
-  if (is.null(coverpage)) {
-    if (info$type == "思路设计") {
-      coverpage <- .prefix("cover_page_idea.pdf")
-    } else {
-      coverpage <- .prefix("cover_page_analysis.pdf")
-    }
-  }
-  if (info$type == "思路设计") {
-    content <- strwrap(paste0("\\begin{titlepage}
-        \\newgeometry{top=7.5cm}
-        \\ThisCenterWallPaper{1.12}{", coverpage, "}
-        \\begin{center}
-        \\textbf{\\huge ", title, "}
-        \\vspace{4em}
-        \\begin{textblock}{10}(3.2,9.25)
-        \\huge \\textbf{\\textcolor{black}{", date, "}}
-        \\end{textblock}
-        \\end{center}
-        \\end{titlepage}
-        \\restoregeometry
-        "
-        ), 50)
-  } else {
-    content <- strwrap(paste0("\\begin{titlepage}
-        \\newgeometry{top=6.5cm}
-        \\ThisCenterWallPaper{1.12}{", coverpage, "}
-        \\begin{center}
-        \\textbf{\\huge ", title, "}
-        \\vspace{4em}
-        \\begin{textblock}{10}(3,4.85)
-        \\Large \\textbf{\\textcolor{black}{", info$id, "}}
-        \\end{textblock}
-        \\begin{textblock}{10}(3,5.8)
-        \\Large \\textbf{\\textcolor{black}{", author, "}}
-        \\end{textblock}
-        \\begin{textblock}{10}(3,6.75)
-        \\Large \\textbf{\\textcolor{black}{", info$type, "}}
-        \\end{textblock}
-        \\begin{textblock}{10}(3,7.7)
-        \\Large \\textbf{\\textcolor{black}{", info$client, "}}
-        \\end{textblock}
-        \\end{center}
-        \\end{titlepage}
-        \\restoregeometry
-        "
-        ), 50)
-  }
-  writeLines(content)
-}
 
 set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
   coverpage = .prefix("cover_page.pdf"), institution = "@立效研究院")
@@ -2168,6 +2110,10 @@ setMethod("include", signature = c(x = "df"),
     if (knitr::is_latex_output()) {
       x <- trunc_table(x)
       print(knitr::kable(x, "markdown", caption = as_caption(name)))
+    } else if (knitr::pandoc_to("docx")) {
+      x <- trunc_table(x)
+      knitr::opts_current$set(tab.id = name)
+      writeLines(flextable:::knit_print.flextable(pretty_flex(x, as_caption(name), NULL)))
     } else {
       x <- trunc_table(x)
       print(knitr::kable(x, "markdown", caption = as_caption(name)))
@@ -2206,6 +2152,9 @@ trunc_table <- function(x) {
     col <- col[1]
     x <- x[, 1:col]
     x$... <- "..."
+  }
+  if (any(duplicated(colnames(x)))) {
+    colnames(x)[duplicated(colnames(x))] %<>% paste0(., seq_along(.))
   }
   x
 }
@@ -2312,6 +2261,14 @@ setMethod("abstract", signature = c(x = "ANY", name = "character", latex = "miss
     reCallMethod("abstract", namel(x, name, latex), ...)
   })
 
+setMethod("abstract", signature = c(x = "df", name = "character", latex = "NULL"),
+  function(x, name, latex, ..., key = 1, abs = NULL, summary = T, sum.ex = NULL){
+    x <- tibble::as_tibble(x)
+    if (!is.null(abs))
+      cat(abs, "\n")
+    locate_file(name)
+  })
+
 ## abstract for table
 setMethod("abstract", signature = c(x = "df", name = "character", latex = "logical"),
   function(x, name, latex, ..., key = 1, abs = NULL, summary = T, sum.ex = NULL){
@@ -2351,6 +2308,18 @@ setMethod("abstract", signature = c(x = "fig", name = "character", latex = "logi
     locate_file(name)
   })
 
+setMethod("abstract", signature = c(x = "fig", name = "character", latex = "NULL"),
+  function(x, name, latex, ..., abs = NULL){
+    if (!is.null(abs))
+      cat(abs, "\n")
+    locate_file(name)
+  })
+
+setMethod("abstract", signature = c(x = "lich", name = "character", latex = "NULL"),
+  function(x, name, latex, ..., abs = NULL){
+  })
+
+
 setMethod("abstract", signature = c(x = "lich", name = "character", latex = "logical"),
   function(x, name, latex, ..., abs = NULL){
     if (length(x) > 5) {
@@ -2368,6 +2337,11 @@ setMethod("abstract", signature = c(x = "lich", name = "character", latex = "log
       })
     cat(text_roundrect(paste0(unlist(str), collapse = "\n")))
   })
+
+setMethod("abstract", signature = c(x = "files", name = "character", latex = "NULL"),
+  function(x, name, latex, ..., abs = NULL, sum.ex = NULL){
+  })
+
 
 setMethod("abstract", signature = c(x = "files", name = "character", latex = "logical"),
   function(x, name, latex, ..., abs = NULL, sum.ex = NULL){

@@ -563,6 +563,7 @@ custom_docx_document <- function(...){
   }
   args <- list(
     reference_docx = args$reference_docx,
+    keep_md = TRUE,
     df_print = "tibble",
     tables = list(
       style = "Table", width = 1, topcaption = TRUE, tab.lp = "tab:",
@@ -604,6 +605,7 @@ custom_docx_document2 <- function(...){
   }
   args <- list(
     reference_docx = args$reference_docx,
+    keep_md = TRUE,
     df_print = "tibble",
     tables = list(
       style = "Table", width = 1, topcaption = TRUE, tab.lp = "tab:",
