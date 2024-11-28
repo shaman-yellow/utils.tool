@@ -1,4 +1,14 @@
 
+formatName.bosai <- function(file, info) {
+  if (missing(info)) {
+    info <- get("info", envir = parent.frame(1))
+  }
+  nfile <- paste0(info$id, "-", info$client, "-",
+    info$type, "-", info$title, "-", format.Date(info$finish, "%Y.%m.%d"), ".docx")
+  file.copy(file, nfile)
+  tools::file_path_sans_ext(nfile)
+}
+
 summary_week.bosai <- function(
   time = Sys.Date(),
   orders = get_orders(),
@@ -48,8 +58,16 @@ td <- function(character_date) {
   as.Date(character_date, tryFormats = "%Y%m%d")
 }
 
+write_bosaiDocx <- function(report, savename, title,
+  change_include_fun = "inclu.fig",
+  yml = readLines(file.path(.expath, "bosai.yml")),
+  origin_include_fun = "knitr::include_graphics", ...)
+{
+  write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun, ...)
+}
+
 order_publish.bosai <- function(file = "index.Rmd", output = "output.Rmd", title = "",
-  funs = list(write_thesisDocxEn))
+  funs = list(write_bosaiDocx))
 {
   n <- 0L
   lapply(funs,
@@ -106,32 +124,56 @@ get_docx_cover.bosai_idea <- function() {
     list(officer::fpar(officer::ftext("委托人：[[[info$client]]]", fp_tsmall), fp_p = fp_pcenter)),
     list(officer::fpar(officer::ftext("受托人：杭州铂赛生物科技有限公司", fp_tsmall), fp_p = fp_pcenter))
   )
-  content <- unlist(lapply(content, assis_docx_officer))
+  content <- unlist(lapply(content, assis_docx_par))
   c("", content, "", "\\newpage", "")
 }
 
 get_docx_cover.bosai_analysis <- function() {
   fp_pcenter <- officer::fp_par("center", line_spacing = 2)
-  fp_tlarge <- officer::fp_text(font.size = 26, font.family = "SimHei", bold = T)
+  fp_pleft <- officer::fp_par(line_spacing = 2)
+  fp_tlarge <- officer::fp_text(font.size = 26, font.family = "Microsoft YaHei", bold = T)
   fp_tsmall <- officer::fp_text(font.size = 14, font.family = "SimSun", bold = T)
+  fp_tsmall_und <- officer::fp_text(font.size = 14, font.family = "SimSun", bold = T, underlined = T)
   blank <- officer::fpar()
   content <- c(
-    rep(list(blank), 5),
+    rep(list(blank), 4),
     list(officer::fpar(officer::ftext("生信分析报告", fp_tlarge), fp_p = fp_pcenter)),
-    rep(list(blank), 5),
-    list(officer::fpar(officer::ftext("项目标题：[[[title]]]", fp_tsmall), fp_p = fp_pcenter)),
-    list(officer::fpar(officer::ftext("单号：[[[info$id]]]", fp_tsmall), fp_p = fp_pcenter)),
-    list(officer::fpar(officer::ftext("分析人员：[[[author]]]", fp_tsmall), fp_p = fp_pcenter)),
-    list(officer::fpar(officer::ftext("分析类型：[[[info$type]]]", fp_tsmall), fp_p = fp_pcenter)),
-    list(officer::fpar(officer::ftext("委托人：[[[info$client]]]", fp_tsmall), fp_p = fp_pcenter)),
-    list(officer::fpar(officer::ftext("受托人：杭州铂赛生物科技有限公司", fp_tsmall), fp_p = fp_pcenter))
+    rep(list(blank), 3),
+    list(officer::fpar(
+        officer::ftext("  项目标题：", fp_tsmall),
+        officer::ftext("[[[title]]]", fp_tsmall_und),
+        fp_p = fp_pleft)),
+    list(officer::fpar(
+        officer::ftext("  单    号：", fp_tsmall),
+        officer::ftext("[[[info$id]]]", fp_tsmall_und),
+        fp_p = fp_pleft)),
+    list(officer::fpar(
+        officer::ftext("  分析人员：", fp_tsmall),
+        officer::ftext("[[[author]]]", fp_tsmall_und),
+        fp_p = fp_pleft)),
+    list(officer::fpar(
+        officer::ftext("  分析类型：", fp_tsmall),
+        officer::ftext("[[[info$type]]]", fp_tsmall_und),
+        fp_p = fp_pleft)),
+    list(officer::fpar(
+        officer::ftext("  委 托 人：", fp_tsmall),
+        officer::ftext("[[[info$client]]]", fp_tsmall_und),
+        fp_p = fp_pleft)),
+    list(officer::fpar(
+        officer::ftext("  受 托 人：", fp_tsmall),
+        officer::ftext("杭州铂赛生物科技有限公司", fp_tsmall_und),
+        fp_p = fp_pleft))
   )
-  content <- unlist(lapply(content, assis_docx_officer))
+  content <- unlist(lapply(content, assis_docx_par))
   c("", content, "", "\\newpage", "")
 }
 
-assis_docx_officer <- function(x) {
+assis_docx_par <- function(x) {
   c("```{=openxml}", officer::to_wml(x), "```")
+}
+
+assis_docx_img <- function(x) {
+  paste0("`", officer::to_wml(x), "`{=openxml}")
 }
 
 get_tex_cover.bosai_analysis <- function() {

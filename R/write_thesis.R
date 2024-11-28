@@ -12,12 +12,10 @@ inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
   if (!file.exists(saveDir))
     dir.create(saveDir)
   upper <- dirname(image)
-  if (is.na(upper))
-    upper <- "."
   file <- basename(image)
   ## backup for figure
   if (grepl("\\.pdf$", file)) {
-    savename <- paste0(saveDir, "/", sub("\\.pdf$", ".png", file))
+    savename <- file.path(saveDir, sub("\\.pdf$", ".png", file))
     if (!file.exists(savename)) {
       pdf_convert(image, filenames = savename, dpi = dpi, pages = 1)
       need_trim <- T
@@ -35,14 +33,13 @@ inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
     pic_trim(savename)
   }
   ## record image info
+  image_info <- getOption("Inclu_image_info", list())
   if (is.null(image_info[[ savename ]])) {
     img <- magick::image_read(savename)
     info <- magick::image_info(img)
     magick::image_destroy(img)
     image_info[[ savename ]] <- list(width = info$width, height = info$height)
-    if (bindingIsLocked("image_info", .env))
-      unlockBinding("image_info", .env)
-    assign("image_info", image_info, envir = .env)
+    options(Inclu_image_info = image_info)
   } else {
     info <- image_info[[ savename ]]
   }
@@ -58,13 +55,25 @@ inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
     height <- width / ratio
   }
   knitr::opts_current$set(fig.height = height, fig.width = width)
-  # if (knitr::opts_current$get("results") == "asis") {
-  #   label <- knitr::opts_current$get("label")
-  #   cat(glue::glue("![{{label}}]({{savename}}){#{{label}}}", .open = "{{", .close = "}}"))
-  # } else {
-  #   knitr::include_graphics(savename)
-  # }
-  knitr::include_graphics(savename)
+  if (knitr::pandoc_to("docx")) {
+    content <- officer::external_img(savename, width, height)
+    writeLines(c("", assis_docx_img(content), ""))
+    label <- knitr::opts_current$get("label")
+    if (!grpl(label, "^unnamed-chunk")) {
+      run_num <- officer::run_autonum(
+        seq_id = knitr::opts_chunk$get("fig.lp"),
+        pre_label = knitr::opts_chunk$get("fig.cap.pre"),
+        post_label = knitr::opts_chunk$get("fig.cap.sep"),
+        bkm = label,
+        prop = officer::fp_text_lite(bold = T)
+      )
+      caption <- officer::block_caption(as_caption(label), "Image Caption", autonum = run_num)
+      content <- officer:::to_wml_block_caption_pandoc(caption)
+      writeLines(c("", content, ""))
+    }
+  } else {
+    knitr::include_graphics(savename)
+  }
 }
 
 prepare.fig <- function(image, saveDir = "thesis_fig", dpi = 300)
@@ -111,8 +120,6 @@ inclu.capt <- function(img, saveDir = "thesis_fig") {
 }
 
 .env <- topenv(environment())
-
-image_info <- list()
 
 pic_trim <- function(file){
   img <- magick::image_read(file)

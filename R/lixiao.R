@@ -1983,7 +1983,7 @@ setMethod("autor", signature = c(x = "can_not_be_draw", name = "character"),
     if (!is.null(lich <- attr(x, "lich"))) {
       abstract(lich, name)
       file <- autosv(lich, name <- paste0(name, "-content"))
-      locate_file(name, "上述信息框内容已保存至")
+      locate_file(name, "See: ")
     }
   })
 
@@ -2011,13 +2011,13 @@ setMethod("autor", signature = c(x = "df", name = "character"),
     x <- dplyr::select_if(x,
       function(x) is.character(x) | is.numeric(x) | is.logical(x) | is.factor(x))
     file <- autosv(x, name, ...)
+    include(x, name, ...)
     if (asis) {
       abstract(x, name = name, ...)
       if (!is.null(lich <- attr(x, "lich"))) {
         abstract(lich, name = name)
       }
     }
-    include(x, name, ...)
     if (needTex()) {
       cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{89}\\vspace{1.5cm}\\end{center}")
     }
@@ -2030,6 +2030,7 @@ setMethod("autor", signature = c(x = "fig", name = "character"),
       cat("\\begin{center}\\vspace{1.5cm}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{88}\\end{center}")
     }
     file <- autosv(x, name, ...)
+    include(x, name, ...)
     if (asis) {
       abstract(x, name = name, ...)
     }
@@ -2038,10 +2039,6 @@ setMethod("autor", signature = c(x = "fig", name = "character"),
         abstract(lich, name = name)
       }
     }
-    if (!knitr::is_latex_output()) {
-      return(include(x, name, ...))
-    }
-    include(x, name, ...)
     if (needTex()) {
       cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{88}\\vspace{1.5cm}\\end{center}")
     }
@@ -2064,7 +2061,7 @@ setMethod("autor", signature = c(x = "lich", name = "character"),
   function(x, name, ...){
     abstract(x, name, ...)
     file <- autosv(x, name <- paste0(name, "-content"))
-    locate_file(name, "上述信息框内容已保存至")
+    locate_file(name, "见")
   })
 
 setMethod("autor", signature = c(x = "character", name = "character"),
@@ -2111,7 +2108,7 @@ setMethod("include", signature = c(x = "df"),
       x <- trunc_table(x)
       print(knitr::kable(x, "markdown", caption = as_caption(name)))
     } else if (knitr::pandoc_to("docx")) {
-      Terror <<- x <- trunc_table(x)
+      x <- trunc_table(x)
       knitr::opts_current$set(tab.id = name)
       writeLines(flextable:::knit_print.flextable(pretty_flex(x, as_caption(name), NULL)))
     } else {
@@ -2151,7 +2148,7 @@ trunc_table <- function(x) {
   if (length(col) > 0) {
     col <- col[1]
     x <- x[, 1:col]
-    x$... <- "..."
+    x$`..*` <- "..."
   }
   if (any(duplicated(colnames(x)))) {
     colnames(x)[duplicated(colnames(x))] %<>% paste0(., seq_along(.))
@@ -2317,6 +2314,17 @@ setMethod("abstract", signature = c(x = "fig", name = "character", latex = "NULL
 
 setMethod("abstract", signature = c(x = "lich", name = "character", latex = "NULL"),
   function(x, name, latex, ..., abs = NULL){
+    if (length(x) > 5) {
+      x <- head(x, n = 5)
+      x <- c(x, list("(Others)" = "..."))
+    }
+    str <- sapply(names(x),
+      function(name){
+        text <- x[[ name ]]
+        text <- gs(text, "\\\\href\\{([^}]*)\\}", "<\\1>")
+        glue::glue("- {name}: {stringr::str_trunc(text, 500)}")
+      })
+    writeLines(unlist(str))
   })
 
 
@@ -2340,6 +2348,8 @@ setMethod("abstract", signature = c(x = "lich", name = "character", latex = "log
 
 setMethod("abstract", signature = c(x = "files", name = "character", latex = "NULL"),
   function(x, name, latex, ..., abs = NULL, sum.ex = NULL){
+    writeLines(text_roundrect(sumDir(autoRegisters[[ name ]], sum.ex)))
+    locate_file(name)
   })
 
 
@@ -2362,19 +2372,23 @@ sumDir <- function(dir, sum.ex = NULL) {
   num <- length(files)
   if (length(files) > 5)
     files <- c(head(files, n = 5), "...")
-  paste0("注：文件夹", dir, "共包含", num, "个文件。\n",
+  paste0("Note: The directory '", dir, "' contains ", num, " files.\n",
     sum.ex, "\n",
     .enumerate_items0(files)
   )
 }
 
 .enumerate_items0 <- function(items) {
-  paste0(
-    "\\begin{enumerate}",
-    "\\tightlist\n",
-    paste0(paste0("\\item ", items), collapse = "\n"),
-    "\n\\end{enumerate}",
-    collapse = "\n")
+  if (knitr::is_latex_output()) {
+    paste0(
+      "\\begin{enumerate}",
+      "\\tightlist\n",
+      paste0(paste0("\\item ", items), collapse = "\n"),
+      "\n\\end{enumerate}",
+      collapse = "\n")  
+  } else if (knitr::pandoc_to("docx")) {
+    paste0(paste0(seq_along(items), " ", items), collapse = "\n")
+  }
 }
 
 fix.tex <- function(str) {
@@ -2392,13 +2406,19 @@ sumTbl <- function(x, key, sum.ex = NULL, mustSum = getOption("abstract.mustSum"
     "以下预览的表格可能省略部分数据；", sums, "'。\n", sum.ex)
 }
 
-locate_file <- function(name, des = "对应文件为") {
+locate_file <- function(name, des = "File path: ") {
+  if (!exists('autoRegisters'))
+    stop("!exists('autoRegisters')")
+  if (!file.exists(autoRegisters[[ name ]]))
+    stop("file.exists(autoRegisters[[ name ]] == F)")
   if (needTex()) {
-    if (!exists('autoRegisters'))
-      stop("!exists('autoRegisters')")
-    if (!file.exists(autoRegisters[[ name ]]))
-      stop("file.exists(autoRegisters[[ name ]] == F)")
     cat("\n**(", des, " `", autoRegisters[[ name ]], "`)**", "\n", sep = "")  
+  } else if (knitr::pandoc_to("docx")) {
+    content <- officer::fpar(
+      officer::ftext(glue::glue("({des}{autoRegisters[[name]]})"),
+        officer::fp_text_lite(bold = T)),
+      fp_p = officer::fp_par("center", line_spacing = 2))
+    writeLines(assis_docx_par(content))
   }
 }
 
@@ -2409,6 +2429,8 @@ text_roundrect <- function(str, collapse = "\n") {
         "\\begin{tcolorbox}[colback=gray!10, colframe=gray!50, width=0.9\\linewidth, arc=1mm, boxrule=0.5pt]",
         str, "\\end{tcolorbox}\n\\end{center}", collapse = collapse
         ))
+  } else if (knitr::pandoc_to("docx")) {
+    c("```", str, "```")
   }
 }
 

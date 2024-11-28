@@ -629,8 +629,10 @@ generate_tiffs <- function(pattern = "^MAIN-Fig.*\\.pdf",
 order_packaging <- function(target = "output.pdf",
   register = autoRegisters, idname = gidn(), ...)
 {
-  report <- paste0(idname, ".pdf")
-  file.copy(target, report, T)
+  report <- paste0(idname, ".", tools::file_ext(target))
+  if (!file.exists(report)) {
+    file.copy(target, report, T)
+  }
   package_results(main = register, head = NULL, masterZip = NULL, report = report, ...)
   zipfiles <- list.files(".", "[\u4e00-\u9fa5]+.*\\.zip")
   zipfiles <- zipfiles[ zipfiles != paste0(idname, ".zip") ]
@@ -765,6 +767,7 @@ items <- function(
   end = NA,
   finish = NA,
   client = "",
+  inst = "",
   info = od_get_info(),
   id = od_get_id(),
   receive_date = od_get_date(),
