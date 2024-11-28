@@ -2111,7 +2111,7 @@ setMethod("include", signature = c(x = "df"),
       x <- trunc_table(x)
       print(knitr::kable(x, "markdown", caption = as_caption(name)))
     } else if (knitr::pandoc_to("docx")) {
-      x <- trunc_table(x)
+      Terror <<- x <- trunc_table(x)
       knitr::opts_current$set(tab.id = name)
       writeLines(flextable:::knit_print.flextable(pretty_flex(x, as_caption(name), NULL)))
     } else {
