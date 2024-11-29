@@ -11,6 +11,38 @@ setFakeClasses <- function(classes) {
     })
 }
 
+split_text_by_width <- function(text, width) {
+  parts <- unlist(strsplit(text, "(?<=\\p{Han})", perl = TRUE))
+  parts <- unlist(strsplit(parts, "(?=\\p{Han})", perl = TRUE))
+  parts <- unlist(strsplit(parts, "(?<=\\s)", perl = TRUE))
+  parts <- unlist(strsplit(parts, "(?=\\s)", perl = TRUE))
+  current_width <- 0
+  current_line <- ""
+  lines <- c()
+  for (part in parts) {
+    part <- trimws(part)
+    if (part == "") next
+    part_width <- sum(nchar(stringr::str_replace_all(part, "[\u4e00-\u9fa5]", "")) + 
+                      2 * stringr::str_count(part, "[\u4e00-\u9fa5]"))
+    if (current_width + part_width > width) {
+      lines <- c(lines, current_line)
+      current_line <- part
+      current_width <- part_width
+    } else {
+      if (current_line != "") {
+        current_line <- paste0(current_line, part)
+      } else {
+        current_line <- part
+      }
+      current_width <- current_width + part_width
+    }
+  }
+  if (nchar(current_line) > 0) {
+    lines <- c(lines, current_line)
+  }
+  return(lines)
+}
+
 sapply(vector, simplify = T,
   function(item) {
     item

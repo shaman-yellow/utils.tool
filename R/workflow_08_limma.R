@@ -80,6 +80,18 @@ job_limma_normed <- function(data, metadata, genes = NULL) {
   .job_limma(object = data, params = list(metadata = metadata, isTcga = F, normed = T, genes = genes))
 }
 
+setMethod("filter", signature = c(x = "job_limma"),
+  function(x, ...){
+    message("Filter genes via `x@object$genes`.")
+    message("Before Dim: ", paste0(dim(object(x)), collapse = ", "))
+    data <- object(x)$genes
+    data$...seq <- 1:nrow(data)
+    keep <- dplyr::filter(data, ...)$...seq
+    object(x) <- object(x)[keep, ]
+    message("After Dim: ", paste0(dim(object(x)), collapse = ", "))
+    return(x)
+  })
+
 job_limma <- function(DGEList)
 {
   if (!is(DGEList, 'DGEList'))
@@ -112,16 +124,18 @@ setMethod("step1", signature = c(x = "job_limma"),
     if (!no.filter) {
       object(x) <- filter_low.dge(object(x), group, min.count = min.count)
       p.filter <- wrap(attr(object(x), "p"), 8, 3)
+      p.filter <- .set_lab(p.filter, sig(x), "Filter low counts")
       plots <- c(plots, namel(p.filter))
     }
     if (!no.norm) {
       object(x) <- norm_genes.dge(object(x), design, vis = norm_vis)
       if (norm_vis) {
         if (length(x@object$targets$sample) < 50) {
-          p.norm <- wrap(attr(object(x), "p"), 6, length(x@object$targets$sample) * .6)
+          p.norm <- wrap(attr(object(x), "p"), 6, max(c(length(x@object$targets$sample) * .6, 10)))
         } else {
           p.norm <- wrap(attr(object(x), "p"))
         }
+        p.norm <- .set_lab(p.norm, sig(x), "Normalization")
         x@params$p.norm_data <- p.norm@data$data
       } else {
         p.norm <- NULL
@@ -624,7 +638,8 @@ filter_low.dge <- function(dge, group., min.count = 10, prior.count = 2) {
     geom_density(aes(x = value, color = sample), alpha = .7) +
     geom_vline(xintercept = cutoff, linetype = "dashed") +
     facet_wrap(~ factor(.id, c("Raw", "Filtered")), scales = "free_y") +
-    labs(x = "Log2-cpm", y = "Density")
+    labs(x = "Log2-cpm", y = "Density") +
+    rstyle("theme")
   if (length(unique(data$sample)) > 50) {
     p <- p + theme(legend.position = "none")
   }
@@ -651,7 +666,8 @@ norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ...,
           outlier.color = "grey60", outlier.size = .5) +
         coord_flip() +
         facet_wrap(~ factor(.id, c("Raw", "Normalized"))) +
-        labs(x = "Sample", y = "Log2-cpm")
+        labs(x = "Sample", y = "Log2-cpm") +
+        rstyle("theme")
     } else {
       p <- plot_median_expr_line(data)
     }

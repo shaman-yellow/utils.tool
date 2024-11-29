@@ -37,7 +37,7 @@ setMethod("step1", signature = c(x = "job_epifactor"),
     step_message("Obtain epigenetic regulators.")
     file <- switch(x$use, protein = "EpiGenes_main.csv")
     dir.create(dir, F)
-    db_file <- paste0(dir, "/", file, "_", x$version, ".rds")
+    db_file <- file.path(dir, paste0(file, "_", x$version, ".rds"))
     if (file.exists(db_file)) {
       data <- readRDS(db_file)
     } else {
@@ -47,6 +47,7 @@ setMethod("step1", signature = c(x = "job_epifactor"),
     }
     data <- .set_lab(data, sig(x), paste0("all ", x$use), "of epigenetic regulators")
     x@tables[[ 1 ]] <- nl(x$use, list(data))
+    x <- methodAdd(x, "从数据库 `EpiFactors` {cite_show('Epifactors2022Maraku2023')} 获取表观遗传调控蛋白的数据。")
     return(x)
   })
 

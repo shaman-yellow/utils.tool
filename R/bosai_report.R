@@ -84,6 +84,7 @@ order_publish.bosai <- function(file = "index.Rmd", output = "output.Rmd", title
 set_cover.bosai <- function(info, title = info$title, author = "黄礼闯", date = Sys.Date(),
   coverpage = NULL, institution = "铂赛")
 {
+  env <- environment()
   if (is.null(coverpage)) {
     if (info$type == "思路设计") {
       coverpage <- .prefix("cover_page_idea.pdf")
@@ -96,73 +97,97 @@ set_cover.bosai <- function(info, title = info$title, author = "黄礼闯", date
     if (knitr::is_latex_output()) {
       content <- get_tex_cover.bosai_idea()
     } else if (knitr::pandoc_to("docx")) {
-      content <- get_docx_cover.bosai_idea()
+      content <- get_docx_cover.bosai_idea(env)
     }
   } else {
     if (knitr::is_latex_output()) {
       content <- get_tex_cover.bosai_analysis()
     } else if (knitr::pandoc_to("docx")) {
-      content <- get_docx_cover.bosai_analysis()
+      content <- get_docx_cover.bosai_analysis(env)
     }
   }
-  env <- environment()
   content <- vapply(content, glue::glue, character(1),
     .open = "[[[", .close = "]]]", .envir = env)
   writeLines(content)
 }
 
-get_docx_cover.bosai_idea <- function() {
-  fp_pcenter <- officer::fp_par("center", line_spacing = 2)
-  fp_tlarge <- officer::fp_text(font.size = 26, font.family = "SimHei", bold = T)
-  fp_tsmall <- officer::fp_text(font.size = 14, font.family = "SimSun", bold = T)
-  blank <- officer::fpar()
-  content <- c(
-    rep(list(blank), 9),
-    list(officer::fpar(officer::ftext("生物医药合作项目开发", fp_tlarge), fp_p = fp_pcenter)),
-    rep(list(blank), 5),
-    list(officer::fpar(officer::ftext("研究方向：[[[title]]]", fp_tsmall), fp_p = fp_pcenter)),
-    list(officer::fpar(officer::ftext("委托人：[[[info$client]]]", fp_tsmall), fp_p = fp_pcenter)),
-    list(officer::fpar(officer::ftext("受托人：杭州铂赛生物科技有限公司", fp_tsmall), fp_p = fp_pcenter))
+get_docx_cover.bosai_idea <- function(env) {
+  items <- c(
+    "  研究方向：", "[[[title]]]",
+    "  委托人：", "[[[info$client]]]",
+    "  受托人：", "杭州铂赛生物科技有限公司"
   )
-  content <- unlist(lapply(content, assis_docx_par))
-  c("", content, "", "\\newpage", "")
+  .get_docx_coverStyle.bosai("生物医药合作项目开发", items, 6, 3, env = env)
 }
 
-get_docx_cover.bosai_analysis <- function() {
-  fp_pcenter <- officer::fp_par("center", line_spacing = 2)
-  fp_pleft <- officer::fp_par(line_spacing = 2)
+get_docx_cover.bosai_analysis <- function(env) {
+  items <- c(
+    "  项目标题：", "[[[title]]]",
+    "  单    号：", "[[[info$id]]]",
+    "  分析人员：", "[[[author]]]",
+    "  分析类型：", "[[[info$type]]]",
+    "  委 托 人：", "[[[info$client]]]",
+    "  受 托 人：", "杭州铂赛生物科技有限公司"
+  )
+  .get_docx_coverStyle.bosai("生信分析报告", items, 4, 3, env = env)
+}
+
+.get_docx_coverStyle.bosai <- function(header, items, header.before = 4, header.after = 3,
+  env, lineNChar = 45)
+{
+  fp_header <- officer::fp_par("center", line_spacing = 2)
+  fp_items <- officer::fp_par(line_spacing = 2.5)
   fp_tlarge <- officer::fp_text(font.size = 26, font.family = "Microsoft YaHei", bold = T)
   fp_tsmall <- officer::fp_text(font.size = 14, font.family = "SimSun", bold = T)
   fp_tsmall_und <- officer::fp_text(font.size = 14, font.family = "SimSun", bold = T, underlined = T)
   blank <- officer::fpar()
+  par_title <- list(officer::fpar(officer::ftext(header, fp_tlarge), fp_p = fp_header))
+  N <- 0L
+  NEnd <- length(items) / 2
+  par_items <- mapply(seq(1, length(items), 2), seq(2, length(items), 2), SIMPLIFY = F,
+    FUN = function(n1, n2) {
+      N <<- N + 1L
+      query <- officer::ftext(items[n1], fp_tsmall)
+      answer <- glue::glue(items[n2], .open = "[[[", .close = "]]]", .envir = env)
+      answer <- split_text_by_width(answer, lineNChar - 5)
+      if (length(answer) >= 2) {
+        if (nchar(tail(answer, n = 1)) <= 2) {
+          answer[ length(answer) - 1 ] %<>% paste0(., tail(answer, n = 1))
+          answer <- answer[ -length(answer) ]
+        }  
+      }
+      answer <- stringr::str_pad(answer, lineNChar, "both")
+      if (length(answer) >= 2) {
+        lineBreak <- officer::run_linebreak()
+        anlist <- list()
+        length(anlist) <- length(answer) * 3 - 2
+        for (i in seq_along(answer)) {
+          if (i == length(answer)) {
+            postfix <- if (N == NEnd) "." else ";"
+          } else {
+            postfix <- ""
+          }
+          anlist[[ 3 * i - 2 ]] <- officer::ftext(
+            paste0(answer[i], postfix), fp_tsmall_und
+          )
+          if (i != length(answer)) {
+            anlist[[ 3 * i - 1 ]] <- lineBreak
+            anlist[[ 3 * i ]] <- officer::ftext(
+              stringr::str_pad("", nchar(items[1]) * 2 - 2), fp_tsmall
+            )
+          }
+        }
+        answer <- anlist
+      } else {
+        answer <- paste0(answer, if (N == NEnd) "." else ";")
+        answer <- list(officer::ftext(answer, fp_tsmall_und))
+      }
+      args <- c(list(query), answer, list(fp_p = fp_items))
+      do.call(officer::fpar, args)
+    })
   content <- c(
-    rep(list(blank), 4),
-    list(officer::fpar(officer::ftext("生信分析报告", fp_tlarge), fp_p = fp_pcenter)),
-    rep(list(blank), 3),
-    list(officer::fpar(
-        officer::ftext("  项目标题：", fp_tsmall),
-        officer::ftext("[[[title]]]", fp_tsmall_und),
-        fp_p = fp_pleft)),
-    list(officer::fpar(
-        officer::ftext("  单    号：", fp_tsmall),
-        officer::ftext("[[[info$id]]]", fp_tsmall_und),
-        fp_p = fp_pleft)),
-    list(officer::fpar(
-        officer::ftext("  分析人员：", fp_tsmall),
-        officer::ftext("[[[author]]]", fp_tsmall_und),
-        fp_p = fp_pleft)),
-    list(officer::fpar(
-        officer::ftext("  分析类型：", fp_tsmall),
-        officer::ftext("[[[info$type]]]", fp_tsmall_und),
-        fp_p = fp_pleft)),
-    list(officer::fpar(
-        officer::ftext("  委 托 人：", fp_tsmall),
-        officer::ftext("[[[info$client]]]", fp_tsmall_und),
-        fp_p = fp_pleft)),
-    list(officer::fpar(
-        officer::ftext("  受 托 人：", fp_tsmall),
-        officer::ftext("杭州铂赛生物科技有限公司", fp_tsmall_und),
-        fp_p = fp_pleft))
+    rep(list(blank), header.before), par_title,
+    rep(list(blank), header.after), par_items
   )
   content <- unlist(lapply(content, assis_docx_par))
   c("", content, "", "\\newpage", "")

@@ -272,7 +272,7 @@ rstyle <- function(get = "pal", seed = NULL, n = 1L) {
   } else if (get == "shape.f") {
     set <- as.list(21:25)
   } else if (get == "theme") {
-    set <- list(theme_grey(), theme_minimal(), theme_bw(), theme_light())
+    set <- list(theme_minimal(), theme_bw(), theme_light())
   }
   if (!is.null(seed)) {
     set.seed(seed)

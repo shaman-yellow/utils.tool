@@ -2638,20 +2638,27 @@ new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T, 
   }
 }
 
-new_venn <- function(..., lst = NULL, wrap = T, fun_pre = rm.no) {
+new_venn <- function(..., lst = NULL, wrap = T, fun_pre = rm.no, force_upset = T) {
   if (is.null(lst)) {
     lst <- list(...)
   }
   lst <- lapply(lst, function(x) as.character(fun_pre(x)))
-  p <- ggVennDiagram::ggVennDiagram(lst, label_percent_digit = 1) +
-    scale_fill_gradient(low = "grey95", high = sample(color_set(), 1)) +
-    theme_void() +
-    theme(axis.text = element_blank(),
-      axis.title = element_blank(),
-      axis.ticks = element_blank()) +
-    geom_blank()
+  if (force_upset) {
+    p <- ggVennDiagram::ggVennDiagram(lst, force_upset = T)
+    p$plotlist[[2]]$layers[[1]]$geom_params$width <- .4
+    p$plotlist[[3]]$layers[[1]]$geom_params$width <- .7
+  } else {
+    p <- ggVennDiagram::ggVennDiagram(lst, label_percent_digit = 1) +
+      scale_fill_gradient(low = "grey95", high = sample(color_set(), 1)) +
+      theme_void() +
+      guides(fill = "none") +
+      theme(axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank()) +
+      theme()
+  }
   if (wrap) {
-    p <- wrap(p, 4, 2.5)
+    p <- wrap(p, 5, 3)
   }
   attr(p, "ins") <- ins <- ins(lst = lst)
   attr(p, "lich") <- new_lich(list(All_intersection = ins))
