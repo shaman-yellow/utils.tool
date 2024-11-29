@@ -169,8 +169,13 @@ setGeneric("login",
 setGeneric("ref", 
   function(x, ...) standardGeneric("ref"))
 
-setMethod("ref", signature = c(x = "character"),
-  function(x, add_internal_job = T){
+.character_ref <- setClass("character_ref", 
+  contains = c("character"),
+  representation = representation(),
+  prototype = NULL)
+
+setMethod("ref", signature = c(x = "character_ref"),
+  function(x, add_internal_job = T, ...){
     ref <- strx(x, "[A-Z][A-Za-z]{10,}[0-9]{4}")
     message("Extracted reference: ", ref)
     if (add_internal_job) {
@@ -178,6 +183,31 @@ setMethod("ref", signature = c(x = "character"),
       .add_internal_job(job)
     }
     return(x)
+  })
+
+setMethod("ref", signature = c(x = "character"),
+  function(x, ...){
+    codes_list <- knitr::knit_code$get()
+    if (!length(codes_list)) {
+      stop("!length(codes_list), no in rendering circumstance?")
+    }
+    codes <- codes_list[[x]] 
+    if (is.null(codes)) {
+      stop('is.null(codes), can not found ref target, please check the character.')
+    }
+    objName <- stringr::str_extract(codes, "(?<=autor\\().*(?=\\)$)")
+    objName <- objName[ !is.na(objName) ]
+    if (!length(objName)) {
+      stop('!length(objName), can not match object name in "autor()".')
+    } else if (length(objName) > 1) {
+      stop("Too many object name matched in 'autor()'.")
+    }
+    obj <- eval(parse(text = objName), parent.frame(2))
+    if (is(obj, "df")) {
+      glue::glue("Tab. \\@ref(tab:{x})")
+    } else if (is(obj, "can_not_be_draw") || is(obj, "can_be_draw")) {
+      glue::glue("Fig. \\@ref(fig:{x})")
+    }
   })
 
 setMethod("lab", signature = c(x = "ANY"),
