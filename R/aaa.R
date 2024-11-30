@@ -724,3 +724,10 @@ get_grid <- function(len, ncols = 2, nrows = NULL) {
   row <- (((i) - 1) %/% ncols) + 1
   namel(row, col)
 }
+
+reset_object_name <- function(old, new, env = .GlobalEnv) {
+  obj <- get(old, envir = env)
+  assign(new, obj, envir = env)
+  rm(list = old, envir = env)
+  message(glue::glue("Rename object name: {old} -> {new}"))
+}
