@@ -98,11 +98,8 @@ setMethod("step3", signature = c(x = "job_mpa"),
   })
 
 setMethod("set_remote", signature = c(x = "job_mpa"),
-  function(x, wd, postfix = NULL, run_after_cd = NULL, tmpdir = NULL, remote = "remote"){
+  function(x, wd){
     x$wd <- wd
-    x$set_remote <- T
-    x$remote <- "remote"
-    x$map_local <- "mpa_local"
     return(x)
   })
 

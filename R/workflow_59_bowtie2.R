@@ -85,7 +85,6 @@ setMethod("set_remote", signature = c(x = "job_bowtie2"),
   function(x, wd)
   {
     x$wd <- wd
-    x$set_remote <- T
     return(x)
   })
 

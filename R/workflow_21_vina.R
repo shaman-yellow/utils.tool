@@ -672,11 +672,9 @@ prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {
 }
 
 setMethod("set_remote", signature = c(x = "job_vina"),
-  function(x, wd = "/data/hlc/vina", remote = "remote")
+  function(x, wd)
   {
     x$wd <- wd
-    x$set_remote <- T
-    x$remote <- remote
     return(x)
   })
 

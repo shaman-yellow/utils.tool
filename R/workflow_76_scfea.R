@@ -249,26 +249,22 @@ setMethod("asjob_limma", signature = c(x = "job_scfea"),
   })
 
 setMethod("set_remote", signature = c(x = "job_scfea"),
-  function(x, wd = "scfea", remote = "remote")
+  function(x, wd = "scfea")
   {
-    if (!is.remote(x)) {
-      x$set_remote <- T
-      x$remote <- remote
-      local_wd <- x$wd
-      x$wd <- "."
-      if (rem_file.exists(wd)) {
-        isThat <- usethis::ui_yeah("Dir exists, remove all files ?")
-        if (isThat) {
-          cdRun("ssh ", remote, " 'rm -r ", wd, "'")
-        }
+    local_wd <- x$wd
+    x$wd <- "."
+    if (rem_file.exists(wd)) {
+      isThat <- usethis::ui_yeah("Dir exists, remove all files ?")
+      if (isThat) {
+        cdRun("ssh ", remote, " 'rm -r ", wd, "'")
       }
-      rem_dir.create(wd)
-      x$wd <- wd
-      rem_dir.create("output")
-      cdRun("scp ", file.path(local_wd, "data.csv"), " ", remote, ":", wd)
-      x$map_local <- local_wd
-      x$dir <- "."
     }
+    rem_dir.create(wd)
+    x$wd <- wd
+    rem_dir.create("output")
+    cdRun("scp ", file.path(local_wd, "data.csv"), " ", remote, ":", wd)
+    x$map_local <- local_wd
+    x$dir <- "."
     return(x)
   })
 

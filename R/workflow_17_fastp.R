@@ -89,22 +89,9 @@ setMethod("step2", signature = c(x = "job_fastp"),
     return(x)
   })
 
-set_remote.default <- function(x, tmpdir, map_local, remote) {
-  if (is.null(x$remote))
-    x$remote <- remote
-  if (is.null(x$set_remote))
-    x$set_remote <- T
-  if (is.null(x$map_local))
-    x$map_local <- map_local
-  if (is.null(x$tmpdir))
-    x$tmpdir <- tmpdir
-  return(x)
-}
-
 setMethod("set_remote", signature = c(x = "job_fastp"),
-  function(x, tmpdir = "/data/hlc/tmp", map_local = "fastp_local", remote = "remote")
+  function(x)
   {
-    set_remote.default(x, tmpdir, map_local, remote)
     x@params$postfix <- function(x) {
       x[1] <- gs(x[1], "^fastp", pg("fastp"))
       x

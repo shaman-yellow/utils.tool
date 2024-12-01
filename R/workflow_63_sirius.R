@@ -88,12 +88,9 @@ setMethod("step3", signature = c(x = "job_sirius"),
   })
 
 setMethod("set_remote", signature = c(x = "job_sirius"),
-  function(x, wd, postfix = NULL, run_after_cd = NULL, tmpdir = NULL, remote = "remote")
+  function(x, wd)
   {
     x$wd <- wd
-    x$set_remote <- T
-    x$remote <- "remote"
-    x$map_local <- "sirius_local"
     if (!rem_file.exists(wd)) {
       rem_dir.create(wd)
     }

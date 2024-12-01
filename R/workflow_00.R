@@ -466,12 +466,24 @@ setReplaceMethod("others", signature = c(x = "job"),
 
 setGeneric("set_remote", 
   function(x, ...) {
-    x <- standardGeneric("set_remote")
-    set_remote.default(x, tmpdir = getOption("remote_tmpdir", NULL),
+    x <- set_remote.default(x, tmpdir = getOption("remote_tmpdir", NULL),
       map_local = paste0(gs(class(x), "^job_", ""), "_local"),
       remote = "remote"
     )
+    standardGeneric("set_remote")
   })
+
+set_remote.default <- function(x, tmpdir, map_local, remote) {
+  if (is.null(x$set_remote))
+    x$set_remote <- T
+  if (is.null(x$remote))
+    x$remote <- remote
+  if (is.null(x$map_local))
+    x$map_local <- map_local
+  if (is.null(x$tmpdir))
+    x$tmpdir <- tmpdir
+  return(x)
+}
 
 setMethod("set_remote", signature = c(x = "job"),
   function(x, wd){
@@ -1083,8 +1095,9 @@ setGeneric("is.remote",
 
 setMethod("is.remote", signature = c(x = "job"),
   function(x){
-    if (!is.null(x@params$set_remote)) T
-    else F
+    if (!is.null(x@params$set_remote)) {
+      if (x$set_remote) T else F
+    } else F
   })
 
 setGeneric("is_workflow_object_exists", 

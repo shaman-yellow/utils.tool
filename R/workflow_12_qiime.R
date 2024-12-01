@@ -484,11 +484,9 @@ expr_sys.file.exists <- function(file) {
 
 setMethod("set_remote", signature = c(x = "job_qiime"),
   function(x, path, wd = path,
-    pattern = if (is.null(x@params$pattern_fq)) "fastq\\.gz$" else x@params$pattern_fq,
-    tmpdir = "/data/hlc/tmp", map_local = "qiime_local", remote = "remote")
+    pattern = if (is.null(x@params$pattern_fq)) "fastq\\.gz$" else x@params$pattern_fq)
   {
     ## must be here
-    x@params$remote <- remote
     files <- list.remote_rf(paste0(path, "/", object(x)$Run), pattern)
     metadata <- try_fqs_meta(object(x), files, filter = T)
     print(metadata)
@@ -498,14 +496,7 @@ setMethod("set_remote", signature = c(x = "job_qiime"),
     system(paste0("scp ", meta_file, " ", remote, ":", wd, "/metadata.tsv"))
     x@params$meta_file <- paste0(wd, "/metadata.tsv")
     x@params$cdRun <- remoteRun
-    x@params$set_remote <- T
-    x@params$map_local <- map_local
-    # x@params$postfix <- function(x) {
-      # x[1] <- gs(x[1], "^qiime", "~/miniconda3/bin/conda run -n qiime2 qiime")
-      # x
-    # }
     x@params$wd <- wd
-    x@params$tmpdir <- tmpdir
     return(x)
   })
 

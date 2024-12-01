@@ -185,13 +185,16 @@ rem_file.remove <- function(...) {
   }
 }
 
-rem_file.exists <- function(file) {
+rem_file.exists <- function(file, wd) {
   if (!check_remote()) {
     file.exists(file)
   } else {
     x <- get("x", envir = parent.frame(1))
+    if (missing(wd)) {
+      wd <- x$wd
+    }
     res <- system(paste0("ssh ", x$remote, " '",
-        "cd ", x$wd, "; ",
+        "cd ", wd, "; ",
         paste0(expr_sys.file.exists(file), collapse = "; "), "'"),
       intern = T)
     ifelse(res == "T", T, F)
@@ -219,13 +222,16 @@ rem_unlink <- function(...) {
   }
 }
 
-rem_dir.create <- function(path, ...) {
+rem_dir.create <- function(path, ..., wd) {
   if (!check_remote()) {
     dir.create(path, ...)
   } else {
     x <- get("x", envir = parent.frame(1))
+    if (missing(wd)) {
+      wd <- x$wd
+    }
     cdRun("ssh ", x$remote, " '",
-      "cd ", x$wd, "; ",
+      "cd ", wd, "; ",
       "mkdir ", path,
       "'")
   }
