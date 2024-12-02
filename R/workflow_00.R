@@ -205,7 +205,7 @@ setMethod("ref", signature = c(x = "character"),
     obj <- eval(parse(text = objName), parent.frame(2))
     if (is(obj, "df")) {
       glue::glue("Tab. \\@ref(tab:{x})")
-    } else if (is(obj, "can_not_be_draw") || is(obj, "can_be_draw")) {
+    } else if (is(obj, "can_not_be_draw") || is(obj, "can_be_draw") || is(obj, "fig")) {
       glue::glue("Fig. \\@ref(fig:{x})")
     }
   })

@@ -58,7 +58,7 @@ setMethod("step0", signature = c(x = "job_tcga"),
   })
 
 setMethod("step1", signature = c(x = "job_tcga"),
-  function(x, query = c("RNA", "clinical"), keep_consensus = T){
+  function(x, query = c("RNA", "clinical"), keep_consensus = F){
     step_message("Get information in TCGA.")
     object(x) <- object(x)[ names(object(x)) %in% query ]
     pblapply <- pbapply::pblapply
@@ -136,7 +136,7 @@ setMethod("step2", signature = c(x = "job_tcga"),
           TCGAbiolinks::GDCdownload(query, directory = dir)
         }))
     x$dir <- dir
-    meth(x)$step2 <- glue::glue("以 R 包 `TCGAbiolinks` ({packageVersion('TCGAbiolinks')}) {cite_show('TcgabiolinksAColapr2015')} 获取 TCGA 数据集。")
+    meth(x)$step2 <- glue::glue("以 R 包 `TCGAbiolinks` ({packageVersion('TCGAbiolinks')}) {cite_show('TcgabiolinksAColapr2015')} 获取 {x$project} 数据集。")
     return(x)
   })
 
@@ -180,8 +180,9 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     metadata <- dplyr::relocate(metadata, !!rlang::sym(col_id))
     # tumor, 01~09; normal, 10~19
     metadata <- dplyr::mutate(metadata, isTumor = ifelse(
-        as.numeric(substr(rownames(metadata), 14, 15)) < 10,
-        'tumor', 'normal'))
+        as.numeric(
+          gs(rownames(metadata), "[a-zA-Z0-9]+-[a-zA-Z0-9]+-[a-zA-Z0-9]+-([0-9]+).*", "\\1")
+          ) < 10, 'tumor', 'normal'))
     metadata <- dplyr::mutate(metadata, group = !!rlang::sym(group))
     genes <- data.frame(object(x)@rowRanges)
     genes <- dplyr::relocate(genes, !!rlang::sym(row_id))
@@ -199,7 +200,7 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     object <- e(edgeR::DGEList(counts, samples = metadata, genes = genes))
     project <- x$project
     x <- job_limma(object)
-    if (get_treatment) {
+    if (get_treatment && grpl(project, "^TCGA")) {
       x <- .get_treatment.lm.tc(x)
       x <- .get_treatment.lm.tc(x, "R", name_suffix = ".radiation")
     }
@@ -208,15 +209,17 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     p.group <- .set_lab(p.group, sig(x), "Group distribution")
     p.isTumor <- new_pie(metadata$isTumor, "Tumor distribution")
     p.isTumor <- .set_lab(p.isTumor, sig(x), "Tumor distribution")
-    t.common <- dplyr::select(metadata, age_at_index, vital_status, gender, tumor_grade,
-      ajcc_pathologic_stage, classification_of_tumor)
-    x$t.common <- t.common
+    if (grpl(project, "^TCGA")) {
+      t.common <- dplyr::select(metadata, age_at_index, vital_status, gender, tumor_grade,
+        ajcc_pathologic_stage, classification_of_tumor)
+      x$t.common <- t.common
+    }
     x$p.group <- p.group
     x$p.isTumor <- p.isTumor
     x$isTcga <- T
     x$project <- project
     # if (!is.null(filter_follow_up)) {
-      # meth(x)$step0 <- glue::glue("以 days_to_last_follow_up 大于 {filter_follow_up} 用于分析。")
+    # meth(x)$step0 <- glue::glue("以 days_to_last_follow_up 大于 {filter_follow_up} 用于分析。")
     # }
     return(x)
   })

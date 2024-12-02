@@ -77,14 +77,22 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     if (x@step > 1) {
       object(x) <- x@params$normed_data
     }
-    i.pos <- object(x)$genes[[ use ]] %in% genes.surv
-    j.pos <- !is.na(object(x)$targets[[ status ]])
+    i.pos <- object(x)$genes[[ use ]] %in% genes_surv
+    j.pos <- !is.na(object(x)$targets[[ status ]]) & !grpl(object(x)$targets[[ status ]], "not reported", T)
     object(x) <- e(limma::`[.EList`(object(x), i.pos, j.pos))
     object <- object(x)
     counts <- object$E
     rownames(counts) <- object$genes[[ use ]]
     data <- as_tibble(t(counts))
     data <- dplyr::bind_cols(data, select(as_tibble(object$targets), -1))
+    if (any(is.na(data[[time]]))) {
+      message(glue::glue("NA in {time} found, as max"))
+      fun_time_mutate <- function(x) {
+        max <- max(x, na.rm = T)
+        ifelse(is.na(x), max, x)
+      }
+      data <- dplyr::mutate(data, dplyr::across(!!rlang::sym(time), fun_time_mutate))
+    }
     data <- relocate(data, 1, !!rlang::sym(time), !!rlang::sym(status))
     x <- .job_survival(object = data)
     x$time <- time
@@ -92,6 +100,7 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     x$genes_surv <- genes_surv
     x$fun_group <- sur_group_median
     x$fun_status <- sur_status
+    x <- methodAdd(x, "去除了生存状态未知的数据。")
     return(x)
   })
 
@@ -111,16 +120,17 @@ setMethod("step1", signature = c(x = "job_survival"),
     step_message("Survival test.")
     data <- rename(object(x), time = !!rlang::sym(time),
       o_status = !!rlang::sym(status))
-    if (time == "days_to_last_follow_up") {
+    if (time == "days_to_last_follow_up" || time == "days_to_death") {
       data <- dplyr::mutate(data, time = time / 30)
     }
     cli::cli_alert_info("survival::survfit")
-    lst <- sapply(genes_surv, simplify = F,
+    lst <- pbapply::pbsapply(genes_surv, simplify = F,
       function(genes) {
         data <- select(data, time, o_status, !!!rlang::syms(genes))
         data <- mutate(data, group = fun_group(!!!rlang::syms(genes)),
           status = fun_status(o_status))
         fit <- survival::survfit(survival::Surv(time, status) ~ group, data = data)
+        diff <- survival::survdiff(survival::Surv(time, status) ~ group, data = data)
         title <- paste0(genes, collapse = " & ")
         p.surv <- survminer::ggsurvplot(fit, data = data,
           pval = T, conf.int = T, risk.table = T, title = title,
@@ -147,20 +157,32 @@ setMethod("step1", signature = c(x = "job_survival"),
           data <- dplyr::mutate(data,
             var = ifelse(time / 12 <= 1, "year 1",
               ifelse(time / 12 <= 3, "year 3", "year 5")),
-            group = o_status, value = !!rlang::sym(genes)
+            group = as.factor(o_status), value = !!rlang::sym(genes)
           )
-          p.boxplot <- wrap(.map_boxplot2(data, T, ylab = genes), 6, 6)
-          p.boxplot <- .set_lab(p.boxplot, sig(x), glue::glue("boxplot of {genes}"))
+          p.boxplot <- try(wrap(.map_boxplot2(data, T, ylab = genes), 6, 6), T)
+          if (!inherits(p.boxplot, "try-error")) {
+            p.boxplot <- .set_lab(p.boxplot, sig(x), glue::glue("boxplot of {genes}"))
+          } else {
+            p.boxplot <- NULL
+          }
         } else {
           p.roc <- NULL
           roc <- NULL
           p.boxplot <- NULL
         }
-        namel(p.surv, fit, p.roc, roc, p.boxplot)
+        namel(p.surv, fit, p.roc, roc, p.boxplot, diff)
       })
-    x@plots[[ 1 ]] <- lapply(lst,
-      function(x) list(p.surv = x$p.surv, p.roc = x$p.roc, p.boxplot = x$p.boxplot))
-    x@params$models <- lapply(lst, function(x) list(fit = x$fit, roc = x$roc))
+    plots <- sapply(c("p.surv", "p.roc", "p.boxplot"), simplify = F,
+      function(name) {
+        lapply(lst, function(x) x[[ name ]])
+      })
+    x@plots[[ 1 ]] <- plots
+    t.SurvivalPValue <- tibble::tibble(
+      name = names(lst), pvalue = vapply(lst, function(x) x$diff$pvalue, double(1))
+    )
+    t.SignificantSurvivalPValue <- dplyr::filter(t.SurvivalPValue, pvalue < .05)
+    x <- tablesAdd(x, t.SurvivalPValue, t.SignificantSurvivalPValue)
+    x@params$models <- lapply(lst, function(x) list(fit = x$fit, roc = x$roc, diff = x$diff))
     meth(x)$step1 <- glue::glue("以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。以 R 包 `timeROC` ({packageVersion('timeROC')}) 绘制 1, 3, 5 年生存曲线。")
     return(x)
   })

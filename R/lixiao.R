@@ -2137,8 +2137,8 @@ trunc_table <- function(x) {
   x <- dplyr::mutate_all(x, as.character)
   x <- dplyr::mutate_all(x, function(str) stringr::str_trunc(str, width))
   colnames(x) %<>% stringr::str_trunc(width)
-  if (nrow(x) > 15) {
-    x <- head(x, n = 15)
+  if (nrow(x) > 5) {
+    x <- head(x, n = 5)
     blank <- head(x, n = 0)
     blank[1, ] <- "..."
     x <- dplyr::bind_rows(x, blank)

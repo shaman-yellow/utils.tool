@@ -117,19 +117,20 @@ setMethod("step1", signature = c(x = "job_limma"),
     min.count = 10,
     no.filter = if (x$normed) T else F,
     no.norm = no.filter,
-    norm_vis = F, pca = F)
+    norm_vis = F, pca = F, data_type = c("count", "cpm"))
   {
     step_message("Preprocess expression data.")
+    data_type <- match.arg(data_type)
     plots <- list()
-    if (!no.filter) {
+    if (!no.filter && data_type == "count") {
       object(x) <- filter_low.dge(object(x), group, min.count = min.count)
       p.filter <- wrap(attr(object(x), "p"), 8, 3)
       p.filter <- .set_lab(p.filter, sig(x), "Filter low counts")
       plots <- c(plots, namel(p.filter))
     }
     if (!no.norm) {
-      object(x) <- norm_genes.dge(object(x), design, vis = norm_vis)
-      if (norm_vis) {
+      object(x) <- norm_genes.dge(object(x), design, vis = norm_vis, data_type = data_type)
+      if (norm_vis && data_type == "count") {
         if (length(x@object$targets$sample) < 50) {
           p.norm <- wrap(attr(object(x), "p"), 6, max(c(length(x@object$targets$sample) * .6, 10)))
         } else {
@@ -161,7 +162,11 @@ setMethod("step1", signature = c(x = "job_limma"),
     x@params$design <- design
     x$.metadata <- .set_lab(x$.metadata, sig(x), "metadata")
     if (!no.norm) {
-      meth(x)$step1 <- glue::glue("以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 进行差异分析。以 `edgeR::filterByExpr` 过滤 count 数量小于 {min.count} 的基因。以 `edgeR::calcNormFactors`，`limma::voom` 转化 count 数据为 log2 counts-per-million (logCPM)。分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。随后，以 公式 {formula} 创建设计矩阵 (design matrix) 用于线性分析。")
+      if (data_type == "count") {
+        meth(x)$step1 <- glue::glue("以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 进行差异分析。以 `edgeR::filterByExpr` 过滤 count 数量小于 {min.count} 的基因。以 `edgeR::calcNormFactors`，`limma::voom` 转化 count 数据为 log2 counts-per-million (logCPM)。分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。随后，以 公式 {formula} 创建设计矩阵 (design matrix) 用于线性分析。")
+      } else {
+        meth(x)$step1 <- glue::glue("以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 进行差异分析。分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。随后，以 公式 {formula} 创建设计矩阵 (design matrix) 用于线性分析。")
+      }
     }
     return(x)
   })
@@ -647,10 +652,17 @@ filter_low.dge <- function(dge, group., min.count = 10, prior.count = 2) {
   dge
 }
 
-norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ..., vis = T){
+norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ..., vis = T,
+  data_type = c("count", "cpm"))
+{
   ## raw
+  data_type <- match.arg(data_type)
   raw_dge <- dge
-  raw_dge$counts <- edgeR::cpm(raw_dge, log = T, prior.count = prior.count)
+  if (data_type == "count") {
+    raw_dge$counts <- edgeR::cpm(raw_dge, log = T, prior.count = prior.count)
+  } else if (data_type == "cpm") {
+    raw_dge$counts <- log2(raw_dge$counts)
+  }
   ## pro
   dge <- e(edgeR::calcNormFactors(dge, method = "TMM"))
   pro_dge <- dge <- fun(dge, design, ...)
