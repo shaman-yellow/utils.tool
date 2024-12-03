@@ -176,7 +176,8 @@ setMethod("step1", signature = c(x = "job_survival"),
       function(name) {
         lapply(lst, function(x) x[[ name ]])
       })
-    x@plots[[ 1 ]] <- plots
+    plots <- .set_lab(plots, sig(x), c("Survival", "ROC", "Boxplot"), "plots")
+    x@plots[[1]] <- plots
     t.SurvivalPValue <- tibble::tibble(
       name = names(lst), pvalue = vapply(lst, function(x) x$diff$pvalue, double(1))
     )

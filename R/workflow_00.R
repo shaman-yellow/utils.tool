@@ -736,8 +736,9 @@ writeJobSlotsAutoCompletion <- function(x, envir = .GlobalEnv) {
 }
 
 convertPlots <- function(x, n) {
-  if (length(x@plots) >= n)
+  if (length(x@plots) >= n) {
     x@plots[[ n ]] <- rapply2_asWrap(x@plots[[ n ]], "gg.obj")
+  }
   gc()
   x
 }
@@ -765,6 +766,7 @@ rapply2_asWrap <- function(x, class = "gg.obj") {
   } else if (is(x, "can_not_be_draw")) {
     x
   } else if (is(x, "list")) {
+    attrs <- attributes(x)
     names <- names(x)
     x <- lapply(1:length(x),
       function(n) {
@@ -774,8 +776,9 @@ rapply2_asWrap <- function(x, class = "gg.obj") {
           attr(obj, ".name") <- name
         obj
       })
-    names(x) <- names
-    lapply(x, rapply2_asWrap, class = class)
+    x <- lapply(x, rapply2_asWrap, class = class)
+    attributes(x) <- attrs
+    x
   } else {
     x
   }

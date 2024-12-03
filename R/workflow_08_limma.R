@@ -108,18 +108,39 @@ setMethod("step0", signature = c(x = "job_limma"),
     )
   })
 
+.get_meta <- function(x, what) {
+  if (x$normed) x$metadata[[ what ]] else x@object$samples[[ what ]]
+}
+
+.guess_formula <- function(envir = parent.frame(1)) {
+  thisEnv <- environment()
+  lapply(c("group", "batch", "pairs"),
+    function(name) {
+      assign(name, get(name, envir), envir = thisEnv)
+  })
+  if (is.null(batch) && is.null(pairs)) {
+    "~ 0 + group"
+  } else if (is.null(batch) && !is.null(pairs)) {
+    "~ 0 + group + pairs"
+  } else if (!is.null(batch) && is.null(pairs)) {
+    "~ 0 + group + batch"
+  } else if (!is.null(batch) && !is.null(pairs)) {
+    "~ 0 + group + batch + pairs"
+  }
+}
+
 setMethod("step1", signature = c(x = "job_limma"),
   function(x,
-    group = if (x$normed) x$metadata$group else x@object$samples$group,
-    batch = if (x$normed) x$metadata$batch else x@object$samples$batch,
-    formula = if (is.null(batch)) "~ 0 + group" else "~ 0 + group + batch",
-    design = mx(as.formula(formula)),
+    group = .get_meta(x, "group"), batch = .get_meta(x, "batch"),
+    pairs = .get_meta(x, "pairs"),
+    formula = .guess_formula(), design = mx(as.formula(formula)),
     min.count = 10,
     no.filter = if (x$normed) T else F,
     no.norm = no.filter,
     norm_vis = F, pca = F, data_type = c("count", "cpm"))
   {
     step_message("Preprocess expression data.")
+    message(glue::glue("Use formula: {formula}"))
     data_type <- match.arg(data_type)
     plots <- list()
     if (!no.filter && data_type == "count") {
@@ -160,7 +181,7 @@ setMethod("step1", signature = c(x = "job_limma"),
     }
     x@params$group <- group
     x@params$design <- design
-    x$.metadata <- .set_lab(x$.metadata, sig(x), "metadata")
+    x$.metadata <- .set_lab(x$.metadata, sig(x), "metadata of used sample")
     if (!no.norm) {
       if (data_type == "count") {
         meth(x)$step1 <- glue::glue("以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 进行差异分析。以 `edgeR::filterByExpr` 过滤 count 数量小于 {min.count} 的基因。以 `edgeR::calcNormFactors`，`limma::voom` 转化 count 数据为 log2 counts-per-million (logCPM)。分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。随后，以 公式 {formula} 创建设计矩阵 (design matrix) 用于线性分析。")
