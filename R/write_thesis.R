@@ -1038,8 +1038,15 @@ pdf_convert <- function (pdf, format = "png", pages = NULL, filenames = NULL,
     "draw")
   text_antialiasing <- isTRUE(antialias) || isTRUE(antialias == 
     "text")
-  pdftools:::poppler_convert(pdftools:::loadfile(pdf), format, pages, filenames, 
+  if (.Platform$OS.type == "unix") {
+    sink("/dev/null")
+  } else {
+    sink("NUL")
+  }
+  res <- pdftools:::poppler_convert(pdftools:::loadfile(pdf), format, pages, filenames, 
     dpi, opw, upw, antialiasing, text_antialiasing, verbose)
+  sink()
+  res
 }
 
 # ==========================================================================

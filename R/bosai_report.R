@@ -6,6 +6,7 @@ formatName.bosai <- function(file, info) {
   nfile <- paste0(info$id, "-", info$client, "-",
     info$type, "-", info$title, "-", format.Date(info$finish, "%Y.%m.%d"), ".docx")
   file.copy(file, nfile)
+  browseURL(nfile)
   tools::file_path_sans_ext(nfile)
 }
 

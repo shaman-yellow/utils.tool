@@ -182,6 +182,7 @@ setMethod("step1", signature = c(x = "job_limma"),
     x@params$group <- group
     x@params$design <- design
     x$.metadata <- .set_lab(x$.metadata, sig(x), "metadata of used sample")
+    x$metadata <- .set_lab(x$metadata, sig(x), "metadata of used sample")
     if (!no.norm) {
       if (data_type == "count") {
         meth(x)$step1 <- glue::glue("以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 进行差异分析。以 `edgeR::filterByExpr` 过滤 count 数量小于 {min.count} 的基因。以 `edgeR::calcNormFactors`，`limma::voom` 转化 count 数据为 log2 counts-per-million (logCPM)。分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。随后，以 公式 {formula} 创建设计矩阵 (design matrix) 用于线性分析。")
@@ -369,6 +370,10 @@ setMethod("clear", signature = c(x = "job_limma"),
 setMethod("map", signature = c(x = "job_limma"),
   function(x, ref, ref.use = "hgnc_symbol", group = NULL, group.use = "group", pvalue = T){
     object <- x@params$normed_data
+    if (identical(class(object), "list")) {
+      object <- new("EList", object)
+    }
+    object <- object[!duplicated(object$genes[[ ref.use ]]), ]
     rownames(object) <- object$genes[[ ref.use ]]
     object <- object[rownames(object) %in% ref, ]
     if (any(duplicated(rownames(object)))) {
