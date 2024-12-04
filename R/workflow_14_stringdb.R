@@ -56,7 +56,7 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     filter.exp = 0, filter.text = 0)
   {
     step_message("Create PPI network.")
-    network_type <- match.arg(network_type, c("physical", "full"))
+    x$network_type <- network_type <- match.arg(network_type, c("physical", "full"))
     if (!dir.exists(input_directory)) {
       dir.create(input_directory)
     }
@@ -131,7 +131,7 @@ setMethod("filter", signature = c(x = "job_stringdb"),
     lab.fill = "log2FC",
     ## this top is used for 'from' or 'to'
     top = 10, use.top = c("from", "to"),
-    top_in = NULL, keep.ref = T,
+    top_in = NULL, keep.ref = if (is.null(top)) T else F,
     arrow = T, ...)
   {
     message("Search and filter: ref.x in from, ref.y in to; or, reverse.")
@@ -202,7 +202,8 @@ setMethod("filter", signature = c(x = "job_stringdb"),
       p.mcc <- plot_networkFill.str(graph, label = "name",
         arrow = arrow, shape = T,
         levels = level.x,
-        lab.fill = if (is.null(level.x)) "MCC score" else "Log2(FC)", ...
+        lab.fill = if (is.null(level.x)) "MCC score" else "Log2(FC)",
+        netType = x$network_type, ...
       )
       p.mcc <- .set_lab(p.mcc, sig(x), "Top MCC score")
       colnames(edges) <- c(lab.x, lab.y)
@@ -343,7 +344,7 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   arr.len = 2, edge.color = NULL, edge.width = 1,
   lab.fill = if (is.null(levels)) "MCC score" else "Levels",
   label = "genes", HLs = NULL, arrow = F, shape = F, levels = NULL,
-  label.shape = c(from = "from", to = "to"), netType = c("physical", "functional"), ...)
+  label.shape = c(from = "from", to = "to"), netType = c("physical", "full"), ...)
 {
   dataNodes <- ggraph::get_nodes()(graph)
   if (is.null(levels)) {
