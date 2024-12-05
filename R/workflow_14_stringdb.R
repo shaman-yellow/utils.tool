@@ -132,6 +132,7 @@ setMethod("filter", signature = c(x = "job_stringdb"),
     ## this top is used for 'from' or 'to'
     top = 10, use.top = c("from", "to"),
     top_in = NULL, keep.ref = if (is.null(top)) T else F,
+    keep_extra_link = T,
     arrow = T, ...)
   {
     message("Search and filter: ref.x in from, ref.y in to; or, reverse.")

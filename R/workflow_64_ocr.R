@@ -29,10 +29,13 @@ setMethod("step0", signature = c(x = "job_ocr"),
   })
 
 setMethod("step1", signature = c(x = "job_ocr"),
-  function(x, use = "images")
+  function(x, use = "images", python = pg("python"))
   {
     step_message("Load the Python library")
     use <- match.arg(use)
+    if (!is.null(python)) {
+      e(reticulate::use_python(python))
+    }
     # e(reticulate::import_builtins())
     np <- e(reticulate::import("numpy", convert = F))
     doctr.io <- e(reticulate::import("doctr.io"))

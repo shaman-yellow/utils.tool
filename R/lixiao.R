@@ -2642,6 +2642,9 @@ new_venn <- function(..., lst = NULL, wrap = T, fun_pre = rm.no, force_upset = T
   if (is.null(lst)) {
     lst <- list(...)
   }
+  if (!is.null(lst) && length(list(...))) {
+    lst <- c(lst, list(...))
+  }
   lst <- lapply(lst, function(x) as.character(fun_pre(x)))
   if (force_upset) {
     p <- ggVennDiagram::ggVennDiagram(lst, force_upset = T)
@@ -3006,48 +3009,6 @@ fix.html.str <- function(x) {
 
 rm.no <- function(x) {
   unique(x[ !is.na(x) & x != "" ])
-}
-
-get_fe_data <- function(use.symbol = T, for_gsea = F,
-  path = .prefix("ferroptosis_2023-10-24.rds", "db"), add_internal_job = T)
-{
-  if (F) {
-    # <http://www.zhounan.org/ferrdb/current/>
-    fe_db <- list(marker = "~/Downloads/ferroptosis_marker.csv",
-      driver = "~/Downloads/ferroptosis_driver.csv",
-      suppressor = "~/Downloads/ferroptosis_suppressor.csv",
-      unclassifier = "~/Downloads/ferroptosis_unclassified.csv",
-      inducer = "~/Downloads/ferroptosis_inducer.csv",
-      inhibitor = "~/Downloads/ferroptosis_inhibitor.csv",
-      disease = "~/Downloads/ferroptosis_disease.csv"
-    )
-    fe_db <- lapply(fe_db, ftibble)
-    saveRDS(fe_db, .prefix("ferroptosis_2023-10-24.rds", "db"))
-  }
-  data <- readRDS(path)
-  if (use.symbol) {
-    data <- lapply(data,
-      function(x) {
-        if (any(colnames(x) == "symbol")) {
-          return(x)
-        }
-      })
-    data <- lst_clear0(data)
-  }
-  if (for_gsea) {
-    gsea <- data.table::rbindlist(data, idcol = T, fill = T)
-    gsea <- dplyr::mutate(gsea, term = paste0("Ferroptosis_", .id))
-    gsea <- as_tibble(dplyr::relocate(gsea, term, symbol))
-    return(gsea)
-  }
-  if (add_internal_job) {
-    job <- .job(method = "Database of `FerrDb V2` used for obtaining ferroptosis regulators",
-      cite = "[@FerrdbV2UpdaZhou2023]")
-    .add_internal_job(job)
-  }
-  data <- .set_lab(data, "Ferroptosis regulators", names(data))
-  lab(data) <- "Ferroptosis regulators"
-  data
 }
 
 grp <- function(x, pattern, ignore.case = F, ...) {

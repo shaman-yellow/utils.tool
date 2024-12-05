@@ -301,17 +301,19 @@ setMethod("pg", signature = c(x = "character"),
   })
 
 pg_local_recode <- function() {
+  conda <- getOption("conda", "~/miniconda3")
   lst <- list(
-    conda = "~/disk_sda1/miniconda3/bin/conda",
-    conda_env = "~/disk_sda1/miniconda3/envs",
-    qiime = "~/disk_sda1/miniconda3/bin/conda run -n qiime2 qiime",
-    musitePython = "~/disk_sda1/miniconda3/bin/conda run -n musite python3",
+    python = "{conda}/bin/python3",
+    conda = "{conda}/bin/conda",
+    conda_env = "{conda}/envs",
+    qiime = "{conda}/bin/conda run -n qiime2 qiime",
+    musitePython = "{conda}/bin/conda run -n musite python3",
     musitePTM = "~/MusiteDeep_web/MusiteDeep/predict_multi_batch.py",
     musitePTM2S = "~/MusiteDeep_web/PTM2S/ptm2Structure.py",
     dl = normalizePath("~/D-GCAN/DGCAN"),
     dl_dataset = normalizePath("~/D-GCAN/dataset"),
     dl_model = normalizePath("~/D-GCAN/DGCAN/model"),
-    scfeaPython = "~/disk_sda1/miniconda3/bin/conda run -n scFEA python",
+    scfeaPython = "{conda}/bin/conda run -n scFEA python",
     scfea = "~/scFEA/src/scFEA.py",
     scfea_db = "~/scFEA/data",
     musiteModel = normalizePath("~/MusiteDeep_web/MusiteDeep/models"),
@@ -324,6 +326,8 @@ pg_local_recode <- function() {
     # sirius = .prefix("sirius/bin/sirius", "op"),
     obgen = "obgen"
   )
+  envir <- environment()
+  lapply(lst, glue::glue, .envir = envir)
 }
 
 pg_remote_recode <- function() {
@@ -579,6 +583,19 @@ job_append_heading <- function (x, mutate = T) {
     if (nchar(x)) {
       .C("nvimcom_msg_to_nvim", args, PACKAGE = "nvimcom")
     }
+  }
+}
+
+.append_class <- function(expr, short = T, envir = .GlobalEnv) {
+  if (requireNamespace("nvimcom")) {
+    class <- class(expr)
+    if (length(class) > 1) {
+      len <- nchar(class)
+      class <- class[ which(len == min(len))[1] ]
+    }
+    args <- glue::glue("InsertText_I('{class}', -1)")
+    message("Send to vim: ", args)
+    .C("nvimcom_msg_to_nvim", args, PACKAGE = "nvimcom")
   }
 }
 
@@ -1072,6 +1089,9 @@ ins <- function(..., lst = NULL) {
   if (is.null(lst)) {
     lst <- list(...)
   }
+  if (!is.null(lst) && length(list(...))) {
+    lst <- c(lst, list(...))
+  }
   x <- lst[[ 1 ]]
   for (i in lst[2:length(lst)]) {
     x <- intersect(x, i)
@@ -1166,7 +1186,8 @@ activate_celldancer <- function(env_pattern = "cellDancer", conda = "~/miniconda
   activate_base(env_pattern, conda = conda)
 }
 
-activate_base <- function(env_pattern = "base", env_path = "~/miniconda3/envs/", conda = "~/miniconda3/bin/conda")
+activate_base <- function(env_pattern = "base",
+  env_path = pg("conda_env"), conda = pg("conda"))
 {
   meta <- dplyr::filter(e(reticulate::conda_list()), grepl(env_pattern, name))
   conda_env <- meta$name[1]
