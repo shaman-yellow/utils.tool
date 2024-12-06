@@ -731,3 +731,7 @@ reset_object_name <- function(old, new, env = .GlobalEnv) {
   rm(list = old, envir = env)
   message(glue::glue("Rename object name: {old} -> {new}"))
 }
+
+bind <- function(..., co = ", ") {
+  paste0(..., collapse = co)
+}

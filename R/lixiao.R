@@ -846,7 +846,8 @@ setMethod("as_data_long", signature = c(x = "DGEList"),
     data$gene <- x$genes[[ 1 ]]
     data <- tidyr::gather(data, sample, value, -gene)
     if (!all(unique(data$sample) %in% x$samples$sample)) {
-      stop("!all(unique(data$sample) %in% x$samples$sample) == T")
+      Terror <<- namel(data, x$samples$sample)
+      stop("!all(unique(data$sample) %in% x$samples$sample) == T, use Terror debug.")
     }
     data <- tbmerge(data, dplyr::select(x$samples, sample, group),
       by = "sample", all.x = T)
@@ -1896,11 +1897,11 @@ autorm <- function(names) {
   autoRegisters <<- autoRegisters[ -which(names(autoRegisters) %in% names) ]
 }
 
-autosv <- function(x, name, ..., showtext = F, cache = T) {
+autosv <- function(x, name, ..., showtext = F, cache = T, force = F) {
   if (!exists("autoRegisters")) {
     autoRegisters <- character(0)
   }
-  if (!any(name == names(autoRegisters))) {
+  if (!any(name == names(autoRegisters)) || force) {
     if (!is(x, "files")) {
       if (showtext) {
         options(SHOWTEXT = T)

@@ -197,6 +197,19 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
       message(glue::glue("Filter out: {onrow - nnrow}"))
       counts <- counts[, colnames(counts) %in% metadata[[ col_id]] ]
     }
+    if (any(duplicated(colnames(counts)))) {
+      message('any(duplicated(colnames(counts))), Duplicated patients found, ',
+        'remove thats herein (Prioritize retaining normal sample).')
+      print(table(duplicated(colnames(counts))))
+      if (!identical(colnames(counts), metadata$sample)) {
+        stop('identical(colnames(counts), metadata$sample), ')
+      }
+      orders <- unique(c(which(metadata$isTumor == "normal"), 1:nrow(metadata)))
+      counts <- counts[, orders]
+      metadata <- metadata[orders, ]
+      counts <- counts[ , !duplicated(colnames(counts)) ]
+      metadata <- dplyr::distinct(metadata, sample, .keep_all = T)
+    }
     object <- e(edgeR::DGEList(counts, samples = metadata, genes = genes))
     project <- x$project
     x <- job_limma(object)

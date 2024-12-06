@@ -23,13 +23,10 @@ setMethod("snap",
   signature = c(x = "job_limma"),
   function(x, ref, group = "group"){
     if (missing(ref)) {
-      meta <- x$.metadata
-      if (is.null(meta)) {
         meta <- x$normed_data$targets
         if (is.null(meta)) {
           meta <- x$metadata
         }
-      }
       metalst <- split(meta$sample, meta[[ group ]])
       each <- vapply(names(metalst), function(x) paste0(x, " (", length(metalst[[x]]), ") "), character(1))
       glue::glue("共 {nrow(meta)} 个样本，分 {length(unique(meta[[ group ]]))} 组，分别为 {paste(each, collapse = ', ')}。")  

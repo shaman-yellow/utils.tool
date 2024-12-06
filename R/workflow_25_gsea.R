@@ -23,16 +23,28 @@ setGeneric("asjob_gsea",
 
 setMethod("asjob_gsea", signature = c(x = "job_limma"),
   function(x, key = 1L, annotation = x@params$normed_data$genes,
-    filter = NULL, from = colnames(annotation)[ grp(colnames(annotation), "_symbol")[1] ])
+    filter = NULL, from = colnames(annotation)[ grp(colnames(annotation), "_symbol")[1] ],
+    data = NULL)
   {
-    data <- x@tables$step2$tops[[ key ]]
+    if (is.null(data)) {
+      data <- x@tables$step2$tops[[ key ]]
+    }
+    if (x$isTcga && missing(annotation)) {
+      annotation <- NULL
+      from <- "gene_name"
+    } else {
+      annotation <- dplyr::rename(annotation, symbol = !!rlang::sym(from))
+    }
     if (!is.null(filter)) {
       data <- dplyr::filter(data, !!rlang::sym(from) %in% dplyr::all_of(filter))
     }
     data <- dplyr::rename(data, symbol = !!rlang::sym(from))
-    annotation <- dplyr::rename(annotation, symbol = !!rlang::sym(from))
     x$from <- from
-    job_gsea(data, annotation, use = "symbol")
+    if (is.null(annotation)) {
+      job_gsea(data, use = "symbol")
+    } else {
+      job_gsea(data, annotation, use = "symbol")
+    }
   })
 
 setMethod("asjob_gsea", signature = c(x = "job_seurat"),
@@ -85,6 +97,8 @@ job_gsea <- function(topTable, annotation, use)
   topTable <- map(topTable, "symbol", annotation, use, "entrezgene_id")
   used.entrezgene_id <- nl(topTable$entrezgene_id, topTable$logFC, F)
   object <- list(symbol = used.symbol, entrezgene_id = used.entrezgene_id)
+  keep <- !is.na(names(object$entrezgene_id)) & !duplicated(names(object$entrezgene_id))
+  object <- lapply(object, function(x) x[keep])
   x <- .job_gsea(object = object)
   x$annotation <- annotation
   return(x)
@@ -96,8 +110,11 @@ setMethod("step0", signature = c(x = "job_gsea"),
   })
 
 setMethod("step1", signature = c(x = "job_gsea"),
-  function(x, OrgDb = org.Hs.eg.db::org.Hs.eg.db, org = "hsa"){
+  function(x, OrgDb = org.Hs.eg.db::org.Hs.eg.db, org = "hsa", show = 15,
+    order = c("x", "p.adjust", "p.value"))
+  {
     step_message("GSEA enrichment.")
+    order <- match.arg(order)
     isNa <- is.na(names(object(x)$entrezgene_id))
     object(x)$entrezgene_id <- object(x)$entrezgene_id[!isNa]
     object(x)$symbol <- object(x)$symbol[!isNa]
@@ -119,7 +136,7 @@ setMethod("step1", signature = c(x = "job_gsea"),
         ), T)
     if (!inherits(table_kegg, "try-error")) {
       table_kegg <- dplyr::as_tibble(table_kegg)
-      p.kegg <- e(enrichplot::dotplot(res.kegg))
+      p.kegg <- e(enrichplot::dotplot(res.kegg, showCategory = show, orderBy = order))
     } else {
       table_kegg <- NULL
       p.kegg <- NULL
@@ -165,6 +182,7 @@ setMethod("step1", signature = c(x = "job_gsea"),
     x@tables[[ 1 ]] <- namel(table_go, table_kegg)
     p.go <- .set_lab(wrap(p.go), sig(x), "GO", "enrichment")
     p.kegg <- .set_lab(wrap(p.kegg), sig(x), "KEGG", "enrichment")
+    x <- methodAdd(x, "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')} 按 GSVA 算法 (`clusterProfiler::gseGO`, `ClusterProfiler::gseKEGG`)，进行 KEGG 和 GO 富集分析。")
     x@plots[[ 1 ]] <- namel(p.go, p.kegg)
     x$org <- org
     return(x)

@@ -132,7 +132,7 @@ setMethod("filter", signature = c(x = "job_stringdb"),
     ## this top is used for 'from' or 'to'
     top = 10, use.top = c("from", "to"),
     top_in = NULL, keep.ref = if (is.null(top)) T else F,
-    keep_extra_link = T,
+    keep_extra_link = T, show.mcc = F,
     arrow = T, ...)
   {
     message("Search and filter: ref.x in from, ref.y in to; or, reverse.")
@@ -192,12 +192,17 @@ setMethod("filter", signature = c(x = "job_stringdb"),
       } else {
         p.top_in <- NULL
       }
+      all_edges <- edges
       if (!is.null(top) && !keep.ref) {
         tops <- dplyr::slice_max(tops, MCC_score, n = top)
         edges <- dplyr::filter(edges, !!rlang::sym(use.top) %in% tops$name)
       }
       nodes <- dplyr::slice(nodes, c(which(name %in% ref.x), which(name %in% ref.y)))
       nodes <- dplyr::distinct(nodes, name, .keep_all = T)
+      if (keep_extra_link) {
+        extras <- dplyr::filter(all_edges, from %in% nodes$name & to %in% nodes$name)
+        edges <- dplyr::bind_rows(edges, extras)
+      }
       graph <- igraph::graph_from_data_frame(edges, vertices = nodes)
       graph <- fast_layout(graph, layout = "linear", circular = T)
       p.mcc <- plot_networkFill.str(graph, label = "name",
@@ -206,6 +211,9 @@ setMethod("filter", signature = c(x = "job_stringdb"),
         lab.fill = if (is.null(level.x)) "MCC score" else "Log2(FC)",
         netType = x$network_type, ...
       )
+      if (!show.mcc) {
+        p.mcc <- p.mcc + guides(fill = "none")
+      }
       p.mcc <- .set_lab(p.mcc, sig(x), "Top MCC score")
       colnames(edges) <- c(lab.x, lab.y)
       namel(p.mcc, nodes, edges, p.top_in)
