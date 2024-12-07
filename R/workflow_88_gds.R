@@ -70,7 +70,7 @@ setMethod("active", signature = c(x = "job_gds"),
   })
 
 setMethod("vis", signature = c(x = "job_gds"),
-  function(x, ref = NULL, n = 100){
+  function(x, ref = NULL, n = 10){
     data <- object(x)
     if (!is.null(ref)) {
       data <- dplyr::filter(data, grpl(summary, !!ref))
