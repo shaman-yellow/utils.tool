@@ -13,7 +13,7 @@ setFakeClasses <- function(classes) {
 
 split_text_by_width <- function(text, width) {
   parts <- unlist(strsplit(text, "(?<=\\p{Han})", perl = TRUE))
-  parts <- unlist(strsplit(parts, "(?=\\p{Han})", perl = TRUE))
+  # parts <- unlist(strsplit(parts, "(?=\\p{Han})", perl = TRUE))
   parts <- unlist(strsplit(parts, "(?<=\\s)", perl = TRUE))
   parts <- unlist(strsplit(parts, "(?=\\s)", perl = TRUE))
   current_width <- 0
@@ -42,11 +42,6 @@ split_text_by_width <- function(text, width) {
   }
   return(lines)
 }
-
-sapply(vector, simplify = T,
-  function(item) {
-    item
-  })
 
 #' @aliases utilites
 #'
@@ -88,10 +83,9 @@ reCallMethod <- function(funName, args, ...){
     eval(parse(text = expr))
   }
 
-get_signature <- 
-  function(args){
-    vapply(args, function(arg) class(arg)[1], FUN.VALUE = "ch")
-  }
+get_signature <- function(args){
+  vapply(args, function(arg) class(arg)[1], FUN.VALUE = "ch")
+}
 
 .fresh_param <- function(default, args){
     if (missing(args))
@@ -347,8 +341,7 @@ group_switch <- function(data, meta.lst, by) {
   split(data, group)
 }
 
-group_strings <- 
-  function(strings, patterns, target = NA){
+group_strings <- function(strings, patterns, target = NA){
     if (is.null(names(patterns)))
       stop("`patterns` must be characters with names.")
     lst <- .find_and_sort_strings(strings, patterns)
@@ -394,18 +387,15 @@ maps <- function(data, value, from, to) {
 #' @aliases order_list
 #' @description \code{order_list}: ...
 #' @rdname utilites
-order_list <- 
-  function(
-           list
-           ){
-    lt <- list()
-    length(lt) <- length(list)
-    names(lt) <- sort(names(list))
-    for(i in names(lt)){
-      lt[[i]] <- list[[i]]
-    }
-    return(lt)
+order_list <- function(list) {
+  lt <- list()
+  length(lt) <- length(list)
+  names(lt) <- sort(names(list))
+  for(i in names(lt)){
+    lt[[i]] <- list[[i]]
   }
+  return(lt)
+}
 
 #' @export molconvert_structure
 #' @aliases molconvert_structure
@@ -413,13 +403,13 @@ order_list <-
 #' @rdname utilites
 ## use 'molconvert' ...
 ## https://chemaxon.com/marvin
-molconvert_structure <-
-  function(smile, path){
-    system(paste0("molconvert mol \"", smile, "\" -o ", path))
-    src <- paste(readLines(path), collapse = "\n")
-    ChemmineOB::convertToImage("MOL", "SVG", source = src, toFile = path)
-    rsvg::rsvg_svg(path, path)
-  }
+molconvert_structure <- function(smile, path)
+{
+  system(paste0("molconvert mol \"", smile, "\" -o ", path))
+  src <- paste(readLines(path), collapse = "\n")
+  ChemmineOB::convertToImage("MOL", "SVG", source = src, toFile = path)
+  rsvg::rsvg_svg(path, path)
+}
 
 clearMatch <- function(strs)
 {
