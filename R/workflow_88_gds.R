@@ -23,29 +23,44 @@ job_gds <- function(keys,
   n = "6:1000", org = "Homo Sapiens",
   elements = c("GSE", "title", "summary", "taxon", "gdsType",
     "n_samples", "PubMedIds", "BioProject"),
-  cache = .prefix("query_geo", "db"),
-  force = F)
+  ...)
 {
-  dir.create(cache, F)
+  query <- add_field(keys, "[Description]")
   if (is.integer(n)) {
     n <- paste0(min(n), ":", max(n))
   }
-  query <- keys
-  if (any(which <- !grpl(query, "\\["))) {
-    query[which] <- vapply(query[which],
-      function(x) paste0(x, "[Description]"), character(1)
+  extra <- glue::glue(
+    "({n}[Number of Samples]) AND ({org}[Organism]) AND (GSE[Entry Type])"
+  )
+  object <- edirect_db("gds", c(query, extra), elements, ...)
+  object <- dplyr::mutate(object, GSE = paste0("GSE", GSE))
+  object <- .set_lab(object, keys[1], "EDirect query")
+  x <- .job_gds(object = object, params = namel(query, elements, org, n))
+  x <- methodAdd(x, "使用 Entrez Direct (EDirect) <https://www.ncbi.nlm.nih.gov/books/NBK3837/> 搜索 GEO 数据库 (`esearch -db gds`)，查询信息为: {query}。")
+  x
+}
+
+add_field <- function(keys, field) {
+  if (any(which <- !grpl(keys, "\\["))) {
+    keys[which] <- vapply(keys[which],
+      function(x) paste0(x, field), character(1)
     )
   }
-  query <- paste0("(", query, ")")
+  keys
+}
+
+edirect_db <- function(db, query, elements,
+  cache = .prefix(paste0("query_", db), "db"),
+  force = F)
+{
+  dir.create(cache, F)
   if (length(query)) {
+    query <- paste0("(", query, ")")
     query <- paste0(query, collapse = " AND ")
   }
-  query <- glue::glue(
-    "{query} AND ({n}[Number of Samples]) AND ({org}[Organism]) AND (GSE[Entry Type])"
-  )
   target <- file.path(cache, make.names(query))
   if (!file.exists(target) || force) {
-    script <- glue::glue("esearch -db gds -query '{query}' |\\
+    script <- glue::glue("esearch -db {db} -query '{query}' |\\
       efetch -format docsum |\\
       xtract -pattern DocumentSummary \\
       -sep '|' -element {paste0(elements, collapse = ' ')} \\
@@ -53,13 +68,9 @@ job_gds <- function(keys,
     )
     cdRun(script)  
   }
-  object <- ftibble(target, header = F)
+  object <- ftibble(target, header = F, sep = "\t")
   colnames(object) <- elements
-  object <- dplyr::mutate(object, GSE = paste0("GSE", GSE))
-  object <- .set_lab(object, keys[1], "EDirect query")
-  x <- .job_gds(object = object, params = namel(query, target, elements, org))
-  x <- methodAdd(x, "使用 Entrez Direct (EDirect) <https://www.ncbi.nlm.nih.gov/books/NBK3837/> 搜索 GEO 数据库 (`esearch -db gds`)，查询信息为: {query}。")
-  x
+  object
 }
 
 setMethod("active", signature = c(x = "job_gds"),
