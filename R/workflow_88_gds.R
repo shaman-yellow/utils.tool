@@ -68,7 +68,7 @@ edirect_db <- function(db, query, elements,
     )
     cdRun(script)  
   }
-  object <- ftibble(target, header = F, sep = "\t")
+  object <- as_tibble(read.csv(target, header = F, sep = "\t"))
   colnames(object) <- elements
   object
 }
