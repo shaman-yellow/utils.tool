@@ -1668,3 +1668,10 @@ setMethod("show", signature = c(object = "character"),
     print(object)
   })
 
+genes <- function(x) {
+  if (any(grpl(x, "\\.[0-9]+$"))) {
+    message("Trunc ther version info after Symbol.")
+    x <- gs(x, "\\.[0-9]+$", "")
+  }
+  x
+}

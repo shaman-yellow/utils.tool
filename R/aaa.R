@@ -648,7 +648,13 @@ color_gradient <- function() {
     "#2166ACFF", "#053061FF")
 }
 
-fun_color <- function(from = -1, to = 1, sample = T, category = c("div", "seq")) {
+fun_color <- function(from = -1, to = 1, sample = T, category = c("div", "seq"),
+  values = NULL)
+{
+  if (!is.null(values)) {
+    from <- -max(ceiling(abs(range(values))))
+    to <- -from
+  }
   if (sample) {
     category <- match.arg(category)
     pals <- dplyr::filter(RColorBrewer::brewer.pal.info, category == !!category)

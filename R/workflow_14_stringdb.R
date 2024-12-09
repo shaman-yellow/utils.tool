@@ -24,6 +24,7 @@ job_stringdb <- function(data)
     data <- data.frame(Symbol = rm.no(data))
   }
   data <- dplyr::distinct(data, Symbol)
+  data$Symbol <- genes(data$Symbol)
   .job_stringdb(object = data)
 }
 
@@ -53,7 +54,7 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     network_type = "phy", input_directory = .prefix("stringdb_physical_v12.0", name = "db"),
     version = "12.0", label = F, HLs = NULL, use.anno = T,
     file_anno = .prefix("stringdb_physical_v12.0/9606.protein.physical.links.full.v12.0.txt.gz", name = "db"),
-    filter.exp = 0, filter.text = 0)
+    filter.exp = 0, filter.text = 0, MCC = F)
   {
     step_message("Create PPI network.")
     x$network_type <- network_type <- match.arg(network_type, c("physical", "full"))
@@ -111,7 +112,8 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     p.ppi <- plot_network.str(graph, label = label)
     p.ppi <- .set_lab(wrap(p.ppi, 4.5, 3), sig(x), "raw PPI network")
     ## hub genes
-    hub_genes <- cal_mcc.str(res.str, "Symbol", F)
+    message("Calculate MCC score.")
+    hub_genes <- cal_mcc.str(res.str, "Symbol", F, MCC = MCC)
     graph_mcc <- get_subgraph.mcc(res.str$graph, hub_genes, top = tops)
     x$graph_mcc <- graph_mcc <- fast_layout(graph_mcc, layout = "linear", circular = T)
     p.mcc <- plot_networkFill.str(graph_mcc, label = "Symbol", HLs = HLs)
@@ -414,8 +416,8 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   p
 } 
 
-cal_mcc.str <- function(res.str, name = "name", rename = T){
-  hubs_score <- cal_mcc(res.str$graph)
+cal_mcc.str <- function(res.str, name = "name", rename = T, ...){
+  hubs_score <- cal_mcc(res.str$graph, ...)
   hubs_score <- tbmerge(res.str$mapped, hubs_score, by.x = "STRING_id", by.y = "name", all.x = T)
   hubs_score <- dplyr::relocate(hubs_score, !!rlang::sym(name), MCC_score)
   hubs_score <- dplyr::arrange(hubs_score, dplyr::desc(MCC_score))
@@ -424,7 +426,7 @@ cal_mcc.str <- function(res.str, name = "name", rename = T){
   hubs_score
 }
 
-cal_mcc <- function(edges) 
+cal_mcc <- function(edges, MCC = T)
 {
   if (is(edges, "igraph")) {
     igraph <- edges
@@ -433,25 +435,30 @@ cal_mcc <- function(edges)
     igraph <- igraph::graph_from_data_frame(edges, F)
   }
   nodes <- unique(unlist(c(edges[, 1], edges[ , 2])))
-  maxCliques <- igraph::max_cliques(igraph)
-  scores <- vapply(nodes, FUN.VALUE = double(1), USE.NAMES = F,
-    function(node) {
-      if.contains <- vapply(maxCliques, FUN.VALUE = logical(1), USE.NAMES = F,
-        function(clique) {
-          members <- attributes(clique)$names
-          if (any(members == node)) T else F
-        })
-      in.cliques <- maxCliques[ if.contains ]
-      scores <- vapply(in.cliques, FUN.VALUE = double(1),
-        function(clique) {
-          num <- length(attributes(clique)$names)
-          factorial(num - 1)
-        })
-      sum(scores)
-    })
+  if (MCC) {
+    maxCliques <- igraph::max_cliques(igraph)
+    scores <- vapply(nodes, FUN.VALUE = double(1), USE.NAMES = F,
+      function(node) {
+        if.contains <- vapply(maxCliques, FUN.VALUE = logical(1), USE.NAMES = F,
+          function(clique) {
+            members <- attributes(clique)$names
+            if (any(members == node)) T else F
+          })
+        in.cliques <- maxCliques[ if.contains ]
+        scores <- vapply(in.cliques, FUN.VALUE = double(1),
+          function(clique) {
+            num <- length(attributes(clique)$names)
+            factorial(num - 1)
+          })
+        sum(scores)
+      })
+  } else {
+    message("Escape from calculating MCC score.")
+    scores <- 0L
+  }
   res <- data.frame(name = nodes, MCC_score = scores)
   res <- tibble::as_tibble(dplyr::arrange(res, dplyr::desc(MCC_score)))
-  if (exists(".add_internal_job")) {
+  if (exists(".add_internal_job") && MCC) {
     .add_internal_job(
       .job(method = "The MCC score was calculated referring to algorithm of `CytoHubba`",
         cite = "[@CytohubbaIdenChin2014]"))

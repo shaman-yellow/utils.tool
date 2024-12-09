@@ -42,10 +42,22 @@ setMethod("snap",
         #   down <- nrow(dplyr::filter(x, LogFC < 0))
         # })
       raws <- x@plots$step3$p.sets_intersection$raw
-      sums <- lapply(c("\\.up$", "\\.down$"),
-        function(pattern) length(unique(unlist(raws[ grpl(names(raws), pattern)])))
-      )
-      alls <- length(unique(unlist(raws)))
+      if (!is.null(raws)) {
+        sums <- lapply(c("\\.up$", "\\.down$"),
+          function(pattern) length(unique(unlist(raws[ grpl(names(raws), pattern)])))
+        )
+        alls <- length(unique(unlist(raws)))
+      } else {
+        raws <- x@tables$step2$tops[[1]]
+        alls <- nrow(raws)
+        sums <- lapply(1:2, function(n) {
+          if (n == 1) {
+            nrow(dplyr::filter(raws, logFC > 0))
+          } else {
+            nrow(dplyr::filter(raws, logFC < 0))
+          }
+        })
+      }
       glue::glue("所有上调 DEGs 有 {sums[[1]]} 个，下调共 {sums[[2]]}；一共 {alls} 个 (非重复)。")
     }
   })
@@ -76,6 +88,23 @@ job_limma_normed <- function(data, metadata, genes = NULL) {
   }
   .job_limma(object = data, params = list(metadata = metadata, isTcga = F, normed = T, genes = genes))
 }
+
+setMethod("regroup", signature = c(x = "job_limma"),
+  function(x, ...){
+    if (!is.null(x@object$samples)) {
+      x@object$samples <- dplyr::mutate(x@object$samples, ...)
+    }
+    if (!is.null(x$metadata)) {
+      x$metadata <- dplyr::mutate(x$metadata, ...)
+    }
+    if (!is.null(x$.metadata)) {
+      x$.metadata <- dplyr::mutate(x$.metadata, ...)
+    }
+    if (!is.null(x$normed_data$targets)) {
+      x$normed_data$targets <- dplyr::mutate(x$normed_data$targets, ...)
+    }
+    x
+  })
 
 setMethod("filter", signature = c(x = "job_limma"),
   function(x, ...){
@@ -598,7 +627,7 @@ setMethod("vis", signature = c(x = "corp"),
         facet +
         geom_text(data = anno,
           aes(x = x, y = y,
-            label = paste0("Cor = ", round(cor, 2), "\n", "P-value = ", round(pvalue, 5))),
+            label = paste0("Cor = ", round(cor, 2), "\n", "P-value = ", signif(pvalue, 2))),
           size = 3, hjust = 0, vjust = 1) +
         theme
       p <- as_grob(p)

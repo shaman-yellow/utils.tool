@@ -2640,11 +2640,11 @@ new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T, 
 }
 
 new_venn <- function(..., lst = NULL, wrap = T, fun_pre = rm.no, force_upset = T) {
-  if (is.null(lst)) {
-    lst <- list(...)
-  }
   if (!is.null(lst) && length(list(...))) {
     lst <- c(lst, list(...))
+  }
+  if (is.null(lst)) {
+    lst <- list(...)
   }
   lst <- lapply(lst, function(x) as.character(fun_pre(x)))
   if (force_upset) {

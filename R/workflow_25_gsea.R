@@ -136,7 +136,10 @@ setMethod("step1", signature = c(x = "job_gsea"),
         ), T)
     if (!inherits(table_kegg, "try-error")) {
       table_kegg <- dplyr::as_tibble(table_kegg)
-      p.kegg <- e(enrichplot::dotplot(res.kegg, showCategory = show, orderBy = order))
+      p.kegg <- e(enrichplot::dotplot(
+          res.kegg, showCategory = show, orderBy = order,
+          decreasing = order == "x"
+          ))
     } else {
       table_kegg <- NULL
       p.kegg <- NULL
@@ -189,14 +192,17 @@ setMethod("step1", signature = c(x = "job_gsea"),
   })
 
 setMethod("step2", signature = c(x = "job_gsea"),
-  function(x, key = head(x@tables$step1$table_kegg$ID, 3), highlight = key[1], use = "res.kegg")
+  function(x, key = head(dplyr::arrange(x@tables$step1$table_kegg, p.adjust)$ID, n = 3),
+    highlight = key[1], use = "res.kegg", ...)
   {
     step_message("GSEA visualization for specific pathway")
     obj <- x@params[[ use ]]
     p.code <- wrap(e(enrichplot::gseaplot2(obj, key, pvalue_table = F)), 7.5, 6)
     p.code <- .set_lab(p.code, sig(x), "GSEA plot of the pathways")
     if (!is.null(highlight)) {
-      p.highlight <- plot_highlight_enrich(x@tables$step1$table_kegg, highlight, object(x)$symbol)
+      p.highlight <- plot_highlight_enrich(
+        x@tables$step1$table_kegg, highlight, object(x)$symbol, ...
+      )
       p.highlight <- .set_lab(p.highlight, sig(x), "KEGG enrichment with enriched genes")
     } else {
       p.highlight <- NULL
@@ -374,6 +380,10 @@ setMethod("map", signature = c(x = "job_monocle", ref = "jobn_enrich"),
 plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
   n = 10L, shift = .2, top_by = "p.adjust", sort_by = "GeneRatio", use = "p.adjust")
 {
+  if (!all(highlight %in% head(table_enrich$ID, n = 10))) {
+    message(glue::glue("All not in top {n}, so just keep the `highlight`."))
+    table_enrich <- dplyr::filter(table_enrich, ID %in% !!highlight)
+  }
   table_enrich <- dplyr::arrange(table_enrich, !!rlang::sym(top_by))
   table_enrich <- head(table_enrich, n = n)
   n <- nrow(table_enrich)
@@ -389,7 +399,10 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
   }
   table_enrich <- reshape(table_enrich)
   table_enrich$log2fc <- do.call(dplyr::recode, c(list(table_enrich$Symbol), lst_logFC))
-  table_enrich <- dplyr::arrange(table_enrich, dplyr::desc(!!rlang::sym(sort_by)))
+  table_enrich <- dplyr::arrange(table_enrich,
+    if (sort_by == "GeneRatio") dplyr::desc(!!rlang::sym(sort_by))
+    else !!rlang::sym(sort_by)
+  )
   ## data for plot the enrichment score
   data <- dplyr::distinct(table_enrich, Description, !!rlang::sym(use), Count, GeneRatio)
   data <- dplyr::mutate(data, path.p = nrow(data):1)
