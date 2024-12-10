@@ -58,7 +58,10 @@ inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
   if (knitr::pandoc_to("docx")) {
     content <- officer::external_img(savename, width, height)
     writeLines(c("", assis_docx_img(content), ""))
-    label <- knitr::opts_current$get("label")
+    label <- knitr::opts_current$get("autor_label")
+    if (is.null(label)) {
+      stop(glue::glue('is.null(autor_label), Chunk: {knitr::opts_current$get("label")}'))
+    }
     if (!grpl(label, "^unnamed-chunk")) {
       run_num <- officer::run_autonum(
         seq_id = knitr::opts_chunk$get("fig.lp"),

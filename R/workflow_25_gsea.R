@@ -111,7 +111,7 @@ setMethod("step0", signature = c(x = "job_gsea"),
 
 setMethod("step1", signature = c(x = "job_gsea"),
   function(x, OrgDb = org.Hs.eg.db::org.Hs.eg.db, org = "hsa", show = 15,
-    order = c("x", "p.adjust", "p.value"))
+    order = c("x", "p.adjust", "p.value"), keep_res_go = F)
   {
     step_message("GSEA enrichment.")
     order <- match.arg(order)
@@ -180,11 +180,13 @@ setMethod("step1", signature = c(x = "job_gsea"),
           strip.background = element_rect(fill = "grey90", color = "grey70")) +
         geom_blank()
     }
-    x@params$res.go <- res.go
+    if (keep_res_go) {
+      x@params$res.go <- res.go
+    }
     x@params$res.kegg <- res.kegg
     x@tables[[ 1 ]] <- namel(table_go, table_kegg)
-    p.go <- .set_lab(wrap(p.go), sig(x), "GO", "enrichment")
-    p.kegg <- .set_lab(wrap(p.kegg), sig(x), "KEGG", "enrichment")
+    p.go <- .set_lab(wrap(p.go), sig(x), "GSEA GO enrichment")
+    p.kegg <- .set_lab(wrap(p.kegg), sig(x), "GSEA KEGG enrichment")
     x <- methodAdd(x, "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')} 按 GSVA 算法 (`clusterProfiler::gseGO`, `ClusterProfiler::gseKEGG`)，进行 KEGG 和 GO 富集分析。")
     x@plots[[ 1 ]] <- namel(p.go, p.kegg)
     x$org <- org

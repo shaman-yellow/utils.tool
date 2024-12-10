@@ -115,7 +115,7 @@ setMethod("step0", signature = c(x = "job_survival"),
 
 setMethod("step1", signature = c(x = "job_survival"),
   function(x, genes_surv = x$genes_surv, fun_group = x$fun_group,
-    fun_status = x$fun_status, time = x$time, status = x$status)
+    fun_status = x$fun_status, time = x$time, status = x$status, only_keep_sig = T)
   {
     step_message("Survival test.")
     data <- rename(object(x), time = !!rlang::sym(time),
@@ -177,13 +177,17 @@ setMethod("step1", signature = c(x = "job_survival"),
         lapply(lst, function(x) x[[ name ]])
       })
     plots <- .set_lab(plots, sig(x), c("Survival", "ROC", "Boxplot"), "plots")
-    x@plots[[1]] <- plots
     t.SurvivalPValue <- tibble::tibble(
       name = names(lst), pvalue = vapply(lst, function(x) x$diff$pvalue, double(1))
     )
     t.SignificantSurvivalPValue <- dplyr::filter(t.SurvivalPValue, pvalue < .05)
+    x$models <- lapply(lst, function(x) list(fit = x$fit, roc = x$roc, diff = x$diff))
+    if (only_keep_sig) {
+      plots <- lapply(plots, function(x) x[ names(x) %in% t.SignificantSurvivalPValue$name ])
+      x$models <- x$models[ names(x$models) %in% t.SignificantSurvivalPValue$name ]
+    }
+    x@plots[[1]] <- plots
     x <- tablesAdd(x, t.SurvivalPValue, t.SignificantSurvivalPValue)
-    x@params$models <- lapply(lst, function(x) list(fit = x$fit, roc = x$roc, diff = x$diff))
     meth(x)$step1 <- glue::glue("以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。以 R 包 `timeROC` ({packageVersion('timeROC')}) 绘制 1, 3, 5 年生存曲线。")
     return(x)
   })

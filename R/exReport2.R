@@ -2,30 +2,18 @@
 # for conversion of 'report'
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-as_report.rough <- function(lines) {
-  yaml.pos <- grep("^---", lines)
+exclude_yaml <- function(lines) {
+  yaml.pos <- grep("^---$", lines)
   yaml.pos <- 1:(yaml.pos[2])
-  yaml <- lines[ yaml.pos ]
-  lines <- lines[-yaml.pos]
-  new_report(lines, yaml = yaml)
+  lines[-yaml.pos]
 }
 
 write_biocStyle <- function(
-  report, savename, title, change_include_fun = "inclu.fig",
-  bioyml = readLines(paste0(.expath, "biocstyle.yml")),
-  origin_include_fun = "knitr::include_graphics",
-  render = rmarkdown::render,
-  bib = NULL)
+  report, savename, title, bioyml = file.path(.expath, "biocstyle.yml"),
+  bib = NULL, ...)
 {
-  require("MCnebula2")
-  if (is.character(report)) {
-    if (file.exists(report)) {
-      report <- as_report.rough(readLines(report))
-    } else {
-      stop( "file.exists(report) == F" )
-    }
-  }
-  if (length(x <- grep("^title:", bioyml)) > 0) {
+  bioyml <- readLines(bioyml)
+  if (length(x <- grep("^title:", bioyml))) {
     bioyml <- bioyml[-x]
   }
   if (!is.null(title)) {
@@ -37,39 +25,32 @@ write_biocStyle <- function(
   if (!is.null(bib)) {
     bioyml <- gsub("(bibliography:).*", paste0("\\1 ", bib), bioyml)
   }
-  yaml(report) <- bioyml
-  lines <- call_command(report)
-  if (!is.null(change_include_fun)) {
-    lines <- gsub(origin_include_fun, change_include_fun, lines)
+  lines <- exclude_yaml(readLines(report))
+  if (grpl(bioyml[1], "---")) {
+    lines <- c(bioyml, "", lines)
+  } else {
+    lines <- c("---", bioyml, "---", "", lines)
   }
   writeLines(lines, savename)
-  if (is.function(render)) {
-    render(savename)
-  }
+  rmarkdown::render(savename)
 }
 
 write_thesisDocx <- function(report, savename, title,
-  change_include_fun = "inclu.fig",
-  yml = readLines(file.path(.expath, "ch_thesis.yml")),
-  origin_include_fun = "knitr::include_graphics", ...)
+  yml = file.path(.expath, "ch_thesis.yml"), ...)
 {
-  write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun, ...)
+  write_biocStyle(report, savename, title, yml, ...)
 }
 
 write_thesisDocxEn <- function(report, savename, title,
-  change_include_fun = "inclu.fig",
-  yml = readLines(file.path(.expath, "en_thesis.yml")),
-  origin_include_fun = "knitr::include_graphics", ...)
+  yml = file.path(.expath, "en_thesis.yml"), ...)
 {
-  write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun, ...)
+  write_biocStyle(report, savename, title, yml, ...)
 }
 
 write_articlePdf <- function(report, savename = "output.Rmd", title = "",
-  change_include_fun = NULL,
-  yml = readLines(file.path(.expath, "articleWithCode.yml")),
-  origin_include_fun = "knitr::include_graphics", ...)
+  yml = file.path(.expath, "articleWithCode.yml"), ...)
 {
-  write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun, ...)
+  write_biocStyle(report, savename, title, yml, ...)
 }
 
 kable_less <- function(x, ...) {

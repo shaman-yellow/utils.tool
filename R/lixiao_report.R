@@ -231,7 +231,7 @@ summary_month <- function(
   browseURL(normalizePath(targets[[ "ass" ]]))
 }
 
-.thedir_job <- function(month, year = 2023, path = "~/disk_sdb1/my_job") {
+.thedir_job <- function(month, year = 2023, path = .prefix("backup", "db")) {
   month <- as.character(month)
   if (nchar(month) < 2) {
     month <- paste0("0", month)

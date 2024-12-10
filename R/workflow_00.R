@@ -234,9 +234,13 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
     writeLines(x, tmp)
     return(invisible())
   }
-  label <- Hmisc::capitalize(gs(gs(x, "(?<![a-zA-Z])ids[ \\-]?", "", perl = T), " |_|\\.", "-"))
+  label <- as_chunk_label(x)
   label <- paste0("#| ", label)
   writeLines(label, tmp)
+}
+
+as_chunk_label <- function(x) {
+  Hmisc::capitalize(gs(gs(x, "(?<![a-zA-Z])ids[ \\-]?", "", perl = T), " |_|\\.", "-"))
 }
 
 .set_lab <- function(x, sig, group = NULL, body = NULL, suffix = NULL) {

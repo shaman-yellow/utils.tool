@@ -1953,6 +1953,21 @@ setGeneric("autor",
 ## codes.
 setMethod("autor", signature = c(x = "ANY", name = "missing"),
   function(x, ...){
+    if (is.null(knitr::pandoc_to())) {
+      message("Not in knitr circumstance, show object only.")
+      if (!is.null(lab(x))) {
+        message(glue::glue("lab(x): {lab(x)}\nautor_label: {as_chunk_label(lab(x))}"))
+      }
+      return(show(x))
+    } else {
+      autor_label_env <- knitr::opts_chunk$get("autor_label_env")
+      if (is.null(autor_label_env)) {
+        autor_label_env <- lapply(knitr::knit_code$get(), function(x) list())
+        ## this environment is set for check duplicated of 'autor_label'
+        autor_label_env <- as.environment(autor_label_env)
+        knitr::opts_chunk$set(autor_label_env = autor_label_env)
+      }
+    }
     if (is(x, "rms") || is(x, "validate")) {
       if (needTex()) {
         options(prType = "latex")
@@ -1962,13 +1977,23 @@ setMethod("autor", signature = c(x = "ANY", name = "missing"),
       set_showtext()
       return(x)
     }
-    name <- knitr::opts_current$get("label")
-    if (!is.null(name)) {
-      autor(x, name, ...)
-    } else {
-      message("Not in knitr circumstance, show object only.")
-      show(x)
+    name <- chunk_label <- knitr::opts_current$get("label")
+    if (grpl(name, "^unnamed-chunk")) {
+      name <- lab(x)
+      if (is.null(name)) {
+        code <- rlang::as_label(substitute(x))
+        stop(glue::glue('Chunk should set label, or object with "lab" (set by `lab({code}) <- `)'))
+      }
+      ## save into the environment
+      autor_label_env[[ chunk_label ]] <- name
+      ## check duplicated
+      all_autor_labels <- unlist(lapply(autor_label_env, function(x) x))
+      if (any(duplicated(c(all_autor_labels, names(autor_label_env))))) {
+        stop("'autor_label' should not duplicated with each other or chunk labels.")
+      }
     }
+    knitr::opts_current$set(autor_label = name)
+    autor(x, name, ...)
   })
 
 setMethod("autor", signature = c(x = "list", name = "character"),

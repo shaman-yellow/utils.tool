@@ -109,8 +109,12 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     edges <- .set_lab(edges, sig(x), "PPI annotation")
     attr(edges, "lich") <- new_lich(des_edges)
     x$edges <- edges
-    p.ppi <- plot_network.str(graph, label = label)
-    p.ppi <- .set_lab(wrap(p.ppi, 4.5, 3), sig(x), "raw PPI network")
+    if (network_type == "full") {
+      p.ppi <- NULL
+    } else {
+      p.ppi <- plot_network.str(graph, label = label)
+      p.ppi <- .set_lab(wrap(p.ppi, 4.5, 3), sig(x), "raw PPI network")
+    }
     ## hub genes
     message("Calculate MCC score.")
     hub_genes <- cal_mcc.str(res.str, "Symbol", F, MCC = MCC)

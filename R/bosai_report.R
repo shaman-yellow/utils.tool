@@ -1,11 +1,70 @@
 
+backup_jobs.bosai <- function(alls, time = Sys.Date(),
+  month = lubridate::month(.time - 12),
+  year = lubridate::year(.time - 12), back_dir = .prefix("backup", "db"),
+  .time = if (is(time, "Date")) time else as.Date(time, tryFormats = "%Y-%m-%d"))
+{
+  dir.create(back_dir, F)
+  file_records <- file.path(back_dir, "records.rds")
+  if (file.exists(file_records)) {
+    records <- readRDS(file_records)
+    data <- dplyr::anti_join(alls, records)
+  } else {
+    records <- tibble::tibble()
+    data <- alls
+  }
+  data <- dplyr::filter(data, finish < time)
+  if (!nrow(data)) {
+    message("No jobs need to backup.")
+    print(records)
+    return()
+  }
+  thedir <- .thedir_job(month, year, back_dir)
+  data$backup_dir <- thedir
+  num <- 0L
+  dir.create(thedir, F)
+  res <- mapply(data$.dir, data$id, data$client, data$type, data$title, data$save,
+     FUN = function(dir, id, client, type, title, rds_item) {
+       pattern <- paste0(".*", id, ".*", client, ".*", type, ".*", title, ".*")
+       files <- list.files(dir, pattern, full.names = T)
+       if (!length(files)) {
+         message("No zip files found in dir: ", pattern)
+         isThat <- usethis::ui_yeah("Select other files?")
+         if (isThat) {
+           files <- list.files(dir, "*.zip|*.docx|*.pdf", full.names = T)
+           files <- files[ menu(files, title = "All available files") ]
+           if (!length(files)) {
+             return()
+           }
+         } else {
+           return()
+         }
+       }
+       script <- paste0(gs(rds_item, "^\\.items_|\\.rds$", ""), ".Rmd")
+       script <- file.path(dir, script)
+       if (!file.exists(script)) {
+         stop(glue::glue("No such file: {script}"))
+       }
+       files <- c(files, script)
+       if (length(files)) {
+         num <<- num + 1L
+         to <- paste0(thedir, "/", num, "_", basename(tools::file_path_sans_ext(files[1])))
+         .cp_job(c(files, script), to)
+       }
+     })
+  records <- dplyr::bind_rows(records, data)
+  saveRDS(records, file_records)
+  unlist(res)
+  browseURL(thedir)
+}
+
 formatName.bosai <- function(file, info) {
   if (missing(info)) {
     info <- get("info", envir = parent.frame(1))
   }
   nfile <- paste0(info$id, "-", info$client, "-",
     info$type, "-", info$title, "-", format.Date(info$finish, "%Y.%m.%d"), ".docx")
-  file.copy(file, nfile)
+  file.copy(file, nfile, T)
   browseURL(nfile)
   tools::file_path_sans_ext(nfile)
 }
@@ -60,11 +119,9 @@ td <- function(character_date) {
 }
 
 write_bosaiDocx <- function(report, savename, title,
-  change_include_fun = "inclu.fig",
-  yml = readLines(file.path(.expath, "bosai.yml")),
-  origin_include_fun = "knitr::include_graphics", ...)
+  yml = file.path(.expath, "bosai.yml"), ...)
 {
-  write_biocStyle(report, savename, title, change_include_fun, yml, origin_include_fun, ...)
+  write_biocStyle(report, savename, title, yml, ...)
 }
 
 order_publish.bosai <- function(file = "index.Rmd", output = "output.Rmd", title = "",
