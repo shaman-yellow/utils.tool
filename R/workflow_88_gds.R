@@ -19,6 +19,39 @@
     analysis = "GSE 数据搜索"
     ))
 
+setMethod("snap", signature = c(x = "job_gds"),
+  function(x, patterns)
+  {
+    if (is.null(names(patterns))) {
+      stop("names should not be NULL")
+    }
+    texts <- lapply(names(patterns), function(name) {
+      data <- dplyr::filter(object(x),
+        grpl(summary, patterns[[name]], T) | grpl(title, patterns[[name]], T)
+      )
+      if (nrow(data)) {
+        alls <- paste0(data$GSE, collapse = ", ")
+        glue::glue("与 {name} 相关的数据共 {nrow(data)} 个，分别为: {alls}。")
+      } else {
+        glue::glue("未找到与 {name} 相关的数据。")
+      }
+    })
+    paste0(paste0("- ", texts), collapse = "\n")
+  })
+
+setMethod("focus", signature = c(x = "job_gds"),
+  function(x, patterns)
+  {
+    if (is.null(names(patterns))) {
+      stop("names should not be NULL")
+    }
+    lapply(names(patterns), function(name) {
+      dplyr::filter(object(x),
+        grpl(summary, patterns[[name]], T) | grpl(title, patterns[[name]], T)
+      )
+    })
+  })
+
 job_gds <- function(keys,
   n = "6:1000", org = "Homo Sapiens",
   elements = c("GSE", "title", "summary", "taxon", "gdsType",
@@ -36,9 +69,17 @@ job_gds <- function(keys,
   object <- dplyr::mutate(object, GSE = paste0("GSE", GSE))
   object <- .set_lab(object, keys[1], "EDirect query")
   x <- .job_gds(object = object, params = namel(query, elements, org, n))
-  x <- methodAdd(x, "使用 Entrez Direct (EDirect) <https://www.ncbi.nlm.nih.gov/books/NBK3837/> 搜索 GEO 数据库 (`esearch -db gds`)，查询信息为: {query}。")
+  x <- methodAdd(x, "使用 Entrez Direct (EDirect) <https://www.ncbi.nlm.nih.gov/books/NBK3837/> 搜索 GEO 数据库 (`esearch -db gds`)，查询信息为: ({query}) AND ({extra})。")
   x
 }
+
+setMethod("step1", signature = c(x = "job_gds"),
+  function(x){
+    step_message("Statistic.")
+    p.AllGdsType <- wrap(new_pie(object(x)$gdsType), 7, 7)
+    x <- plotsAdd(x, p.AllGdsType)
+    return(x)
+  })
 
 add_field <- function(keys, field) {
   if (any(which <- !grpl(keys, "\\["))) {

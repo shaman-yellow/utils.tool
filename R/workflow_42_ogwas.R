@@ -21,7 +21,11 @@
 job_ogwas <- function(traits, ...)
 {
   x <- .job_ogwas()
-  object(x) <- as_tibble(e(MungeSumstats::find_sumstats(traits = traits)))
+  res <- e(MungeSumstats::find_sumstats(traits = traits))
+  if (!nrow(res)) {
+    stop('!nrow(res), found nothing.')
+  }
+  object(x) <- as_tibble(res)
   lab(object(x)) <- "Traits in Open GWAS"
   x
 }
@@ -34,6 +38,12 @@ setMethod("step0", signature = c(x = "job_ogwas"),
   })
 
 setMethod("step1", signature = c(x = "job_ogwas"),
+  function(x){
+    step_message("")
+    return(x)
+  })
+
+setMethod("step2", signature = c(x = "job_ogwas"),
   function(x, ids, ref_genome = "GRCH38",
     vcf_dir = .prefix("ogwas_vcf", "db"), save_dir = .prefix("ogwas_data", "db"))
   {

@@ -225,18 +225,18 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
   })
 
 .lab_out <- function(x) {
-  x <- lab(x)
-  tmp <- getOption("RmdLabelFile", tempfile(pattern = "label", fileext = ".txt"))
-  if (is.null(x)) {
-    x <- getOption("autor_unnamed_number", 1)
-    options(autor_unnamed_number = x + 1)
-    x <- paste0("#| Unnamed-", x)
-    writeLines(x, tmp)
-    return(invisible())
+  if (requireNamespace("nvimcom")) {
+    x <- lab(x)
+    if (is.null(x)) {
+      x <- getOption("autor_unnamed_number", 1)
+      options(autor_unnamed_number = x + 1)
+      label <- paste0("#| Unnamed-", x)
+    } else {
+      label <- as_chunk_label(x)
+      label <- paste0("#| ", label)
+    }
+    .C("nvimcom_msg_to_nvim", glue::glue('append(line(".") - 1, "{label}")'), PACKAGE = "nvimcom")
   }
-  label <- as_chunk_label(x)
-  label <- paste0("#| ", label)
-  writeLines(label, tmp)
 }
 
 as_chunk_label <- function(x) {
@@ -556,16 +556,20 @@ set_sig <- function(x) {
 setGeneric("step1",
   function(x, ...) {
     # if (identical(sig(x), character(0))) {
-    name <- substitute(x)
-    sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
-    attr(sig, "name") <- as.character(name)
-    sig(x) <- sig
+    if (identical(parent.frame(1), .GlobalEnv)) {
+      name <- substitute(x)
+      sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
+      attr(sig, "name") <- as.character(name)
+      sig(x) <- sig  
+    }
     # }
     x$seed <- sample(1:100, 1)
     x <- checkAddStep(x, 1L)
     x <- standardGeneric("step1")
     x <- stepPostModify(x, 1)
-    job_append_heading(x)
+    if (identical(parent.frame(1), .GlobalEnv)) {
+      job_append_heading(x)
+    }
     x
   })
 
@@ -747,7 +751,11 @@ writeJobSlotsAutoCompletion <- function(x, envir = .GlobalEnv) {
     return()
   }
   dir.create(dir, F, recursive = T)
-  obj <- get(x, envir = envir)
+  obj <- try(get(x, envir = envir), T)
+  if (inherits(obj, "try-error")) {
+    message("May not run in .GlobalEnv.")
+    return()
+  }
   if (!is.null(dir) || !is(obj, "job")) {
     filename <- file.path(dir, paste0(class(obj), "__", x, ".R"))
     content <- treeObj(x, envir = envir)
