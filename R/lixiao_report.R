@@ -633,7 +633,22 @@ order_packaging <- function(target = "output.pdf",
   if (!file.exists(report)) {
     file.copy(target, report, T)
   }
-  package_results(main = register, head = NULL, masterZip = NULL, report = report, ...)
+  if (!is.null(relocate <- getOption("autoRegisters_relocate"))) {
+    if (!identical(names(register), names(relocate))) {
+      message('identical(names(register), names(relocate)) == F, not match in names.')
+      register <- register[ names(register) %in% names(relocate) ]
+    }
+    lapply(names(register), function(name) {
+      dir <- dirname(relocate[[ name ]])
+      dir.create(dir, F, recursive = T)
+      file.copy(register[[name]], relocate[[name]], T, T)
+    })
+    tempfiles <- unlist(as.list(relocate))
+    package_results(main = tempfiles, head = NULL, masterZip = NULL, report = report, ...)
+    unlink(tempfiles, T, T)
+  } else {
+    package_results(main = register, head = NULL, masterZip = NULL, report = report, ...)
+  }
   zipfiles <- list.files(".", "[\u4e00-\u9fa5]+.*\\.zip")
   zipfiles <- zipfiles[ zipfiles != paste0(idname, ".zip") ]
   if (length(zipfiles)) {

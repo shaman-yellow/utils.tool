@@ -1874,8 +1874,8 @@ set_appendix <- function() {
   }
 }
 
-autor_preset <- function(echo = F, eval = F, ...) {
-  options(autor_unnamed_number = 1)
+autor_preset <- function(echo = F, eval = F, autor_relocate = T, ...) {
+  options(autor_unnamed_number = 1, autor_relocate = autor_relocate)
   knitr::opts_chunk$set(
     echo = echo, eval = eval, message = F, warning = F,
     fig.cap = character(0), collapse = F,
@@ -2432,18 +2432,35 @@ sumTbl <- function(x, key, sum.ex = NULL, mustSum = getOption("abstract.mustSum"
     "以下预览的表格可能省略部分数据；", sums, "'。\n", sum.ex)
 }
 
-locate_file <- function(name, des = "File path: ") {
+locate_file <- function(name, des = "File path: ", relocate = getOption("autor_relocate", F)) {
   if (!exists('autoRegisters'))
     stop("!exists('autoRegisters')")
+  ## The `chunk_location` is setup by 'write_biocStyle'
+  chunk_location <- getOption("chunk_location")
+  autoRegisters_relocate <- getOption("autoRegisters_relocate")
+  if (relocate && !is.null(chunk_location) && !is.null(autoRegisters_relocate)) {
+    now_label <- knitr::opts_current$get("label")
+    allChunks <- knitr::knit_code$get()
+    whichChunk <- which(names(allChunks) == now_label)
+    chunk_level <- chunk_location$chunkFields[[ whichChunk ]]
+    chunk_belong <- chunk_location$chunkBelong[[ whichChunk ]]
+    dirname <- sub("^[#]+", paste0(chunk_level, collapse = "."), chunk_belong)
+    dirname <- gs(dirname, "\\s+", "_")
+    file <- file.path(dirname(autoRegisters[[ name ]]),
+      dirname, basename(autoRegisters[[ name ]]))
+    autoRegisters_relocate[[ name ]] <- file
+  } else {
+    file <- autoRegisters[[ name ]]
+  }
   if (!file.exists(autoRegisters[[ name ]]))
     stop("file.exists(autoRegisters[[ name ]] == F)")
   if (needTex()) {
-    cat("\n**(", des, " `", autoRegisters[[ name ]], "`)**", "\n", sep = "")  
+    cat("\n**(", des, " `", file, "`)**", "\n", sep = "")  
   } else if (knitr::pandoc_to("docx")) {
     content <- officer::fpar(
-      officer::ftext(glue::glue("({des}{autoRegisters[[name]]})"),
+      officer::ftext(glue::glue("({des}{file})"),
         officer::fp_text_lite(bold = T)),
-      fp_p = officer::fp_par("center", line_spacing = 2))
+      fp_p = officer::fp_par("center", line_spacing = 1.2))
     writeLines(assis_docx_par(content))
   }
 }
