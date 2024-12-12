@@ -70,10 +70,11 @@ cite_show <- function(keys, as.character = T,
       bib <- bibentry[[ name ]]
       year <- bib$year
       journal <- bib$journal
+      title <- bib$title
       fuzzy <- prefix(journal)
       which <- match(fuzzy, ifsets$fuzzy)
       list(year = year, journal = journal, IF = ifsets$IF[which],
-        Class = ifsets$Class[which], fuzzy = fuzzy)
+        Class = ifsets$Class[which], fuzzy = fuzzy, title = title)
     })
   if (as.character) {
     text <- vapply(eles,

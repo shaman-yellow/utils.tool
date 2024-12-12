@@ -1978,12 +1978,12 @@ setMethod("autor", signature = c(x = "ANY", name = "missing"),
       return(x)
     }
     name <- chunk_label <- knitr::opts_current$get("label")
-    if (grpl(name, "^unnamed-chunk")) {
+    if (grpl(name, "^unnamed-chunk") && !is.null(lab(x))) {
       name <- lab(x)
-      if (is.null(name)) {
-        code <- rlang::as_label(substitute(x))
-        stop(glue::glue('Chunk should set label, or object with "lab" (set by `lab({code}) <- `)'))
-      }
+      # if (is.null(name)) {
+        # code <- rlang::as_label(substitute(x))
+        # stop(glue::glue('Chunk should set label, or object with "lab" (set by `lab({code}) <- `)'))
+      # }
       ## save into the environment
       autor_label_env[[ chunk_label ]] <- name
       ## check duplicated

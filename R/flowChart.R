@@ -63,12 +63,17 @@ flowChart <- function(graph, scale.x = 1.2, scale.y = 1.2, node.size = 4,
   }
   p.lst <- lapply(graphs,
     function(graph) {
+      data <- ggraph::get_edges()(graph)
+      devX <- data$node1.x - data$node2.x
+      devY <- data$node1.y - data$node2.y
+      devCos <- devX / sqrt(devX ^ 2 + devY ^ 2)
       p <- ggraph(graph) +
         geom_node_label(aes(label = paste0(sortSugi(y), ". ", name)),
           size = node.size, label.padding = u(.5, lines)) +
-        geom_edge_fan(aes(x = x, y = y),
-          start_cap = circle(sc, 'mm'),
-          end_cap = circle(ec, 'mm'),
+        geom_edge_fan(
+          aes(x = x, y = y,
+            start_cap = circle(nchar(node1.name) * devCos + 5, 'mm'),
+            end_cap = circle(nchar(node2.name) * devCos + 5, 'mm')),
           arrow = arrow(length = unit(arr.len, 'mm'), type = "closed"),
           color = edge.color, width = edge.width) +
         scale_x_continuous(limits = zoRange(graph$x, scale.x)) +
