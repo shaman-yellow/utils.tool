@@ -50,6 +50,24 @@ fix_bib <- function(bib, exclude = c("doi", "urldate", "issn", "address", "isbn"
   return(bib)
 }
 
+cite_active <- function(key) {
+  reload_bib()
+  bibentry <- getOption("bibentrys")
+  key <- gs(key, "^@", "")
+  name <- paste0(key, ".", key)
+  bib <- bibentry[[ name ]]
+  if (!length(bib)) {
+    return()
+  }
+  if (!is.null(bib$url)) {
+    browseURL(bib$url)
+  }
+  if (.Platform$OS.type == "unix") {
+    gett(bib$title)
+  }
+  bib
+}
+
 cite_show <- function(keys, as.character = T,
   bibentry = getOption("bibentrys"),
   ifsets = getOption("IF_sets"),
