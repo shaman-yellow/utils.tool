@@ -731,3 +731,12 @@ reset_object_name <- function(old, new, env = .GlobalEnv) {
 bind <- function(..., co = ", ") {
   paste0(..., collapse = co)
 }
+
+collate_common_function <- function(package, freq = 10) {
+  codes <- lapply(list.files(package, "\\.R$", full.names = T), readLines)
+  codes <- stringr::str_extract_all(unlist(codes), "(?<!=::)[a-zA-Z0-9_.]*(?=\\()")
+  codes <- table(unlist(codes))
+  codes <- names(codes[ codes > freq ])
+  codes <- codes[ nchar(codes) >= 3 ]
+  return(codes)
+}
