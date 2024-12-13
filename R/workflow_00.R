@@ -413,6 +413,14 @@ methodAdd <- function(x, glueString, env = parent.frame(1)) {
   mapply(objs, labs, SIMPLIFY = F,
     FUN = function(obj, lab) {
       if (is.null(lab(obj))) {
+        if (length(obj) > 1 && is(obj, "list")) {
+          if (is.null(names(obj))) {
+            names <- paste0("n", seq_along(obj))
+          } else {
+            names <- names(obj)
+          }
+          lab <- paste0(lab, "_", names)
+        }
         obj <- .set_lab(obj, sig, lab)
       }
       return(obj)
@@ -794,7 +802,7 @@ rapply2_asWrap <- function(x, class = "gg.obj") {
     x
   } else if (is(x, "can_not_be_draw")) {
     x
-  } else if (is(x, "list")) {
+  } else if (is(x, "list") && length(x)) {
     attrs <- attributes(x)
     names <- names(x)
     x <- lapply(1:length(x),

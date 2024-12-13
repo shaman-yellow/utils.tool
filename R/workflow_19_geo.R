@@ -14,7 +14,8 @@
     info = c("..."),
     method = "GEO <https://www.ncbi.nlm.nih.gov/geo/> used for expression dataset aquisition",
     tag = "raw:geo",
-    analysis = "GEO 数据获取"
+    analysis = "GEO 数据获取",
+    params = list(rna = F)
     ))
 
 .job_publish <- setClass("job_publish", 
@@ -38,9 +39,9 @@ setMethod("step0", signature = c(x = "job_geo"),
   })
 
 setMethod("step1", signature = c(x = "job_geo"),
-  function(x){
+  function(x, getGPL = T){
     step_message("Get GEO metadata and information.")
-    about <- e(GEOquery::getGEO(object(x)))
+    about <- e(GEOquery::getGEO(object(x), getGPL = getGPL))
     metas <- get_metadata.geo(about)
     prods <- get_prod.geo(metas)
     ## add GSE number
@@ -75,23 +76,43 @@ setMethod("step1", signature = c(x = "job_geo"),
 }
 
 setMethod("step2", signature = c(x = "job_geo"),
-  function(x, filter_regex = NULL, baseDir = .prefix("GEO", "db")){
-    step_message("Download geo datasets.")
-    if (!dir.exists(baseDir)) {
-      dir.create(baseDir)
-    }
-    dir <- file.path(baseDir, object(x))
-    continue <- 1L
-    if (dir.exists(dir)) {
-      continue <- usethis::ui_yeah(glue::glue("File exists ({dir}), continue?"))
-    }
-    if (continue) {
-      e(GEOquery::getGEOSuppFiles(object(x), filter_regex = filter_regex,
-          baseDir = baseDir))
-      x$dir <- dir
+  function(x, filter_regex = NULL, baseDir = .prefix("GEO", "db"), rna = T)
+  {
+    step_message("Download geo datasets or yellow{{RNA seq data}}.")
+    if (rna) {
+      if (dim(x$about[[1]])[1] > 0) {
+        message("Is this a Microarray dataset?")
+        return()
+      }
+      x$about[[1]] <- e(GEOquery::getRNASeqData(object(x)))
+      message("Replace data in `x$about[[1]]`.")
+      x <- methodAdd(x, "以 `GEOquery::getRNASeqData` 获取 RNA count 数据以及基因注释。")
+      x$rna <- T
+    } else {
+      if (!dir.exists(baseDir)) {
+        dir.create(baseDir)
+      }
+      dir <- file.path(baseDir, object(x))
+      continue <- 1L
+      if (dir.exists(dir)) {
+        continue <- usethis::ui_yeah(glue::glue("File exists ({dir}), continue?"))
+      }
+      if (continue) {
+        e(GEOquery::getGEOSuppFiles(object(x), filter_regex = filter_regex,
+            baseDir = baseDir))
+        x$dir <- dir
+      }
     }
     return(x)
   })
+
+batch_geo <- function(gses, getGPL = F, cl = 5) {
+  res <- pbapply::pblapply(gses,
+    function(x) try(step1(job_geo(x), getGPL = getGPL)), cl = 5
+  )
+  metas <- lapply(res, function(x) try(x$guess))
+  namel(res, metas)
+}
 
 setMethod("meta", signature = c(x = "job_geo"),
   function(x, use = 1L){
@@ -102,8 +123,21 @@ setMethod("meta", signature = c(x = "job_geo"),
 
 setMethod("asjob_limma", signature = c(x = "job_geo"),
   function(x, metadata, use = 1L, normed = F, use.col = NULL){
-    counts <- as_tibble(x@params$about[[ use ]]@assayData$exprs)
-    genes <- as_tibble(x@params$about[[ use ]]@featureData@data)
+    if (x$rna) {
+      counts <- as_tibble(data.frame(x@params$about[[ use ]]@assays@data$counts, check.names = F))
+      genes <- as_tibble(data.frame(x@params$about[[ use ]]@elementMetadata, check.names = F))
+      genes <- dplyr::mutate(genes, rownames = as.character(GeneID), .before = 1)
+      if (missing(use.col)) {
+        use.col <- "Symbol"
+      } else {
+        if (!is.character(genes[[ use.col ]])) {
+          stop('`use.col` should character (symbol).')
+        }
+      }
+    } else {
+      counts <- as_tibble(x@params$about[[ use ]]@assayData$exprs)
+      genes <- as_tibble(x@params$about[[ use ]]@featureData@data)
+    }
     if (is.null(use.col)) {
       if (any(colnames(genes) == "rownames")) {
         if (any(grpl(colnames(genes), "Gene Symbol"))) {

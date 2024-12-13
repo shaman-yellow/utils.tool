@@ -26,11 +26,21 @@ job_mfuzz <- function()
 
 setMethod("snap", signature = c(x = "job_mfuzz"),
   function(x, up, down){
-    alls <- x$clusters$cluster
-    ups <- length(names(alls)[alls %in% up])
-    downs <- length(names(alls)[alls %in% down])
-    seqs <- paste(colnames(x@object@assayData$exprs), collapse = ", ")
-    glue::glue("按照 {seqs} 顺序, 在 Mfuzz 聚类中，{paste(up, collapse = ', ')} 为按时序上调，共 {ups} 个，{paste(down, collapse = ', ')} 为按时序下调，共 {downs} 个。其他基因为离散变化。")
+    if (x@step < 3) {
+      stop('x@step < 3, no genes defined.')
+    }
+    if (length(x$up)) {
+      up_text <- glue::glue("{paste(x$up, collapse = ', ')} 为按时序上调，共 {length(x$ups)} 个，")
+    } else {
+      up_text <- ""
+    }
+    if (length(x$down)) {
+      down_text <- glue::glue("{paste(x$down, collapse = ', ')} 为按时序下调，共 {length(x$downs)} 个，")
+    } else {
+      down_text <- ""
+    }
+    seqs <- paste(x$seqs, collapse = ", ")
+    glue::glue("按照 {seqs} 顺序, 在 Mfuzz 聚类中，{up_text} {down_text} 其他基因为离散变化。")
   })
 
 setMethod("step0", signature = c(x = "job_mfuzz"),
@@ -68,15 +78,23 @@ setMethod("step2", signature = c(x = "job_mfuzz"),
     return(x)
   })
 
+setMethod("step3", signature = c(x = "job_mfuzz"),
+  function(x, up, down){
+    step_message("Select clusters for up or down genes.")
+    alls <- x$clusters$cluster
+    x$up <- up
+    x$ups <- names(alls)[alls %in% up]
+    x$down <- down
+    x$downs <- names(alls)[alls %in% down]
+    x$seqs <- colnames(x@object@assayData$exprs)
+    return(x)
+  })
+
 setMethod("asjob_enrich", signature = c(x = "job_mfuzz"),
-  function(x, clusters, ...){
+  function(x, ...){
     step_message("Extract genes for selected clusters.")
-    clusters <- lapply(clusters,
-      function(n) {
-        alls <- x$clusters$cluster
-        names(alls)[alls %in% n]
-      })
-    job_enrich(clusters, ...)
+    clusters <- list(ups = x$ups, downs = x$downs)
+    job_enrich(lst_clear0(clusters), ...)
   })
 
 setGeneric("asjob_mfuzz", 

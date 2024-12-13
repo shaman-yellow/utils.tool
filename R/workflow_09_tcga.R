@@ -142,7 +142,8 @@ setMethod("step2", signature = c(x = "job_tcga"),
 
 setMethod("step3", signature = c(x = "job_tcga"),
   function(x, use = "vital_status", query = "RNA",
-    clinical.info = c("patient", "drug", "admin", "follow_up", "radiation"))
+    clinical.info = c("patient", "drug", "admin", "follow_up", "radiation"),
+    type = "unstranded")
   {
     step_message("Prepare data for next step analysis.")
     lst.query <- object(x)[[ query ]]
@@ -163,7 +164,27 @@ setMethod("step3", signature = c(x = "job_tcga"),
         x$metadata <- as_tibble(x$metadata)
       }
     }
+    obj <- object@assays@data[ names(object@assays@data %in% type) ]
+    x$dim <- dim(obj)
     object(x) <- obj
+    return(x)
+  })
+
+setMethod("merge", signature = c(x = "job_tcga", y = "job_tcga"),
+  function(x, y, ...){
+    if (!identical(object(x)@rowRanges, object(y)@rowRanges)) {
+      stop("object(x) and object(y) do not has the same feature data.")
+    }
+    object(x)@colData$batch <- x$project
+    object(y)@colData$batch <- y$project
+    cols <- intersect(colnames(object(x)@colData), colnames(object(y)@colData))
+    object(x)@colData <- rbind(object(x)@colData[, cols], object(y)@colData[, cols])
+    object(x)@assays@data <- object(x)@assays@data[names(object(x)@assays@data) == "unstranded"]
+    object(x)@assays@data$unstranded <- cbind(
+      object(x)@assays@data$unstranded, object(y)@assays@data$unstranded
+    )
+    print(table(object(x)@colData$batch))
+    x$dim <- dim(object(x))
     return(x)
   })
 

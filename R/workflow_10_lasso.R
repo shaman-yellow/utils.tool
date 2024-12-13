@@ -152,7 +152,7 @@ setMethod("step2", signature = c(x = "job_lasso"),
 
 setMethod("step3", signature = c(x = "job_lasso"),
   function(x, family = "cox", nfold = 10, use_tops = F, use_data = c("train", "all"),
-    uni_cox = T, multi_cox = F, multi_cox.inherits = F,
+    uni_cox = T, multi_cox = F, multi_cox.inherits = T,
     fun_multiCox = c("coxph", "glmnet", "cv.glmnet"),
     alpha = 1, ...)
   {
@@ -178,7 +178,6 @@ setMethod("step3", signature = c(x = "job_lasso"),
       target <- ifelse(target == x$levels[1], 0L, 1L)
       target <- survival::Surv(time = time, event = target)
     }
-    plots <- list()
     if (family == "cox" && uni_cox) {
       # Univariate lasso
       cli::cli_alert_info("survival::coxph")
@@ -193,6 +192,11 @@ setMethod("step3", signature = c(x = "job_lasso"),
       sig.uni_cox <- dplyr::mutate(uni_cox, p.adjust = stats::p.adjust(`Pr(>|z|)`, "fdr"))
       sig.uni_cox <- dplyr::filter(sig.uni_cox, `Pr(>|z|)` < .05)
       x$sig.uni_cox <- dplyr::rename(sig.uni_cox, pvalue = `Pr(>|z|)`)
+      x <- tablesAdd(x, t.sigUnivariateCoxCoefficients = x$sig.uni_cox)
+      if (!is.null(x$efs_tops)) {
+        x$sig.cox_efs <- dplyr::filter(sig.uni_cox, feature %in% x$efs_tops)
+        x$sig.cox_efs <- .set_lab(x$sig.cox_efs, sig(x), "Significant Univariate COX results of EFS tops")
+      }
       meth(x)$step3 <- glue::glue("以 R 包 `survival` ({packageVersion('survival')}) 进行单因素 COX 回归 (`survival::coxph`)。筛选 `Pr(>|z|)` < .05` 的基因。")
     }
     if (multi_cox) {
@@ -208,6 +212,7 @@ setMethod("step3", signature = c(x = "job_lasso"),
         res <- survival::coxph(target ~ ., data.frame(data, check.names = F))
         multi_cox$model <- res
         multi_cox$coef <- dplyr::rename(as_tibble(summary(res)$coefficients), feature = 1)
+        x <- tablesAdd(x, t.sigMultivariateCoxCoefficients = multi_cox$coef)
         x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 做多因素 COX 回归 (`survival::coxph`)。")
       } else if (fun_multiCox == "cv.glmnet") {
         methodName <- if (alpha) "lasso" else "ridge"
@@ -215,7 +220,7 @@ setMethod("step3", signature = c(x = "job_lasso"),
             alpha = alpha, family = family, nfold = nfold, ...
             ))  
         model <- multi_cox$model
-        p.model <- wrap(as_grob(expression(plot(model)), environment()), 6, 6)
+        p.lassoCOX_model <- wrap(as_grob(expression(plot(model)), environment()), 6, 6)
         levels <- x$levels
         types.coef <- c("lambda.min", "lambda.1se")
         res <- sapply(types.coef, simplify = F,
@@ -226,18 +231,44 @@ setMethod("step3", signature = c(x = "job_lasso"),
           })
         multi_cox$preds <- lapply(res, function(lst) lst$preds)
         multi_cox$roc <- lapply(res, function(lst) lst$roc)
-        multi_cox$coef <- coefficients(model, s = c(lambda.min = model$lambda.min,
-            lambda.1se = model$lambda.1se))
-        p.roc <- lapply(multi_cox$roc,
-          function(roc) {
-            plot_roc(roc)
-          })
-        coef <- as_tibble(Matrix::as.matrix(multi_cox$coef))
-        colnames(coef)[-1] <- types.coef
-        coef <- arrange(coef, dplyr::desc(abs(lambda.min)))
-        coef <- rename(coef, variable = rownames)
-        p.coef <- plot_sig(filter(coef, !grepl("Inter", variable)))
-        plots <- c(plots, namel(p.model, p.roc, p.coef))
+        if (T) {
+          message("Got coefficients.")
+          x$lambda <- c(min = model$lambda.min, `1se` = model$lambda.1se)
+          multi_cox$coef <- coefficients(model, s = c(lambda.min = model$lambda.min,
+              lambda.1se = model$lambda.1se))
+          if (all(!multi_cox$coef[, 2])) {
+            message(crayon::red("lambda.1se has non coeffients, use Lambda.min."))
+            sig.mul_cox <- dplyr::select(
+              as_tibble(as.matrix(multi_cox$coef)),
+              feature = 1, coef = 2
+            )
+            sig.mul_cox <- dplyr::filter(sig.mul_cox, coef != 0)
+          } else {
+            sig.mul_cox <- dplyr::rename(
+              as_tibble(as.matrix(multi_cox$coef)),
+              feature = 1, coef.lambda.min = 2, coef.lambda.1se = 3
+            )
+          }
+          x <- tablesAdd(x, t.sigMultivariateCoxCoefficients = sig.mul_cox)
+        }
+        if (T) {
+          n <- 0L
+          p.lassoCOX_ROC <- lapply(multi_cox$roc,
+            function(roc) {
+              n <<- n + 1L
+              plot_roc(roc)
+            })
+          names(p.lassoCOX_ROC) <- types.coef
+        }
+        if (T) {
+          coef <- as_tibble(Matrix::as.matrix(multi_cox$coef))
+          colnames(coef)[-1] <- types.coef
+          coef <- arrange(coef, dplyr::desc(abs(lambda.min)))
+          coef <- rename(coef, variable = rownames)
+          message("Plot Significant coefficients.")
+          p.lassoCOX_coeffients <- plot_sig(filter(coef, !grepl("Inter", variable)))
+        }
+        x <- plotsAdd(x, p.lassoCOX_model, p.lassoCOX_ROC, p.lassoCOX_coeffients)
         x <- methodAdd(x, "以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归，以 `{fun_multiCox}` 函数作 {nfold} 交叉验证获得模型。")
       } else if (fun_multiCox == "glmnet") {
         methodName <- if (alpha) "lasso" else "ridge"
@@ -248,7 +279,8 @@ setMethod("step3", signature = c(x = "job_lasso"),
       }
       x$multi_cox <- multi_cox
     }
-    if (!is.null(x$uni_cox) && !is.null(x$multi_cox$coef)) {
+    if (!is.null(x$uni_cox) && !is.null(x$multi_cox$coef) && fun_multiCox == "coxph") {
+      message("Try merge results.")
       if (nrow(x$uni_cox) == nrow(x$multi_cox$coef)) {
         message("The same row number of Univariate COX and Multivariate COX, try merge.")
         coefMerge <- mapply(list(x$uni_cox, x$multi_cox$coef), c("Uni_", "Multi_"), SIMPLIFY = F,
@@ -261,9 +293,6 @@ setMethod("step3", signature = c(x = "job_lasso"),
           coefMerge[[1]], coefMerge[[2]])
         x <- tablesAdd(x, t.CoefficientsOfCOX)
       }
-    }
-    if (length(plots)) {
-      x@plots[[ 3 ]] <- plots
     }
     return(x)
   })

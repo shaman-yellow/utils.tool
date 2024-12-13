@@ -118,7 +118,7 @@ setMethod("step1", signature = c(x = "job_survival"),
     fun_status = x$fun_status, time = x$time, status = x$status, only_keep_sig = T)
   {
     step_message("Survival test.")
-    data <- rename(object(x), time = !!rlang::sym(time),
+    data <- dplyr::rename(object(x), time = !!rlang::sym(time),
       o_status = !!rlang::sym(status))
     if (time == "days_to_last_follow_up" || time == "days_to_death") {
       data <- dplyr::mutate(data, time = time / 30)
@@ -183,10 +183,18 @@ setMethod("step1", signature = c(x = "job_survival"),
     t.SignificantSurvivalPValue <- dplyr::filter(t.SurvivalPValue, pvalue < .05)
     x$models <- lapply(lst, function(x) list(fit = x$fit, roc = x$roc, diff = x$diff))
     if (only_keep_sig) {
-      plots <- lapply(plots, function(x) x[ names(x) %in% t.SignificantSurvivalPValue$name ])
+      plots <- lapply(plots,
+        function(x) {
+          x <- x[ names(x) %in% t.SignificantSurvivalPValue$name ]
+          if (!length(x)) {
+            NULL
+          } else x
+        })
       x$models <- x$models[ names(x$models) %in% t.SignificantSurvivalPValue$name ]
     }
-    x@plots[[1]] <- plots
+    if (length(plots)) {
+      x@plots[[1]] <- plots
+    }
     x <- tablesAdd(x, t.SurvivalPValue, t.SignificantSurvivalPValue)
     meth(x)$step1 <- glue::glue("以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。以 R 包 `timeROC` ({packageVersion('timeROC')}) 绘制 1, 3, 5 年生存曲线。")
     return(x)

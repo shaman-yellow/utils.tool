@@ -22,14 +22,19 @@
 setMethod("snap", 
   signature = c(x = "job_limma"),
   function(x, ref, group = "group"){
-    if (missing(ref)) {
-        meta <- x$normed_data$targets
-        if (is.null(meta)) {
-          meta <- x$metadata
-        }
-      metalst <- split(meta$sample, meta[[ group ]])
-      each <- vapply(names(metalst), function(x) paste0(x, " (", length(metalst[[x]]), ") "), character(1))
-      glue::glue("共 {nrow(meta)} 个样本，分 {length(unique(meta[[ group ]]))} 组，分别为 {paste(each, collapse = ', ')}。")  
+    if (missing(ref) || ref == 1) {
+      meta <- x$normed_data$targets
+      if (is.null(meta)) {
+        meta <- x$metadata
+      }
+      if (!is.null(group)) {
+        metalst <- split(meta$sample, meta[[ group ]])
+        each <- vapply(names(metalst), function(x) paste0(x, " (", length(metalst[[x]]), ") "), character(1))
+        group_text <- glue::glue("包含 {paste(each, collapse = ', ')}。")
+      } else {
+        group_text <- ""
+      }
+      glue::glue("共 {nrow(meta)} 个样本。{group_text}")  
     } else if (ref == 2) {
       tops <- x@tables$step2$tops
       vs <- paste0(gs(names(tops), "-", "vs"), collapse = ", ")
@@ -37,10 +42,10 @@ setMethod("snap",
     } else if (ref == 3) {
       # tops <- x@tables$step2$tops
       # stats <- lapply(tops,
-        # function(x) {
-        #   up <- nrow(dplyr::filter(x, LogFC > 0))
-        #   down <- nrow(dplyr::filter(x, LogFC < 0))
-        # })
+      # function(x) {
+      #   up <- nrow(dplyr::filter(x, LogFC > 0))
+      #   down <- nrow(dplyr::filter(x, LogFC < 0))
+      # })
       raws <- x@plots$step3$p.sets_intersection$raw
       if (!is.null(raws)) {
         sums <- lapply(c("\\.up$", "\\.down$"),
