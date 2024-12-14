@@ -14,9 +14,9 @@ setClass("virtual_job", "VIRTUAL")
   contains = c("virtual_job"),
   representation = representation(
     object = "ANY",
-    params = "ANY",
-    plots = "ANY",
-    tables = "ANY",
+    params = "list",
+    plots = "list",
+    tables = "list",
     others = "ANY",
     step = "integer",
     info = "ANY",

@@ -1,0 +1,6 @@
+
+--langdef=R
+--langmap=R:.R
+--regex-R=/^([a-zA-Z0-9._]+)[[:space:]]*<-/\1/f,function/
+--regex-R=/^setGeneric[[:space:]]*\(\"([a-zA-Z0-9._]+)\"/\1/gn,generic/
+--regex-R=/^setMethod[[:space:]]*\(\"([a-zA-Z0-9._]+)\"/\1/m,method/
