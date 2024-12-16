@@ -21,50 +21,56 @@ setGeneric("asjob_survival",
   function(x, ...) standardGeneric("asjob_survival"))
 
 setMethod("asjob_survival", signature = c(x = "job_lasso"),
-  function(x, use.group = "uni_cox", base_method = median, sig.uni_cox = NULL, force = F)
+  function(x, use.group = "uni_cox", base_method = median, fea_coefs = NULL, force = F)
   {
     if (x@step < 3L && !force) {
       stop("x@step < 3L")
     }
     use.group <- match.arg(use.group)
-    if (use.group == "uni_cox") {
-      if (is.null(sig.uni_cox)) {
-        sig.uni_cox <- x$sig.uni_cox
-        if (is.null(sig.uni_cox)) {
-          stop("`sig.uni_cox` not found.")
-        }
+    if (missing(fea_coefs) && use.group == "uni_cox") {
+      fea_coefs <- x$sig.uni_cox
+      if (is.null(fea_coefs)) {
+        stop("`sig.uni_cox` not found.")
       }
-      use_genes <- sig.uni_cox$feature
-      data <- as_tibble(x@object)
-      data <- dplyr::select(data, 1, dplyr::all_of(use_genes))
-      if (!identical(colnames(data)[-1], use_genes)) {
-        stop("Gene names not match.")
-      }
-      data <- dplyr::mutate(data,
-        risk_score = apply(data[, -1, drop = F], 1,
-          function(exprs) {
-            sum(sig.uni_cox$coef * exprs)
-          }),
-        score_group = ifelse(risk_score > base_method(risk_score), "High", "Low")
-      )
-      data$days_to_last_follow_up <- x$time
-      data$vital_status <- x$target
-      p.surv_genes_hp <- plot_genes_heatmap(
-        t(x@object)[colnames(x@object) %in% use_genes, ],
-        dplyr::select(data, sample = rownames, group = score_group)
-      )
-      p.surv_genes_hp <- .set_lab(wrap(p.surv_genes_hp, 9, 6), sig(x),
-        "risk score related genes heatmap")
-      x <- .job_survival(object = data)
-      x$p.surv_genes_hp <- p.surv_genes_hp
-      x$fun_group <- function(score) ifelse(score > x$cutoff, "High", "Low")
-      x$genes_surv <- "risk_score"
-      x$fun_status <- sur_status
-      x$time <- "days_to_last_follow_up"
-      x$status <- "vital_status"
-      x$cutoff <- base_method(data$risk_score)
-      meth(x)$step0 <- glue::glue("将 Univariate COX 回归系数用于风险评分计算，根据中位风险评分 {x$cutoff} 将患者分为低危组和高危组。")
     }
+    use_genes <- fea_coefs$feature
+    data <- as_tibble(x@object)
+    if (any(!use_genes %in% colnames(data))) {
+      not_cover <- use_genes[ !use_genes %in% colnames(data) ]
+      message(glue::glue("Genes not cover: {crayon::red(bind(not_cover))}."))
+      x$not_cover <- not_cover
+      use_genes <- use_genes[ use_genes %in% colnames(data) ]
+      fea_coefs <- dplyr::filter(fea_coefs, feature %in% use_genes)
+    }
+    data <- dplyr::select(data, 1, dplyr::all_of(use_genes))
+    if (!identical(colnames(data)[-1], use_genes)) {
+      stop("Gene names not match.")
+    }
+    data <- dplyr::mutate(data,
+      risk_score = apply(data[, -1, drop = F], 1,
+        function(exprs) {
+          sum(fea_coefs$coef * exprs)
+        }),
+      score_group = ifelse(risk_score > base_method(risk_score), "High", "Low")
+    )
+    data$days_to_last_follow_up <- x$time
+    data$vital_status <- x$target
+    message("The heatmap plot was used scaled data.")
+    p.surv_genes_hp <- plot_genes_heatmap(
+      t(scale(x@object))[colnames(x@object) %in% use_genes, ],
+      dplyr::select(data, sample = rownames, group = score_group)
+    )
+    p.surv_genes_hp <- .set_lab(wrap(p.surv_genes_hp, 9, 6), sig(x),
+      "risk score related genes heatmap")
+    x <- .job_survival(object = data)
+    x$p.surv_genes_hp <- p.surv_genes_hp
+    x$fun_group <- function(score) ifelse(score > x$cutoff, "High", "Low")
+    x$genes_surv <- "risk_score"
+    x$fun_status <- sur_status
+    x$time <- "days_to_last_follow_up"
+    x$status <- "vital_status"
+    x$cutoff <- base_method(data$risk_score)
+    meth(x)$step0 <- glue::glue("将 Univariate COX 回归系数用于风险评分计算，根据中位风险评分 {x$cutoff} 将患者分为低危组和高危组。")
     return(x)
   })
 
@@ -115,7 +121,8 @@ setMethod("step0", signature = c(x = "job_survival"),
 
 setMethod("step1", signature = c(x = "job_survival"),
   function(x, genes_surv = x$genes_surv, fun_group = x$fun_group,
-    fun_status = x$fun_status, time = x$time, status = x$status, only_keep_sig = T)
+    fun_status = x$fun_status, time = x$time, status = x$status, only_keep_sig = T,
+    roc_time = c(1, 3, 5))
   {
     step_message("Survival test.")
     data <- dplyr::rename(object(x), time = !!rlang::sym(time),
@@ -126,8 +133,8 @@ setMethod("step1", signature = c(x = "job_survival"),
     cli::cli_alert_info("survival::survfit")
     lst <- pbapply::pbsapply(genes_surv, simplify = F,
       function(genes) {
-        data <- select(data, time, o_status, !!!rlang::syms(genes))
-        data <- mutate(data, group = fun_group(!!!rlang::syms(genes)),
+        data <- dplyr::select(data, time, o_status, !!!rlang::syms(genes))
+        data <- dplyr::mutate(data, group = fun_group(!!!rlang::syms(genes)),
           status = fun_status(o_status))
         fit <- survival::survfit(survival::Surv(time, status) ~ group, data = data)
         diff <- survival::survdiff(survival::Surv(time, status) ~ group, data = data)
@@ -142,14 +149,13 @@ setMethod("step1", signature = c(x = "job_survival"),
         # timeROC
         if (length(genes) == 1) {
           require(survival)
-          times <- c(1, 3, 5)
-          cols <- c("blue", "red", "orange")
+          cols <- c("blue", "red", "orange")[seq_along(roc_time)]
           roc <- timeROC::timeROC(data$time / 12, data$status, data[[ genes ]], cause = 1,
-            times = times)
-          legends <- mapply(times, cols, 1:3,
+            times = roc_time)
+          legends <- mapply(roc_time, cols, seq_along(roc_time),
             FUN = function(time, col, n) {
-              plot(roc, time, col = col, add = (time != 1), title = "")
-              glue::glue("AUC at {time} year: {round(roc[[ 'AUC' ]][n], 2)}")
+              plot(roc, time, col = col, add = (n != 1), title = "")
+              glue::glue("AUC at {time} year: {round(roc[[ 'AUC' ]][ paste0('t=', time) ], 2)}")
             })
           legend("bottomright", legends, text.col = cols, bty = "n")
           p.roc <- wrap(recordPlot(), 7, 7)

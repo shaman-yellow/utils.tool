@@ -461,7 +461,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
     scale_edge_color_manual(values = c("Highlight" = "red", "Non-highlight" = "lightblue")) +
     scale_edge_width_manual(values = c("Highlight" = edge_width * 5, "Non-highlight" = edge_width)) +
     scale_fill_gradient +
-    theme_minimal() +
+    theme_void() +
     labs(color = "Type", edge_color = "Highlight", edge_width = "Highlight", fill = lab.fill) +
     theme(axis.text = element_blank(),
       axis.title = element_blank()) +

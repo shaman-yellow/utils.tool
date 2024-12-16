@@ -175,8 +175,8 @@ setMethod("merge", signature = c(x = "job_tcga", y = "job_tcga"),
     if (!identical(object(x)@rowRanges, object(y)@rowRanges)) {
       stop("object(x) and object(y) do not has the same feature data.")
     }
-    object(x)@colData$batch <- x$project
-    object(y)@colData$batch <- y$project
+    object(x)@colData$batch <- make.names(x$project)
+    object(y)@colData$batch <- make.names(y$project)
     cols <- intersect(colnames(object(x)@colData), colnames(object(y)@colData))
     object(x)@colData <- rbind(object(x)@colData[, cols], object(y)@colData[, cols])
     object(x)@assays@data <- object(x)@assays@data[names(object(x)@assays@data) == "unstranded"]

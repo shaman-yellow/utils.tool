@@ -62,11 +62,13 @@ setMethod("step1", signature = c(x = "job_mfuzz"),
   })
 
 setMethod("step2", signature = c(x = "job_mfuzz"),
-  function(x, centers = 8, mflow = c(2, 4), alpha = .1){
+  function(x, centers = 8, mflow = c(2, 4), alpha = .1, seed = 1000){
     step_message("Clustering of genes.")
     require(Mfuzz)
     m <- e(Mfuzz::mestimate(object(x)))
+    set.seed(seed)
     clusters <- e(Mfuzz::mfuzz(object(x), c = centers, m = m))
+    set.seed(seed)
     Mfuzz::mfuzz.plot(object(x), clusters, mflow, min.mem = alpha)
     p.clusters <- wrap(recordPlot(), 10, 6)
     p.clusters <- .set_lab(p.clusters, sig(x), "Mfuzz clusters")

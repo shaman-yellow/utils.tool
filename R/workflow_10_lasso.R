@@ -26,8 +26,7 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
     fun_scale = function(x) log2(x + 1), dup_method = c("max", "min", "mean"))
   {
     step_message("The default, 'job_limma' from 'job_tcga' were adapted to convertion.")
-    if (from_normed && x@step == 1L) {
-      message("Ignore param `fun_scale`")
+    if (from_normed && x@step >= 1L) {
       if (!is(x@params$normed_data, 'EList'))
         stop("is(x@params$normed_data, 'EList') == F")
       if (!is.null(use.filter)) {
@@ -42,8 +41,8 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
       } else {
         object <- x@params$normed_data
       }
-      message("Use function `scale` to normalize data.")
-      mtx <- scale(t(object$E))
+      message("Ignore parameter of `fun_scale`")
+      mtx <- t(object$E)
       colnames(mtx) <- object$genes[[ use ]]
       x <- .job_lasso(object = mtx)
       x@params$metadata <- as_tibble(object$targets)
@@ -131,12 +130,19 @@ setMethod("step1", signature = c(x = "job_lasso"),
   })
 
 setMethod("step2", signature = c(x = "job_lasso"),
-  function(x, top = 30, efs = T){
+  function(x, top = 30, efs = T, use_data = c("all", "train")){
     step_message("Evaluate variable (genes) importance.")
     if (efs) {
-      target <- x@params$train.target
-      target <- ifelse(target == x$levels[1], 0L, 1L)
-      data <- data.frame(cbind(x$train, target))
+      use_data <- match.arg(use_data)
+      if (use_data == "train") {
+        target <- x@params$train.target
+        target <- ifelse(target == x$levels[1], 0L, 1L)
+        data <- data.frame(cbind(x$train, target))  
+      } else {
+        target <- x$target
+        target <- ifelse(target == x$levels[1], 0L, 1L)
+        data <- data.frame(cbind(object(x), target))  
+      }
       efs <- e(EFS::ensemble_fs(data, ncol(data), runs = 10))
       colnames(efs) <- colnames(object(x))
       p.TopFeaturesSelectedByEFS <- plot_colStack.efs(efs, top = top)
@@ -151,15 +157,16 @@ setMethod("step2", signature = c(x = "job_lasso"),
   })
 
 setMethod("step3", signature = c(x = "job_lasso"),
-  function(x, family = "cox", nfold = 10, use_tops = F, use_data = c("train", "all"),
+  function(x, family = "cox", nfold = 10, use_tops = F, use_data = c("all", "train"),
     uni_cox = T, multi_cox = F, multi_cox.inherits = T,
     fun_multiCox = c("coxph", "glmnet", "cv.glmnet"),
     alpha = 1, ...)
   {
     if (use_tops && !is.null(x$efs_tops)) {
       fun <- function(mtx) mtx[, colnames(mtx) %in% x$efs_tops ]
-      x$train %<>% fun()
-      x$valid %<>% fun()
+      object(x) <- fun(object(x))
+      x$train <- fun(x$train)
+      x$valid <- fun(x$valid)
     }
     x$use_data <- use_data <- match.arg(use_data)
     if (use_data == "train") {
@@ -204,6 +211,9 @@ setMethod("step3", signature = c(x = "job_lasso"),
         cli::cli_alert_info("Inherits results (significant feature) from Univariate COX.")
         data <- data[, colnames(data) %in% sig.uni_cox$feature ]
         valid <- valid[, colnames(valid) %in% sig.uni_cox$feature ]
+        text_inherits <- "在单因素回归得到的基因的基础上，"
+      } else {
+        text_inherits <- ""
       }
       multi_cox <- list()
       # Multivariate
@@ -213,7 +223,7 @@ setMethod("step3", signature = c(x = "job_lasso"),
         multi_cox$model <- res
         multi_cox$coef <- dplyr::rename(as_tibble(summary(res)$coefficients), feature = 1)
         x <- tablesAdd(x, t.sigMultivariateCoxCoefficients = multi_cox$coef)
-        x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 做多因素 COX 回归 (`survival::coxph`)。")
+        x <- methodAdd(x, "{text_inherits} 以 R 包 `survival` ({packageVersion('survival')}) 做多因素 COX 回归 (`survival::coxph`)。", T)
       } else if (fun_multiCox == "cv.glmnet") {
         methodName <- if (alpha) "lasso" else "ridge"
         multi_cox$model <- e(glmnet::cv.glmnet(data, target,
@@ -269,13 +279,13 @@ setMethod("step3", signature = c(x = "job_lasso"),
           p.lassoCOX_coeffients <- plot_sig(filter(coef, !grepl("Inter", variable)))
         }
         x <- plotsAdd(x, p.lassoCOX_model, p.lassoCOX_ROC, p.lassoCOX_coeffients)
-        x <- methodAdd(x, "以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归，以 `{fun_multiCox}` 函数作 {nfold} 交叉验证获得模型。")
+        x <- methodAdd(x, "{text_inherits} 以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归，以 `{fun_multiCox}` 函数作 {nfold} 交叉验证获得模型。", T)
       } else if (fun_multiCox == "glmnet") {
         methodName <- if (alpha) "lasso" else "ridge"
         multi_cox$model <- e(glmnet::glmnet(data, target,
             alpha = alpha, family = family, ...))  
         multi_cox$coef <- coefficients(multi_cox$model)
-        x <- methodAdd(x, "以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归。")
+        x <- methodAdd(x, "{text_inherits} 以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归。", T)
       }
       x$multi_cox <- multi_cox
     }

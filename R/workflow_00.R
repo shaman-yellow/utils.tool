@@ -404,8 +404,13 @@ jobSlotAdd <- function(x, name, ...) {
   return(x)
 }
 
-methodAdd <- function(x, glueString, env = parent.frame(1)) {
-	meth(x)[[ paste0("step", x@step) ]] <- glue::glue(glueString, .envir = env)
+methodAdd <- function(x, glueString, add = F, env = parent.frame(1)) {
+  if (add) {
+    former <- meth(x)[[ paste0("step", x@step) ]]   
+  } else {
+    former <- ""
+  }
+	meth(x)[[ paste0("step", x@step) ]] <- paste0(former, glue::glue(glueString, .envir = env))
   return(x)
 }
 

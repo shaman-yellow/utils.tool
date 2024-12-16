@@ -69,7 +69,7 @@ job_gds <- function(keys,
   object <- dplyr::mutate(object, GSE = paste0("GSE", GSE))
   object <- .set_lab(object, keys[1], "EDirect query")
   x <- .job_gds(object = object, params = namel(query, elements, org, n))
-  x <- methodAdd(x, "使用 Entrez Direct (EDirect) <https://www.ncbi.nlm.nih.gov/books/NBK3837/> 搜索 GEO 数据库 (`esearch -db gds`)，查询信息为: ({query}) AND ({extra})。")
+  x <- methodAdd(x, "使用 Entrez Direct (EDirect) <https://www.ncbi.nlm.nih.gov/books/NBK3837/> 搜索 GEO 数据库 (`esearch -db gds`)，查询信息为: ({paste0(paste0('(', query, ''), collapse = ' AND ')}) AND ({extra})。")
   x
 }
 
