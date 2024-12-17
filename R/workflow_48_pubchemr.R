@@ -37,7 +37,9 @@ setMethod("step1", signature = c(x = "job_pubchemr"),
   function(x){
     step_message("Get synonyms and smiles of compounds.")
     synonyms <- e(PubChemR::get_synonyms(object(x)))
+    synonyms <- e(PubChemR::synonyms(synonyms))
     props <- e(PubChemR::get_properties(c("IsomericSMILES", "InChIKey"), object(x)))
+    props <- e(PubChemR::retrieve(props, .combine.all = T, .to.data.frame = F))
     fun_format <- function(x, get) {
       names <- vapply(x, function(x) x[[ "CID" ]], numeric(1))
       x <- lapply(x,
@@ -51,7 +53,7 @@ setMethod("step1", signature = c(x = "job_pubchemr"),
     }
     x$smiles <- fun_format(props, "IsomericSMILES")
     x$inks <- fun_format(props, "InChIKey")
-    x$synonyms <- fun_format(synonyms, "Synonym")
+    x$synonyms <- split(synonyms, ~ CID)
     return(x)
   })
 
@@ -145,6 +147,7 @@ batch_get_cids.sids <- function(x, cl = NULL, sleep = .1) {
 
 try_get_cids.name <- function(name) {
   db <- PubChemR::get_cids(name)
+  db <- PubChemR::CIDs(db)
   db <- dplyr::distinct(db, Identifier, .keep_all = T)
   db <- dplyr::mutate(db, CID = ifelse(grpl(CID, "^No"), NA_integer_, as.integer(CID)))
   db
@@ -181,7 +184,7 @@ try_get_cids <- function(querys, ..., max = 20L)
         message("\nMore than the largest trying. Escape")
         NULL
       } else {
-        data
+        PubChemR::CIDs(data)
       }
     })
   frbind(res, fill = T)

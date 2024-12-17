@@ -107,12 +107,15 @@ asTex.rmd <- function(file.md, yaml = paste0(.expath, "/", "article.yml"),
 
 sep_list <- function(lines, sep = "^\\s*$", before = F)
 {
-  seps <- grep(sep, lines) + if (before) 0 else 1
-  group <- 1
+  if (is.logical(before)) {
+    before <- if (before) 0L else 1L
+  }
+  seps <- grep(sep, lines) + before
+  group <- 1L
   groups <- vapply(1:length(lines), FUN.VALUE = double(1),
     function(n) {
       if (any(n == seps)) 
-        group <<- group + 1
+        group <<- group + 1L
       group
     })
   split(lines, groups)

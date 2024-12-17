@@ -357,7 +357,7 @@ plot_go <- function(data, cutoff = .1, maxShow = 10,
     })
   data <- frbind(data)
   p <- .plot_go(data, use, facet)
-  p <- wrap(p, 10, 1 + nrow(data) * .2)
+  p <- wrap(p, 8, 1 + nrow(data) * .2)
   p <- .set_lab(p, "GO-enrichment")
   p
 }
@@ -395,7 +395,7 @@ plot_go <- function(data, cutoff = .1, maxShow = 10,
     rstyle("theme") +
     theme(axis.title.y = element_blank()) +
     geom_blank()
-  p
+  wrap(p, 6, 7)
 }
 
 setMethod("map", signature = c(x = "job_enrich", ref = "job_enrich"),

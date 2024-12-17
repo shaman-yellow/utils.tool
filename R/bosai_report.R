@@ -301,3 +301,51 @@ get_tex_cover.bosai_idea <- function() {
       "
       ), 50) 
 }
+
+extract_anno <- function(file, save = "anno.md", type = tools::file_ext(file), ...) {
+  if (type == "pdf") {
+    cdRun(glue::glue("pdfannots {file} -o {save}"))
+  } else if (type == "docx") {
+    tmp <- tempfile("anno", fileext = ".md")
+    cli::cli_alert_info(glue::glue("tempfile: {tmp}"))
+    cdRun(glue::glue("pandoc {file} -o {tmp} --track-changes=all"))
+    postModify_annoDocx(tmp, save, ...)
+  }
+  return(save)
+}
+
+postModify_annoDocx <- function(file, save = "modify.md", add_reply = T) {
+  lines <- readLines(file)
+  chapter <- sep_list(lines, "^[-]+$|^[=]+$", -1)
+  names(chapter) <- vapply(chapter, function(x) x[1], character(1))
+  chapter <- lapply(chapter, function(text) {
+    text <- paste(text, collapse = " ")
+    text <- stringr::str_extract_all(text,
+      "\\[[^\\]]*?\\]\\{\\.comment-start.*?\\}.*?\\[[^\\]]*?\\]\\{\\.comment-end.*?\\}")
+    text <- unlist(text)
+    text <- text[ !is.na(text) ]
+    text <- gs(text, "¶", ", ")
+  })
+  chapter <- lst_clear0(chapter)
+  chapter <- lapply(chapter, function(x) {
+    content <- gs(x, ".*.comment-start[^}]*\\}(.*)\\[\\]\\{.comment-end.*", "\\1")
+    comment <- strx(x, "(?<=\\[)[^\\]]*(?=\\])")
+    meta <- strx(x, "(?<=\\{)[^}]*(?=\\})")
+    meta <- gs(meta, '.*author="([^\"]*?)".*', "\\1")
+    glue::glue(paste0("* Content: {content}\n* Author: {meta}\n* Comment: {comment}"))
+  })
+  if (add_reply) {
+    chapter <- lapply(chapter,
+      function(x) {
+        unlist(lapply(x, function(i) c(i, "", "> Reply: ", "", "---------------", "")))
+      })
+  }
+  lines <- lapply(seq_along(chapter),
+    function(n) {
+      head <- names(chapter)[n]
+      level <- length(stringr::str_extract_all(head, "\\.")[[1]]) + 1
+      prefix <- paste0(rep("#", level), collapse = "")
+      c(paste0(prefix, " ", head), "", chapter[[ n ]], "")
+    })
+  writeLines(unlist(lines), save)
+}

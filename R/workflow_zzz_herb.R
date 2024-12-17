@@ -86,6 +86,7 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
     } else {
       x$p.pharmMap <-  .set_lab(p.pharm, sig(x), "network pharmacology")
     }
+    x$.map_heading <- "Network 疾病-成分-靶点"
     return(x)
   })
 
@@ -485,4 +486,21 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
   } else {
     wrap(p, 15, 12)
   }
+}
+
+get_smiles_batch <- function(cids, n = 100, sleep = .5) {
+  res <- .get_properties_batch(cids, n = 100, properties = "IsomericSMILES", sleep = sleep)
+  frbind(res, fill = T)
+}
+
+.get_properties_batch <- function(ids, ..., n = 100, sleep = .5) {
+  groups <- grouping_vec2list(unique(ids), n, T)
+  pbapply::pblapply(groups,
+    function(ids) {
+      Sys.sleep(sleep)
+      PubChemR::retrieve(
+        PubChemR::get_properties(identifier = ids, ...),
+        .combine.all = T
+      )
+    })
 }

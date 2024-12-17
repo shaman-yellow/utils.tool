@@ -41,7 +41,7 @@ setMethod("step1", signature = c(x = "job_tcmsp2"),
     )
     dbs <- sapply(names(items), simplify = F,
       function(name) {
-        db <- new_db(paste0(dir, "/", name, ".rds"), "herb")
+        db <- new_db(file.path(dir, paste0(name, ".rds")), "herb")
         db <- not(db, x@params$herbs)
       })
     queries <- dbs[[ "ingredients" ]]@query
@@ -52,7 +52,7 @@ setMethod("step1", signature = c(x = "job_tcmsp2"),
       x$url_home <- "https://www.tcmsp-e.com/#/"
       x$link$navigate(x$url_home)
     }
-    dbHerbs <- new_db(paste0(dir, "/herbs_info.rds"), "herb")
+    dbHerbs <- new_db(file.path(dir, "herbs_info.rds"), "herb")
     x$dbHerbs <- not(dbHerbs, x$herbs)
     x$dbs <- dbs
     x$queries <- queries

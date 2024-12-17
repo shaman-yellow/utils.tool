@@ -44,12 +44,16 @@ setMethod("step0", signature = c(x = "job_genecard"),
   })
 
 setMethod("step1", signature = c(x = "job_genecard"),
-  function(x, score = NULL, restrict = F)
+  function(x, score = NULL, restrict = T)
   {
     step_message("Get from GeneCards website.")
     t.genecards <- get_from_genecards(object(x), score = score, restrict = restrict)
     t.genecards <- .set_lab(t.genecards, sig(x), "disease related targets from GeneCards")
     x@tables[[ 1 ]] <- namel(t.genecards)
+    x$score <- attr(t.genecards, ".score")
+    x <- methodAdd(x, "从 `GeneCards` 数据库 {cite_show('TheGenecardsSStelze2016')} 获取 {object(x)} 相关的基因集，得分 cut-off 为 {x$score}。")
+    s.com <- snap_items(t.genecards, "Category", "Symbol")
+    x <- snapAdd(x, "从 `GeneCards` 取得的靶点数据，统计为 {s.com}。共 {nrow(t.genecards)} 个靶点。")
     return(x)
   })
 

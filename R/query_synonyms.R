@@ -75,8 +75,7 @@ pubchem_get_synonyms <- function(cid, dir, ...)
   }
   text <- XML::xmlToList(text)
   text <- text[names(text) == "Information"]
-  text <-
-    lapply(text,
+  text <- lapply(text,
       function(list){
         syno <- list[names(list) == "Synonym"]
         syno <-

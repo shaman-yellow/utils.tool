@@ -54,9 +54,11 @@ setMethod("step1", signature = c(x = "job_batman"),
       name = gs(unlist(x$herbs_info$Ingredients), "\\([0-9]+\\)$", "")
     )
     x$compounds_info <- dplyr::distinct(x$compounds_info)
+    x <- methodAdd(x, "从数据库 `BATMAN-TCM` ({cite_show('BatmanTcm20Kong2024')}) 中获取 {bind(x$herbs_info$Chinese.Name)} 等中药的成分、靶点数据。 ")
     if (anno) {
       x <- anno(x, "LiteratureCount")
       x$compounds_info <- dplyr::arrange(x$compounds_info, dplyr::desc(LiteratureCount))
+      x <- methodAdd(x, "以 `PubChemR` 获取 `PubChemR` 数据库中，化合物的文献记录数量。", T)
     }
     cids <- rm.no(unlist(x$herbs_info$CID))
     compounds_targets <- dplyr::filter(
@@ -71,6 +73,12 @@ setMethod("step1", signature = c(x = "job_batman"),
     )
     herbs_compounds <- dplyr::distinct(herbs_compounds, Pinyin.Name, Latin.Name, CID)
     lst <- filter_hob_dl(unique(herbs_compounds$CID), filter.hob, filter.dl, test)
+    if (filter.hob) {
+      x <- methodAdd(x, "以 Python 工具 `HOB` ({cite_show('HobpreAccuratWeiM2022')}) 预测化合物的人类口服利用度。", T)
+    }
+    if (filter.dl) {
+      x <- methodAdd(x, "以 Python 工具 `D-GCAN` ({cite_show('PredictionOfDSunJ2022')}) 预测化合物的 drug-likeness。", T)
+    }
     if (length(lst)) {
       p.upset <- .set_lab(lst$p.upset, sig(x), "Prediction of HOB and Drug-Likeness")
       x@plots[[ 1 ]] <- namel(p.upset)
@@ -81,6 +89,9 @@ setMethod("step1", signature = c(x = "job_batman"),
       predicted <- dplyr::filter(predicted, PubChem_CID %in% !!cids)
     }
     x@tables[[ 1 ]] <- namel(herbs_compounds, compounds_targets, predicted)
+    s.com <- snap_items(herbs_compounds, "Pinyin.Name", "CID")
+    s.n <- length(unique(compounds_targets$PubChem_CID))
+    x <- snapAdd(x, "各中药的化合物组成统计：{s.com}。共包含化合物 {s.n} 个 (非重复)。")
     return(x)
   })
 
@@ -90,6 +101,7 @@ setMethod("step2", signature = c(x = "job_batman"),
     step_message("Format target genes symbol")
     compounds_targets <- x@tables$step1$compounds_targets
     compounds_targets <- reframe_split(compounds_targets, "known_target_proteins", "\\|")
+    x <- methodAdd(x, "使用 `BATMAN-TCM` 数据库中的 `known_target_proteins` 作为成分靶点。", T)
     if (use.predicted) {
       predicted <- x@tables$step1$predicted
       predicted <- reframe_split(predicted, "predicted_target_proteins", "\\|")
@@ -114,9 +126,12 @@ setMethod("step2", signature = c(x = "job_batman"),
       compounds_targets <- dplyr::distinct(compounds_targets,
         PubChem_CID, IUPAC_name, symbol, .keep_all = T)
       compounds_targets <- dplyr::relocate(compounds_targets, IUPAC_name, symbol)
+      x <- methodAdd(x, "此外，还使用了 `BATMAN-TCM` 数据库中的 `predicted_target_proteins` 作为成分靶点，并设定 分数 cut-off 为 {cutoff}。合并靶点数据。", T)
+      x <- methodAdd(x, "以 `BiomaRt` ({cite_show('MappingIdentifDurinc2009')}) 对靶点信息的 entrez_id 转化为基因 Symbol (hgnc_symbol) 。", T)
     }
     compounds_targets <- .set_lab(compounds_targets, sig(x), "Compounds and targets")
     x@tables[[ 2 ]] <- namel(compounds_targets)
+    x <- snapAdd(x, "共包含靶点 {length(unique(compounds_targets$symbol))} 个 (非重复)。")
     return(x)
   })
 
@@ -143,6 +158,7 @@ setMethod("step3", signature = c(x = "job_batman"),
       if (test) {
         stop_debug(namel(herbs_compounds))
       }
+      x <- methodAdd(x, "以 `PubChemR` 获取化合物同义名 (Synonym)，按正则表达式 (Regex) 匹配化合物简短的同义名用以化合物注释。", T)
     }
     hb@tables$step1$herbs_compounds <- dplyr::select(
       herbs_compounds, herb_id = Pinyin.Name, Ingredient.id = CID,
@@ -228,11 +244,12 @@ setMethod("anno", signature = c(x = "job_batman"),
       querys <- grouping_vec2list(x@params$compounds_info$cids, 100, T)
       anno <- pbapply::pblapply(querys,
         function(query) {
-          PubChemR::get_properties(
+          props <- PubChemR::get_properties(
             properties = "LiteratureCount",
             identifier = query,
             namespace = "cid"
           )
+          PubChemR::retrieve(props, .combine.all = TRUE)
         })
       anno <- unlist(anno, recursive = F)
       anno <- dplyr::bind_rows(anno)
@@ -248,6 +265,7 @@ setMethod("anno", signature = c(x = "job_batman"),
 
 .add_properties.PubChemR <- function(name = c(literature_count = "LiteratureCount"))
 {
+  stop("As the PubchemR Version update, This function is deprecated.")
   maps <- PubChemR:::property_map 
   if (any(names(name) %in% names(maps)) || any(name %in% unlist(maps))) {
     message("The properties already in `PubChemR:::property_map`")
@@ -257,26 +275,23 @@ setMethod("anno", signature = c(x = "job_batman"),
   }
 }
 
-try_get_syn <- function(cids) {
-  syns <- e(PubChemR::get_synonyms(unique(cids)))
-  syns <- dplyr::bind_rows(syns)
-  syns <- dplyr::rename(syns, syno = Synonym)
+try_get_syn <- function(cids, db_dir = .prefix("synonyms", "db")) {
+  cids <- unique(cids)
+  if (!is.null(db_dir)) {
+    dir.create(db_dir, F)
+    db <- new_db(file.path(db_dir, "synonyms.rdata"), "CID")
+    db <- not(db, cids)
+    query <- db@query
+    if (length(query)) {
+      syns <- e(PubChemR::get_synonyms(query))
+      syns <- e(PubChemR::synonyms(syns))
+      db <- upd(db, syns)
+    }
+    syns <- dplyr::filter(db@db, CID %in% !!cids)
+  }
+  syns <- dplyr::rename(syns, syno = Synonyms)
   syns <- dplyr::filter(syns, !!!.filter_pick.general)
   syns <- dplyr::group_by(syns, CID)
   syns <- dplyr::reframe(syns, Synonym = PickGeneral(syno))
   dplyr::ungroup(syns)
-}
-
-get_smiles_batch <- function(cids, n = 100, sleep = .5) {
-  res <- .get_properties_batch(cids, n = 100, as_dataframe = T, properties = "IsomericSMILES", sleep = sleep)
-  frbind(res, fill = T)
-}
-
-.get_properties_batch <- function(ids, ..., n = 100, sleep = .5) {
-  groups <- grouping_vec2list(unique(ids), n, T)
-  pbapply::pblapply(groups,
-    function(ids) {
-      Sys.sleep(sleep)
-      PubChemR::get_properties(identifier = ids, ...)
-    })
 }

@@ -40,6 +40,29 @@ setMethod("step1", signature = c(x = "job_fe"),
     x <- plotsAdd(x, p.ferroptosisRegulatorsDistribution)
     x <- tablesAdd(x, t.ferroptosisRegulators)
     x <- methodAdd(x, "从数据库 `FerrDb V2` {cite_show('FerrdbV2UpdaZhou2023')} 获取与铁死亡相关的调控因子或铁死亡与疾病之间的关联信息 <http://www.zhounan.org/ferrdb/current/>。")
+    # a list
+    s.com <- snap_items(t.ferroptosisRegulators, "symbol")
+    x <- snapAdd(x, "铁死亡相关调控因子统计：{s.com}")
+    return(x)
+  })
+
+setMethod("map", signature = c(x = "job_fe", ref = "list"),
+  function(x, ref, use = c("all", "sep")){
+    use <- match.arg(use)
+    if (is.null(names(ref)) && length(ref) == 1) {
+      names(ref) <- "Related_targets"
+    }
+    ref <- lapply(ref, unique)
+    alls <- lapply(x@tables$step1$t.ferroptosisRegulators, function(x) unique(x$symbol))
+    if (use == "all") {
+      alls <- unique(unlist(alls))
+      lst <- c(ref, list(Ferroptosis_all = alls))
+    } else {
+      names(alls) <- paste0("Ferroptosis_", names(alls))
+      lst <- c(ref, alls)
+    }
+    x$upset <- new_venn(lst = lst)
+    x$.map_heading <- "FerrDb 与铁死亡相关基因的交集"
     return(x)
   })
 

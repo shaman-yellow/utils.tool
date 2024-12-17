@@ -38,6 +38,30 @@ setClass("virtual_job", "VIRTUAL")
 
 setGeneric("snap", 
   function(x, ...) standardGeneric("snap"))
+setMethod("snap", signature = c(x = "job"),
+  function(x, ref){
+    if (!is.null(snap <- x$.snap[[ paste0("step", ref) ]])) {
+      snap
+    } else {
+      stop(glue::glue("No snapshot description for this step ({ref})."))
+    }
+  })
+
+setGeneric("snap_items", 
+  function(x, ...) standardGeneric("snap_items"))
+
+setMethod("snap_items", signature = c(x = "df"),
+  function(x, main, sub){
+    items <- split(x[[ sub ]], x[[ main ]])
+    len <- vapply(items, function(x) length(unique(x)), integer(1))
+    bind(paste0(names(items), " (n=", len, ") "))
+  })
+
+setMethod("snap_items", signature = c(x = "list"),
+  function(x, col){
+    len <- vapply(x, function(x) length(unique(x[[ col ]])), integer(1))
+    bind(paste0(names(items), " (n=", len, ") "))
+  })
 
 setGeneric("meth", 
   function(x, ...) standardGeneric("meth"))
@@ -414,6 +438,22 @@ methodAdd <- function(x, glueString, add = F, env = parent.frame(1)) {
   return(x)
 }
 
+snapAdd <- function(x, glueString, add = F, env = parent.frame(1), step = NULL) {
+  if (is.null(x$.snap)) {
+    x$.snap <- list()
+  }
+  if (missing(step)) {
+    step <- x@step
+  }
+  if (add) {
+    former <- x$.snap[[ paste0("step", step) ]]
+  } else {
+    former <- ""
+  }
+	x$.snap[[ paste0("step", step) ]] <- paste0(former, glue::glue(glueString, .envir = env))
+  return(x)
+}
+
 .set_lab_batch <- function(objs, labs, sig) {
   mapply(objs, labs, SIMPLIFY = F,
     FUN = function(obj, lab) {
@@ -586,10 +626,12 @@ setGeneric("step1",
     x
   })
 
-job_append_heading <- function (x, mutate = T) {
+job_append_heading <- function (x, mutate = T, heading = NULL) {
   if (getOption("job_appending", F)) {
     if (is(x, "job")) {
-      heading <- x@analysis
+      if (missing(heading)) {
+        heading <- x@analysis
+      }
       if (length(x@sig)) {
         heading <- paste0(heading, " (", x@sig, ")")
       }
@@ -697,26 +739,28 @@ setGeneric("step12",
     stepPostModify(x, 12)
   })
 
-stepPostModify <- function(x, n) {
+stepPostModify <- function(x, n = NULL) {
   cli::cli_h1("Job finished & Start post modify")
-  x <- convertPlots(x, n)
   xname <- attr(x@sig, "name")
   news <- c()
-  if (length(x@plots) >= n) {
-    if (!is.null(x@plots[[ n ]]))
-      names(x@plots)[ n ] <- paste0("step", n)
-    new_plots <- paste0(xname, "@plots$step", x@step, "$", names(x@plots[[ x@step ]]))
-    cli::cli_alert_info("Plot news:")
-    lapply(new_plots, cli::cli_alert_success)
-    news <- c(news, new_plots)
-  }
-  if (length(x@tables) >= n) {
-    if (!is.null(x@tables[[ n ]]))
-      names(x@tables)[ n ] <- paste0("step", n)
-    new_tables <- paste0(xname, "@tables$step", x@step, "$", names(x@tables[[ x@step ]]))
-    cli::cli_alert_info("Table news:")
-    lapply(new_tables, cli::cli_alert_success)
-    news <- c(news, new_tables)
+  if (!is.null(n)) {
+    x <- convertPlots(x, n)
+    if (length(x@plots) >= n) {
+      if (!is.null(x@plots[[ n ]]))
+        names(x@plots)[ n ] <- paste0("step", n)
+      new_plots <- paste0(xname, "@plots$step", x@step, "$", names(x@plots[[ x@step ]]))
+      cli::cli_alert_info("Plot news:")
+      lapply(new_plots, cli::cli_alert_success)
+      news <- c(news, new_plots)
+    }
+    if (length(x@tables) >= n) {
+      if (!is.null(x@tables[[ n ]]))
+        names(x@tables)[ n ] <- paste0("step", n)
+      new_tables <- paste0(xname, "@tables$step", x@step, "$", names(x@tables[[ x@step ]]))
+      cli::cli_alert_info("Table news:")
+      lapply(new_tables, cli::cli_alert_success)
+      news <- c(news, new_tables)
+    }
   }
   isNewParams <- !names(x@params) %in% x@others$.oldParams
   if (any(isNewParams)) {
@@ -1027,7 +1071,19 @@ setGeneric("anno",
   function(x, ...) standardGeneric("anno"))
 
 setGeneric("map", 
-  function(x, ref, ...) standardGeneric("map"))
+  function(x, ref, ...) {
+    x <- standardGeneric("map")
+    if (is(x, "job")) {
+      if (identical(parent.frame(1), .GlobalEnv)) {
+        if (!is.null(x$.map_heading)) {
+          job_append_heading(x, heading = x$.map_heading)
+        }
+      }
+      stepPostModify(x)
+    } else {
+      x
+    }
+  })
 
 setGeneric("gname", 
   function(x, ...) standardGeneric("gname"))

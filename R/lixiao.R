@@ -2625,6 +2625,7 @@ setMethod("show", signature = c(object = "upset_data"),
     data <- dplyr::select(data, -members)
     maxnum <- max(apply(data, 2, sum))
     upset <- UpSetR::upset(data, sets = colnames(data), nintersects = NA,
+      show.numbers = if (ncol(data) <= 4) "yes" else "no",
       sets.bar.color = "lightblue", order.by = "freq",
       set_size.show = T, set_size.scale_max = 1.5 * maxnum,
       text.scale = c(1.4, 1, 1.4, 1.1, 1, 1.1)
