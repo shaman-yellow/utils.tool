@@ -95,7 +95,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
     x@plots[[ 1 ]] <- namel(p.kegg, p.go)
     x@params$check_go <- check_enrichGO(res.go)
     x$organism <- organism
-    meth(x)$step1 <- glue::glue("以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')}进行 KEGG 和 GO 富集分析。")
+    x <- methodAdd(x, "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')}进行 KEGG 和 GO 富集分析。")
     return(x)
   })
 
@@ -164,9 +164,19 @@ setMethod("step2", signature = c(x = "job_enrich"),
     x@tables[[ 2 ]] <- namel(res.pathviews)
     p.pathviews <- .pathview_search(name, search, x, res.pathviews)
     x@plots[[ 2 ]] <- namel(p.pathviews)
-    meth(x)$step2 <- glue::glue("以 `pathview` R 包 ({packageVersion('pathview')}) 对选择的 KEGG 通路可视化。")
+    x <- methodAdd(x, "以 `pathview` R 包 ({packageVersion('pathview')}) 对选择的 KEGG 通路可视化。")
     .add_internal_job(.job(method = "R package `pathview` used for KEGG pathways visualization", cite = "[@PathviewAnRLuoW2013]"))
     return(x)
+  })
+
+setMethod("res", signature = c(x = "job_enrich", ref = "character"),
+  function(x, ref = c("id", "des", "cate", "sub"), which = 1, key = 1, from = c("kegg", "go"))
+  {
+    type <- match.arg(ref)
+    type <- switch(type, id = "ID", des = "Description", cate = "category", sub = "subcategory")
+    from <- match.arg(from)
+    data <- x@tables$step1[[ paste0("res.", from) ]][[ key ]]
+    data[[ type ]][ which ]
   })
 
 setGeneric("asjob_enrich", 

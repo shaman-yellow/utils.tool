@@ -1893,6 +1893,23 @@ autor_preset <- function(echo = F, eval = F, autor_relocate = T, ...) {
 
 ## orinal function, for save file, and return file name
 
+auto_clear <- function(wd = ".", cache = "cache", ft = "Figure+Table",
+  rep = "report_picture", register = T)
+{
+  fun <- function(dir) {
+    if (!is.null(dir)) {
+      dir <- file.path(wd, dir)
+      if (dir.exists(dir)) {
+        unlink(dir, T, T)
+      }  
+    }
+  }
+  lapply(c(cache, ft, rep), fun)
+  if (register) {
+    rm(autoRegisters, envir = parent.frame(2))
+  }
+}
+
 autorm <- function(names) {
   autoRegisters <<- autoRegisters[ -which(names(autoRegisters) %in% names) ]
 }

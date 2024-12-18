@@ -77,7 +77,7 @@ summary_week.bosai <- function(
   week = lubridate::week(time),
   path = .prefix(),
   templ_dir = .prefix("summary/"),
-  rm = F)
+  rm = F, must_include = "__must_include__")
 {
   dir <- file.path(path, paste0("summary_", week))
   targets <- c(ass = "summary.xlsx")
@@ -94,7 +94,8 @@ summary_week.bosai <- function(
   wb <- openxlsx2::wb_load(targets[[ "ass" ]])
   ## prepare orders (this week or next week)
   orders <- dplyr::filter(orders,
-    is.na(lubridate::week(finish)) | (lubridate::week(finish) == !!week)
+    is.na(lubridate::week(finish)) | (lubridate::week(finish) == !!week) |
+      id %in% must_include
   )
   ## modify the assess table
   data_ass <- dplyr::mutate(orders, expect = finish)
@@ -106,7 +107,7 @@ summary_week.bosai <- function(
       dims = do.call(openxlsx2::wb_dims, pos.data_ass), na.strings = "")
   }
   pos.data_ass <- list(3, 1)
-  wb <- fun(wb, dplyr::filter(data_ass, !is.na(finish)))
+  wb <- fun(wb, dplyr::filter(data_ass, !is.na(finish) | id %in% must_include))
   pos.data_ass <- list(15, 1)
   wb <- fun(wb, dplyr::filter(data_ass, is.na(finish)))
   openxlsx2::wb_save(wb, targets[[ "ass" ]])
@@ -115,7 +116,11 @@ summary_week.bosai <- function(
 }
 
 td <- function(character_date) {
-  as.Date(character_date, tryFormats = "%Y%m%d")
+  if (grpl(character_date, "-")) {
+    as.Date(character_date, tryFormats = "%Y-%m-%d")
+  } else {
+    as.Date(character_date, tryFormats = "%Y%m%d")
+  }
 }
 
 write_bosaiDocx <- function(report, savename, title,
@@ -314,7 +319,14 @@ extract_anno <- function(file, save = "anno.md", type = tools::file_ext(file), .
   return(save)
 }
 
-postModify_annoDocx <- function(file, save = "modify.md", add_reply = T) {
+postModify_annoDocx <- function(file, prefix = "comment",
+  save = file.path(dirname(file), paste0(prefix, "_reply.md")), add_reply = T)
+{
+  if (file.exists(save)) {
+    if (!usethis::ui_yeah('file.exists(save), overwrite that?')) {
+      return(message("Do nothing."))
+    }
+  }
   lines <- readLines(file)
   chapter <- sep_list(lines, "^[-]+$|^[=]+$", -1)
   names(chapter) <- vapply(chapter, function(x) x[1], character(1))
@@ -332,7 +344,7 @@ postModify_annoDocx <- function(file, save = "modify.md", add_reply = T) {
     comment <- strx(x, "(?<=\\[)[^\\]]*(?=\\])")
     meta <- strx(x, "(?<=\\{)[^}]*(?=\\})")
     meta <- gs(meta, '.*author="([^\"]*?)".*', "\\1")
-    glue::glue(paste0("* Content: {content}\n* Author: {meta}\n* Comment: {comment}"))
+    glue::glue(paste0("* Content: {content}\n* {meta} Comment: {comment}"))
   })
   if (add_reply) {
     chapter <- lapply(chapter,

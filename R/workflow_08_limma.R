@@ -19,54 +19,6 @@
     analysis = "Limma 差异分析"
     ))
 
-setMethod("snap", 
-  signature = c(x = "job_limma"),
-  function(x, ref, group = "group"){
-    if (missing(ref) || ref == 1) {
-      meta <- x$normed_data$targets
-      if (is.null(meta)) {
-        meta <- x$metadata
-      }
-      if (!is.null(group)) {
-        metalst <- split(meta$sample, meta[[ group ]])
-        each <- vapply(names(metalst), function(x) paste0(x, " (", length(metalst[[x]]), ") "), character(1))
-        group_text <- glue::glue("包含 {paste(each, collapse = ', ')}。")
-      } else {
-        group_text <- ""
-      }
-      glue::glue("共 {nrow(meta)} 个样本。{group_text}")  
-    } else if (ref == 2) {
-      tops <- x@tables$step2$tops
-      vs <- paste0(gs(names(tops), "-", "vs"), collapse = ", ")
-      glue::glue("差异分析 {vs} (若 A vs B，则为前者比后者，LogFC 大于 0 时，A 表达量高于 B)")
-    } else if (ref == 3) {
-      # tops <- x@tables$step2$tops
-      # stats <- lapply(tops,
-      # function(x) {
-      #   up <- nrow(dplyr::filter(x, LogFC > 0))
-      #   down <- nrow(dplyr::filter(x, LogFC < 0))
-      # })
-      raws <- x@plots$step3$p.sets_intersection$raw
-      if (!is.null(raws)) {
-        sums <- lapply(c("\\.up$", "\\.down$"),
-          function(pattern) length(unique(unlist(raws[ grpl(names(raws), pattern)])))
-        )
-        alls <- length(unique(unlist(raws)))
-      } else {
-        raws <- x@tables$step2$tops[[1]]
-        alls <- nrow(raws)
-        sums <- lapply(1:2, function(n) {
-          if (n == 1) {
-            nrow(dplyr::filter(raws, logFC > 0))
-          } else {
-            nrow(dplyr::filter(raws, logFC < 0))
-          }
-        })
-      }
-      glue::glue("所有上调 DEGs 有 {sums[[1]]} 个，下调共 {sums[[2]]}；一共 {alls} 个 (非重复)。")
-    }
-  })
-
 job_limma_normed <- function(data, metadata, genes = NULL) {
   .check_columns(metadata, c("sample", "group"))
   metadata <- dplyr::slice(metadata, match(colnames(data), sample))
@@ -171,17 +123,23 @@ setMethod("step1", signature = c(x = "job_limma"),
     norm_vis = F, pca = F, data_type = c("count", "cpm"))
   {
     step_message("Preprocess expression data.")
+    x <- methodAdd(x, "以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 进行差异分析。")
+    x <- methodAdd(x, "分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。", T)
     message(glue::glue("Use formula: {formula}"))
     data_type <- match.arg(data_type)
     plots <- list()
+    s.com <- snap_items(if (x$normed) x$metadata else object(x)$sample, "group", "sample")
+    x <- snapAdd(x, "样本分组：{s.com}。", F)
     if (!no.filter && data_type == "count") {
       object(x) <- filter_low.dge(object(x), group, min.count = min.count)
+      x <- methodAdd(x, "以 `edgeR::filterByExpr` 过滤 count 数量小于 {min.count} 的基因。", T)
       p.filter <- wrap(attr(object(x), "p"), 8, 3)
       p.filter <- .set_lab(p.filter, sig(x), "Filter low counts")
       plots <- c(plots, namel(p.filter))
     }
     if (!no.norm) {
       object(x) <- norm_genes.dge(object(x), design, vis = norm_vis, data_type = data_type)
+      x <- methodAdd(x, "以 `edgeR::calcNormFactors`，`limma::voom` 转化 count 数据为 log2 counts-per-million (logCPM)。", T)
       if (norm_vis && data_type == "count") {
         if (length(x@object$targets$sample) < 50) {
           p.norm <- wrap(attr(object(x), "p"), 6, max(c(length(x@object$targets$sample) * .6, 10)))
@@ -212,15 +170,9 @@ setMethod("step1", signature = c(x = "job_limma"),
     }
     x@params$group <- group
     x@params$design <- design
+    x <- methodAdd(x, "以 公式 {formula} 创建设计矩阵 (design matrix) 用于线性分析。", T)
     x$.metadata <- .set_lab(x$.metadata, sig(x), "metadata of used sample")
     x$metadata <- .set_lab(x$metadata, sig(x), "metadata of used sample")
-    if (!no.norm) {
-      if (data_type == "count") {
-        meth(x)$step1 <- glue::glue("以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 进行差异分析。以 `edgeR::filterByExpr` 过滤 count 数量小于 {min.count} 的基因。以 `edgeR::calcNormFactors`，`limma::voom` 转化 count 数据为 log2 counts-per-million (logCPM)。分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。随后，以 公式 {formula} 创建设计矩阵 (design matrix) 用于线性分析。")
-      } else {
-        meth(x)$step1 <- glue::glue("以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 进行差异分析。分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。随后，以 公式 {formula} 创建设计矩阵 (design matrix) 用于线性分析。")
-      }
-    }
     return(x)
   })
 
@@ -240,6 +192,9 @@ setMethod("step2", signature = c(x = "job_limma"),
     } else {
       contr <- limma::makeContrasts(contrasts = contrasts, levels = x@params$design)
     }
+    s.contr <- paste0(gsub('-', 'vs', colnames(contr)), collapse = ', ')
+    x <- methodAdd(x, "创建对比矩阵，差异分析：{s.contr}。")
+    x <- snapAdd(x, "差异分析：{s.contr}。(若 A vs B，则为前者比后者，LogFC 大于 0 时，A 表达量高于 B)。", F)
     ## here, remove batch effect
     ## limma::removeBatchEffect
     if (batch) {
@@ -249,9 +204,11 @@ setMethod("step2", signature = c(x = "job_limma"),
           ))
     }
     object(x) <- diff_test(object(x), x@params$design, contr, block)
+    x <- methodAdd(x, "使用 `limma::lmFit`, `limma::contrasts.fit`, `limma::eBayes` 拟合线形模型。", T)
     plots <- list()
     if (!is.null(contr)) {
       tops <- extract_tops(object(x), use = use, use.cut = use.cut, cut.fc = cut.fc)
+      x <- methodAdd(x, "以 `limma::topTable` 提取所有结果，并过滤得到 {use} 小于 {use.cut}，|Log2(FC)| 大于 {cut.fc} 的统计结果。", T)
       if (x$normed) {
         if (!is.null(x$genes)) {
           tops <- lapply(tops,
@@ -307,9 +264,6 @@ setMethod("step2", signature = c(x = "job_limma"),
     }
     x@tables[[ 2 ]] <- tables
     x@plots[[ 2 ]] <- plots
-    if (!is.null(contr)) {
-      meth(x)$step2 <- glue::glue("使用 `limma::lmFit`, `limma::contrasts.fit`, `limma::eBayes` 差异分析对比组：{paste0(gsub('-', 'vs', colnames(contr)), collapse = ', ')}。以 `limma::topTable` 提取所有结果，并过滤得到 {use} 小于 {use.cut}，|Log2(FC)| 大于 {cut.fc} 的统计结果。")
-    }
     return(x)
   })
 
@@ -346,21 +300,32 @@ setMethod("step3", signature = c(x = "job_limma"),
         lst <- list(up = up, down = down)
         lapply(lst, fun_filter)
       })
-    tops <- unlist(tops, recursive = F)
-    names(tops) <- gs(names(tops), "-", "vs")
-    x$sets_intersection <- tops
-    message("The guess use dataset combination of:\n",
-      "\t ", names(tops)[1], " %in% ", names(tops)[4], "\n",
-      "\t ", names(tops)[2], " %in% ", names(tops)[3])
-    x$guess_use <- unique(c(
-      intersect(tops[[ 1 ]], tops[[ 4 ]]),
-      intersect(tops[[ 2 ]], tops[[ 3 ]])
-    ))
-    p.hp <- plot_genes_heatmap.elist(x$normed_data, unlist(tops), use.gene)
-    p.hp <- .set_lab(wrap(p.hp), sig(x), "Heatmap of DEGs")
-    p.sets_intersection <- new_upset(lst = tops, trunc = trunc)
-    p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "Difference", "intersection")
-    x@plots[[ 3 ]] <- namel(p.sets_intersection, p.hp)
+    if (length(tops) == 1) {
+      x <- snapAdd(x, "上调或下调 DEGs 统计：{snap_items(tops[[1]])}")
+    } else {
+      names(tops) <- gs(names(tops), "-", "vs")
+      s.com <- vapply(tops, snap_items, character(1))
+      s.com <- paste0("- ", names(s.com), "：", s.com, "。")
+      s.com <- paste0(s.com, collapse = "\n")
+      x <- snapAdd(x, "各组差异分析 DEGs 统计：\n\n {s.com}\n\n")
+      sfun <- function(which) length(unique(unlist(lapply(tops, function(x) x[[ which ]]))))
+      x <- snapAdd(x, "所有上调 DEGs 共 {sfun('up')} 个，所有下调 DEGs 共 {sfun('down')} 个。")
+      x <- snapAdd(x, "所有非重复基因共 {length(unique(unlist(tops)))} 个。")
+      tops <- unlist(tops, recursive = F)
+      x$sets_intersection <- tops
+      message("The guess use dataset combination of:\n",
+        "\t ", names(tops)[1], " %in% ", names(tops)[4], "\n",
+        "\t ", names(tops)[2], " %in% ", names(tops)[3])
+      x$guess_use <- unique(c(
+          intersect(tops[[ 1 ]], tops[[ 4 ]]),
+          intersect(tops[[ 2 ]], tops[[ 3 ]])
+          ))
+      p.hp <- plot_genes_heatmap.elist(x$normed_data, unlist(tops), use.gene)
+      p.hp <- .set_lab(wrap(p.hp), sig(x), "Heatmap of DEGs")
+      p.sets_intersection <- new_upset(lst = tops, trunc = trunc)
+      p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "Difference", "intersection")
+      x@plots[[ 3 ]] <- namel(p.sets_intersection, p.hp)
+    }
     return(x)
   })
 
@@ -837,4 +802,50 @@ new_elist <- function(metadata, counts, genes, message = T)
   elist(list(E = tibble::as_tibble(lst$counts), targets = lst$metadata, genes = lst$genes))
 }
 
-
+# setMethod("snap", 
+  # signature = c(x = "job_limma"),
+  # function(x, ref, group = "group"){
+  #   if (missing(ref) || ref == 1) {
+  #     meta <- x$normed_data$targets
+  #     if (is.null(meta)) {
+  #       meta <- x$metadata
+  #     }
+  #     if (!is.null(group)) {
+  #       metalst <- split(meta$sample, meta[[ group ]])
+  #       each <- vapply(names(metalst), function(x) paste0(x, " (", length(metalst[[x]]), ") "), character(1))
+  #       group_text <- glue::glue("包含 {paste(each, collapse = ', ')}。")
+  #     } else {
+  #       group_text <- ""
+  #     }
+  #     glue::glue("共 {nrow(meta)} 个样本。{group_text}")  
+  #   } else if (ref == 2) {
+  #     tops <- x@tables$step2$tops
+  #     vs <- paste0(gs(names(tops), "-", "vs"), collapse = ", ")
+  #     glue::glue("差异分析 {vs} (若 A vs B，则为前者比后者，LogFC 大于 0 时，A 表达量高于 B)")
+  #   } else if (ref == 3) {
+  #     # tops <- x@tables$step2$tops
+  #     # stats <- lapply(tops,
+  #     # function(x) {
+  #     #   up <- nrow(dplyr::filter(x, LogFC > 0))
+  #     #   down <- nrow(dplyr::filter(x, LogFC < 0))
+  #     # })
+  #     raws <- x@plots$step3$p.sets_intersection$raw
+  #     if (!is.null(raws)) {
+  #       sums <- lapply(c("\\.up$", "\\.down$"),
+  #         function(pattern) length(unique(unlist(raws[ grpl(names(raws), pattern)])))
+  #       )
+  #       alls <- length(unique(unlist(raws)))
+  #     } else {
+  #       raws <- x@tables$step2$tops[[1]]
+  #       alls <- nrow(raws)
+  #       sums <- lapply(1:2, function(n) {
+  #         if (n == 1) {
+  #           nrow(dplyr::filter(raws, logFC > 0))
+  #         } else {
+  #           nrow(dplyr::filter(raws, logFC < 0))
+  #         }
+  #       })
+  #     }
+  #     glue::glue("所有上调 DEGs 有 {sums[[1]]} 个，下调共 {sums[[2]]}；一共 {alls} 个 (非重复)。")
+  #   }
+  # })

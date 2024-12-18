@@ -47,7 +47,9 @@ job_tcga <- function(project)
       data.format = "BCR XML"
     )
   )
-  .job_tcga(object = object, params = list(project = project))
+  x <- .job_tcga(object = object, params = list(project = project))
+  x <- snapAdd(x, "获取 {project} 数据。")
+  x
 }
 
 setMethod("step0", signature = c(x = "job_tcga"),
@@ -175,6 +177,7 @@ setMethod("merge", signature = c(x = "job_tcga", y = "job_tcga"),
     if (!identical(object(x)@rowRanges, object(y)@rowRanges)) {
       stop("object(x) and object(y) do not has the same feature data.")
     }
+    projects <- c(x$project, y$project)
     object(x)@colData$batch <- make.names(x$project)
     object(y)@colData$batch <- make.names(y$project)
     cols <- intersect(colnames(object(x)@colData), colnames(object(y)@colData))
@@ -185,6 +188,9 @@ setMethod("merge", signature = c(x = "job_tcga", y = "job_tcga"),
     )
     print(table(object(x)@colData$batch))
     x$dim <- dim(object(x))
+    s.com <- snap_items(data.frame(object(x)@colData, check.names = F), "batch", "sample")
+    x <- methodAdd(x, "将 {s.com} 数据集合并。")
+    x <- snapAdd(x, "将 {s.com} 数据集合并。")
     return(x)
   })
 
@@ -213,7 +219,8 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     if (length(filter_sample)) {
       message("Filter by: ", paste0(filter_sample, collapse = ", "))
       onrow <- nrow(metadata)
-      metadata <- dplyr::filter(metadata, !!!(filter_sample))
+      trace <- filter_trace(metadata, quosures = filter_sample)
+      metadata <- trace$data
       nnrow <- nrow(metadata)
       message(glue::glue("Filter out: {onrow - nnrow}"))
       counts <- counts[, colnames(counts) %in% metadata[[ col_id]] ]
@@ -252,6 +259,10 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     x$p.isTumor <- p.isTumor
     x$isTcga <- T
     x$project <- project
+    if (length(filter_sample)) {
+      x <- methodAdd(x, "{trace$snap}")
+      x <- snapAdd(x, "{trace$snap}")
+    }
     # if (!is.null(filter_follow_up)) {
     # meth(x)$step0 <- glue::glue("以 days_to_last_follow_up 大于 {filter_follow_up} 用于分析。")
     # }

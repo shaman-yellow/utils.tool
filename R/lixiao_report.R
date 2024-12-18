@@ -806,13 +806,11 @@ items <- function(
     }
   }
   if (missing(type)) {
-    message("Type ...")
     if (!missing(coef)) {
       type <- ifelse(vapply(coef, function(x) identical(x, .25), logical(1)), "固定业务", "其他业务")
     }
   }
   if (!missing(coef)) {
-    message("Coefficients ...")
     if (any(is.na(coef))) {
       which <- which(is.na(coef))
       if (is(eval, "list")) {
@@ -832,11 +830,9 @@ items <- function(
   if (is.null(title)) {
     stop("is.null(title)")
   }
-  message("Gather ...")
   items <- as.list(environment())
   if (T) {
     # new feature
-    message("Eval ...")
     eval <- items$eval
     items <- items[ names(items) != "eval" ]
     items$icEval <- T

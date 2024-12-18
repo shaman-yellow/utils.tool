@@ -26,6 +26,7 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
     fun_scale = function(x) log2(x + 1), dup_method = c("max", "min", "mean"))
   {
     step_message("The default, 'job_limma' from 'job_tcga' were adapted to convertion.")
+    dup_method <- match.arg(dup_method)
     if (from_normed && x@step >= 1L) {
       if (!is(x@params$normed_data, 'EList'))
         stop("is(x@params$normed_data, 'EList') == F")
@@ -126,6 +127,7 @@ setMethod("step1", signature = c(x = "job_lasso"),
     p.valid <- gtitle(new_pie(x$valid.target)@data, "Validate")
     p.consist <- wrap(xf(p.all = 1, p.train = 1, p.valid = 1), 6, 2)
     x@plots[[ 1 ]] <- namel(p.consist)
+    x <- snapAdd(x, "以生存状态为指标，({snap_items(target)})。")
     return(x)
   })
 
@@ -152,6 +154,7 @@ setMethod("step2", signature = c(x = "job_lasso"),
       x@tables[[ 2 ]] <- namel(efs)
       x <- plotsAdd(x, p.TopFeaturesSelectedByEFS)
       x <- methodAdd(x, "以 R 包 `EFS` ({packageVersion('EFS')}) {cite_show('EfsAnEnsemblNeuman2017')} 筛选关键基因。")
+      x <- snapAdd(x, "使用 EFS 对基因集筛选 TOP {top} 的基因。")
     }
     return(x)
   })
@@ -167,6 +170,7 @@ setMethod("step3", signature = c(x = "job_lasso"),
       object(x) <- fun(object(x))
       x$train <- fun(x$train)
       x$valid <- fun(x$valid)
+      x <- snapAdd(x, "使用 EFS 筛选的 TOP 基因，")
     }
     x$use_data <- use_data <- match.arg(use_data)
     if (use_data == "train") {
@@ -179,6 +183,7 @@ setMethod("step3", signature = c(x = "job_lasso"),
       valid <- data <- object(x)
       valid.target <- target <- x$target
       time <- x$time
+      x <- snapAdd(x, "以所有样本数据，")
     }
     if (family == "cox") {
       message(glue::glue("Use family of {family}, switch target to: 0 or 1."))
@@ -200,11 +205,13 @@ setMethod("step3", signature = c(x = "job_lasso"),
       sig.uni_cox <- dplyr::filter(sig.uni_cox, `Pr(>|z|)` < .05)
       x$sig.uni_cox <- dplyr::rename(sig.uni_cox, pvalue = `Pr(>|z|)`)
       x <- tablesAdd(x, t.sigUnivariateCoxCoefficients = x$sig.uni_cox)
+      x <- snapAdd(x, "执行单因素 COX 回归，筛选 P 值 &lt; 0.05，共筛选到 {nrow(x$sig.uni_cox)} 个基因。")
       if (!is.null(x$efs_tops)) {
         x$sig.cox_efs <- dplyr::filter(sig.uni_cox, feature %in% x$efs_tops)
         x$sig.cox_efs <- .set_lab(x$sig.cox_efs, sig(x), "Significant Univariate COX results of EFS tops")
+        x <- snapAdd(x, "EFS 的 TOP 基因与单因素 COX 回归的显著基因交集共 {nrow(x$sig.cox_efs)} 个。")
       }
-      meth(x)$step3 <- glue::glue("以 R 包 `survival` ({packageVersion('survival')}) 进行单因素 COX 回归 (`survival::coxph`)。筛选 `Pr(>|z|)` < .05` 的基因。")
+      x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 进行单因素 COX 回归 (`survival::coxph`)。筛选 `Pr(>|z|)` < .05` 的基因。")
     }
     if (multi_cox) {
       if (multi_cox.inherits) {
@@ -224,11 +231,12 @@ setMethod("step3", signature = c(x = "job_lasso"),
         multi_cox$coef <- dplyr::rename(as_tibble(summary(res)$coefficients), feature = 1)
         x <- tablesAdd(x, t.sigMultivariateCoxCoefficients = multi_cox$coef)
         x <- methodAdd(x, "{text_inherits} 以 R 包 `survival` ({packageVersion('survival')}) 做多因素 COX 回归 (`survival::coxph`)。", T)
+        x <- snapAdd(x, "执行多因素 COX 回归 (`survival::coxph`)。")
       } else if (fun_multiCox == "cv.glmnet") {
         methodName <- if (alpha) "lasso" else "ridge"
         multi_cox$model <- e(glmnet::cv.glmnet(data, target,
             alpha = alpha, family = family, nfold = nfold, ...
-            ))  
+            ))
         model <- multi_cox$model
         p.lassoCOX_model <- wrap(as_grob(expression(plot(model)), environment()), 6, 6)
         levels <- x$levels
@@ -244,6 +252,7 @@ setMethod("step3", signature = c(x = "job_lasso"),
         if (T) {
           message("Got coefficients.")
           x$lambda <- c(min = model$lambda.min, `1se` = model$lambda.1se)
+          x <- snapAdd(x, "使用 `glmnet::cv.glmnet` 作 {nfold} 倍交叉验证，筛选 lambda 值。lambda.min, lambda.1se 值分别为 {bind(round(x$lambda, 3))}。")
           multi_cox$coef <- coefficients(model, s = c(lambda.min = model$lambda.min,
               lambda.1se = model$lambda.1se))
           if (all(!multi_cox$coef[, 2])) {
@@ -253,6 +262,7 @@ setMethod("step3", signature = c(x = "job_lasso"),
               feature = 1, coef = 2
             )
             sig.mul_cox <- dplyr::filter(sig.mul_cox, coef != 0)
+            x <- snapAdd(x, "选择 lambda.min 时得的基因集，包含 {nrow(sig.mul_cox)} 个基因：{bind(sig.mul_cox$feature)}。")
           } else {
             sig.mul_cox <- dplyr::rename(
               as_tibble(as.matrix(multi_cox$coef)),

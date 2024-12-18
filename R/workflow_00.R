@@ -43,24 +43,101 @@ setMethod("snap", signature = c(x = "job"),
     if (!is.null(snap <- x$.snap[[ paste0("step", ref) ]])) {
       snap
     } else {
-      stop(glue::glue("No snapshot description for this step ({ref})."))
+      ""
     }
   })
+
+filter_trace <- function(data, ..., quosures = NULL) {
+  cli::cli_alert_info("`filter_trace`: auto-recognizing can not do very well.")
+  if (is.null(quosures)) {
+    quosures <- rlang::enquos(...)
+  }
+  before <- data
+  data <- dplyr::filter(data, !!!(quosures))
+  if (nrow(data) == nrow(before)) {
+    message("filter_trace: no filter out.")
+    return(list(data = data, snap = ""))
+  }
+  cols <- colnames(data)
+  labels <- lapply(quosures, rlang::as_label)
+  snaps <- vapply(labels,
+    function(label) {
+      alls <- stringr::str_extract_all(label, "[a-zA-Z0-9_.]+|`.*?`")[[1]]
+      col <- gs(alls[ alls %in% cols ], "`", "")
+      if (length(col) > 1 || !length(col)) {
+        stop(glue::glue("`filter_trace` can not found the target column: {col} in {label}."))
+      }
+      if (is.numeric(data[[ col ]])) {
+        symbol <- strx(label, ">=|<=|==|>|<")
+        if (!length(symbol)) {
+          stop("`filter_trace`: numeric only support: ", ">=|<=|==|>|<")
+        }
+        if (symbol == ">=" || symbol == ">") {
+          cutoff <- min(data[[ col ]])
+        } else if (symbol == "<=" || symbol == "<") {
+          cutoff <- max(data[[ col ]])
+        } else if (symbol == "==") {
+          cutoff <- unique(data[[ col ]])
+          if (length(cutoff) > 1) {
+            stop("`filter_trace`: expected '==', but not unique value.")
+          }
+        } else {
+          stop(glue::glue("`filter_trace`: can not recognize the symbol: {symbol}"))
+        }
+        des <- switch(symbol,
+          ">=" = "大于或等于",
+          "<=" = "小于或等于",
+          "==" = "等于",
+          ">" = "大于", "<" = "小于"
+        )
+        glue::glue("筛选 {col} {des} {cutoff}")
+      } else if (is.character(data[[ col ]])) {
+        types <- unique(data[[ col ]])
+        if (length(types) > 20) {
+          stop("`filter_trace`: too many '{col}' ({length(types)}) to display. ")
+        }
+        glue::glue("筛选 {col} 为 {bind(types)}")
+      } else {
+        stop("`filter_trace`: Only 'character' or 'numeric' support.")
+      }
+    }, character(1))
+  snap <- paste0(bind(snaps), glue::glue("，最终得到 {nrow(data)} 例数据。"))
+  return(list(data = data, snap = snap))
+}
 
 setGeneric("snap_items", 
   function(x, ...) standardGeneric("snap_items"))
 
-setMethod("snap_items", signature = c(x = "df"),
+setMethod("snap_items", signature = c(x = "data.frame"),
   function(x, main, sub){
     items <- split(x[[ sub ]], x[[ main ]])
     len <- vapply(items, function(x) length(unique(x)), integer(1))
     bind(paste0(names(items), " (n=", len, ") "))
   })
 
+setClassUnion("character_or_factor", c("character", "factor"))
+
+setMethod("snap_items", signature = c(x = "character_or_factor"),
+  function(x){
+    if (is(x, "factor")) {
+      x <- as.character(x)
+    }
+    items <- split(x, x)
+    len <- vapply(items, length, integer(1))
+    bind(paste0(names(items), " (n=", len, ") "))
+  })
+
 setMethod("snap_items", signature = c(x = "list"),
   function(x, col){
-    len <- vapply(x, function(x) length(unique(x[[ col ]])), integer(1))
-    bind(paste0(names(items), " (n=", len, ") "))
+    len <- vapply(x,
+      function(x) {
+        if (is(x, "data.frame")) {
+          length(unique(x[[ col ]]))
+        } else {
+          length(unique(x))
+        }
+      }, integer(1))
+    bind(paste0(names(x), " (n=", len, ") "))
   })
 
 setGeneric("meth", 
@@ -429,12 +506,24 @@ jobSlotAdd <- function(x, name, ...) {
 }
 
 methodAdd <- function(x, glueString, add = F, env = parent.frame(1)) {
+  if (missing(add)) {
+    if (is.null(x$.meth_initial) || x$.meth_initial) {
+      add <- F
+      x$.meth_initial <- F
+    } else {
+      add <- T
+    }
+  } else {
+    if (!add) {
+      x$.meth_initial <- F
+    }
+  }
   if (add) {
     former <- meth(x)[[ paste0("step", x@step) ]]   
   } else {
     former <- ""
   }
-	meth(x)[[ paste0("step", x@step) ]] <- paste0(former, glue::glue(glueString, .envir = env))
+  meth(x)[[ paste0("step", x@step) ]] <- paste0(former, glue::glue(glueString, .envir = env))
   return(x)
 }
 
@@ -444,6 +533,18 @@ snapAdd <- function(x, glueString, add = F, env = parent.frame(1), step = NULL) 
   }
   if (missing(step)) {
     step <- x@step
+  }
+  if (missing(add)) {
+    if (is.null(x$.snap_initial) || x$.snap_initial) {
+      add <- F
+      x$.snap_initial <- F
+    } else {
+      add <- T
+    }
+  } else {
+    if (!add) {
+      x$.snap_initial <- F
+    }
   }
   if (add) {
     former <- x$.snap[[ paste0("step", step) ]]
@@ -901,6 +1002,8 @@ checkAddStep <- function(x, n, clear_tables_plots = T) {
   message(crayon::green("Running", STEP), ":")
   x@step <- n
   x@others$.oldParams <- names(x@params)
+  x$.snap_initial <- T
+  x$.meth_initial <- T
   x
 }
 
@@ -1072,6 +1175,8 @@ setGeneric("anno",
 
 setGeneric("map", 
   function(x, ref, ...) {
+    x$.snap_initial <- T
+    x$.meth_initial <- T
     x <- standardGeneric("map")
     if (is(x, "job")) {
       if (identical(parent.frame(1), .GlobalEnv)) {

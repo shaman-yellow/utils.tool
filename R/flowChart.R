@@ -52,7 +52,7 @@ as_network <- function(lst, layout = 'sugiyama', seed = 100)
 
 #' @import ggplot2
 flowChart <- function(graph, scale.x = 1.2, scale.y = 1.2, node.size = 4,
-  sc = 8, ec = 8, arr.len = 2, edge.color = 'lightblue', edge.width = 1)
+  sc = 6, ec = 6, arr.len = 2, edge.color = 'lightblue', edge.width = 1)
 {
   if (is(graph, "layout_tbl_graph")) {
     graphs <- list(graph)
@@ -73,8 +73,8 @@ flowChart <- function(graph, scale.x = 1.2, scale.y = 1.2, node.size = 4,
           size = node.size, label.padding = u(.5, lines)) +
         geom_edge_link(
           aes(x = x, y = y,
-            start_cap = circle(nchar(node1.name) * devCos + 8, 'mm'),
-            end_cap = circle(nchar(node2.name) * devCos + 8, 'mm')),
+            start_cap = circle(nchar(node1.name) * devCos + sc, 'mm'),
+            end_cap = circle(nchar(node2.name) * devCos + ec, 'mm')),
           arrow = arrow(length = unit(arr.len, 'mm'), type = "closed"),
           color = edge.color, width = edge.width) +
         scale_x_continuous(limits = zoRange(graph$x, scale.x)) +
