@@ -89,7 +89,7 @@ setMethod("step1", signature = c(x = "job_batman"),
       predicted <- dplyr::filter(predicted, PubChem_CID %in% !!cids)
     }
     x@tables[[ 1 ]] <- namel(herbs_compounds, compounds_targets, predicted)
-    s.com <- snap_items(herbs_compounds, "Pinyin.Name", "CID")
+    s.com <- try_snap(herbs_compounds, "Pinyin.Name", "CID")
     s.n <- length(unique(compounds_targets$PubChem_CID))
     x <- snapAdd(x, "各中药的化合物组成统计：{s.com}。共包含化合物 {s.n} 个 (非重复)。")
     return(x)

@@ -188,7 +188,7 @@ setMethod("merge", signature = c(x = "job_tcga", y = "job_tcga"),
     )
     print(table(object(x)@colData$batch))
     x$dim <- dim(object(x))
-    s.com <- snap_items(data.frame(object(x)@colData, check.names = F), "batch", "sample")
+    s.com <- try_snap(data.frame(object(x)@colData, check.names = F), "batch", "sample")
     x <- methodAdd(x, "将 {s.com} 数据集合并。")
     x <- snapAdd(x, "将 {s.com} 数据集合并。")
     return(x)
@@ -219,8 +219,8 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     if (length(filter_sample)) {
       message("Filter by: ", paste0(filter_sample, collapse = ", "))
       onrow <- nrow(metadata)
-      trace <- filter_trace(metadata, quosures = filter_sample)
-      metadata <- trace$data
+      metadata <- trace_filter(metadata, quosures = filter_sample)
+      meta.snap <- snap(metadata)
       nnrow <- nrow(metadata)
       message(glue::glue("Filter out: {onrow - nnrow}"))
       counts <- counts[, colnames(counts) %in% metadata[[ col_id]] ]
@@ -260,8 +260,8 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     x$isTcga <- T
     x$project <- project
     if (length(filter_sample)) {
-      x <- methodAdd(x, "{trace$snap}")
-      x <- snapAdd(x, "{trace$snap}")
+      x <- methodAdd(x, "{meta.snap}")
+      x <- snapAdd(x, "{meta.snap}")
     }
     # if (!is.null(filter_follow_up)) {
     # meth(x)$step0 <- glue::glue("以 days_to_last_follow_up 大于 {filter_follow_up} 用于分析。")

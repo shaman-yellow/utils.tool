@@ -21,26 +21,42 @@ setGeneric("asjob_survival",
   function(x, ...) standardGeneric("asjob_survival"))
 
 setMethod("asjob_survival", signature = c(x = "job_lasso"),
-  function(x, use.group = "uni_cox", base_method = median, fea_coefs = NULL, force = F)
+  function(x, use.group = c("mul_cox", "uni_cox"), lambda = c("min", "1se"),
+    base_method = c("median"), fea_coefs = NULL, force = F, use_data = c("all", "train", "valid"))
   {
+    y <- .job_survival()
+    use_data <- match.arg(use_data)
     if (x@step < 3L && !force) {
       stop("x@step < 3L")
     }
     use.group <- match.arg(use.group)
-    if (missing(fea_coefs) && use.group == "uni_cox") {
-      fea_coefs <- x$sig.uni_cox
-      if (is.null(fea_coefs)) {
-        stop("`sig.uni_cox` not found.")
+    if (missing(fea_coefs)) {
+      if (use.group == "mul_cox") {
+        lambda <- paste0("lambda.", match.arg(lambda))
+        fea_coefs <- x$sig.mul_cox
+        fea_coefs <- dplyr::rename(fea_coefs, coef = !!rlang::sym(paste0("coef.", lambda)))
+        fea_coefs <- dplyr::filter(fea_coefs, coef != 0)
+        y <- snapAdd(y, "选择 {lambda} 时得到的特征集，包含 {nrow(fea_coefs)} 个基因，
+          分别为: {bind(fea_coefs$feature)}。")
+      }
+      if (use.group == "uni_cox") {
+        fea_coefs <- x$sig.uni_cox
+        y <- snapAdd(y, "选择 Univariate COX 回归得到的显著特征集，包含 {nrow{fea_coefs}} 个基因，
+          分别为: {bind(fea_coefs$feature)}。")
       }
     }
+    if (is.null(fea_coefs)) {
+      stop("`fea_coefs` should be specified.")
+    }
     use_genes <- fea_coefs$feature
-    data <- as_tibble(x@object)
+    data <- as_tibble(x$get(use_data)$data)
     if (any(!use_genes %in% colnames(data))) {
       not_cover <- use_genes[ !use_genes %in% colnames(data) ]
       message(glue::glue("Genes not cover: {crayon::red(bind(not_cover))}."))
       x$not_cover <- not_cover
       use_genes <- use_genes[ use_genes %in% colnames(data) ]
       fea_coefs <- dplyr::filter(fea_coefs, feature %in% use_genes)
+      y <- snapAdd(y, "该数据集 (dataset: {x@sig}) 不包含基因：{bind(not_cover)}，后续计算评分时去除。")
     }
     data <- dplyr::select(data, 1, dplyr::all_of(use_genes))
     if (!identical(colnames(data)[-1], use_genes)) {
@@ -50,11 +66,19 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
       risk_score = apply(data[, -1, drop = F], 1,
         function(exprs) {
           sum(fea_coefs$coef * exprs)
-        }),
-      score_group = ifelse(risk_score > base_method(risk_score), "High", "Low")
+        })
     )
-    data$days_to_last_follow_up <- x$time
-    data$vital_status <- x$target
+    y <- snapAdd(y, "以回归系数构建风险评分模型。\n\n$$ Score = \\sum(expr(Gene) \\times coef) $$\n\n")
+    if (base_method == "median") {
+      data <- dplyr::mutate(data,
+        score_group = ifelse(risk_score > median(risk_score), "High", "Low")
+      )
+      cutoff <- median(data$risk_score)
+      y <- snapAdd(y, "按中位风险评分，将病例分为 Low 和 High 风险组 (cutoff: {round(cutoff, 3)})
+        ({try_snap(data$score_group)})， 随后进行生存分析。")
+    }
+    data$days_to_last_follow_up <- x$get(use_data)$time
+    data$vital_status <- x$get(use_data)$types
     message("The heatmap plot was used scaled data.")
     p.surv_genes_hp <- plot_genes_heatmap(
       t(scale(x@object))[colnames(x@object) %in% use_genes, ],
@@ -62,16 +86,16 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
     )
     p.surv_genes_hp <- .set_lab(wrap(p.surv_genes_hp, 9, 6), sig(x),
       "risk score related genes heatmap")
-    x <- .job_survival(object = data)
-    x$p.surv_genes_hp <- p.surv_genes_hp
-    x$fun_group <- function(score) ifelse(score > x$cutoff, "High", "Low")
-    x$genes_surv <- "risk_score"
-    x$fun_status <- sur_status
-    x$time <- "days_to_last_follow_up"
-    x$status <- "vital_status"
-    x$cutoff <- base_method(data$risk_score)
-    meth(x)$step0 <- glue::glue("将 Univariate COX 回归系数用于风险评分计算，根据中位风险评分 {x$cutoff} 将患者分为低危组和高危组。")
-    return(x)
+    object(y) <- data
+    y$p.surv_genes_hp <- p.surv_genes_hp
+    y$fun_group <- function(score) ifelse(score > y$cutoff, "High", "Low")
+    y$genes_surv <- "risk_score"
+    y$fun_status <- sur_status
+    y$time <- "days_to_last_follow_up"
+    y$status <- "vital_status"
+    y$cutoff <- cutoff
+    y$fea_coefs <- fea_coefs
+    return(y)
   })
 
 setMethod("asjob_survival", signature = c(x = "job_limma"),
@@ -86,6 +110,7 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     i.pos <- object(x)$genes[[ use ]] %in% genes_surv
     j.pos <- !is.na(object(x)$targets[[ status ]]) & !grpl(object(x)$targets[[ status ]], "not reported", T)
     object(x) <- e(limma::`[.EList`(object(x), i.pos, j.pos))
+    x <- snapAdd(x, "去除了生存状态未知的数据。")
     object <- object(x)
     counts <- object$E
     rownames(counts) <- object$genes[[ use ]]
@@ -106,7 +131,6 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     x$genes_surv <- genes_surv
     x$fun_group <- sur_group_median
     x$fun_status <- sur_status
-    x <- methodAdd(x, "去除了生存状态未知的数据。")
     return(x)
   })
 
@@ -187,6 +211,10 @@ setMethod("step1", signature = c(x = "job_survival"),
       name = names(lst), pvalue = vapply(lst, function(x) x$diff$pvalue, double(1))
     )
     t.SignificantSurvivalPValue <- dplyr::filter(t.SurvivalPValue, pvalue < .05)
+    if (length(genes_surv) > 1) {
+      x <- snapAdd(x, "根据 P value &lt; 0.05, 共筛到 {nrow(t.SignificantSurvivalPValue)} 个特征。
+        分别为 {bind(t.SignificantSurvivalPValue$name)}。")
+    }
     x$models <- lapply(lst, function(x) list(fit = x$fit, roc = x$roc, diff = x$diff))
     if (only_keep_sig) {
       plots <- lapply(plots,
@@ -202,7 +230,7 @@ setMethod("step1", signature = c(x = "job_survival"),
       x@plots[[1]] <- plots
     }
     x <- tablesAdd(x, t.SurvivalPValue, t.SignificantSurvivalPValue)
-    meth(x)$step1 <- glue::glue("以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。以 R 包 `timeROC` ({packageVersion('timeROC')}) 绘制 1, 3, 5 年生存曲线。")
+    x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。以 R 包 `timeROC` ({packageVersion('timeROC')}) 绘制 1, 3, 5 年生存曲线。")
     return(x)
   })
 

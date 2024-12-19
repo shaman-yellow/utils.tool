@@ -105,7 +105,7 @@ setMethod("asjob_mfuzz",
     }
     if (!is.null(x@plots$step3$p.hp)) {
       data <- x@plots$step3$p.hp@data@data
-      s.com <- snap_items(data, "group", "sample")
+      s.com <- try_snap(data, "group", "sample")
       data <- dplyr::group_by(data, group, genes)
       data <- dplyr::summarize(data, expression = mean(expression))
       data <- tidyr::pivot_wider(data, names_from = group, values_from = expression)

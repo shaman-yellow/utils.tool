@@ -36,9 +36,26 @@ setClass("virtual_job", "VIRTUAL")
     others = list()
     ))
 
+setClassUnion("numeric_or_character", c("numeric", "character"))
+
 setGeneric("snap", 
-  function(x, ...) standardGeneric("snap"))
-setMethod("snap", signature = c(x = "job"),
+  function(x, ref, ...) standardGeneric("snap"))
+
+setGeneric("snap<-", 
+  function(x, value) standardGeneric("snap<-"))
+
+setMethod("snap", signature = c(x = "ANY"),
+  function(x){
+    attr(x, ".SNAP")
+  })
+
+setReplaceMethod("snap", signature = c(x = "ANY"),
+  function(x, value){
+    attr(x, ".SNAP") <- value
+    return(x)
+  })
+
+setMethod("snap", signature = c(x = "job", ref = "numeric_or_character"),
   function(x, ref){
     if (!is.null(snap <- x$.snap[[ paste0("step", ref) ]])) {
       snap
@@ -47,15 +64,15 @@ setMethod("snap", signature = c(x = "job"),
     }
   })
 
-filter_trace <- function(data, ..., quosures = NULL) {
-  cli::cli_alert_info("`filter_trace`: auto-recognizing can not do very well.")
+trace_filter <- function(data, ..., quosures = NULL) {
+  cli::cli_alert_info("`trace_filter`: auto-recognizing can not do very well.")
   if (is.null(quosures)) {
     quosures <- rlang::enquos(...)
   }
   before <- data
   data <- dplyr::filter(data, !!!(quosures))
   if (nrow(data) == nrow(before)) {
-    message("filter_trace: no filter out.")
+    message("trace_filter: no filter out.")
     return(list(data = data, snap = ""))
   }
   cols <- colnames(data)
@@ -65,12 +82,12 @@ filter_trace <- function(data, ..., quosures = NULL) {
       alls <- stringr::str_extract_all(label, "[a-zA-Z0-9_.]+|`.*?`")[[1]]
       col <- gs(alls[ alls %in% cols ], "`", "")
       if (length(col) > 1 || !length(col)) {
-        stop(glue::glue("`filter_trace` can not found the target column: {col} in {label}."))
+        stop(glue::glue("`trace_filter` can not found the target column: {col} in {label}."))
       }
       if (is.numeric(data[[ col ]])) {
         symbol <- strx(label, ">=|<=|==|>|<")
         if (!length(symbol)) {
-          stop("`filter_trace`: numeric only support: ", ">=|<=|==|>|<")
+          stop("`trace_filter`: numeric only support: ", ">=|<=|==|>|<")
         }
         if (symbol == ">=" || symbol == ">") {
           cutoff <- min(data[[ col ]])
@@ -79,10 +96,10 @@ filter_trace <- function(data, ..., quosures = NULL) {
         } else if (symbol == "==") {
           cutoff <- unique(data[[ col ]])
           if (length(cutoff) > 1) {
-            stop("`filter_trace`: expected '==', but not unique value.")
+            stop("`trace_filter`: expected '==', but not unique value.")
           }
         } else {
-          stop(glue::glue("`filter_trace`: can not recognize the symbol: {symbol}"))
+          stop(glue::glue("`trace_filter`: can not recognize the symbol: {symbol}"))
         }
         des <- switch(symbol,
           ">=" = "大于或等于",
@@ -94,21 +111,22 @@ filter_trace <- function(data, ..., quosures = NULL) {
       } else if (is.character(data[[ col ]])) {
         types <- unique(data[[ col ]])
         if (length(types) > 20) {
-          stop("`filter_trace`: too many '{col}' ({length(types)}) to display. ")
+          stop("`trace_filter`: too many '{col}' ({length(types)}) to display. ")
         }
         glue::glue("筛选 {col} 为 {bind(types)}")
       } else {
-        stop("`filter_trace`: Only 'character' or 'numeric' support.")
+        stop("`trace_filter`: Only 'character' or 'numeric' support.")
       }
     }, character(1))
   snap <- paste0(bind(snaps), glue::glue("，最终得到 {nrow(data)} 例数据。"))
-  return(list(data = data, snap = snap))
+  snap(data) <- snap
+  return(data)
 }
 
-setGeneric("snap_items", 
-  function(x, ...) standardGeneric("snap_items"))
+setGeneric("try_snap", 
+  function(x, ...) standardGeneric("try_snap"))
 
-setMethod("snap_items", signature = c(x = "data.frame"),
+setMethod("try_snap", signature = c(x = "data.frame"),
   function(x, main, sub){
     items <- split(x[[ sub ]], x[[ main ]])
     len <- vapply(items, function(x) length(unique(x)), integer(1))
@@ -117,7 +135,7 @@ setMethod("snap_items", signature = c(x = "data.frame"),
 
 setClassUnion("character_or_factor", c("character", "factor"))
 
-setMethod("snap_items", signature = c(x = "character_or_factor"),
+setMethod("try_snap", signature = c(x = "character_or_factor"),
   function(x){
     if (is(x, "factor")) {
       x <- as.character(x)
@@ -127,7 +145,7 @@ setMethod("snap_items", signature = c(x = "character_or_factor"),
     bind(paste0(names(items), " (n=", len, ") "))
   })
 
-setMethod("snap_items", signature = c(x = "list"),
+setMethod("try_snap", signature = c(x = "list"),
   function(x, col){
     len <- vapply(x,
       function(x) {
@@ -496,10 +514,18 @@ jobSlotAdd <- function(x, name, ...) {
   objs <- list(...)
   names(objs) <- calls
   labs <- formatNames(calls)
-  db <- if (length(slot(x, name)) >= x@step) {
-    slot(x, name)[[ x@step ]]
+  symbol <- paste0(".", name, "_initial")
+  isInitial <- x[[ symbol ]]
+  if (is.null(isInitial) || isInitial) {
+    x[[ symbol ]] <- F
+    reset <- T
   } else {
+    reset <- F
+  }
+  db <- if (reset) {
     list()
+  } else {
+    slot(x, name)[[ x@step ]]
   }
   slot(x, name)[[ x@step ]] <- c(db, .set_lab_batch(objs, labs, sig(x)))
   return(x)
@@ -717,7 +743,11 @@ setGeneric("step1",
       sig(x) <- sig  
     }
     # }
-    x$seed <- sample(1:100, 1)
+    if (is.null(seed <- getOption("step_seed"))) {
+      x$seed <- 987456L
+    } else {
+      x$seed <- seed
+    }
     x <- checkAddStep(x, 1L)
     x <- standardGeneric("step1")
     x <- stepPostModify(x, 1)
@@ -845,7 +875,9 @@ stepPostModify <- function(x, n = NULL) {
   xname <- attr(x@sig, "name")
   news <- c()
   if (!is.null(n)) {
-    x <- convertPlots(x, n)
+    if (getOption("auto_convert_plots", F)) {
+      x <- convertPlots(x, n)
+    }
     if (length(x@plots) >= n) {
       if (!is.null(x@plots[[ n ]]))
         names(x@plots)[ n ] <- paste0("step", n)
@@ -873,6 +905,13 @@ stepPostModify <- function(x, n = NULL) {
   if (!is.null(xname) && length(xname)) {
     assign(xname, x)
     writeJobSlotsAutoCompletion(xname, environment())
+  }
+  snap <- snap(x, x@step)
+  if (any(nchar(snap))) {
+    if (length(snap)) {
+      snap <- paste0(snap, collapse = "")
+    }
+    message("SNAP:\n", paste0(strwrap(split_text_by_width(snap, 70), , 4), collapse = "\n"))
   }
   x
 }
@@ -1004,6 +1043,8 @@ checkAddStep <- function(x, n, clear_tables_plots = T) {
   x@others$.oldParams <- names(x@params)
   x$.snap_initial <- T
   x$.meth_initial <- T
+  x$.tables_initial <- T
+  x$.plots_initial <- T
   x
 }
 

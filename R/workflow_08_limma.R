@@ -128,7 +128,7 @@ setMethod("step1", signature = c(x = "job_limma"),
     message(glue::glue("Use formula: {formula}"))
     data_type <- match.arg(data_type)
     plots <- list()
-    s.com <- snap_items(if (x$normed) x$metadata else object(x)$sample, "group", "sample")
+    s.com <- try_snap(if (x$normed) x$metadata else object(x)$sample, "group", "sample")
     x <- snapAdd(x, "样本分组：{s.com}。", F)
     if (!no.filter && data_type == "count") {
       object(x) <- filter_low.dge(object(x), group, min.count = min.count)
@@ -301,10 +301,10 @@ setMethod("step3", signature = c(x = "job_limma"),
         lapply(lst, fun_filter)
       })
     if (length(tops) == 1) {
-      x <- snapAdd(x, "上调或下调 DEGs 统计：{snap_items(tops[[1]])}")
+      x <- snapAdd(x, "上调或下调 DEGs 统计：{try_snap(tops[[1]])}")
     } else {
       names(tops) <- gs(names(tops), "-", "vs")
-      s.com <- vapply(tops, snap_items, character(1))
+      s.com <- vapply(tops, try_snap, character(1))
       s.com <- paste0("- ", names(s.com), "：", s.com, "。")
       s.com <- paste0(s.com, collapse = "\n")
       x <- snapAdd(x, "各组差异分析 DEGs 统计：\n\n {s.com}\n\n")

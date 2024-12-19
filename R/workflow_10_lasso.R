@@ -103,55 +103,57 @@ setMethod("step0", signature = c(x = "job_lasso"),
   })
 
 setMethod("step1", signature = c(x = "job_lasso"),
-  function(x, target = x@params$metadata$group, levels = c("Alive", "Dead"),
-    time = x@params$metadata$days_to_last_follow_up, n.train = .8, seed = 555)
+  function(x, target = "group", levels = c("Alive", "Dead"),
+    time = "days_to_last_follow_up", n.train = .8, seed = 555)
   {
     step_message("Data preparation.")
-    len <- nrow(object(x))
-    all <- 1:len
     set.seed(seed)
-    wh.train <- sample(all, round(len * n.train))
-    wh.valid <- all[!all %in% wh.train]
-    x$train <- object(x)[wh.train, ]
-    x$valid <- object(x)[wh.valid, ]
-    x$train.target <- target[wh.train]
-    x$valid.target <- target[wh.valid]
-    x$train.time <- time[wh.train]
-    x$valid.time <- time[wh.valid]
-    x$time <- time
+    num <- nrow(object(x))
+    x$n.train
+    x$wh.train <- sample(1:num, round(num * n.train))
+    x$wh.valid <- setdiff(1:num, x$wh.train)
     x$target <- target
+    x$time <- time
     x$levels <- levels
-    x$wh.train <- wh.train
-    p.all <- gtitle(new_pie(target)@data, "All")
-    p.train <- gtitle(new_pie(x$train.target)@data, "Train")
-    p.valid <- gtitle(new_pie(x$valid.target)@data, "Validate")
+    x$get <- function(wh = c("train", "valid", "all"), x = get("x", envir = parent.frame(1)))
+    {
+      wh <- match.arg(wh)
+      wh <- switch(wh, train = x$wh.train, valid = x$wh.valid, all = c(x$wh.train, x$wh.valid))
+      data <- object(x)[wh, ]
+      types <- x$metadata[[ x$target ]][ wh ]
+      event <- ifelse(types == x$levels[1], 0L, 1L)
+      time <- x$metadata[[ time ]][ wh ]
+      surv <- survival::Surv(time = time, event = event)
+      namel(data, event, types, time, surv)
+    }
+    p.all <- gtitle(new_pie(x$get("a")$types)@data, "All")
+    p.train <- gtitle(new_pie(x$get("t")$types)@data, "Train")
+    p.valid <- gtitle(new_pie(x$get("v")$types)@data, "Validate")
     p.consist <- wrap(xf(p.all = 1, p.train = 1, p.valid = 1), 6, 2)
-    x@plots[[ 1 ]] <- namel(p.consist)
-    x <- snapAdd(x, "以生存状态为指标，({snap_items(target)})。")
+    x <- plotsAdd(x, p.consist)
+    target <- x$get("a")$types
+    x <- snapAdd(x, "所有数据生存状态，({try_snap(target)})。")
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_lasso"),
-  function(x, top = 30, efs = T, use_data = c("all", "train")){
+  function(x, use_data = c("all", "train"), top = 30, efs = T)
+  {
     step_message("Evaluate variable (genes) importance.")
+    use_data <- match.arg(use_data)
+    if (use_data == "train") {
+      x <- snapAdd(x, "使用随机提取的 train 数据集 (train:valid = {x$n.train / (1-x$n.train)}:1)。")
+    }
+    x$use_data <- use_data
     if (efs) {
-      use_data <- match.arg(use_data)
-      if (use_data == "train") {
-        target <- x@params$train.target
-        target <- ifelse(target == x$levels[1], 0L, 1L)
-        data <- data.frame(cbind(x$train, target))  
-      } else {
-        target <- x$target
-        target <- ifelse(target == x$levels[1], 0L, 1L)
-        data <- data.frame(cbind(object(x), target))  
-      }
+      data <- data.frame(cbind(x$get(use_data)$data, x$get(use_data)$event))  
       efs <- e(EFS::ensemble_fs(data, ncol(data), runs = 10))
       colnames(efs) <- colnames(object(x))
       p.TopFeaturesSelectedByEFS <- plot_colStack.efs(efs, top = top)
       tops <- attr(p.TopFeaturesSelectedByEFS, "tops")
       x$efs <- efs
       x$efs_tops <- tops
-      x@tables[[ 2 ]] <- namel(efs)
+      x <- tablesAdd(x, t.efs = efs)
       x <- plotsAdd(x, p.TopFeaturesSelectedByEFS)
       x <- methodAdd(x, "以 R 包 `EFS` ({packageVersion('EFS')}) {cite_show('EfsAnEnsemblNeuman2017')} 筛选关键基因。")
       x <- snapAdd(x, "使用 EFS 对基因集筛选 TOP {top} 的基因。")
@@ -160,146 +162,147 @@ setMethod("step2", signature = c(x = "job_lasso"),
   })
 
 setMethod("step3", signature = c(x = "job_lasso"),
-  function(x, family = "cox", nfold = 10, use_tops = F, use_data = c("all", "train"),
-    uni_cox = T, multi_cox = F, multi_cox.inherits = T,
-    fun_multiCox = c("coxph", "glmnet", "cv.glmnet"),
-    alpha = 1, ...)
+  function(x, use_data = x$use_data, family = "cox", use_tops = F, cutoff = .05)
   {
+    lst <- x$get(use_data)
+    data <- lst$data
+    if (family == "cox") {
+      message(glue::glue("Use family of {family}"))
+      target <- lst$surv
+    } else {
+      target <- lst$event
+    }
     if (use_tops && !is.null(x$efs_tops)) {
       fun <- function(mtx) mtx[, colnames(mtx) %in% x$efs_tops ]
-      object(x) <- fun(object(x))
-      x$train <- fun(x$train)
-      x$valid <- fun(x$valid)
+      data <- fun(data)
       x <- snapAdd(x, "使用 EFS 筛选的 TOP 基因，")
     }
-    x$use_data <- use_data <- match.arg(use_data)
-    if (use_data == "train") {
-      data <- x$train
-      target <- x$train.target
-      time <- x$train.time
-      valid <- x$valid
-      valid.target <- x$valid.target
-    } else if (use_data == "all") {
-      valid <- data <- object(x)
-      valid.target <- target <- x$target
-      time <- x$time
-      x <- snapAdd(x, "以所有样本数据，")
+    # Univariate
+    cli::cli_alert_info("survival::coxph")
+    uni_cox <- pbapply::pblapply(colnames(data),
+      function(feature) {
+        res <- survival::coxph(as.formula(paste0("target ~ `", feature, "`")),
+          data.frame(data, check.names = F))
+        summary(res)$coefficients[1, ]
+      })
+    uni_cox <- do.call(dplyr::bind_rows, uni_cox)
+    x$uni_cox <- uni_cox <- dplyr::mutate(uni_cox, feature = !!colnames(data), .before = 1)
+    sig.uni_cox <- dplyr::mutate(uni_cox, p.adjust = stats::p.adjust(`Pr(>|z|)`, "fdr"))
+    sig.uni_cox <- dplyr::filter(sig.uni_cox, `Pr(>|z|)` < cutoff)
+    x$sig.uni_cox <- dplyr::rename(sig.uni_cox, pvalue = `Pr(>|z|)`)
+    x <- tablesAdd(x, t.sigUnivariateCoxCoefficients = x$sig.uni_cox)
+    x <- snapAdd(x, "执行单因素 COX 回归，筛选 P 值 &lt; {cutoff}，共筛选到 {nrow(x$sig.uni_cox)} 个基因。")
+    if (!is.null(x$efs_tops)) {
+      t.significantUnivariateCoxIntersectWithEFS_tops <- dplyr::filter(sig.uni_cox, feature %in% x$efs_tops)
+      x <- tablesAdd(x, t.significantUnivariateCoxIntersectWithEFS_tops)
+      x <- snapAdd(x, "EFS 的 TOP 基因与单因素 COX 回归的显著基因交集共 {nrow(x$sig.cox_efs)} 个。")
     }
+    x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 进行单因素 COX 回归 (`survival::coxph`)。筛选 `Pr(>|z|)` < .05` 的基因。")
+    return(x)
+  })
+
+setMethod("step4", signature = c(x = "job_lasso"),
+  function(x, use_data = x$use_data, inherit_unicox = T,
+    fun = c("coxph", "glmnet", "cv.glmnet"), nfold = 10,
+    alpha = 1, family = "cox", ...)
+  {
+    step_message("Multivariate COX.")
+    fun_multiCox <- match.arg(fun)
+    data_lst <- x$get(use_data)
+    data <- data_lst$data
+    valid_lst <- x$get("v")
+    valid <- valid_lst$data
+    x$nfold <- nfold
     if (family == "cox") {
-      message(glue::glue("Use family of {family}, switch target to: 0 or 1."))
-      target <- ifelse(target == x$levels[1], 0L, 1L)
-      target <- survival::Surv(time = time, event = target)
+      target <- data_lst$surv
+    } else {
+      target <- data_lst$event
     }
-    if (family == "cox" && uni_cox) {
-      # Univariate lasso
-      cli::cli_alert_info("survival::coxph")
-      uni_cox <- pbapply::pblapply(colnames(data),
-        function(feature) {
-          res <- survival::coxph(as.formula(paste0("target ~ `", feature, "`")),
-              data.frame(data, check.names = F))
-          summary(res)$coefficients[1, ]
+    if (inherit_unicox) {
+      cli::cli_alert_info("Inherits results (significant feature) from Univariate COX.")
+      data <- data[, colnames(data) %in% x$sig.uni_cox$feature ]
+      valid <- valid[, colnames(valid) %in% x$sig.uni_cox$feature ]
+      x <- snapAdd(x, "在单因素回归得到的基因的基础上，")
+    }
+    multi_cox <- list()
+    # Multivariate
+    if (fun_multiCox == "coxph") {
+      res <- survival::coxph(target ~ ., data.frame(data, check.names = F))
+      multi_cox$model <- res
+      multi_cox$coef <- dplyr::rename(as_tibble(summary(res)$coefficients), feature = 1)
+      x <- tablesAdd(x, t.sigMultivariateCoxCoefficients = multi_cox$coef)
+      x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 做多因素 COX 回归 (`survival::coxph`)。", T)
+      x <- snapAdd(x, "执行多因素 COX 回归 (`survival::coxph`)。")
+    } else if (fun_multiCox == "cv.glmnet") {
+      methodName <- if (alpha) "lasso" else "ridge"
+      set.seed(x$seed)
+      multi_cox$model <- model <- e(glmnet::cv.glmnet(data, target,
+          alpha = alpha, family = family, nfold = nfold, ...))
+      p.lassoCOX_model <- wrap(as_grob(expression(plot(model)), environment()), 6, 6, showtext = T)
+      lambdas <- c("lambda.min", "lambda.1se")
+      res <- sapply(lambdas, simplify = F,
+        function(lam) {
+          preds <- e(stats::predict(model, newx = valid, s = model[[ lam ]]))
+          roc <- e(pROC::roc(valid_lst$types, as.numeric(preds), plot = F, levels = x$levels))
+          namel(preds, roc)
         })
-      uni_cox <- do.call(dplyr::bind_rows, uni_cox)
-      x$uni_cox <- uni_cox <- dplyr::mutate(uni_cox, feature = !!colnames(data), .before = 1)
-      sig.uni_cox <- dplyr::mutate(uni_cox, p.adjust = stats::p.adjust(`Pr(>|z|)`, "fdr"))
-      sig.uni_cox <- dplyr::filter(sig.uni_cox, `Pr(>|z|)` < .05)
-      x$sig.uni_cox <- dplyr::rename(sig.uni_cox, pvalue = `Pr(>|z|)`)
-      x <- tablesAdd(x, t.sigUnivariateCoxCoefficients = x$sig.uni_cox)
-      x <- snapAdd(x, "执行单因素 COX 回归，筛选 P 值 &lt; 0.05，共筛选到 {nrow(x$sig.uni_cox)} 个基因。")
-      if (!is.null(x$efs_tops)) {
-        x$sig.cox_efs <- dplyr::filter(sig.uni_cox, feature %in% x$efs_tops)
-        x$sig.cox_efs <- .set_lab(x$sig.cox_efs, sig(x), "Significant Univariate COX results of EFS tops")
-        x <- snapAdd(x, "EFS 的 TOP 基因与单因素 COX 回归的显著基因交集共 {nrow(x$sig.cox_efs)} 个。")
+      multi_cox$preds <- lapply(res, function(lst) lst$preds)
+      multi_cox$roc <- lapply(res, function(lst) lst$roc)
+      if (T) {
+        message("Got coefficients.")
+        x$lambda <- c(min = model$lambda.min, `1se` = model$lambda.1se)
+        x <- snapAdd(x, "使用 `glmnet::cv.glmnet` 作 {nfold} 倍交叉验证，筛选 lambda 值。lambda.min, lambda.1se 值分别为 {bind(round(x$lambda, 3))} (R 随机种子为 {x$seed})。")
+        multi_cox$coef <- coefficients(
+          model, s = c(lambda.min = model$lambda.min, lambda.1se = model$lambda.1se)
+        )
+        x$sig.mul_cox <- sig.mul_cox <- dplyr::rename(
+          as_tibble(as.matrix(multi_cox$coef)),
+          feature = 1, coef.lambda.min = 2, coef.lambda.1se = 3
+        )
+        if (all(!multi_cox$coef[, 2])) {
+          message(crayon::red("lambda.1se has non coeffients, use Lambda.min (-> coef)."))
+        }
+        s.com <- vapply(1:2, 
+          function(x) {
+            n <- multi_cox$coef[, x]
+            length(n[ n != 0 ])
+          }, integer(1))
+        x <- snapAdd(x, "对应的特征数 (基因数) 分别为 {bind(s.com)}。")
+        x <- tablesAdd(x, t.sigMultivariateCoxCoefficients = sig.mul_cox)
       }
-      x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 进行单因素 COX 回归 (`survival::coxph`)。筛选 `Pr(>|z|)` < .05` 的基因。")
-    }
-    if (multi_cox) {
-      if (multi_cox.inherits) {
-        cli::cli_alert_info("Inherits results (significant feature) from Univariate COX.")
-        data <- data[, colnames(data) %in% sig.uni_cox$feature ]
-        valid <- valid[, colnames(valid) %in% sig.uni_cox$feature ]
-        text_inherits <- "在单因素回归得到的基因的基础上，"
-      } else {
-        text_inherits <- ""
-      }
-      multi_cox <- list()
-      # Multivariate
-      fun_multiCox <- match.arg(fun_multiCox)
-      if (fun_multiCox == "coxph") {
-        res <- survival::coxph(target ~ ., data.frame(data, check.names = F))
-        multi_cox$model <- res
-        multi_cox$coef <- dplyr::rename(as_tibble(summary(res)$coefficients), feature = 1)
-        x <- tablesAdd(x, t.sigMultivariateCoxCoefficients = multi_cox$coef)
-        x <- methodAdd(x, "{text_inherits} 以 R 包 `survival` ({packageVersion('survival')}) 做多因素 COX 回归 (`survival::coxph`)。", T)
-        x <- snapAdd(x, "执行多因素 COX 回归 (`survival::coxph`)。")
-      } else if (fun_multiCox == "cv.glmnet") {
-        methodName <- if (alpha) "lasso" else "ridge"
-        multi_cox$model <- e(glmnet::cv.glmnet(data, target,
-            alpha = alpha, family = family, nfold = nfold, ...
-            ))
-        model <- multi_cox$model
-        p.lassoCOX_model <- wrap(as_grob(expression(plot(model)), environment()), 6, 6)
-        levels <- x$levels
-        types.coef <- c("lambda.min", "lambda.1se")
-        res <- sapply(types.coef, simplify = F,
-          function(lam) {
-            preds <- e(stats::predict(model, newx = valid, s = model[[ lam ]]))
-            roc <- e(pROC::roc(valid.target, as.numeric(preds), plot = F, levels = levels))
-            namel(preds, roc)
+      if (T) {
+        p.lassoCOX_ROC <- lapply(multi_cox$roc,
+          function(roc) {
+            plot_roc(roc)
           })
-        multi_cox$preds <- lapply(res, function(lst) lst$preds)
-        multi_cox$roc <- lapply(res, function(lst) lst$roc)
-        if (T) {
-          message("Got coefficients.")
-          x$lambda <- c(min = model$lambda.min, `1se` = model$lambda.1se)
-          x <- snapAdd(x, "使用 `glmnet::cv.glmnet` 作 {nfold} 倍交叉验证，筛选 lambda 值。lambda.min, lambda.1se 值分别为 {bind(round(x$lambda, 3))}。")
-          multi_cox$coef <- coefficients(model, s = c(lambda.min = model$lambda.min,
-              lambda.1se = model$lambda.1se))
-          if (all(!multi_cox$coef[, 2])) {
-            message(crayon::red("lambda.1se has non coeffients, use Lambda.min."))
-            sig.mul_cox <- dplyr::select(
-              as_tibble(as.matrix(multi_cox$coef)),
-              feature = 1, coef = 2
-            )
-            sig.mul_cox <- dplyr::filter(sig.mul_cox, coef != 0)
-            x <- snapAdd(x, "选择 lambda.min 时得的基因集，包含 {nrow(sig.mul_cox)} 个基因：{bind(sig.mul_cox$feature)}。")
-          } else {
-            sig.mul_cox <- dplyr::rename(
-              as_tibble(as.matrix(multi_cox$coef)),
-              feature = 1, coef.lambda.min = 2, coef.lambda.1se = 3
-            )
-          }
-          x <- tablesAdd(x, t.sigMultivariateCoxCoefficients = sig.mul_cox)
-        }
-        if (T) {
-          n <- 0L
-          p.lassoCOX_ROC <- lapply(multi_cox$roc,
-            function(roc) {
-              n <<- n + 1L
-              plot_roc(roc)
-            })
-          names(p.lassoCOX_ROC) <- types.coef
-        }
-        if (T) {
-          coef <- as_tibble(Matrix::as.matrix(multi_cox$coef))
-          colnames(coef)[-1] <- types.coef
-          coef <- arrange(coef, dplyr::desc(abs(lambda.min)))
-          coef <- rename(coef, variable = rownames)
-          message("Plot Significant coefficients.")
-          p.lassoCOX_coeffients <- plot_sig(filter(coef, !grepl("Inter", variable)))
-        }
-        x <- plotsAdd(x, p.lassoCOX_model, p.lassoCOX_ROC, p.lassoCOX_coeffients)
-        x <- methodAdd(x, "{text_inherits} 以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归，以 `{fun_multiCox}` 函数作 {nfold} 交叉验证获得模型。", T)
-      } else if (fun_multiCox == "glmnet") {
-        methodName <- if (alpha) "lasso" else "ridge"
-        multi_cox$model <- e(glmnet::glmnet(data, target,
-            alpha = alpha, family = family, ...))  
-        multi_cox$coef <- coefficients(multi_cox$model)
-        x <- methodAdd(x, "{text_inherits} 以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归。", T)
+        names(p.lassoCOX_ROC) <- lambdas
       }
-      x$multi_cox <- multi_cox
+      if (T) {
+        coef <- as_tibble(Matrix::as.matrix(multi_cox$coef))
+        colnames(coef)[-1] <- lambdas
+        coef <- arrange(coef, dplyr::desc(abs(lambda.min)))
+        coef <- rename(coef, variable = rownames)
+        message("Plot Significant coefficients.")
+        p.lassoCOX_coeffients <- plot_sig(filter(coef, !grepl("Inter", variable)))
+      }
+      x <- plotsAdd(x, p.lassoCOX_model, p.lassoCOX_ROC, p.lassoCOX_coeffients)
+      x <- methodAdd(x, "以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归，以 `{fun_multiCox}` 函数作 {nfold} 交叉验证获得模型。", T)
+    } else if (fun_multiCox == "glmnet") {
+      methodName <- if (alpha) "lasso" else "ridge"
+      multi_cox$model <- e(glmnet::glmnet(data, target,
+          alpha = alpha, family = family, ...))  
+      multi_cox$coef <- coefficients(multi_cox$model)
+      x <- methodAdd(x, "以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归。", T)
     }
-    if (!is.null(x$uni_cox) && !is.null(x$multi_cox$coef) && fun_multiCox == "coxph") {
+    x$multi_cox <- multi_cox
+    x$fun_multiCox <- fun_multiCox
+    return(x)
+  })
+
+setMethod("step5", signature = c(x = "job_lasso"),
+  function(x){
+    step_message("Try Merge Univariate cox and Multivariate cox results (coxph).")
+    if (!is.null(x$uni_cox) && !is.null(x$multi_cox$coef) && x$fun_multiCox == "coxph") {
       message("Try merge results.")
       if (nrow(x$uni_cox) == nrow(x$multi_cox$coef)) {
         message("The same row number of Univariate COX and Multivariate COX, try merge.")
@@ -316,8 +319,6 @@ setMethod("step3", signature = c(x = "job_lasso"),
     }
     return(x)
   })
-
-
 
 plot_roc <- function(roc) {
   wrap(as_grob(

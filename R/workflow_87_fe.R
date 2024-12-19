@@ -41,7 +41,7 @@ setMethod("step1", signature = c(x = "job_fe"),
     x <- tablesAdd(x, t.ferroptosisRegulators)
     x <- methodAdd(x, "从数据库 `FerrDb V2` {cite_show('FerrdbV2UpdaZhou2023')} 获取与铁死亡相关的调控因子或铁死亡与疾病之间的关联信息 <http://www.zhounan.org/ferrdb/current/>。")
     # a list
-    s.com <- snap_items(t.ferroptosisRegulators, "symbol")
+    s.com <- try_snap(t.ferroptosisRegulators, "symbol")
     x <- snapAdd(x, "铁死亡相关调控因子统计：{s.com}")
     return(x)
   })

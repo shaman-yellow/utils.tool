@@ -52,7 +52,7 @@ setMethod("step1", signature = c(x = "job_genecard"),
     x@tables[[ 1 ]] <- namel(t.genecards)
     x$score <- attr(t.genecards, ".score")
     x <- methodAdd(x, "从 `GeneCards` 数据库 {cite_show('TheGenecardsSStelze2016')} 获取 {object(x)} 相关的基因集，得分 cut-off 为 {x$score}。")
-    s.com <- snap_items(t.genecards, "Category", "Symbol")
+    s.com <- try_snap(t.genecards, "Category", "Symbol")
     x <- snapAdd(x, "从 `GeneCards` 取得的靶点数据，统计为 {s.com}。共 {nrow(t.genecards)} 个靶点。")
     return(x)
   })

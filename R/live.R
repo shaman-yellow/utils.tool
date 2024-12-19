@@ -437,7 +437,12 @@ write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".
   if (!file.exists(mkdir))
     dir.create(mkdir)
   file <- paste0(mkdir, "/", file)
+  showtext <- getOption("SHOWTEXT", F)
   if (is(data, "wrap")) {
+    res <- try(data@showtext, T)
+    if (!inherits(res, "try-error")) {
+      showtext <- res
+    }
     if (!is.null(fam <- getOption("font_family"))) {
       pdf(file, width = data@width, height = data@height, family = fam)
     } else {
@@ -446,7 +451,6 @@ write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".
   } else {
     pdf(file)
   }
-  showtext <- getOption("SHOWTEXT", F)
   if (showtext) {
     showtext::showtext_begin()
   }
@@ -1252,20 +1256,21 @@ setMethod("draw_sampletree", signature = c(x = "wgcData"),
     return(x)
   })
 
-wrap <- function(data, width = 10, height = 8) {
+wrap <- function(data, width = 10, height = 8, showtext = F) {
   if (is(data, "wrap")) {
     data@width <- width
     data@height <- height
+    try(data@showtext <- showtext, showtext)
     data
   } else {
-    .wrap(data = data, width = width, height = height)
+    .wrap(data = data, width = width, height = height, showtext = showtext)
   }
 }
 
 .wrap <- setClass("wrap", 
   contains = c("can_not_be_draw"),
-  representation = representation(data = "ANY", width = "ANY", height = "ANY"),
-  prototype = NULL)
+  representation = representation(data = "ANY", width = "ANY", height = "ANY", showtext = "logical"),
+  prototype = prototype(showtext = FALSE))
 
 setMethod("[[", signature = c(x = "wrap"),
   function(x, i, ...){
