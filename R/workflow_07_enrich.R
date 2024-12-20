@@ -179,7 +179,7 @@ setMethod("res", signature = c(x = "job_enrich", ref = "character"),
     data[[ type ]][ which ]
   })
 
-setGeneric("asjob_enrich", 
+setGeneric("asjob_enrich", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_enrich"))
 
 setMethod("asjob_enrich", signature = c(x = "job_seurat"),

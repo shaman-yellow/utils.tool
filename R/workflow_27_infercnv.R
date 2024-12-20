@@ -17,7 +17,7 @@
     analysis = "InferCNV 变异拷贝数分析"
     ))
 
-setGeneric("asjob_infercnv", 
+setGeneric("asjob_infercnv", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_infercnv"))
 
 setMethod("asjob_infercnv", signature = c(x = "job_seurat"),

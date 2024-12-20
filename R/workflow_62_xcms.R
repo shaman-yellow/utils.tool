@@ -51,7 +51,7 @@ setMethod("step2", signature = c(x = "job_xcms"),
     return(x)
   })
 
-setGeneric("asjob_xcms", 
+setGeneric("asjob_xcms", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_xcms"))
 
 setMethod("asjob_xcms", signature = c(x = "job_msconvert"),

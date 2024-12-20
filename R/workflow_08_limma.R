@@ -48,31 +48,44 @@ job_limma_normed <- function(data, metadata, genes = NULL) {
 
 setMethod("regroup", signature = c(x = "job_limma"),
   function(x, ...){
-    if (!is.null(x@object$samples)) {
-      x@object$samples <- dplyr::mutate(x@object$samples, ...)
-    }
-    if (!is.null(x$metadata)) {
-      x$metadata <- dplyr::mutate(x$metadata, ...)
-    }
-    if (!is.null(x$.metadata)) {
-      x$.metadata <- dplyr::mutate(x$.metadata, ...)
-    }
-    if (!is.null(x$normed_data$targets)) {
-      x$normed_data$targets <- dplyr::mutate(x$normed_data$targets, ...)
-    }
-    x
+    modify_job_limma_meta(x, ..., fun = dplyr::mutate)
   })
 
+modify_job_limma_meta <- function (x, ..., fun) {
+  if (!is.null(x@object$samples)) {
+    x@object$samples <- fun(x@object$samples, ...)
+  }
+  if (!is.null(x$metadata)) {
+    x$metadata <- fun(x$metadata, ...)
+  }
+  if (!is.null(x$.metadata)) {
+    x$.metadata <- fun(x$.metadata, ...)
+  }
+  if (!is.null(x$normed_data$targets)) {
+    x$normed_data$targets <- fun(x$normed_data$targets, ...)
+  }
+  x
+}
+
 setMethod("filter", signature = c(x = "job_limma"),
-  function(x, ...){
-    message("Filter genes via `x@object$genes`.")
-    message("Before Dim: ", paste0(dim(object(x)), collapse = ", "))
-    data <- object(x)$genes
-    data$...seq <- 1:nrow(data)
-    keep <- dplyr::filter(data, ...)$...seq
-    object(x) <- object(x)[keep, ]
-    message("After Dim: ", paste0(dim(object(x)), collapse = ", "))
-    return(x)
+  function(x, ..., type = c("gene", "metadata")){
+    type <- match.arg(type)
+    if (type == "gene") {
+      message("Filter genes via `x@object$genes`.")
+      message("Before Dim: ", paste0(dim(object(x)), collapse = ", "))
+      data <- object(x)$genes
+      data$...seq <- 1:nrow(data)
+      keep <- dplyr::filter(data, ...)$...seq
+      object(x) <- object(x)[keep, ]
+      message("After Dim: ", paste0(dim(object(x)), collapse = ", "))
+      return(x)
+    } else if (type == "metadata") {
+      metadata <- if (x$normed) x$metadata else x@object$samples
+      snap <- snap(trace_filter(metadata, ...))
+      x <- modify_job_limma_meta(x, ..., fun = dplyr::filter)
+      x <- snapAdd(x, "{snap}")
+      return(x)
+    }
   })
 
 job_limma <- function(DGEList)
@@ -343,8 +356,9 @@ plot_genes_heatmap <- function(data, metadata) {
   data <- tidyr::pivot_longer(data, !genes, names_to = "sample", values_to = "expression")
   data <- tbmerge(data, metadata, by = "sample", all.x = T)
   maxBreak <- max(ceiling(abs(range(data$expression))))
+  # ComplexHeatmap::Heatmap
   tidyHeatmap::heatmap(dplyr::group_by(data, group), genes, sample, expression,
-    palette_value = fun_color(-maxBreak, maxBreak))
+    palette_value = fun_color(-maxBreak, maxBreak), show_column_names = F)
 }
 
 .guess_intersect <- function(tops) {
@@ -477,6 +491,7 @@ setMethod("cal_corp",
   {
     message("Filter out others.")
     eval(use)
+    sigs <- c(x@sig, y@sig)
     x <- x$normed_data
     x <- x[x$genes[[ use ]] %in% from, ]
     if (!nrow(x)) {
@@ -498,7 +513,11 @@ setMethod("cal_corp",
     x$E <- rbind(x$E, y$E)
     x$genes <- rbind(x$genes, y$genes)
     newjob <- .job_limma(params = list(normed_data = x))
-    cal_corp(newjob, NULL, from, to, names, use, theme, HLs, mode)
+    x <- cal_corp(newjob, NULL, from, to, names, use, theme, HLs, mode)
+    x$.snap <- c(
+      list(step0 = glue::glue("将两组相同样品来源的数据集 (dataset: {bind(sigs)})) 关联分析。")),
+      step1 = x$.snap[[1]])
+    x
   })
 
 setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
@@ -527,7 +546,15 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
     } else if (mode == "linear") {
       lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = F)
     }
-    return(lst)
+    x <- .job(params = lst)
+    fun <- function(x) length(unique(x))
+    if (identical(from, to)) {
+      x <- snapAdd(x, "将基因集 ({fun(from)}) 关联分析，")
+    } else {
+      x <- snapAdd(x, "将基因集 (A -> B) (A:{fun(from)}, B:{fun(to)}) 关联分析，")
+    }
+    x <- snapAdd(x, "共得到 {nrow(lst$sig.corp)} 个显著的基因对 (P &lt; 0.05)。")
+    return(x)
   })
 
 .cal_corp.elist <- function(data, anno, use, from, to, names, HLs = NULL, fast = T)

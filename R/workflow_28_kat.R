@@ -30,7 +30,7 @@ job_kat <- function(x, use = names(x@object@assays)[[1]], layer = "counts")
   .job_kat(object = object)
 }
 
-setGeneric("asjob_kat", 
+setGeneric("asjob_kat", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_kat"))
 
 setMethod("asjob_kat", signature = c(x = "job_seurat"),

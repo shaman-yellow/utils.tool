@@ -28,7 +28,7 @@ job_hob <- function(smiles)
   .job_hob(object = smiles)
 }
 
-setGeneric("asjob_hob", 
+setGeneric("asjob_hob", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_hob"))
 
 setMethod("asjob_hob", signature = c(x = "job_pubchemr"),

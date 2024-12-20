@@ -19,7 +19,7 @@
     analysis = "Kallisto RNA-seq 定量"
     ))
 
-setGeneric("asjob_kall", 
+setGeneric("asjob_kall", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_kall"))
 
 setMethod("asjob_kall", signature = c(x = "job_fastp"),

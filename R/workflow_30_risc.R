@@ -18,7 +18,7 @@
     analysis = "RISC 单细胞数据集集成"
     ))
 
-setGeneric("asjob_risc", 
+setGeneric("asjob_risc", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_risc"))
 
 setMethod("asjob_risc", signature = c(x = "list"),

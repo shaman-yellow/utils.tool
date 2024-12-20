@@ -18,7 +18,7 @@
     analysis = "Annota 变异注释"
     ))
 
-setGeneric("asjob_annova", 
+setGeneric("asjob_annova", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_annova"))
 
 setMethod("asjob_annova", signature = c(x = "job_limma"),

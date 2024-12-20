@@ -18,7 +18,7 @@
     analysis = "Maftools 变异注释结果分析"
     ))
 
-setGeneric("asjob_maf", 
+setGeneric("asjob_maf", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_maf"))
 
 setMethod("asjob_maf", signature = c(x = "job_tcga"),

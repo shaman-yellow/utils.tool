@@ -18,7 +18,7 @@
     analysis = "MicrobiotaProcess 可视化"
     ))
 
-setGeneric("asjob_mp", 
+setGeneric("asjob_mp", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_mp"))
 
 setMethod("asjob_mp", signature = c(x = "job_qiime"),

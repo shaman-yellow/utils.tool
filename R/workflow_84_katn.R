@@ -12,7 +12,7 @@
     others = "ANY"),
   prototype = prototype())
 
-setGeneric("asjob_katn", 
+setGeneric("asjob_katn", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_katn"))
 
 setMethod("asjob_katn", signature = c(x = "job_seurat"),

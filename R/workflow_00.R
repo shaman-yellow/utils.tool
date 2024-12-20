@@ -57,10 +57,18 @@ setReplaceMethod("snap", signature = c(x = "ANY"),
 
 setMethod("snap", signature = c(x = "job", ref = "numeric_or_character"),
   function(x, ref){
-    if (!is.null(snap <- x$.snap[[ paste0("step", ref) ]])) {
-      snap
+    fun <- function(ref) {
+      if (!is.null(snap <- x$.snap[[ paste0("step", ref) ]])) {
+        snap
+      } else {
+        ""
+      }
+    }
+    if (length(ref) > 1) {
+      res <- unlist(lapply(ref, fun))
+      paste0(res[ res != "" ], collapse = "")
     } else {
-      ""
+      fun(ref)
     }
   })
 
@@ -71,16 +79,13 @@ trace_filter <- function(data, ..., quosures = NULL) {
   }
   before <- data
   data <- dplyr::filter(data, !!!(quosures))
-  if (nrow(data) == nrow(before)) {
-    message("trace_filter: no filter out.")
-    return(list(data = data, snap = ""))
-  }
   cols <- colnames(data)
   labels <- lapply(quosures, rlang::as_label)
   snaps <- vapply(labels,
     function(label) {
       alls <- stringr::str_extract_all(label, "[a-zA-Z0-9_.]+|`.*?`")[[1]]
-      col <- gs(alls[ alls %in% cols ], "`", "")
+      alls <- gs(alls, "`", "")
+      col <- alls[ alls %in% cols ]
       if (length(col) > 1 || !length(col)) {
         stop(glue::glue("`trace_filter` can not found the target column: {col} in {label}."))
       }
@@ -88,6 +93,11 @@ trace_filter <- function(data, ..., quosures = NULL) {
         symbol <- strx(label, ">=|<=|==|>|<")
         if (!length(symbol)) {
           stop("`trace_filter`: numeric only support: ", ">=|<=|==|>|<")
+        }
+        thred <- strx(label, "[0-9.]+")
+        thred <- thred[ !is.na(thred) ]
+        if (length(thred)) {
+          thred <- as.numeric(thred)
         }
         if (symbol == ">=" || symbol == ">") {
           cutoff <- min(data[[ col ]])
@@ -100,6 +110,11 @@ trace_filter <- function(data, ..., quosures = NULL) {
           }
         } else {
           stop(glue::glue("`trace_filter`: can not recognize the symbol: {symbol}"))
+        }
+        if (is.numeric(thred)) {
+          if (eval(parse(text = paste0("cutoff ", symbol, " thred")))) {
+            cutoff <- thred
+          }
         }
         des <- switch(symbol,
           ">=" = "大于或等于",
@@ -118,7 +133,13 @@ trace_filter <- function(data, ..., quosures = NULL) {
         stop("`trace_filter`: Only 'character' or 'numeric' support.")
       }
     }, character(1))
-  snap <- paste0(bind(snaps), glue::glue("，最终得到 {nrow(data)} 例数据。"))
+  if (nrow(data) == nrow(before)) {
+    message("trace_filter: no filter out.")
+    snap <- paste0(bind(snaps), glue::glue("，未过滤掉任何数据 (n = {nrow(data)})。"))
+  } else {
+    snap <- paste0(bind(snaps), glue::glue("，最终得到 {nrow(data)} 例数据。"))
+  }
+  message(snap)
   snap(data) <- snap
   return(data)
 }
@@ -689,7 +710,18 @@ available_signatures <- function(f, exclude = c("ANY", "missing", "job")) {
   signatures
 }
 
-setGeneric("step0", 
+setGroupGeneric("asjob_series",
+  function(x, ...) {
+    stop("...")
+  }
+)
+
+setGroupGeneric("step_series",
+  function(x, ...) {
+    stop("...")
+  })
+
+setGeneric("step0", group = list("step_series"),
   function(x, ...) {
     if (!missing(x)) {
       if (!is(x, "numeric") & !is(x, "character")) {
@@ -733,7 +765,7 @@ set_sig <- function(x) {
   return(x)
 }
 
-setGeneric("step1",
+setGeneric("step1", group = list("step_series"),
   function(x, ...) {
     # if (identical(sig(x), character(0))) {
     if (identical(parent.frame(1), .GlobalEnv)) {
@@ -793,77 +825,77 @@ job_append_heading <- function (x, mutate = T, heading = NULL) {
   }
 }
 
-setGeneric("step2",
+setGeneric("step2", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 2L)
     x <- standardGeneric("step2")
     stepPostModify(x, 2)
   })
 
-setGeneric("step3",
+setGeneric("step3", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 3L)
     x <- standardGeneric("step3")
     stepPostModify(x, 3)
   })
 
-setGeneric("step4",
+setGeneric("step4", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 4L)
     x <- standardGeneric("step4")
     stepPostModify(x, 4)
   })
 
-setGeneric("step5",
+setGeneric("step5", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 5L)
     x <- standardGeneric("step5")
     stepPostModify(x, 5)
   })
 
-setGeneric("step6",
+setGeneric("step6", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 6L)
     x <- standardGeneric("step6")
     stepPostModify(x, 6)
   })
 
-setGeneric("step7",
+setGeneric("step7", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 7L)
     x <- standardGeneric("step7")
     stepPostModify(x, 7)
   })
 
-setGeneric("step8",
+setGeneric("step8", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 8L)
     x <- standardGeneric("step8")
     stepPostModify(x, 8)
   })
 
-setGeneric("step9",
+setGeneric("step9", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 9L)
     x <- standardGeneric("step9")
     stepPostModify(x, 9)
   })
 
-setGeneric("step10",
+setGeneric("step10", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 10L)
     x <- standardGeneric("step10")
     stepPostModify(x, 10)
   })
 
-setGeneric("step11",
+setGeneric("step11", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 11L)
     x <- standardGeneric("step11")
     stepPostModify(x, 11)
   })
 
-setGeneric("step12",
+setGeneric("step12", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 12L)
     x <- standardGeneric("step12")

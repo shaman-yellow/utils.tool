@@ -40,7 +40,7 @@ job_prr <- function(data, drug = prr_drug())
   return(x)
 }
 
-setGeneric("asjob_prr", 
+setGeneric("asjob_prr", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_prr"))
 
 setMethod("asjob_prr", signature = c(x = "job_tcga"),

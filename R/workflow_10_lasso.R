@@ -18,7 +18,7 @@
     analysis = "COX 回归"
     ))
 
-setGeneric("asjob_lasso", 
+setGeneric("asjob_lasso", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_lasso"))
 
 setMethod("asjob_lasso", signature = c(x = "job_limma"),
@@ -27,6 +27,11 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
   {
     step_message("The default, 'job_limma' from 'job_tcga' were adapted to convertion.")
     dup_method <- match.arg(dup_method)
+    if (x$normed) {
+      x$normed_data <- new("EList", list(E = object(x), targets = x$metadata, genes = x$genes))
+      from_normed <- T
+      x@step <- 1L
+    }
     if (from_normed && x@step >= 1L) {
       if (!is(x@params$normed_data, 'EList'))
         stop("is(x@params$normed_data, 'EList') == F")
@@ -103,7 +108,7 @@ setMethod("step0", signature = c(x = "job_lasso"),
   })
 
 setMethod("step1", signature = c(x = "job_lasso"),
-  function(x, target = "group", levels = c("Alive", "Dead"),
+  function(x, target = "vital_status", levels = c("Alive", "Dead"),
     time = "days_to_last_follow_up", n.train = .8, seed = 555)
   {
     step_message("Data preparation.")
@@ -137,7 +142,7 @@ setMethod("step1", signature = c(x = "job_lasso"),
   })
 
 setMethod("step2", signature = c(x = "job_lasso"),
-  function(x, use_data = c("all", "train"), top = 30, efs = T)
+  function(x, use_data = c("all", "train"), top = 30, efs = F)
   {
     step_message("Evaluate variable (genes) importance.")
     use_data <- match.arg(use_data)
@@ -204,10 +209,11 @@ setMethod("step3", signature = c(x = "job_lasso"),
 setMethod("step4", signature = c(x = "job_lasso"),
   function(x, use_data = x$use_data, inherit_unicox = T,
     fun = c("coxph", "glmnet", "cv.glmnet"), nfold = 10,
-    alpha = 1, family = "cox", ...)
+    alpha = 1, family = "cox", type.measure = c("deviance", "C"), ...)
   {
     step_message("Multivariate COX.")
     fun_multiCox <- match.arg(fun)
+    type.measure <- match.arg(type.measure)
     data_lst <- x$get(use_data)
     data <- data_lst$data
     valid_lst <- x$get("v")
@@ -237,7 +243,7 @@ setMethod("step4", signature = c(x = "job_lasso"),
       methodName <- if (alpha) "lasso" else "ridge"
       set.seed(x$seed)
       multi_cox$model <- model <- e(glmnet::cv.glmnet(data, target,
-          alpha = alpha, family = family, nfold = nfold, ...))
+          alpha = alpha, family = family, nfold = nfold, type.measure = "deviance", ...))
       p.lassoCOX_model <- wrap(as_grob(expression(plot(model)), environment()), 6, 6, showtext = T)
       lambdas <- c("lambda.min", "lambda.1se")
       res <- sapply(lambdas, simplify = F,
@@ -251,7 +257,7 @@ setMethod("step4", signature = c(x = "job_lasso"),
       if (T) {
         message("Got coefficients.")
         x$lambda <- c(min = model$lambda.min, `1se` = model$lambda.1se)
-        x <- snapAdd(x, "使用 `glmnet::cv.glmnet` 作 {nfold} 倍交叉验证，筛选 lambda 值。lambda.min, lambda.1se 值分别为 {bind(round(x$lambda, 3))} (R 随机种子为 {x$seed})。")
+        x <- snapAdd(x, "使用 `glmnet::cv.glmnet` 作 {nfold} 倍交叉验证 (评估方式为 {model$name})，筛选 lambda 值。lambda.min, lambda.1se 值分别为 {bind(round(x$lambda, 3))} (R 随机种子为 {x$seed})。")
         multi_cox$coef <- coefficients(
           model, s = c(lambda.min = model$lambda.min, lambda.1se = model$lambda.1se)
         )
@@ -384,6 +390,25 @@ setMethod("map", signature = c(x = "job_lasso"),
     data <- tidyr::gather(data, var, value, -group)
     p <- .map_boxplot(data, pvalue)
     p
+  })
+
+setMethod("merge", signature = c(x = "job_lasso", y = "job_lasso"),
+  function(x, y, scale = T, ...)
+  {
+    common <- intersect(colnames(x$metadata), colnames(y$metadata))
+    message(glue::glue("merge metadata of columns: {bind(common)}"))
+    lst_metas <- lapply(list(x$metadata, y$metadata),
+      function(meta) {
+        dplyr::select(meta, dplyr::all_of(common))
+      })
+    sigs <- names(lst_metas) <- c(x@sig, y@sig)
+    metadata <- frbind(lst_metas, idcol = "Dataset")
+    gcommon <- intersect(colnames(object(x)), colnames(object(y)))
+    object <- rbind(object(x)[, gcommon ], object(y)[, gcommon ])
+    object <- scale(object)
+    x <- .job_lasso(object = object, params = list(metadata = metadata))
+    x <- snapAdd(x, "将数据集合并 ({bind(sigs)}) 。")
+    return(x)
   })
 
 .map_boxplot <- function(data, pvalue) {

@@ -26,7 +26,7 @@ job_swiss <- function(smiles)
   .job_swiss(object = smiles)
 }
 
-setGeneric("asjob_swiss", 
+setGeneric("asjob_swiss", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_swiss"))
 
 setMethod("asjob_swiss", signature = c(x = "job_tcmsp"),

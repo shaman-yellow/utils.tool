@@ -19,7 +19,7 @@
     analysis = "Classyfire 获取化合物分类信息"
     ))
 
-setGeneric("asjob_classyfire", 
+setGeneric("asjob_classyfire", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_classyfire"))
 
 setMethod("asjob_classyfire", signature = c(x = "job_herb"),

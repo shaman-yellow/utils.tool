@@ -23,7 +23,7 @@ job_rfsrc <- function()
   .job_rfsrc()
 }
 
-setGeneric("asjob_rfsrc", 
+setGeneric("asjob_rfsrc", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_rfsrc"))
 
 setMethod("asjob_rfsrc", signature = c(x = "job_maf"),

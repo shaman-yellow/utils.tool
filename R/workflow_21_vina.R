@@ -30,7 +30,7 @@ job_vina <- function(cids, hgnc_symbols, .layout = NULL)
   x
 }
 
-setGeneric("asjob_vina", 
+setGeneric("asjob_vina", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_vina"))
 
 setMethod("asjob_vina", signature = c(x = "job_stringdb"),

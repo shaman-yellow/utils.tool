@@ -190,11 +190,12 @@ setMethod("merge", signature = c(x = "job_tcga", y = "job_tcga"),
     x$dim <- dim(object(x))
     s.com <- try_snap(data.frame(object(x)@colData, check.names = F), "batch", "sample")
     x <- methodAdd(x, "将 {s.com} 数据集合并。")
-    x <- snapAdd(x, "将 {s.com} 数据集合并。")
+    x <- snapAdd(x, "将 {s.com} 数据集合并。", step = "merge")
+    x$project <- bind(projects)
     return(x)
   })
 
-setGeneric("asjob_limma", 
+setGeneric("asjob_limma", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_limma"))
 
 setMethod("asjob_limma", signature = c(x = "job_tcga"),

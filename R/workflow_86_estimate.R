@@ -19,7 +19,7 @@
     analysis = "estimate 免疫评分"
     ))
 
-setGeneric("asjob_estimate", 
+setGeneric("asjob_estimate", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_estimate"))
 
 setMethod("asjob_estimate", 
@@ -32,7 +32,9 @@ setMethod("asjob_estimate",
     object <- x$normed_data
     rownames(object) <- object$genes[[ use ]]
     data <- object$E
-    job_estimate(data)
+    x <- job_estimate(data)
+    x <- snapAdd(x, "以数据集 ({x$project}, dataset: {x@sig}) 进行 ESTIMATE 免疫评分计算。")
+    x
   })
 
 job_estimate <- function(data, dir = "estimate")

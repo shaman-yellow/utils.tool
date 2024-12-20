@@ -17,15 +17,17 @@
     analysis = "Survival 生存分析"
     ))
 
-setGeneric("asjob_survival", 
+setGeneric("asjob_survival", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_survival"))
 
 setMethod("asjob_survival", signature = c(x = "job_lasso"),
   function(x, use.group = c("mul_cox", "uni_cox"), lambda = c("min", "1se"),
-    base_method = c("median"), fea_coefs = NULL, force = F, use_data = c("all", "train", "valid"))
+    base_method = c("surv_cutpoint", "median"), fea_coefs = NULL, force = F,
+    use_data = c("all", "train", "valid"))
   {
     y <- .job_survival()
     use_data <- match.arg(use_data)
+    base_method <- match.arg(base_method)
     if (x@step < 3L && !force) {
       stop("x@step < 3L")
     }
@@ -44,6 +46,9 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
         y <- snapAdd(y, "选择 Univariate COX 回归得到的显著特征集，包含 {nrow{fea_coefs}} 个基因，
           分别为: {bind(fea_coefs$feature)}。")
       }
+      y <- snapAdd(y, "以回归系数构建风险评分模型。\n\n$$ Score = \\sum(expr(Gene) \\times coef) $$\n\n")
+    } else {
+      y <- snapAdd(y, "将风险评分模型运用于数据集 (dataset: {x@sig})。")
     }
     if (is.null(fea_coefs)) {
       stop("`fea_coefs` should be specified.")
@@ -68,15 +73,27 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
           sum(fea_coefs$coef * exprs)
         })
     )
-    y <- snapAdd(y, "以回归系数构建风险评分模型。\n\n$$ Score = \\sum(expr(Gene) \\times coef) $$\n\n")
     if (base_method == "median") {
       data <- dplyr::mutate(data,
         score_group = ifelse(risk_score > median(risk_score), "High", "Low")
       )
       cutoff <- median(data$risk_score)
-      y <- snapAdd(y, "按中位风险评分，将病例分为 Low 和 High 风险组 (cutoff: {round(cutoff, 3)})
+      y <- snapAdd(y, "按中位风险评分，将样本分为 Low 和 High 风险组 (cutoff: {cutoff})
+        ({try_snap(data$score_group)})， 随后进行生存分析。")
+    } else if (base_method == "surv_cutpoint") {
+      cutoff <- survminer::surv_cutpoint(
+        data.frame(risk_score = data$risk_score,
+          time = x$get(use_data)$time, event = x$get(use_data)$event),
+        variables = "risk_score"
+      )$cutpoint$cutpoint
+      data <- dplyr::mutate(data,
+        score_group = ifelse(risk_score > cutoff, "High", "Low")
+      )
+      y <- snapAdd(y, "按 `survminer::surv_cutpoint` 计算的 cutoff，
+        将样本分为 Low 和 High 风险组 (cutoff: {cutoff})
         ({try_snap(data$score_group)})， 随后进行生存分析。")
     }
+    message("Be careful, follow_up time should be 'day' as unit.")
     data$days_to_last_follow_up <- x$get(use_data)$time
     data$vital_status <- x$get(use_data)$types
     message("The heatmap plot was used scaled data.")
@@ -173,6 +190,11 @@ setMethod("step1", signature = c(x = "job_survival"),
         # timeROC
         if (length(genes) == 1) {
           require(survival)
+          if (any(roc_time == 1) && !any(dplyr::filter(data, time / 12 <= 1)$o_status == "Dead")) {
+            message("No event of 'Dead' in year 1, switch to 3, 5, 10.")
+            x <- snapAdd(x, "不存在 1 年以内 Dead 的样本，因此以 3, 5, 10 计算 ROC。")
+            roc_time <- c(3, 5, 10)
+          }
           cols <- c("blue", "red", "orange")[seq_along(roc_time)]
           roc <- timeROC::timeROC(data$time / 12, data$status, data[[ genes ]], cause = 1,
             times = roc_time)

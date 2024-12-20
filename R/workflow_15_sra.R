@@ -88,7 +88,7 @@ setMethod("step4", signature = c(x = "job_sra"),
     return(x)
   })
 
-setGeneric("asjob_qiime", 
+setGeneric("asjob_qiime", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_qiime"))
 
 setMethod("asjob_qiime", signature = c(x = "job_sra"),
@@ -97,7 +97,7 @@ setMethod("asjob_qiime", signature = c(x = "job_sra"),
     job_qiime(x@params$metadata, wd, export = export)
   })
 
-setGeneric("asjob_sra", 
+setGeneric("asjob_sra", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_sra"))
 
 setMethod("asjob_sra", signature = c(x = "df"),

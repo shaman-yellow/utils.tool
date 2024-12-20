@@ -107,7 +107,7 @@ setMethod("set_remote", signature = c(x = "job_sirius"),
     return(x)
   })
 
-setGeneric("asjob_sirius", 
+setGeneric("asjob_sirius", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_sirius"))
 
 setMethod("asjob_sirius", signature = c(x = "job_xcms"),

@@ -13,7 +13,7 @@
     analysis = "Mime 机器学习构建模型"
     ))
 
-setGeneric("asjob_mime", 
+setGeneric("asjob_mime", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_mime"))
 
 setMethod("asjob_mime", signature = c(x = "job_lasso"),
