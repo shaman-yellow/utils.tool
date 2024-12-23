@@ -43,7 +43,7 @@ setMethod("step1", signature = c(x = "job_biblio"),
       to = to, suffix = ".txt"))
     object(x) <- e(bibliometrix::convert2df(files, dbsource = "wos", format = "plaintext"))
     dat <- alls <- as_tibble(data.frame(object(x)))
-    dat <- dplyr::mutate(dat, .seq_id = 1:nrow(dat))
+    dat <- dplyr::mutate(dat, .seq_id = seq_len(nrow(dat)))
     fun <- function(dat) {
       dplyr::filter(dat, !.seq_id %in% !!d.out$.seq_id)
     }

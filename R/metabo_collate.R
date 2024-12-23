@@ -88,7 +88,7 @@ metabo_collate_compound <- function(compound)
 batch_kegg_get <- function(kegg)
 {
   cat("## kegg compound query\n")
-  db <- data.table::data.table(kegg = kegg, seq = 1:length(kegg)) %>% 
+  db <- data.table::data.table(kegg = kegg, seq = seq_along(kegg)) %>% 
     dplyr::mutate(index = (seq - seq %% 10) / 10) %>%
     by_group_as_list("index") %>%
     lapply(select, kegg) %>% 

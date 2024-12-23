@@ -168,7 +168,7 @@ get_gsm.data <-
 #     fit <- limma::lmFit(eset, design)
 #     fit.cont <- limma::contrasts.fit(fit, contrasts = contr.matrix)
 #     ebayes <- limma::eBayes(fit.cont)
-#     res <- lapply(1:ncol(contr.matrix), function(coef){
+#     res <- lapply(seq_len(ncol(contr.matrix)), function(coef){
 #       results <- limma::topTable(ebayes, coef = coef, number = Inf) %>% 
 #         dplyr::filter(adj.P.Val < cut.q, abs(logFC) > cut.fc) %>% 
 #         dplyr::as_tibble() 

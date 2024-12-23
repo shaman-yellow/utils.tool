@@ -446,10 +446,10 @@ collateFiles <- function(ids,
 {
   files <- list.files(from, file.pattern, full.names = T)
   index <- index.pfun(files)
-  files <- files[order(index)][1:length(ids)]
+  files <- files[order(index)][seq_along(ids)]
   files <- rev(files)
   dir.create(to, F, T)
-  files <- lapply(1:length(ids),
+  files <- lapply(seq_along(ids),
     function(n) {
       file.copy(files[ n ], file <- paste0(to, "/", ids[n], suffix), T)
       file
@@ -459,9 +459,9 @@ collateFiles <- function(ids,
 
 file_seq.by_time <- function(files) {
   info <- fs::file_info(files)
-  info <- dplyr::mutate(info, .INDEX = 1:nrow(info))
+  info <- dplyr::mutate(info, .INDEX = seq_len(nrow(info)))
   info <- dplyr::arrange(info, dplyr::desc(modification_time))
-  info <- dplyr::mutate(info, .SEQ = 1:nrow(info))
+  info <- dplyr::mutate(info, .SEQ = seq_len(nrow(info)))
   info <- dplyr::arrange(info, .INDEX)
   info$.SEQ
 }

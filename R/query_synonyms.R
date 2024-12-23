@@ -134,7 +134,7 @@ packing_as_rdata_list <- function(path, pattern, rdata,
   names(list) <- file_set
   list <- c(extra, list)
   if (dedup){
-    df <- data.table::data.table(name = names(list), n = 1:length(list))
+    df <- data.table::data.table(name = names(list), n = seq_along(list))
     df <- dplyr::distinct(df, name, .keep_all = T)
     list <- list[df$n]
   }

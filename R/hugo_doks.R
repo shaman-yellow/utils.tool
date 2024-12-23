@@ -8,7 +8,7 @@ hugoDir <- "~/siteBlog/"
 new_notes <- function(scene, weight, parent = "notes") {
   names(scene) <- rep(parent, length(scene))
   weight <- rep(weight, length(scene))
-  ex_weight <- weight + 1:length(scene)
+  ex_weight <- weight + seq_along(scene)
   new_scene(scene, weight, ex_weight)
 }
 
@@ -22,7 +22,7 @@ new_scene <- function(scene, weight = rep(100, length(scene)), ex_weight = weigh
     }
     path <- paste0(path, suffix)
     path <- target_dir(path, tar)
-    lapply(1:length(scene),
+    lapply(seq_along(scene),
       function(n){
         name <- names(scene)[n]
         dir <- file.path(path, name)

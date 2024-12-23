@@ -83,7 +83,7 @@ setMethod("step1", signature = c(x = "job_tcga"),
           n <<- n + 1
           data <- dplyr::select(data, .id = cases)
           data <- dplyr::mutate(data, .id = stringr::str_extract(.id, "[^\\-]*-[^\\-]*-[^\\-]*"))
-          data[[ paste0(".row", "_", n) ]] <- 1:nrow(data)
+          data[[ paste0(".row", "_", n) ]] <- seq_len(nrow(data))
           data
         })
       cons <- data_id[[1]]
@@ -92,7 +92,7 @@ setMethod("step1", signature = c(x = "job_tcga"),
       }
       cons <- distinct(cons, .id, .keep_all = T)
       if (keep_consensus) {
-        for (i in 1:length(object(x))) {
+        for (i in seq_along(object(x))) {
           object(x)[[i]]$results[[1]] %<>%
             dplyr::slice(dplyr::all_of(cons[[ paste0(".row_", i) ]]))
         }
@@ -233,7 +233,7 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
       if (!identical(colnames(counts), metadata$sample)) {
         stop('identical(colnames(counts), metadata$sample), ')
       }
-      orders <- unique(c(which(metadata$isTumor == "normal"), 1:nrow(metadata)))
+      orders <- unique(c(which(metadata$isTumor == "normal"), seq_len(nrow(metadata))))
       counts <- counts[, orders]
       metadata <- metadata[orders, ]
       counts <- counts[ , !duplicated(colnames(counts)) ]

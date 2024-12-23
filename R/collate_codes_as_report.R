@@ -34,7 +34,7 @@ as_chunk.codes <- function(lst, as_lines = T, sep = "^# =*\\s*$") {
       })
     unlist(lst)
   }
-  chunks <- lapply(1:length(name),
+  chunks <- lapply(seq_along(name),
     function(n) {
       c(paste0("# File: ", name[n]), "", fun(lines[[ n ]]))
     })

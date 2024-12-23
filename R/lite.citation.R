@@ -32,7 +32,7 @@ pandoc.docx <- function(
           cite <- stringr::str_extract(citation, pattern)
           cite <- cite[!is.na(cite)]
           ## as table
-          df <- data.table::data.table(cite = cite, seq = 1:length(cite))
+          df <- data.table::data.table(cite = cite, seq = seq_along(cite))
           ## replace
           md <- mapply_rename_col(df$cite, df$seq, md)
           ## push to parent envir
@@ -112,7 +112,7 @@ sep_list <- function(lines, sep = "^\\s*$", before = F)
   }
   seps <- grep(sep, lines) + before
   group <- 1L
-  groups <- vapply(1:length(lines), FUN.VALUE = double(1),
+  groups <- vapply(seq_along(lines), FUN.VALUE = double(1),
     function(n) {
       if (any(n == seps)) 
         group <<- group + 1L
@@ -173,7 +173,7 @@ insert_tocg <- function(md, fig) {
 }
 
 insert_figs <- function(md, ids, figs, captions,
-  patterns = paste0("Fig\\. ", 1:length(ids)),
+  patterns = paste0("Fig\\. ", seq_along(ids)),
   at_ref = paste0("Fig. {@fig:", ids, "}"),
   figs_command = paste0("![", gsub("\n", "", captions), "]",
     "(", figs, ")", "{#fig:", ids, "}"))
@@ -188,7 +188,7 @@ insert_figs <- function(md, ids, figs, captions,
     gsub(patterns[i], at_ref[i], ch)
   }
   blanks <- grep("^\\s*$", md)
-  for (i in 1:length(ids)) {
+  for (i in seq_along(ids)) {
     ns <- grep(patterns[i], md)
     md[ns] <- unlist(vapply(md[ns], rp, character(1), i = i))
     insert.pos <- fb(ns[1], blanks)
@@ -249,10 +249,10 @@ revise_symbol_pan2md <- function(md) {
 generate_ref_key <- function(ref, pattern = "(?<=\\[)[0-9]{1,}(?=\\])") {
   ref_num <- stringr::str_extract_all(ref, pattern)
   ref_sep <- stringr::str_extract_all(ref, ",|--")
-  key <- lapply(1:length(ref_num),
+  key <- lapply(seq_along(ref_num),
     function(n) {
       ch <- rep("", length(ref_num[[n]]) * 2 - 1)
-      for (i in 1:length(ch)) {
+      for (i in seq_along(ch)) {
         if (i %% 2 == 1)
           ch[i] <- ref_num[[n]][(i + 1) / 2]
         else

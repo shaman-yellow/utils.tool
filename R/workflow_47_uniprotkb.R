@@ -56,7 +56,7 @@ setMethod("step1", signature = c(x = "job_uniprotkb"),
         gene.names = `Gene Names`)
       message("Only keep the first row for formated results.")
       data <- dplyr::distinct(data, query, .keep_all = T)
-      data <- split_lapply_rbind(data, 1:nrow(data),
+      data <- split_lapply_rbind(data, seq_len(nrow(data)),
         function(x) {
           data.frame(x, symbols = strsplit(x$gene.names, " ")[[1]])
         })

@@ -72,7 +72,7 @@ format_bindingdb.tsv <- function(file,
   .message_info("Split", "data")
   data <- strsplit(data, "\t")
   pos <- which(data[[1]] %in% select)
-  pos <- pos[ 1:length(select) ]
+  pos <- pos[ seq_along(select) ]
   data <- pbapply::pblapply(data, function(ch) ch[ pos ], cl = cl)
   colnames <- data[[1]]
   .message_info("as.data.frame", "")
@@ -123,7 +123,7 @@ cdRun <- function(..., path = ".", sinkFile = NULL)
 #     })
 #   meta <- data.frame(
 #     smiles = names(lst.sdf),
-#     filename = paste0(1:length(smiles), ".sdf")
+#     filename = paste0(seq_along(smiles), ".sdf")
 #   )
 #   data.table::fwrite(meta, paste0(mkdir.sdf, "/metadata_of_filename.csv"))
 #   data.table::fwrite(
@@ -213,7 +213,7 @@ ftibble <- function(files, ...) {
     if (any(dup <- duplicated(colnames(data)))) {
       message("Duplicated colnames found, adding suffix.")
       thedup <- colnames(data)[dup]
-      colnames(data)[dup] <- paste0(thedup, ".dup.", 1:length(thedup))
+      colnames(data)[dup] <- paste0(thedup, ".dup.", seq_along(thedup))
     }
     tibble::as_tibble(data)
   }
@@ -232,7 +232,7 @@ fxlsx2 <- function(file, n = NULL, .id = "sheet", bind = T, pattern = NULL, ...)
   sheets <- openxlsx::getSheetNames(file)
   if (is.null(n)) {
     if (is.null(pattern)) {
-      n <- 1:length(sheets)
+      n <- seq_along(sheets)
     } else {
       n <- grp(sheets, pattern)
     }
@@ -523,7 +523,7 @@ colSum <- function(col) {
 
 show_multi <- function(layers, col, symbol = "Progein"){
   cat(crayon::silver("Data of", length(layers), "\n"))
-  res <- mapply(layers, 1:length(layers), names(layers),
+  res <- mapply(layers, seq_along(layers), names(layers),
     FUN = function(com, seq, name){
       cat(crayon::silver("  +++ ", symbol, " ", seq, "+++\n"))
       cat("  ", crayon::yellow(name), "\n", rep(" ", 4), "Sum: ", nrow(com),
@@ -638,7 +638,7 @@ setMethod("pal", signature = c(x = "andata"),
     pal <- x@palette
     if (is.null(pal)) {
       group <- unique(x@metadata$group)
-      pal <- nl(group, color_set()[1:length(group)], F)
+      pal <- nl(group, color_set()[seq_along(group)], F)
     }
     pal
   })
@@ -694,7 +694,7 @@ opls_data.long <- function(data.long, combns, inter.fig = F) {
       vip <- tibble::as_tibble(vip)
       .andata_opls(data = data, anno = anno, metadata = metadata, vip = vip)
     })
-  names(res) <- paste0("combn", 1:length(combns))
+  names(res) <- paste0("combn", seq_along(combns))
   res
 }
 
@@ -919,7 +919,7 @@ limma_downstream <- function(dge.list, group., design, contr.matrix,
     ebayes <- e(limma::eBayes(fit.cont))
     if (get_ebayes)
       return(ebayes)
-    res <- e(lapply(1:ncol(contr.matrix),
+    res <- e(lapply(seq_len(ncol(contr.matrix)),
         function(coef){
           results <- limma::topTable(ebayes, coef = coef, number = Inf) %>% 
             dplyr::filter(adj.P.Val < cut.q, abs(logFC) > cut.fc) %>% 
@@ -2590,7 +2590,7 @@ setMethod("as_tibble", signature = c(x = "df"),
   function(x, ...){
     rownames <- rownames(x)
     x <- tibble::as_tibble(x, ...)
-    if (!identical(rownames, as.character(1:nrow(x)))) {
+    if (!identical(rownames, as.character(seq_len(nrow(x))))) {
       x <- dplyr::mutate(x, rownames = !!rownames)
       x <- dplyr::relocate(x, rownames)
     }
@@ -2745,7 +2745,7 @@ setdev <- function(width, height) {
 new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"), B = 500, ...)
 {
   fun_escape_bug_of_rms <- function() {
-    wh <- which(vapply(1:ncol(data), function(n) is.factor(data[[ n ]]), FUN.VALUE = logical(1)))
+    wh <- which(vapply(seq_len(ncol(data)), function(n) is.factor(data[[ n ]]), FUN.VALUE = logical(1)))
     if (any(grpl(colnames(data)[ wh ], "\\s"))) {
       stop("`Due to the bug of `rms`, the names of columns of which is factor, can not contains blank")
     }
@@ -3051,7 +3051,7 @@ plot_median_expr_line <- function(data) {
       data <- data.table::rbindlist(data, idcol = T)
       rename(data, sample = .id)
     })
-  seq <- 1:nrow(lst[[1]])
+  seq <- seq_len(nrow(lst[[1]]))
   e(spiralize::spiral_initialize(range(seq)))
   e(spiralize::spiral_track(range(lst[[1]]$v3)))
   e(spiralize::spiral_lines(seq, max(lst[[1]]$v3), type = "h", gp = gpar(col = "grey70")))
@@ -3151,8 +3151,8 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
     Sys.sleep(3)
     link$open()
     if (is.numeric(n)) {
-      group <- grouping_vec2list(1:nrow(query), n)
-      group <- rep(1:length(group), lengths(group))
+      group <- grouping_vec2list(seq_len(nrow(query)), n)
+      group <- rep(seq_along(group), lengths(group))
       lst <- split(query, group)
     } else {
       lst <- list(query)

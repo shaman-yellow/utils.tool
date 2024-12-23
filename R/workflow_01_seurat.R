@@ -696,7 +696,7 @@ applyGptcelltype <- function(input, tissuename, model = c("gpt-3.5-turbo", "gpt-
   } else {
     cutnum <- ceiling(length(input) / 30)
     if (cutnum > 1) {
-      cid <- as.numeric(cut(1:length(input), cutnum))
+      cid <- as.numeric(cut(seq_along(input), cutnum))
     } else {
       cid <- rep(1, length(input))
     }

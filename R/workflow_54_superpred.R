@@ -77,7 +77,7 @@ setMethod("step1", signature = c(x = "job_superpred"),
       pbapply::pblapply(groups,
         function(queries) {
           lapply(queries, fun_get)
-          ids <- paste0("query", 1:length(queries))
+          ids <- paste0("query", seq_along(queries))
           files <- collateFiles(ids, "Targets.*csv", from = x$tempdir, to = x$tempdir,
             suffix = ".csv")
           data <- ftibble(files)

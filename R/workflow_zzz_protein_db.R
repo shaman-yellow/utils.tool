@@ -90,7 +90,7 @@ setMethod("anno", signature = c(x = "query_pdb"),
   function(x, symbols, ids = NULL, title = "Proteins Infomation",
     .name = "annotation", .style = "BiocStyle::html_document")
   {
-    objs <- lapply(1:length(symbols),
+    objs <- lapply(seq_along(symbols),
       function(n) {
         vis(x, symbols[[n]], ids[[n]])
       })

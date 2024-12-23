@@ -74,7 +74,7 @@ setMethod("filter", signature = c(x = "job_limma"),
       message("Filter genes via `x@object$genes`.")
       message("Before Dim: ", paste0(dim(object(x)), collapse = ", "))
       data <- object(x)$genes
-      data$...seq <- 1:nrow(data)
+      data$...seq <- seq_len(nrow(data))
       keep <- dplyr::filter(data, ...)$...seq
       object(x) <- object(x)[keep, ]
       message("After Dim: ", paste0(dim(object(x)), collapse = ", "))
@@ -757,7 +757,7 @@ diff_test <- function(x, design, contr = NULL, block = NULL){
 }
 
 extract_tops <- function(x, use = "adj.P.Val", use.cut = 0.05, cut.fc = 0.3){
-  res <- e(lapply(1:ncol(x$contrasts),
+  res <- e(lapply(seq_len(ncol(x$contrasts)),
     function(coef){
       res <- limma::topTable(x, coef = coef, number = Inf)
       if (!is.null(use.cut) & !is.null(cut.fc)) {

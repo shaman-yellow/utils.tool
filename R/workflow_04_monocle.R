@@ -286,7 +286,7 @@ setMethod("step4", signature = c(x = "job_monocle"),
           p <- wrap(p, 6, length(genes) * 1.6)
           namel(p, data)
         }))
-    names(genes_in_pseudotime) <- paste0("pseudo", 1:length(genes_in_pseudotime))
+    names(genes_in_pseudotime) <- paste0("pseudo", seq_along(genes_in_pseudotime))
     dat_genes_in_pseudotime <- lapply(genes_in_pseudotime, function(x) x$data)
     theme <- rstyle("theme")
     plot_density <- lapply(dat_genes_in_pseudotime,
@@ -369,7 +369,7 @@ setMethod("add_anno", signature = c(x = "job_monocle"),
 get_branches.mn <- function(x, branches) {
   # branches: list(c("Y_start", "Y_end"))
   if (is.null(names(branches))) {
-    names(branches) <- paste0("Branch ", 1:length(branches))
+    names(branches) <- paste0("Branch ", seq_along(branches))
   }
   linkPrin <- monocle3::principal_graph(object(x))[["UMAP"]]
   branches <- lapply(branches,
@@ -766,7 +766,7 @@ setMethod("vis", signature = c(x = "job_monocle"),
       refs <- list(Value = refs)
     }
     if (is.null(names(refs))) {
-      names(refs) <- paste0("Hm ", 1:length(refs))
+      names(refs) <- paste0("Hm ", seq_along(refs))
     }
     cell_order <- order(e(monocle3::pseudotime(object(x))))
     hp.anno <- ComplexHeatmap::HeatmapAnnotation(
@@ -815,7 +815,7 @@ setMethod("vis", signature = c(x = "job_monocle"),
   } else {
     levels <- sort(unique(groups))
   }
-  nl(levels, palette[1:length(levels)], F)
+  nl(levels, palette[seq_along(levels)], F)
 }
 
 .get_col_fun <- function(data) {

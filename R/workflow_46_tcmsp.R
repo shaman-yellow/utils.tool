@@ -73,7 +73,7 @@ setMethod("step1", signature = c(x = "job_tcmsp"),
               stop("Stop.")
             }
           }
-          sets <- lapply(1:length(items),
+          sets <- lapply(seq_along(items),
             function(i) {
               path <- paste0("//div//ul//li//a[text()='", items[i], "']")
               ele <- try(link$findElement(using = "xpath", value = path), T)

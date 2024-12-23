@@ -244,7 +244,7 @@ plot_communication.cellchat <- function(x) {
   mat <- x@net$weight
   scale <- cal_panelScale(length(levels(x@idents)))
   par(mfrow = scale, xpd = TRUE, omi = rep(0, 4), mar = rep(1.5, 4))
-  for (i in 1:nrow(mat)) {
+  for (i in seq_len(nrow(mat))) {
     mat2 <- matrix(0, nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
     mat2[i, ] <- mat[i, ]
     CellChat::netVisual_circle(mat2, vertex.weight = groupSize, weight.scale = T,

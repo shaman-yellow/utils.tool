@@ -67,7 +67,7 @@ enrich_fella <- function(id.lst, data) {
   if (!is.list(id.lst)) {
     id.lst <- list(id.lst)
   }
-  e(lapply(1:length(id.lst),
+  e(lapply(seq_along(id.lst),
     function(n) {
       message("\n=========", "Enrichment:", n, "=========")
       id <- id.lst[[n]]

@@ -29,7 +29,7 @@ obj.size <- function(x, ...) {
   fill = T, as.list = T, na.rm = F)
 {
   if (is.null(names(vec))) {
-    names(vec) <- names[1:length(vec)]
+    names(vec) <- names[seq_along(vec)]
   }
   if (fill) {
     if (any(!names %in% names(vec))) {
@@ -64,7 +64,7 @@ grouping_vec2list <- function(vector, group_number, byrow = F){
     byrow = byrow)
   group <- apply(group, 1, c, simplify = F)
   group <- c(group, list(tail(vector, n = rest)))
-  group <- lapply(1:length(group),
+  group <- lapply(seq_along(group),
     function(n) {
       vec <- group[[n]]
       attr(vec, "name") <- paste0("G", n)

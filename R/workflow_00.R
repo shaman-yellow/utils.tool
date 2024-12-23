@@ -736,7 +736,7 @@ setMethod("step0", signature = c(x = "missing"),
   function(x){
     message(crayon::blue("All available workflow for class:\n"))
     signatures <- available_signatures("step1")
-    mess <- paste0(paste0(1:length(signatures), ": ", signatures), collapse = "\n")
+    mess <- paste0(paste0(seq_along(signatures), ": ", signatures), collapse = "\n")
     step_message(mess)
     message(crayon::silver("Example of show description: use `step0(1)`."))
   })
@@ -1026,7 +1026,7 @@ rapply2_asWrap <- function(x, class = "gg.obj") {
   } else if (is(x, "list") && length(x)) {
     attrs <- attributes(x)
     names <- names(x)
-    x <- lapply(1:length(x),
+    x <- lapply(seq_along(x),
       function(n) {
         name <- names[[ n ]]
         obj <- x[[ n ]]
@@ -1338,7 +1338,7 @@ setMethod("upd", signature = c(x = "ANY"),
 
 setMethod("fill", signature = c(x = "df"),
   function(x, ref, fill, lst){
-    for (i in 1:length(lst)) {
+    for (i in seq_along(lst)) {
       x[x[[ref]] == names(lst[i]), ][[ fill ]] <- lst[[ i ]]
     }
     return(x)
@@ -1486,7 +1486,7 @@ treeObj <- function(obj, stops = c("gg", "wrap"), maxdepth = 10L, envir = parent
         } else if (is.list(obj)) {
           subs <- form(names(obj))
           names <- ifelse(names(obj) == "",
-            paste0(oname, "[[", 1:length(obj), "]]"),
+            paste0(oname, "[[", seq_along(obj), "]]"),
             paste0(oname, "$", subs))
           if (depth == 1L) {
             subsL1 <<- names
@@ -1639,7 +1639,7 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
     alls <- dplyr::mutate(alls,
       .type = dplyr::recode(type,
         `备单业务` = "BI", `固定业务` = "IN", "其他业务" = "Others"))
-    names(used) <- paste0(alls$receive_date, "_", 1:length(used), "##", alls$.type)
+    names(used) <- paste0(alls$receive_date, "_", seq_along(used), "##", alls$.type)
     whichLen0 <- lengths(used) == 0
     message("No any 'job' detected: \n\t", paste0(alls$.dir[whichLen0], collapse = "\n\t "))
     used <- lst_clear0(used)
@@ -1703,7 +1703,7 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
     n <- 6
     seq <- seq(135, 0, length.out = n)
     seq2 <- seq(45, 0, length.out = n)
-    vps <- lapply(1:length(seq),
+    vps <- lapply(seq_along(seq),
       function(n, fx = .5, fy = .5, x = .5) {
         ang <- seq[n]
         ang2 <- seq2[n]
@@ -1711,7 +1711,7 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
           u(2, line), u(2, line), angle = ang2,
           just = c("centre", "bottom"))
         ggather(rectGrob(gp = gpar(fill = "lightyellow", col = pal[["sub.slot"]])),
-          gtext(paste0("n", rev(1:length(seq))[n]),
+          gtext(paste0("n", rev(seq_along(seq))[n]),
             gpar(fontface = "plain"), form = F), vp = vp)
       })
     vps <- do.call(ggather, c(vps, list(vp = viewport(, .1, .5, .5))))

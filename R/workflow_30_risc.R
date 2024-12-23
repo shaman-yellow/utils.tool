@@ -50,7 +50,7 @@ setMethod("asjob_risc", signature = c(x = "list"),
           counts <- object(x)@assays[[ use ]]$counts
           rownames(counts) <- gs(rownames(counts), "\\.[0-9]*", "")
           counts <- counts[!duplicated(rownames(counts)), ]
-          genes <- data.frame(index = 1:nrow(counts))
+          genes <- data.frame(index = seq_len(nrow(counts)))
           rownames(genes) <- rownames(counts)
           cells <- object(x)@meta.data
           if (nrow(cells) != ncol(counts)) {
@@ -208,7 +208,7 @@ pgc <- pattern_gradientColor <- function(pattern, names,
     colors <- color_set()
   }
   names <- as.character(unique(names))
-  colors <- colors[ 1:length(pattern) ]
+  colors <- colors[ seq_along(pattern) ]
   n <- 0L
   palette <- lapply(pattern,
     function(pt) {

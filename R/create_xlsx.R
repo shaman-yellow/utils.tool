@@ -24,13 +24,13 @@ xl_table <- function(
   wb$add_font(, title_dim, font, bold = "double")
   ## data
   wb$add_data_table(x = data, startRow = 2, withFilter = F, na.strings = "")
-  data_dim <- xl_dim(2:(nrow(data) + 2), 1:ncol(data))
+  data_dim <- xl_dim(2:(nrow(data) + 2), seq_len(ncol(data)))
   wb$add_font(, data_dim, font)
   wb$add_cell_style(, data_dim, horizontal = "left", vertical = "top")
   ## group
   group_col <- grep(group_by, colnames(data))
   if (length(group_col) != 0) {
-    group <- split(1:nrow(data) + 1, data[[ group_by ]])
+    group <- split(seq_len(nrow(data)) + 1, data[[ group_by ]])
     for (i in group) {
       wb$merge_cells(rows = i + 1, cols = group_col)
     }
@@ -39,7 +39,7 @@ xl_table <- function(
   nchar <- rbind(nchar(colnames(data)), apply(data, 2, nchar))
   nchar.max <- apply(nchar, 2, function(x) max(x, na.rm = T))
   nchar.max <- vapply(nchar.max, function(x) if (x > 30) 30 else x, numeric(1))
-  for (i in 1:ncol(data)) {
+  for (i in seq_len(ncol(data))) {
     wb$set_col_widths(, cols = i, width = nchar.max[i] * 1 + 3)
   }
   ## border

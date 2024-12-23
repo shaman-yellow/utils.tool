@@ -111,7 +111,7 @@ pseudotime_heatmap <- function(
   if (!is.null(annotation_row)) {
     row.names(annotation_row) <- row_ann_labels
   }
-  colnames(heatmap_matrix) <- c(1:ncol(heatmap_matrix))
+  colnames(heatmap_matrix) <- c(seq_len(ncol(heatmap_matrix)))
   if (plot_heatmap) {
     ph_res <- pheatmap::pheatmap(heatmap_matrix[, ], # ph$tree_row$order
       useRaster = T,

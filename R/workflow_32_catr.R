@@ -62,7 +62,7 @@ setMethod("step2", signature = c(x = "job_catr"),
     ## filter
     top <- dplyr::arrange(res, Protein_ID, RNA_ID, dplyr::desc(Ranking))
     top <- dplyr::distinct(top, Protein_ID, RNA_ID, .keep_all = T)
-    data <- dplyr::mutate(top, .id = 1:nrow(top))
+    data <- dplyr::mutate(top, .id = seq_len(nrow(top)))
     args <- list(
       rlang::quo(RBP_Propensity == 1),
       rlang::quo(Interaction_Propensity > 0),

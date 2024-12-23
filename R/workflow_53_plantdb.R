@@ -156,7 +156,7 @@ get_plantaedb_data <- function(url) {
     seps <- grp(x$Name, "^>")
     group <- 0L
     index <- 0L
-    seps <- vapply(1:nrow(x), FUN.VALUE = double(1),
+    seps <- vapply(seq_len(nrow(x)), FUN.VALUE = double(1),
       function(n) {
         if (is.na(seps[ index + 1L ]) || n > seps[ index + 1L ]) {
           group <<- group + 1L

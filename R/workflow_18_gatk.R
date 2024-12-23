@@ -459,7 +459,7 @@ WorkflowGatk.gatk_VariantRecalibrator_snps <- function(x) {
   snp_res <- paste0(
     " -resource:", get_realname(snp_res), ",",
     "known=false,training=true,truth=true,prior=",
-    13 - 1:length(snp_res),
+    13 - seq_along(snp_res),
     " ", snp_res, " "
   )
   create_gatk_vcf_index(x@params$vcf, x)
@@ -495,7 +495,7 @@ WorkflowGatk.gatk_VariantRecalibrator_indels <- function(x) {
   indel_res <- paste0(
     " -resource:", get_realname(indel_res), ",",
     "known=true,training=true,truth=true,prior=",
-    13 - 1:length(indel_res),
+    13 - seq_along(indel_res),
     " ", indel_res, " "
   )
   vcf <- "all_snps.VQSR.vcf.gz"

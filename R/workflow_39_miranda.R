@@ -125,7 +125,7 @@ setMethod("step2", signature = c(x = "job_miranda"),
 .plot_score.miranda <- function(data) {
   data <- split_lapply_rbind(data, ~ref,
     function(x) {
-      x <- dplyr::mutate(x, candidate = paste0("C ", 1:nrow(x)))
+      x <- dplyr::mutate(x, candidate = paste0("C ", seq_len(nrow(x))))
     })
   p <- ggplot(data) +
     geom_col(aes(x = reorder(candidate, score), y = score, fill = energy), width = .7) +
@@ -151,7 +151,7 @@ setMethod("step2", signature = c(x = "job_miranda"),
   content <- x[p.content:(p.content + 2)]
   content <- strsplit(content, "")
   set <- content[[1]]
-  for (i in 1:length(set)) {
+  for (i in seq_along(set)) {
     if (set[i] == "3") {
       sig <- i
       break
@@ -162,7 +162,7 @@ setMethod("step2", signature = c(x = "job_miranda"),
   content <- as_df.lst(content)
   content <- split_lapply_rbind(content, ~type,
     function(x) {
-      x <- dplyr::mutate(x, x = 1:nrow(x))
+      x <- dplyr::mutate(x, x = seq_len(nrow(x)))
     })
   content <- dplyr::mutate(content, type = factor(type, levels = c("Ref", "", "miRNA")))
   namel(content, score, energy, unit)

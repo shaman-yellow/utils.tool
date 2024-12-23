@@ -75,7 +75,7 @@ setMethod("step1", signature = c(x = "job_hob"),
         lab.x <- "Compound"
       }
     } else {
-      names <- paste0("Compound ", 1:length(object(x)))
+      names <- paste0("Compound ", seq_along(object(x)))
       lab.x <- ""
     }
     t.hob <- dplyr::mutate(t.hob, name = !!names, isOK = ifelse(prediction, T, F))

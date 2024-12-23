@@ -481,7 +481,7 @@ tol_mergeEx <-
       colnames(sub)[colnames(sub) == sub_col] <- new_name
       sub_col <- new_name
     }
-    main$...seq <- 1:nrow(main)
+    main$...seq <- seq_len(nrow(main))
     backup <- main
     ## to reduce computation, round numeric for limitation
     ## main
@@ -534,7 +534,7 @@ mass_shift <-
     df <- dplyr::mutate(df, mass = round(mass + mass * var, 4))
     ## add noise peak
     ## random drawn noise peak from noise pool
-    noise <- .noise_pool[sample(1:nrow(.noise_pool), round(alpha * nrow(df))), ]
+    noise <- .noise_pool[sample(seq_len(nrow(.noise_pool)), round(alpha * nrow(df))), ]
     ## re-size intensity
     noise <- dplyr::mutate(noise, inte = max(df$inte) * rel.int.)
     ## bind into df

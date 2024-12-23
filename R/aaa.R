@@ -77,7 +77,7 @@ reCallMethod <- function(funName, args, ...){
     }
     expr <- paste0("method@.Data(",
                    paste0(paste0(arg.order, " = args[[",
-                                 1:length(arg.order), "]]"),
+                                 seq_along(arg.order), "]]"),
                           collapse = ", "),
                    ", ...)")
     eval(parse(text = expr))
@@ -217,7 +217,7 @@ getNamesOfCall <- function(call) {
 repSuffix <- 
   function(chs, anno = ".rep."){
     gsub(paste0(anno, 1, "$"), "",
-         vapply(1:length(chs), FUN.VALUE = character(1),
+         vapply(seq_along(chs), FUN.VALUE = character(1),
                 function(n){
                   paste0(chs[n], anno, length(chs[1:n][ chs[1:n] == chs[n] ]))
                 }))
@@ -328,7 +328,7 @@ group_switch <- function(data, meta.lst, by) {
   names(meta) <- rep(names(meta.lst), lengths(meta.lst))
   meta <- as.list(turn_vector(meta))
   data <- data[data[[by]] %in% names(meta), ]
-  group <- data.frame(order = 1:length(data[[ by ]]), col = data[[ by ]])
+  group <- data.frame(order = seq_along(data[[ by ]]), col = data[[ by ]])
   group <- split(group, ~ col)
   group <- lapply(names(group),
                   function(name){
@@ -658,7 +658,7 @@ fun_color <- function(from = -1, to = 1, sample = T, category = c("div", "seq"),
   if (sample) {
     category <- match.arg(category)
     pals <- dplyr::filter(RColorBrewer::brewer.pal.info, category == !!category)
-    which <- sample(1:nrow(pals), 1)
+    which <- sample(seq_len(nrow(pals)), 1)
     pal <- rownames(pals)[ which ]
     max <- pals$maxcolors[ which ]
   } else {

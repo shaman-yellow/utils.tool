@@ -110,7 +110,7 @@ setMethod("map", signature = c(x = "job_tfbs", ref = "character"),
   {
     data <- dplyr::select(x@tables$step1$res, target, TF_symbol, Motif, PValue)
     data <- dplyr::mutate(data, PValue = as.double(PValue))
-    data <- split_lapply_rbind(data, 1:nrow(data), args = list(fill = T),
+    data <- split_lapply_rbind(data, seq_len(nrow(data)), args = list(fill = T),
       function(x) {
         if (grpl(x$TF_symbol, "/")) {
           symbols <- strsplit(x$TF_symbol, "/")[[1]]

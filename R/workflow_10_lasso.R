@@ -360,9 +360,9 @@ plot_colStack.efs <- function(raw, top = 30,
   tops <- head(names(tops), top)
   data <- filter(data, var %in% dplyr::all_of(tops))
   if (top > 50) {
-    data_tops <- data.frame(var = tops, .rank = 1:length(tops))
+    data_tops <- data.frame(var = tops, .rank = seq_along(tops))
     groups <- grouping_vec2list(data_tops$.rank, 50, T)
-    groups <- rep(paste0("Rank ", 1:length(groups)), lengths(groups))
+    groups <- rep(paste0("Rank ", seq_along(groups)), lengths(groups))
     data_tops$.groups <- groups
     data <- tbmerge(data, data_tops, by = "var", all.x = T)
     data <- mutate(data, var = stringr::str_trunc(var, 30))

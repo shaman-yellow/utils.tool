@@ -113,7 +113,7 @@ setMethod("step5", signature = c(x = "job_seuratSp"),
   } else {
     levels <- sort(unique(groups))
   }
-  nl(levels, color_set()[1:length(levels)], F)
+  nl(levels, color_set()[seq_along(levels)], F)
 }
 
 SpatiallyVariableFeatures_workaround <- function(object, assay = "SCT", selection.method = "moransi") {

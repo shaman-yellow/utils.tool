@@ -264,7 +264,7 @@ setupPRR <- function() {
   if (!(removeLowVaringGenesFrom %in% c("homogenizeData", "rawData"))) {
     stop("\"removeLowVaringGenesFrom\" must be one of \"homogenizeData\", \"rawData\"")
   }
-  keepRows <- seq(1:nrow(homData$train))
+  keepRows <- seq(seq_len(nrow(homData$train)))
   if (removeLowVaryingGenes > 0 && removeLowVaryingGenes < 
     1) {
     if (removeLowVaringGenesFrom == "homogenizeData") {
@@ -337,7 +337,7 @@ setupPRR <- function() {
     gnamesUnique <- geneIds[which(geneIds %in% names(t[t == 1]))]
     for (numDups in allNumDups) {
         geneList <- names(which(t == numDups))
-        for (i in 1:length(geneList)) {
+        for (i in seq_along(geneList)) {
             exprMatUnique <- rbind(exprMatUnique, colMeans(exprMat[which(geneIds == 
                 geneList[i]), ]))
             gnamesUnique <- c(gnamesUnique, geneList[i])

@@ -87,7 +87,7 @@ setMethod("step1", signature = c(x = "job_swiss"),
         })
       link$close()
       end_drive()
-      ids <- paste0("query", 1:length(db@query))
+      ids <- paste0("query", seq_along(db@query))
       files <- collateFiles(ids, "SwissTargetPrediction.*csv", from = x$tempdir, to = x$tempdir,
         suffix = ".csv")
       data <- ftibble(files)
@@ -97,7 +97,7 @@ setMethod("step1", signature = c(x = "job_swiss"),
     }
     targets <- dplyr::filter(as_tibble(db@db), .id %in% object(x))
     targets <- dplyr::rename(targets, smiles = .id, symbols = `Common name`)
-    targets <- split_lapply_rbind(targets, 1:nrow(targets), args = list(fill = T),
+    targets <- split_lapply_rbind(targets, seq_len(nrow(targets)), args = list(fill = T),
       function(x) {
         if (grpl(x$symbols, " ")) {
           symbols <- strsplit(x$symbols, " ")[[1]]

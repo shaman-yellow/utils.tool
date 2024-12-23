@@ -239,7 +239,7 @@ setMethod("frame_place", signature = setMissing("frame_place",
           vp = viewport(name = name))
       })
     names(weight) <- repSuffix(names(weight))
-    for (i in 1:length(weight)) {
+    for (i in seq_along(weight)) {
       i.name <- names(weight)[[ i ]]
       o.name <- gsub("\\.rep\\.[0-9]{1,}$", "", i.name)
       i.grob <- data[[ o.name ]]
@@ -683,7 +683,7 @@ maparrow <-
               lwd = u(1, line)))
         )
       })
-    sags <- lapply(1:length(arr_city),
+    sags <- lapply(seq_along(arr_city),
       function(n) {
         if (data$dup[[n]]) return()
         left <- !data$left[[n]]
@@ -1176,13 +1176,13 @@ zoom_pdf <- function(file, position = c(.5, .5), size = c(.15, .1), page = 1, dp
 simulate_peaks <- function(all_range = list(1:30, 31:60, 61:100, 101:140),
   shift = rnorm(10, 2, 1))
 {
-  lst <- mapply(shift, 1:length(shift), SIMPLIFY = F, FUN = function(shift, id){
+  lst <- mapply(shift, seq_along(shift), SIMPLIFY = F, FUN = function(shift, id){
     peak <- mapply(all_range, SIMPLIFY = F,
       FUN = function(range){
         peak <- dnorm(range, median(range) + shift, rnorm(1, 5, 1.2)) *
           rnorm(1, 0.7, 0.15)
       })
-    feature <- mapply(1:length(all_range), lengths(all_range),
+    feature <- mapply(seq_along(all_range), lengths(all_range),
       FUN = function(seq, rep){
         rep(paste0("peak", seq), rep)
       })

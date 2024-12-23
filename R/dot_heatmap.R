@@ -24,7 +24,7 @@ plot_heatmap <- function(id.lst, data, metadata,
     stop("is.null(names(id.lst)) == T. The names of `id.lst` should be chemical classes.")
   }
   if (is.null(names(pal_class))) {
-    pal_class <- pal_class[1:length(id.lst)]
+    pal_class <- pal_class[seq_along(id.lst)]
     names(pal_class) <- names(id.lst)
   }
   .check_columns(metadata, c("sample", "group"), "metadata")

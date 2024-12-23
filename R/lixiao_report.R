@@ -75,7 +75,7 @@ update_tagsTable <- function(tags = .tag_anno(),
   path = .prefix("summary"), file = "type_list.xlsx")
 {
   tags.cn <- unique(tags)
-  data <- tibble::tibble(Seq = 1:length(tags.cn), Name = tags.cn)
+  data <- tibble::tibble(Seq = seq_along(tags.cn), Name = tags.cn)
   data <- tibble::add_row(data,
     Name = c("...",
       paste0("Last update: ", Sys.time()),
@@ -103,7 +103,7 @@ update_registers <- function(orders = get_orders(),
   pos <- list(2, 1)
   ## base
   data <- dplyr::filter(orders, type != "备单业务")
-  data <- dplyr::mutate(data, seq = 1:nrow(data), note = as.note.tags(tags.cn))
+  data <- dplyr::mutate(data, seq = seq_len(nrow(data)), note = as.note.tags(tags.cn))
   data <- dplyr::select(data,
     date, seq, info, id, score, member, receive_date, status, title, note
   )
@@ -111,7 +111,7 @@ update_registers <- function(orders = get_orders(),
     dims = do.call(openxlsx2::wb_dims, pos))
   ## extra
   data <- dplyr::filter(orders, type == "备单业务")
-  data <- dplyr::mutate(data, seq = 1:nrow(data), note = as.note.tags(tags.cn))
+  data <- dplyr::mutate(data, seq = seq_len(nrow(data)), note = as.note.tags(tags.cn))
   data <- dplyr::select(data,
     date, seq, info, id, score, member, receive_date, status, title, note
   )
@@ -155,7 +155,7 @@ summary_month <- function(
   if (T) {
     pos.data_ass <- list(7, 1)
     data_ass <- dplyr::mutate(orders,
-      seq = 1:nrow(orders), num = 1, title.en = "",
+      seq = seq_len(nrow(orders)), num = 1, title.en = "",
       note = as.note.tags(tags.cn),
       coef = round(coef, 3)
     )
@@ -400,7 +400,7 @@ get_orders <- function(
   data <- dplyr::mutate_if(data, is.character,
     function(x) ifelse(is.na(x), "", x))
   if (!is.null(setFill)) {
-    for (i in 1:length(setFill)) {
+    for (i in seq_along(setFill)) {
       i.month <- names(setFill)[i]
       if (is.na(as.Date(i.month, optional = T))) {
         i.month <- paste0(i.month, "-01")
@@ -441,7 +441,7 @@ as.note.tags <- function(tags) {
   fun <- function(x) {
     x <- x[ x != "" ]
     if (length(x)) {
-      paste0(paste0("(", 1:length(x), ") ", x), collapse = "; ")
+      paste0(paste0("(", seq_along(x), ") ", x), collapse = "; ")
     } else {
       ""
     }
@@ -478,7 +478,7 @@ plot_orders_summary <- function(data) {
   p.ind.pop <- fun(idata)
   fun <- function(data) {
     data <- dplyr::summarize(dplyr::group_by(data, belong), sum_coef = sum(coef))
-    p <- ggplot(data, aes(x = 1:nrow(data), y = sum_coef)) +
+    p <- ggplot(data, aes(x = seq_len(nrow(data)), y = sum_coef)) +
       geom_line() +
       geom_area(fill = 'grey90', alpha = .5) +
       scale_x_continuous(labels = gs(data$belong, "-01$", ""),
@@ -843,7 +843,7 @@ items <- function(
       eval <- lapply(eval[[1]],
         function(x) {
           n <<- n + 1
-          vapply(1:length(eval), function(w) eval[[ w ]][[ n ]], double(1))
+          vapply(seq_along(eval), function(w) eval[[ w ]][[ n ]], double(1))
         })
       items <- c(items, as.list(eval))
     }

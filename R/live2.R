@@ -382,7 +382,7 @@ setMethod("astex", signature = c(x = "fig_frame"),
 
 setMethod("astex", signature = c(x = "figs_frame"),
   function(x){
-    lines <- lapply(1:length(x@file), 
+    lines <- lapply(seq_along(x@file), 
       function(n) {
         c("\\begin{minipage}[t]{", x@figs_width[n], "\\linewidth}",
           paste0("\\sidesubfloat[]{\\includegraphics[width=", x@panel.width,

@@ -9,5 +9,5 @@
 read_dic <- function(file) {
   db <- readLines(file)
   db.i <- stringr::str_extract(db, "^[a-z]*")
-  tibble::tibble(n = 1:length(db), i = db.i, db = db)
+  tibble::tibble(n = seq_along(db), i = db.i, db = db)
 }

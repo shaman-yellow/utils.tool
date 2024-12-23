@@ -46,7 +46,7 @@ setMethod("step1", signature = c(x = "job_gmix"),
       } else {
         lst <- x[[name]]
       }
-      paste0(1:length(lst), ". ", lst, "\n\t")
+      paste0(seq_along(lst), ". ", lst, "\n\t")
     }
     if (get_pharm) {
       x$lst_pharm <- fun("db_pharm", "Entity1_name")

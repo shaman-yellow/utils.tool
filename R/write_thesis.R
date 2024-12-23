@@ -207,7 +207,7 @@ match_class <- function(txt){
 
 as_code_list <- function(names, value = rep("", length(names)), prefix = "c"){
   writeLines(paste0(prefix, "("))
-  lapply(1:length(names),
+  lapply(seq_along(names),
     function(n) {
       end <- if (n == length(names)) "\"" else "\","
       writeLines(paste0("  `", names[[ n ]], "` = \"", value[[ n ]], end))
@@ -216,7 +216,7 @@ as_code_list <- function(names, value = rep("", length(names)), prefix = "c"){
 }
 
 as_code_list2 <- function(lst){
-  lapply(1:length(lst),
+  lapply(seq_along(lst),
     function(n) {
       writeLines(paste0("## ", names(lst[n])))
       as_code_list(rep(names(lst[n]), length(lst[[ n ]])),
@@ -250,7 +250,7 @@ as_kable.flex <- function(obj, page.width = 14, landscape.width = 19) {
   widths <- as.list(
     paste0(widths / sum(widths) * page.width, "cm")
   )
-  for (i in 1:length(widths)) {
+  for (i in seq_along(widths)) {
     kable <- column_spec(kable, i, width = widths[[ i ]])
   }
   kable <- kable_styling(
@@ -272,7 +272,7 @@ as_gt.flex <- function(obj, page.width = 650) {
   colnames <- colnames(data)
   widths <- obj$body$colwidths
   widths <- as.list(widths / sum(widths) * page.width)
-  widths <- lapply(1:length(widths),
+  widths <- lapply(seq_along(widths),
     function(n) {
       eval(parse(text = paste0("`", colnames[n], "`", " ~ ",
             "px(", widths[n], ")")))
@@ -287,7 +287,7 @@ as_gt.flex <- function(obj, page.width = 650) {
       footnotes <- strsplit(footnotes, split = "\n")[[1]]
       locates <- stringr::str_extract(footnotes, "^.*?(?=:|：)")
       footnotes <- gsub("^.*?[:：]", "", footnotes)
-      for (i in 1:length(footnotes)) {
+      for (i in seq_along(footnotes)) {
         gt <- tab_footnote(gt, footnote = footnotes[i],
           locations = cells_column_labels(columns = dplyr::starts_with(locates[i])))
       }
@@ -399,7 +399,7 @@ custom_render <- function(file, theme = 'thesis', fix = fix_spell,
   md[h.pos] <- vapply(toc, function(x) x$heading, character(1))
   ## cross-reference
   ids <- stringr::str_extract(md, "(?<=\\{@@id:)[a-zA-Z._0-9]*(?=\\})")
-  ids.pos <- (1:length(md))[ !is.na(ids) ]
+  ids.pos <- (seq_along(md))[ !is.na(ids) ]
   if (length(ids.pos) > 0) {
     ids.relToc <- vapply(ids.pos, FUN.VALUE = character(1),
       function(pos) {
@@ -419,7 +419,7 @@ custom_render <- function(file, theme = 'thesis', fix = fix_spell,
           }
           content
         })
-      for (i in 1:length(refs)) {
+      for (i in seq_along(refs)) {
         md <- gsub(paste0("{@@ref:", refs[i], "}"), refs.content[i], md, fixed = T)
       }
     }
@@ -449,7 +449,7 @@ fix_spell <- function(md) {
   chunk.pos <- get_chunkPos(md)
   yaml.pos <- grep("^---", md)
   yaml.pos <- 1:(yaml.pos[2])
-  pos <- (1:length(md))
+  pos <- (seq_along(md))
   pos <- pos[ !pos %in% c(chunk.pos, yaml.pos) ]
   md[ pos ] <- gsub("\"",  "\'", md[ pos ])
   md[ pos ] <- fix_quote(md[ pos ])
@@ -705,7 +705,7 @@ sc <- function(name, value) {
 }
 
 allnames <- function(xml2) {
-  vapply(1:length(xml2), function(n) XML::xmlName(xml2[[ n ]]), character(1))
+  vapply(seq_along(xml2), function(n) XML::xmlName(xml2[[ n ]]), character(1))
 }
 
 cp_xml.style <- function(xml, target = "Table", src = "Plain Table 1"){
@@ -722,7 +722,7 @@ cp_xml.style <- function(xml, target = "Table", src = "Plain Table 1"){
 }
 
 st.search <- function(xml, name) {
-  unlist(lapply(1:length(xml),
+  unlist(lapply(seq_along(xml),
       function(n) {
         if (st.name(xml[[ n ]]) == name) n
       }))
@@ -893,7 +893,7 @@ repl_xml.font <- function(xml,
     param <- match.arg(param)
     as <- match.arg(as)
   }
-  xml[1:length(xml)] <- XML::xmlSApply(xml,
+  xml[seq_along(xml)] <- XML::xmlSApply(xml,
     function(xml2) {
       if (XML::xmlName(xml2) == main) {
         xml2.name <- XML::xmlAttrs(xml2[[ "name" ]])[[ "val" ]]
@@ -936,7 +936,7 @@ repl_xml.font <- function(xml,
 rm_xml.lsdAttr <- function(xml2,
   name = c(paste0("heading ", 1:9), paste0("toc ", 1:9)), attrs = "qFormat")
 {
-  xml2[1:length(xml2)] <- XML::xmlSApply(xml2,
+  xml2[seq_along(xml2)] <- XML::xmlSApply(xml2,
     function(xml3) {
       if (any(XML::xmlAttrs(xml3)[[ "name" ]] == name)) {
         vals <- XML::xmlAttrs(xml3)
@@ -962,7 +962,7 @@ show_allName <- function(xml){
 }
 
 list_allName <- function(xml){
-  lapply(1:length(xml),
+  lapply(seq_along(xml),
     function(n) {
       xml[[n]][[ "name"]]
     })
@@ -982,7 +982,7 @@ if (requireNamespace("XML", quietly = T)) {
 }
 
 all_tableStyle <- function(xml){
-  lst <- lapply(1:length(xml),
+  lst <- lapply(seq_along(xml),
     function(n) {
       attr <- XML::xmlAttrs(xml[[n]])
       if (!is.null(attr)) {

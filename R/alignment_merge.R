@@ -63,7 +63,7 @@ tol_merge <- function(main, sub, main_col = "mz",
     colnames(sub)[colnames(sub) == sub_col] <- new_name
     sub_col <- new_name
   }
-  main$...seq <- 1:nrow(main)
+  main$...seq <- seq_len(nrow(main))
   backup <- main
   ## to reduce computation, round numeric for limitation
   ## main
@@ -92,7 +92,7 @@ coln_suffix <- function(lst, col,
     ifelse(length(lst) <= 2, character(0),
       paste0(".other", 1:(length(lst) - 2))))) 
 {
-  lapply(1:length(lst),
+  lapply(seq_along(lst),
     function(n) {
       dplyr::rename(lst[[n]], !!paste0(col, suffix[n]) := col)
     })

@@ -65,7 +65,7 @@ cross_select <- function(data.lst, filter.lst, target, split = NULL) {
     stop("`data.lst` and `filter.lst` must be 'list'.")
   if (length(data.lst) != length(filter.lst))
     stop("`data.lst` and `filter.lst` must be 'list' with the same length.")
-  lst <- lapply(1:length(data.lst),
+  lst <- lapply(seq_along(data.lst),
     function(n) {
       if (!is.null(filter.lst[[n]]))
         dplyr::filter(data.lst[[n]], !!!(filter.lst[[n]]))

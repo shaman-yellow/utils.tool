@@ -113,7 +113,7 @@ setMethod("map", signature = c(x = "job_gutmd", ref = "job_publish"),
       matched <- dplyr::mutate(matched, Target_Gene = gs(Target_Gene, "\\s*,\\s*|\\s+", " "))
       fun_format <- function(data) {
         data1 <- dplyr::filter(data, grpl(Target_Gene, " "))
-        data1 <- split_lapply_rbind(data1, 1:nrow(data1),
+        data1 <- split_lapply_rbind(data1, seq_len(nrow(data1)),
           function(x) {
             genes <- x$Target_Gene
             x <- dplyr::select(x, -Target_Gene)
