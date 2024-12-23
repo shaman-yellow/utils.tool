@@ -62,6 +62,7 @@ setMethod("map", signature = c(x = "job_fe", ref = "list"),
       lst <- c(ref, alls)
     }
     x$upset <- new_venn(lst = lst)
+    x$upset <- setLegend(x$upset, "展示了上一分析环节得到的基因集与铁死亡相关调控因子的交集。{try_summary(lst)}")
     x$.map_heading <- "FerrDb 与铁死亡相关基因的交集"
     return(x)
   })

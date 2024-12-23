@@ -30,6 +30,8 @@ write_biocStyle <- function(
   options(chunk_location = chunk_location)
   autoRegisters_relocate <- new.env()
   options(autoRegisters_relocate = autoRegisters_relocate)
+  # see `autor`
+  options(autor_legend_env = new.env())
   if (grpl(bioyml[1], "---")) {
     lines <- c(bioyml, "", lines)
   } else {

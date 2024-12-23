@@ -1983,6 +1983,7 @@ setMethod("autor", signature = c(x = "ANY", name = "missing"),
       return(show(x))
     } else {
       autor_label_env <- knitr::opts_chunk$get("autor_label_env")
+      autor_legend_env <- getOption("autor_legend_env")
       if (is.null(autor_label_env)) {
         autor_label_env <- lapply(knitr::knit_code$get(), function(x) list())
         ## this environment is set for check duplicated of 'autor_label'
@@ -2013,6 +2014,9 @@ setMethod("autor", signature = c(x = "ANY", name = "missing"),
       if (any(duplicated(c(all_autor_labels, names(autor_label_env))))) {
         stop("'autor_label' should not duplicated with each other or chunk labels.")
       }
+    }
+    if (!is.null(Legend <- Legend(x))) {
+      autor_legend_env[[ name ]] <- Legend
     }
     knitr::opts_current$set(autor_label = name)
     autor(x, name, ...)
@@ -2145,7 +2149,7 @@ setMethod("include", signature = c(x = "fig"),
         "}\\label{fig:", name, "}\n",
         "\\end{center}\n", sep = "")
     } else {
-      inclu.fig(as.character(x), saveDir = "report_picture")
+      inclu.fig(as.character(x), saveDir = "report_picture", name = name)
     }
   })
 

@@ -154,6 +154,25 @@ setMethod("try_snap", signature = c(x = "data.frame"),
     bind(paste0(names(items), " (n=", len, ") "))
   })
 
+setGeneric("try_summary", 
+  function(x, ...) standardGeneric("try_summary"))
+
+setMethod("try_summary", signature = c(x = "list"),
+  function(x, merge = TRUE){
+    lens <- lengths(x)
+    alls <- list(max = names(lens)[ lens == max(lens) ],
+      min = names(lens)[ lens == min(lens) ],
+      mean = round(mean(lens))
+    )
+    alls$max <- glue::glue("数目最多的为 {bind(alls$max)} (n={max(lens)})")
+    alls$min <- glue::glue("数目最少的为 {bind(alls$min)} (n={min(lens)})")
+    alls$mean <- glue::glue("平均数目 {alls$mean}")
+    if (merge) {
+      alls <- paste0(alls$max, "；", alls$min, "；", alls$mean, "。")
+    }
+    return(alls)
+  })
+
 setClassUnion("character_or_factor", c("character", "factor"))
 
 setMethod("try_snap", signature = c(x = "character_or_factor"),
@@ -326,13 +345,17 @@ setMethod("ref", signature = c(x = "character_ref"),
   })
 
 setMethod("ref", signature = c(x = "character"),
-  function(x, ...){
+  function(x, try = FALSE, ...){
     codes_list <- knitr::knit_code$get()
     if (!length(codes_list)) {
-      stop("!length(codes_list), no in rendering circumstance?")
+      message("Not in rendering circumstance.")
+      return("")
     }
     codes <- codes_list[[x]] 
     if (is.null(codes)) {
+      if (try) {
+        return("")
+      }
       stop('is.null(codes), can not found ref target, please check the character.')
     }
     objName <- stringr::str_extract(codes, "(?<=autor\\().*(?=\\)$)")
@@ -343,10 +366,11 @@ setMethod("ref", signature = c(x = "character"),
       stop("Too many object name matched in 'autor()'.")
     }
     obj <- eval(parse(text = objName), parent.frame(2))
+    placeHolder <- glue::glue("<!-- autor_legend:{x} -->")
     if (is(obj, "df")) {
-      glue::glue("Tab. \\@ref(tab:{x})")
+      glue::glue("Tab. \\@ref(tab:{x}) {placeHolder}")
     } else if (is(obj, "can_not_be_draw") || is(obj, "can_be_draw") || is(obj, "fig")) {
-      glue::glue("Fig. \\@ref(fig:{x})")
+      glue::glue("Fig. \\@ref(fig:{x}) {placeHolder}")
     }
   })
 
@@ -454,6 +478,10 @@ pg_local_recode <- function() {
     musitePython = "{conda}/bin/conda run -n musite python3",
     musitePTM = "~/MusiteDeep_web/MusiteDeep/predict_multi_batch.py",
     musitePTM2S = "~/MusiteDeep_web/PTM2S/ptm2Structure.py",
+    hobPython = "{conda}/bin/conda run -n hobpre python",
+    hobPredict = "~/HOB/HOB_predict.py",
+    hobModel = "~/HOB/model",
+    hobExtra = "~/HOB/pca_hob.m",
     dl = normalizePath("~/D-GCAN/DGCAN"),
     dl_dataset = normalizePath("~/D-GCAN/dataset"),
     dl_model = normalizePath("~/D-GCAN/DGCAN/model"),
@@ -522,6 +550,28 @@ setReplaceMethod("plots", signature = c(x = "job"),
     initialize(x, object = value)
   })
 
+setGeneric("Legend", 
+  function(x, ...) standardGeneric("Legend"))
+
+setGeneric("Legend<-", 
+  function(x, value) standardGeneric("Legend<-"))
+
+setMethod("Legend", signature = c(x = "ANY"),
+  function(x){
+    attr(x, ".LEGEND")
+  })
+
+setReplaceMethod("Legend", signature = c(x = "ANY"),
+  function(x, value){
+    attr(x, ".LEGEND") <- value
+    return(x)
+  })
+
+setLegend <- function(x, glueString, ..., env = parent.frame(1)) {
+  Legend(x) <- glue::glue(glueString, .envir = env, ...)
+  return(x)
+}
+
 plotsAdd <- function(x, ...) {
   jobSlotAdd(x, "plots", ...)
 }
@@ -552,55 +602,75 @@ jobSlotAdd <- function(x, name, ...) {
   return(x)
 }
 
-methodAdd <- function(x, glueString, add = F, env = parent.frame(1)) {
-  if (missing(add)) {
-    if (is.null(x$.meth_initial) || x$.meth_initial) {
-      add <- F
-      x$.meth_initial <- F
-    } else {
-      add <- T
-    }
-  } else {
-    if (!add) {
-      x$.meth_initial <- F
-    }
-  }
-  if (add) {
-    former <- meth(x)[[ paste0("step", x@step) ]]   
-  } else {
-    former <- ""
-  }
-  meth(x)[[ paste0("step", x@step) ]] <- paste0(former, glue::glue(glueString, .envir = env))
-  return(x)
-}
+setGeneric("methodAdd", 
+  function(x, glueString, ...) standardGeneric("methodAdd"))
 
-snapAdd <- function(x, glueString, add = F, env = parent.frame(1), step = NULL) {
-  if (is.null(x$.snap)) {
-    x$.snap <- list()
-  }
-  if (missing(step)) {
-    step <- x@step
-  }
-  if (missing(add)) {
-    if (is.null(x$.snap_initial) || x$.snap_initial) {
-      add <- F
-      x$.snap_initial <- F
+setMethod("methodAdd", signature = c(x = "job", glueString = "character"),
+  function(x, glueString, add = F, env = parent.frame(2)) {
+    if (missing(add)) {
+      if (is.null(x$.meth_initial) || x$.meth_initial) {
+        add <- F
+        x$.meth_initial <- F
+      } else {
+        add <- T
+      }
     } else {
-      add <- T
+      if (!add) {
+        x$.meth_initial <- F
+      }
     }
-  } else {
-    if (!add) {
-      x$.snap_initial <- F
+    if (add) {
+      former <- meth(x)[[ paste0("step", x@step) ]]   
+    } else {
+      former <- ""
     }
-  }
-  if (add) {
-    former <- x$.snap[[ paste0("step", step) ]]
-  } else {
-    former <- ""
-  }
-	x$.snap[[ paste0("step", step) ]] <- paste0(former, glue::glue(glueString, .envir = env))
-  return(x)
-}
+    meth(x)[[ paste0("step", x@step) ]] <- paste0(former, glue::glue(glueString, .envir = env))
+    return(x)
+  })
+
+setMethod("methodAdd", signature = c(x = "job", glueString = "job"),
+  function(x, glueString, ...){
+    glueString <- paste0(unlist(glueString@meth, use.names = FALSE), collapse = "")
+    methodAdd(x, glueString, ...)
+  })
+
+setGeneric("snapAdd", 
+  function(x, glueString, ...) standardGeneric("snapAdd"))
+
+setMethod("snapAdd", signature = c(x = "job", glueString = "character"),
+  function(x, glueString, add = F, env = parent.frame(2), step = NULL) {
+    if (is.null(x$.snap)) {
+      x$.snap <- list()
+    }
+    if (missing(step)) {
+      step <- x@step
+    }
+    if (missing(add)) {
+      if (is.null(x$.snap_initial) || x$.snap_initial) {
+        add <- F
+        x$.snap_initial <- F
+      } else {
+        add <- T
+      }
+    } else {
+      if (!add) {
+        x$.snap_initial <- F
+      }
+    }
+    if (add) {
+      former <- x$.snap[[ paste0("step", step) ]]
+    } else {
+      former <- ""
+    }
+    x$.snap[[ paste0("step", step) ]] <- paste0(former, glue::glue(glueString, .envir = env))
+    return(x)
+  })
+
+setMethod("snapAdd", signature = c(x = "job", glueString = "job"),
+  function(x, glueString, ...){
+    glueString <- paste0(unlist(glueString$.snap, use.names = FALSE), collapse = "")
+    snapAdd(x, glueString, ...)
+  })
 
 .set_lab_batch <- function(objs, labs, sig) {
   mapply(objs, labs, SIMPLIFY = F,

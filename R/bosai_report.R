@@ -307,16 +307,23 @@ get_tex_cover.bosai_idea <- function() {
       ), 50) 
 }
 
-extract_anno <- function(file, save = "anno.md", type = tools::file_ext(file), ...) {
+extract_anno <- function(file, type = tools::file_ext(file), ...) {
+  # fun <- function(file) {
+  #   name <- basename(file)
+  #   if (name != make.names(name)) {
+  #     file.rename(file, file <- file.path(dirname(file), name))
+  #   }
+  #   return(file)
+  # }
   if (type == "pdf") {
-    cdRun(glue::glue("pdfannots {file} -o {save}"))
+    cdRun(glue::glue("pdfannots {shQuote(file)} -o {save}"))
   } else if (type == "docx") {
     tmp <- tempfile("anno", fileext = ".md")
     cli::cli_alert_info(glue::glue("tempfile: {tmp}"))
-    cdRun(glue::glue("pandoc {file} -o {tmp} --track-changes=all"))
-    postModify_annoDocx(tmp, save, ...)
+    # file <- fun(file)
+    cdRun(glue::glue("pandoc {shQuote(file)} -o {tmp} --track-changes=all"))
+    postModify_annoDocx(tmp, save = file.path(dirname(file), "comment_reply.md"), ...)
   }
-  return(save)
 }
 
 postModify_annoDocx <- function(file, prefix = "comment",

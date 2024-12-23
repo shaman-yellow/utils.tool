@@ -32,6 +32,7 @@ job_batman <- function(herbs, db = get_batman_data())
     "\n\n", "\tTotal: ", colSum(herbs_info$Chinese.Name))
   x <- .job_batman(object = db)
   x$herbs_info <- herbs_info
+  x$herbs <- herbs
   return(x)
 }
 
@@ -54,7 +55,7 @@ setMethod("step1", signature = c(x = "job_batman"),
       name = gs(unlist(x$herbs_info$Ingredients), "\\([0-9]+\\)$", "")
     )
     x$compounds_info <- dplyr::distinct(x$compounds_info)
-    x <- methodAdd(x, "从数据库 `BATMAN-TCM` ({cite_show('BatmanTcm20Kong2024')}) 中获取 {bind(x$herbs_info$Chinese.Name)} 等中药的成分、靶点数据。 ")
+    x <- methodAdd(x, "从数据库 `BATMAN-TCM` ({cite_show('BatmanTcm20Kong2024')}) 中获取 {bind(x$herbs_info$Pinyin.Name)} 等中药的成分、靶点数据。(即中药：{bind(x$herbs)})。")
     if (anno) {
       x <- anno(x, "LiteratureCount")
       x$compounds_info <- dplyr::arrange(x$compounds_info, dplyr::desc(LiteratureCount))
@@ -74,10 +75,12 @@ setMethod("step1", signature = c(x = "job_batman"),
     herbs_compounds <- dplyr::distinct(herbs_compounds, Pinyin.Name, Latin.Name, CID)
     lst <- filter_hob_dl(unique(herbs_compounds$CID), filter.hob, filter.dl, test)
     if (filter.hob) {
-      x <- methodAdd(x, "以 Python 工具 `HOB` ({cite_show('HobpreAccuratWeiM2022')}) 预测化合物的人类口服利用度。", T)
+      x <- methodAdd(x, lst$hob)
+      x <- snapAdd(x, lst$hob)
     }
     if (filter.dl) {
-      x <- methodAdd(x, "以 Python 工具 `D-GCAN` ({cite_show('PredictionOfDSunJ2022')}) 预测化合物的 drug-likeness。", T)
+      x <- methodAdd(x, lst$dl)
+      x <- snapAdd(x, lst$dl)
     }
     if (length(lst)) {
       p.upset <- .set_lab(lst$p.upset, sig(x), "Prediction of HOB and Drug-Likeness")

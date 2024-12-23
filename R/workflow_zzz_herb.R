@@ -69,7 +69,9 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
     if (length(ref)) {
       data <- dplyr::filter(data, Target.name %in% !!unlist(ref, use.names = F))
       p.venn2dis <- new_venn(Diseases = unlist(ref, use.names = F), Targets = rm.no(x$data.allu$Target.name))
-      x[[ paste0("p.venn2", name) ]] <- .set_lab(p.venn2dis, sig(x), "Targets intersect with targets of diseases")
+      p.venn2dis <- setLegend(p.venn2dis, "展示了中药的靶点与疾病靶点的交集数目。")
+      x[[ paste0("p.venn2", name) ]] <- .set_lab(p.venn2dis, sig(x),
+        "Targets intersect with targets of diseases")
     }
     herbs <- unique(x$data.allu[[1]])
     if (!is.null(enrichment)) {
@@ -79,6 +81,7 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
     } else {
       p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
         lab.fill = lab.level, force.ax1 = herbs, ...)
+      p.pharm <- setLegend(p.pharm, "展示了中药、成分、靶点的网络图。该图对中心度 (centrality_degree) 较高的节点 (成分或靶点) 做了名称标注。")
     }
     p.pharm$.data <- data
     if (length(ref)) {
@@ -153,6 +156,8 @@ filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T) {
     hobSmiles <- dplyr::filter(res(hob), isOK)$smiles
     .add_internal_job(hob, T)
     setSmiles <- c(setSmiles, list(HOB_is_OK = hobSmiles))
+  } else {
+    hob <- NULL
   }
   if (filter.dl) {
     dl <- job_dl(smiles)
@@ -161,12 +166,14 @@ filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T) {
     dlSmiles <- dplyr::filter(res(dl), isOK)$smiles
     .add_internal_job(dl, T)
     setSmiles <- c(setSmiles, list(DL_is_OK = dlSmiles))
+  } else {
+    dl <- NULL
   }
   if (filter.hob || filter.dl) {
     p.upset <- new_upset(lst = setSmiles)
     ids <- dplyr::filter(smiles, SMILES %in% !!p.upset$ins)$ID
     p.upset$ins <- smiles$ID[ match(p.upset$ins, smiles$SMILES) ]
-    namel(ids, p.upset)
+    namel(ids, p.upset, hob, dl)
   } else {
     return()
   }
@@ -488,8 +495,17 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
   }
 }
 
-get_smiles_batch <- function(cids, n = 100, sleep = .5) {
-  res <- .get_properties_batch(cids, n = 100, properties = "IsomericSMILES", sleep = sleep)
+get_smiles_batch <- function(cids, n = 100, sleep = .5, db_dir = .prefix("smiles", "db")) {
+  # IDs: your query, col: the ID column, res: results table
+  dir.create(db_dir, F)
+  db <- new_db(file.path(db_dir, "smiles.rdata"), "CID")
+  db <- not(db, cids)
+  query <- db@query
+  if (length(query)) {
+    res <- .get_properties_batch(query, n = 100, properties = "IsomericSMILES", sleep = sleep)
+    db <- upd(db, res)
+  }
+  res <- dplyr::filter(db@db, CID %in% !!cids)
   frbind(res, fill = T)
 }
 

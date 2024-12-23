@@ -213,11 +213,14 @@ setMethod("step3", signature = c(x = "job_herb"),
       names(sets) <- fun(sets)
       p.herbs_targets <- new_upset(lst = sets)
       p.herbs_targets <- .set_lab(p.herbs_targets, sig(x), "Intersection of herbs all targets")
+      p.herbs_targets <- setLegend(p.herbs_targets, "UpSet 图展示了中药的所有靶点 (中药名为拼音) 。该靶点是通过加和所有中药成分的靶点实现的。{try_summary(sets)}")
       ## plot upset of herbs ingredient
       sets <- split(herbs_compounds$Ingredient.id, herbs_compounds$herb_id)
       names(sets) <- fun(sets)
+      Terror <<- sets
       p.herbs_compounds <- new_upset(lst = sets)
       p.herbs_compounds <- .set_lab(p.herbs_compounds, sig(x), "Intersection of herbs compounds")
+      p.herbs_compounds <- setLegend(p.herbs_compounds, "UpSet 图展示了中药各组成成分之间的交集 (中药名为拼音)。左侧横柱状图展示了各中药对应化合物数量。右侧展示了交集数目。各中药的化合物数目为数据库包含的化合物数量。{try_summary(sets)}")
     } else {
       p.herbs_targets <- NULL
       p.herbs_compounds <- NULL

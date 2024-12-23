@@ -65,7 +65,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
     res.kegg <- multi_enrichKEGG(object(x), organism = organism)
     p.kegg <- vis_enrich.kegg(res.kegg, maxShow = maxShow.kegg, use = use)
     use.p <- attr(p.kegg, "use.p")
-    p.kegg <- lapply(p.kegg, function(x) wrap(x, 8, 4 * (maxShow.kegg / 10)))
+    p.kegg <- lapply(p.kegg, function(x) wrap(x, 7, 4 * (maxShow.kegg / 10)))
     p.kegg <- .set_lab(p.kegg, sig(x), names(p.kegg), "KEGG enrichment")
     fun <- function(sets) {
       lapply(sets,
@@ -80,7 +80,6 @@ setMethod("step1", signature = c(x = "job_enrich"),
     cli::cli_alert_info("clusterProfiler::enrichGO")
     res.go <- multi_enrichGO(object(x), orgDb = orgDb, cl = cl)
     p.go <- vis_enrich.go(res.go, maxShow = maxShow.go, use = use.p)
-    p.go <- lapply(p.go, function(x) wrap(x))
     p.go <- .set_lab(p.go, sig(x), names(p.go), "GO enrichment")
     res.go <- lapply(res.go,
       function(data) {
@@ -95,7 +94,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
     x@plots[[ 1 ]] <- namel(p.kegg, p.go)
     x@params$check_go <- check_enrichGO(res.go)
     x$organism <- organism
-    x <- methodAdd(x, "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')}进行 KEGG 和 GO 富集分析。")
+    x <- methodAdd(x, "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')}进行 KEGG 和 GO 富集分析。以 {use} 表示显著水平。提供的 KEGG 或 GO 富集图，展示了 KEGG Top {maxShow.kegg} 和 GO Top {maxShow.go} 的通路。具体显著水平和富集基因数见对应 Figure。")
     return(x)
   })
 
@@ -405,7 +404,7 @@ plot_go <- function(data, cutoff = .1, maxShow = 10,
     rstyle("theme") +
     theme(axis.title.y = element_blank()) +
     geom_blank()
-  wrap(p, 6, 7)
+  wrap(p, 8, 7)
 }
 
 setMethod("map", signature = c(x = "job_enrich", ref = "job_enrich"),

@@ -43,8 +43,8 @@ setMethod("step0", signature = c(x = "job_hob"),
 
 setMethod("step1", signature = c(x = "job_hob"),
   function(x, cutoff = c("20", "50"), wd = timeName("hob"),
-    command = "conda run -n hobpre python ~/HOB/HOB_predict.py",
-    model = "~/HOB/model", extra = "~/HOB/pca_hob.m", dir = NULL)
+    command = paste(pg("hobPython"), pg("hobPredict")),
+    model = pg("hobModel"), extra = pg("hobExtra"), dir = NULL)
   {
     step_message("Run HOB for Prediction.")
     if (is.null(dir)) {
@@ -99,6 +99,10 @@ setMethod("step1", signature = c(x = "job_hob"),
     } else {
       p.hob <- new_pie(t.hob$isOK, title = "HOB (20%) Prediction")
     }
+    x <- methodAdd(x,
+      "以 Python 工具 `HOB` {cite_show('HobpreAccuratWeiM2022')} 预测化合物人类口服利用度 ({cutoff}%)。")
+    x <- methodAdd(x, "化合物以 PubChem CID 获取结构式 (SMILES) 随后通过 `HOB` 程序预测口服利用度 {cutoff}% 是否达标。")
+    x <- snapAdd(x, "`HOB` 预测结果，所有用于预测的化合物 (含有结构式信息的) {nrow(t.hob)} 个，达到口服利用度标准的有 {lenth(which(t.hob$isOK))} 个。")
     p.hob <- .set_lab(p.hob, sig(x), "HOB 20 prediction")
     t.hob <- .set_lab(t.hob, sig(x), "data of HOB 20 prediction")
     x@tables[[ 1 ]] <- namel(t.hob)

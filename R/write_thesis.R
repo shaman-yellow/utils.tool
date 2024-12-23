@@ -7,7 +7,7 @@ inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
     list(width = 10, height = 6.2)
   } else {
     list(width = 6.2, height = 10)
-  })
+  }, name = NULL)
 {
   if (!file.exists(saveDir))
     dir.create(saveDir)
@@ -58,7 +58,11 @@ inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
   if (knitr::pandoc_to("docx")) {
     content <- officer::external_img(savename, width, height)
     writeLines(c("", assis_docx_img(content), ""))
-    label <- knitr::opts_current$get("autor_label")
+    if (missing(name)) {
+      label <- knitr::opts_current$get("autor_label")
+    } else {
+      label <- name
+    }
     if (is.null(label)) {
       stop(glue::glue('is.null(autor_label), Chunk: {knitr::opts_current$get("label")}'))
     }
@@ -645,7 +649,39 @@ custom_docx_document2 <- function(...){
       bottom = 1, top = 1, right = 1.25, left = 1.25, header = 0.5,
       footer = 0.5, gutter = 0.5)
   )
-  do.call(officedown::rdocx_document, c(list('bookdown::word_document2'), args))
+  output_formats <- do.call(officedown::rdocx_document, c(list('bookdown::word_document2'), args))
+  original_knit <- output_formats$post_knit
+  ## replace the post_knit function, add post-knit ...
+  new_fun <- function(metadata, input_file, runtime, ...) {
+    original_knit(metadata, input_file, runtime, ...)
+    output_file <- officedown:::file_with_meta_ext(input_file, "knit", "md")
+    if (!file.exists(output_file)) {
+      stop('!file.exists(output_file), I can not found the post-knit md file.')
+    }
+    lines <- readLines(output_file)
+    all_placeHolder <- stringr::str_extract_all(lines, "<!-- autor_legend:[a-zA-Z0-9-]*? -->")
+    n <- 0L
+    autor_legend_env <- getOption("autor_legend_env")
+    lines <- vapply(lines,
+      function(line) {
+        n <<- n + 1L
+        if (length(alls <- all_placeHolder[[ n ]])) {
+          replace <- ""
+          label <- ""
+          for (i in alls) {
+            label <- stringr::str_extract(i, "(?<=autor_legend:)[a-zA-Z0-9-]*")
+            replace <- autor_legend_env[[ label ]]
+            if (!is.null(replace) && nchar(label)) {
+              line <- sub(i, replace, line)
+            }
+          }
+        }
+        return(line)
+      }, character(1))
+    writeLines(lines, output_file)
+  }
+  output_formats$post_knit <- new_fun
+  output_formats
 }
 
 
