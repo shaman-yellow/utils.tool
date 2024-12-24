@@ -213,6 +213,12 @@ setMethod("asjob_enrich", signature = c(x = "job_seurat"),
     job_enrich(ids, anno)
   })
 
+setMethod("asjob_enrich", signature = c(x = "feature"),
+  function(x, ...){
+    fea <- x
+    x <- job_enrich(fea@.Data)
+  })
+
 setMethod("focus", signature = c(x = "job_enrich"),
   function(x, symbols, data = x@tables$step1$res.kegg[[1]])
   {

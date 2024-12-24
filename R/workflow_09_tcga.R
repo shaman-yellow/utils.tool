@@ -275,6 +275,13 @@ summary_tibble <- function(data, markdown = knitr::is_latex_output(), ...) {
   e(summarytools::dfSummary(data, style = if (markdown) "grid" else "multiline", ...))
 }
 
+summary_tibble2 <- function(data, group) {
+  tabone <- tableone::CreateTableOne(data = data, strata = group)
+  res <- as_tibble(tableone:::print.TableOne(tabone))
+  colnames(res)[1] <- "Type"
+  return(res)
+}
+
 .get_treatment.lm.tc <- function(x,
   type = c("Pharmaceutical Therapy, NOS", "Radiation Therapy, NOS"),
   attr = c("treatment_or_therapy"), add_into = T, name_suffix = NULL)

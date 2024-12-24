@@ -19,7 +19,7 @@
     analysis = "D-GCAN Drug-Likeness 预测"
     ))
 
-job_dl <- function(smiles, force_cpu = F)
+job_dl <- function(smiles, force_cpu = TRUE)
 {
   x <- .job_dl()
   if (is.data.frame(smiles)) {
@@ -41,7 +41,7 @@ job_dl <- function(smiles, force_cpu = F)
     message("Use CPU for computing.")
     x$force_cpu <- T
     fun <- function(name) {
-      file_py <- paste0(pg("dl"), "/", name, ".py")
+      file_py <- file.path(pg("dl"), paste0(name, ".py"))
       raw <- readLines(file_py)
       revise <- gs(raw, "torch.device\\('cuda'\\)", "torch.device('cpu')")
       revise <- gs(revise, "print\\('The code uses a GPU!'\\)", "print('The code uses a CPU!')")
@@ -76,28 +76,28 @@ setMethod("step0", signature = c(x = "job_dl"),
 setMethod("step1", signature = c(x = "job_dl"),
   function(x, batch_size = 3L) {
     step_message("Prepare the trained model.")
-    file_model <- paste0(pg("dl"), "/model/model.pth")
+    file_model <- file.path(pg("dl"), "model", "model.pth")
     if (!file.exists(file_model)) {
       message("Model file not exists, training herein.")
-      dir.create(paste0(pg("dl"), "/model"))
+      dir.create(file.path(pg("dl"), "model"))
       owd <- getwd()
       setwd(pg("dl"))
       x$res_train <- tryCatch(x@params$train$train(
-        paste0(pg("dl_dataset"), "/bRo5.txt"),
-        radius = 1L,
-        dim = 52L,
-        layer_hidden = 4L,
-        layer_output = 10L,
-        dropout = 0.45,
-        batch_train = batch_size,
-        batch_test = batch_size,
-        lr = 3e-4,
-        lr_decay = 0.85,
-        decay_interval = 25L,
-        iteration = 140L,
-        N = 5000L,
-        dataset_train = paste0(pg("dl_dataset"), "/data_train.txt")
-      ), finally = setwd(owd))
+          file.path(pg("dl_dataset"), "bRo5.txt"),
+          radius = 1L,
+          dim = 52L,
+          layer_hidden = 4L,
+          layer_output = 10L,
+          dropout = 0.45,
+          batch_train = batch_size,
+          batch_test = batch_size,
+          lr = 3e-4,
+          lr_decay = 0.85,
+          decay_interval = 25L,
+          iteration = 140L,
+          N = 5000L,
+          dataset_train = file.path(pg("dl_dataset"), "data_train.txt")
+          ), finally = setwd(owd))
     }
     return(x)
   })
@@ -123,6 +123,10 @@ setMethod("step2", signature = c(x = "job_dl"),
     message("Get length of results: ", length(res))
     t.res <- tibble::tibble(name = names(object(x)), smiles = object(x), drugLike = ifelse(res, T, F))
     t.res <- dplyr::mutate(t.res, isOK = drugLike)
+    x <- methodAdd(x, "以 Python 工具 `D-GCAN` {cite_show('PredictionOfDSunJ2022')} 预测 Drug-likeness。
+      `D-GCAN` 的训练和使用参数参考 <https://github.com/JinYSun/D-GCAN>。")
+    x <- snapAdd(x, "以化合物结构式 (SMILES) 通过 `D-GCAN` 程序预测是否与药物相似 (Drug-likeness)。")
+    x <- snapAdd(x, "`D-GCAN` 预测结果，所有用于预测的化合物 (含有结构式信息的) {nrow(t.res)} 个，与药物相似的 {length(which(t.res$isOK))} 个 (注：根据唯一结构式统计)。")
     t.res <- .set_lab(t.res, sig(x), "prediction of Drug-Likeness data")
     p.res <- new_pie(c(as.character(t.res$drugLike), rep("Excluded", length(x$excluded))))
     p.res <- .set_lab(p.res, sig(x), "prediction of Drug-Likeness")

@@ -1979,6 +1979,7 @@ setMethod("autor", signature = c(x = "ANY", name = "missing"),
       message("Not in knitr circumstance, show object only.")
       if (!is.null(lab(x))) {
         message(glue::glue("lab(x): {lab(x)}\nautor_label: {as_chunk_label(lab(x))}"))
+        message("Legend:\n", paste0(strwrap(split_text_by_width(Legend(x), 70), , 4), collapse = "\n"))
       }
       return(show(x))
     } else {

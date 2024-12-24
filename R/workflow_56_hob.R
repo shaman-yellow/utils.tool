@@ -47,6 +47,7 @@ setMethod("step1", signature = c(x = "job_hob"),
     model = pg("hobModel"), extra = pg("hobExtra"), dir = NULL)
   {
     step_message("Run HOB for Prediction.")
+    cutoff <- match.arg(cutoff)
     if (is.null(dir)) {
       if (!file.exists(strx(command, "[^ ]+$"))) {
         stop('file.exists(strx(command, "[^ ]+$")) == F')
@@ -55,16 +56,20 @@ setMethod("step1", signature = c(x = "job_hob"),
         stop("file.exists(model) == F")
       }
       x$wd <- wd
-      dir.create(wd, F)
-      file.copy(extra, wd)
-      writeLines(object(x), paste0(wd, "/smiles.txt"))
-      cutoff <- match.arg(cutoff)
-      cdRun(command, " ", model, " smiles.txt ", cutoff, path = x$wd)
+      file_res <- file.path(wd, "pred_result.csv")
+      if (!file.exists(file_res)) {
+        dir.create(wd, F)
+        file.copy(extra, wd)
+        writeLines(object(x), paste0(wd, "/smiles.txt"))
+        cdRun(command, " ", model, " smiles.txt ", cutoff, path = x$wd)  
+      } else {
+        message("Detected 'pred_result.csv' exists, use that.")
+      }
     } else {
       if (dir.exists(dir))
         wd <- dir
+      file_res <- file.path(wd, "pred_result.csv")
     }
-    file_res <- paste0(wd, "/pred_result.csv")
     t.hob <- ftibble(file_res)
     if (!is.null(names(object(x)))) {
       if (.is.cid(names(object(x)))) {
@@ -101,8 +106,8 @@ setMethod("step1", signature = c(x = "job_hob"),
     }
     x <- methodAdd(x,
       "以 Python 工具 `HOB` {cite_show('HobpreAccuratWeiM2022')} 预测化合物人类口服利用度 ({cutoff}%)。")
-    x <- methodAdd(x, "化合物以 PubChem CID 获取结构式 (SMILES) 随后通过 `HOB` 程序预测口服利用度 {cutoff}% 是否达标。")
-    x <- snapAdd(x, "`HOB` 预测结果，所有用于预测的化合物 (含有结构式信息的) {nrow(t.hob)} 个，达到口服利用度标准的有 {lenth(which(t.hob$isOK))} 个。")
+    x <- snapAdd(x, "以化合物结构式 (SMILES) 通过 `HOB` 程序预测是否达到口服利用度 {cutoff}%。")
+    x <- snapAdd(x, "`HOB` 预测结果，所有用于预测的化合物 (含有结构式信息的) {nrow(t.hob)} 个，达到口服利用度标准的有 {length(which(t.hob$isOK))} 个 (注：根据唯一结构式统计)。")
     p.hob <- .set_lab(p.hob, sig(x), "HOB 20 prediction")
     t.hob <- .set_lab(t.hob, sig(x), "data of HOB 20 prediction")
     x@tables[[ 1 ]] <- namel(t.hob)

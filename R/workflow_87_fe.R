@@ -42,27 +42,36 @@ setMethod("step1", signature = c(x = "job_fe"),
     x <- methodAdd(x, "从数据库 `FerrDb V2` {cite_show('FerrdbV2UpdaZhou2023')} 获取与铁死亡相关的调控因子或铁死亡与疾病之间的关联信息 <http://www.zhounan.org/ferrdb/current/>。")
     # a list
     s.com <- try_snap(t.ferroptosisRegulators, "symbol")
+    x <- snapAdd(x, "从数据库 `FerrDb V2` 获取与铁死亡相关的调控因子或铁死亡与疾病之间的关联信息。")
     x <- snapAdd(x, "铁死亡相关调控因子统计：{s.com}")
     return(x)
   })
 
-setMethod("map", signature = c(x = "job_fe", ref = "list"),
+setMethod("map", signature = c(x = "job_fe", ref = "feature"),
   function(x, ref, use = c("all", "sep")){
     use <- match.arg(use)
-    if (is.null(names(ref)) && length(ref) == 1) {
-      names(ref) <- "Related_targets"
+    feas <- ref@.Data
+    if (is(feas, "character")) {
+      feas <- list(feas)
     }
-    ref <- lapply(ref, unique)
+    if (is.null(names(feas)) && length(feas) == 1) {
+      names(feas) <- "Related_targets"
+    }
+    feas <- lapply(feas, unique)
     alls <- lapply(x@tables$step1$t.ferroptosisRegulators, function(x) unique(x$symbol))
     if (use == "all") {
       alls <- unique(unlist(alls))
-      lst <- c(ref, list(Ferroptosis_all = alls))
+      lst <- c(feas, list(Ferroptosis_all = alls))
     } else {
       names(alls) <- paste0("Ferroptosis_", names(alls))
-      lst <- c(ref, alls)
+      lst <- c(feas, alls)
     }
     x$upset <- new_venn(lst = lst)
-    x$upset <- setLegend(x$upset, "展示了上一分析环节得到的基因集与铁死亡相关调控因子的交集。{try_summary(lst)}")
+    x$upset <- setLegend(x$upset, "展示了与铁死亡相关调控因子的交集。{try_summary(lst)}")
+    feature <- x$upset$ins
+    x <- snapAdd(x, "将基因集 {snap(ref)} 与 FerrDb 数据库中铁死亡调控因子取交集。")
+    x <- snapAdd(x, "共 {length(feature)} 个。")
+    x$.feature <- feature(feature, x, analysis = "铁死亡交集基因")
     x$.map_heading <- "FerrDb 与铁死亡相关基因的交集"
     return(x)
   })

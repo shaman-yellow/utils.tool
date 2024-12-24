@@ -38,6 +38,58 @@ setClass("virtual_job", "VIRTUAL")
 
 setClassUnion("numeric_or_character", c("numeric", "character"))
 
+.feature <- setClass("feature", 
+  contains = c("vector"),
+  representation = representation(
+    object = "ANY", sig = "character",
+    snap = "character", nature = "character", type = "character"),
+  prototype = NULL)
+
+.feature_list <- setClass("feature_list", contains = c("feature"))
+.feature_char <- setClass("feature_char", contains = c("feature"))
+
+setValidity("feature_list", 
+  function(object){
+    is(object@.Data, "list")
+  })
+
+setValidity("feature_char", 
+  function(object){
+    is(object@.Data, "character")
+  })
+
+setGeneric("feature", 
+  function(x, ref, ...) standardGeneric("feature"))
+
+setMethod("feature", signature = c(x = "job", ref = "missing"),
+  function(x){
+    x$.feature
+  })
+
+setMethod("feature", signature = c(x = "ANY", ref = "job"),
+  function(x, ref, nature = c("genes", "compounds", "feature"),
+    type = "disease", analysis = NULL)
+  {
+    if (is.null(sig(ref))) {
+      stop('is.null(sig(ref)), no "sig" in that "job".')
+    }
+    nature <- match.arg(nature)
+    nature <- switch(nature, "genes" = "基因集", "compounds" = "化合物", "feature" = "特征集")
+    type <- dplyr::recode(type, "disease" = "疾病", .default = type)
+    if (is(x, "character")) {
+      x <- .feature_char(x, type = type, nature = nature)
+    } else if (is(x, "list")) {
+      x <- .feature_list(x, type = type, nature = nature)
+    } else {
+      x <- .feature(x, type = type, nature = nature)
+    }
+    if (is.null(analysis)) {
+      analysis <- ref@analysis
+    }
+    snap(x) <- glue::glue(" ({nature} 来自于 {analysis} ({sig(ref)})) ")
+    return(x)
+  })
+
 setGeneric("snap", 
   function(x, ref, ...) standardGeneric("snap"))
 
@@ -53,6 +105,16 @@ setReplaceMethod("snap", signature = c(x = "ANY"),
   function(x, value){
     attr(x, ".SNAP") <- value
     return(x)
+  })
+
+setMethod("snap", signature = c(x = "feature"),
+  function(x){
+    x@snap
+  })
+
+setReplaceMethod("snap", signature = c(x = "feature"),
+  function(x, value){
+    initialize(x, snap = value)
   })
 
 setMethod("snap", signature = c(x = "job", ref = "numeric_or_character"),
@@ -567,8 +629,8 @@ setReplaceMethod("Legend", signature = c(x = "ANY"),
     return(x)
   })
 
-setLegend <- function(x, glueString, ..., env = parent.frame(1)) {
-  Legend(x) <- glue::glue(glueString, .envir = env, ...)
+setLegend <- function(x, from, ..., env = parent.frame(1)) {
+  Legend(x) <- glue::glue(from, .envir = env, ...)
   return(x)
 }
 
@@ -603,10 +665,17 @@ jobSlotAdd <- function(x, name, ...) {
 }
 
 setGeneric("methodAdd", 
-  function(x, glueString, ...) standardGeneric("methodAdd"))
+  function(x, from, ...) standardGeneric("methodAdd"))
 
-setMethod("methodAdd", signature = c(x = "job", glueString = "character"),
-  function(x, glueString, add = F, env = parent.frame(2)) {
+setMethod("methodAdd", signature = c(x = "job", from = "character"),
+  function(x, from, add = F, env = parent.frame(2), step = NULL) {
+    if (missing(step)) {
+      if (!is.null(x$.map_step) && x$.map_step) {
+        step <- "m"
+      } else {
+        step <- x@step
+      }
+    }
     if (missing(add)) {
       if (is.null(x$.meth_initial) || x$.meth_initial) {
         add <- F
@@ -624,26 +693,30 @@ setMethod("methodAdd", signature = c(x = "job", glueString = "character"),
     } else {
       former <- ""
     }
-    meth(x)[[ paste0("step", x@step) ]] <- paste0(former, glue::glue(glueString, .envir = env))
+    meth(x)[[ paste0("step", x@step) ]] <- paste0(former, glue::glue(from, .envir = env))
     return(x)
   })
 
-setMethod("methodAdd", signature = c(x = "job", glueString = "job"),
-  function(x, glueString, ...){
-    glueString <- paste0(unlist(glueString@meth, use.names = FALSE), collapse = "")
-    methodAdd(x, glueString, ...)
+setMethod("methodAdd", signature = c(x = "job", from = "job"),
+  function(x, from, ...){
+    from <- paste0(unlist(from@meth, use.names = FALSE), collapse = "")
+    methodAdd(x, from, ...)
   })
 
 setGeneric("snapAdd", 
-  function(x, glueString, ...) standardGeneric("snapAdd"))
+  function(x, from, ...) standardGeneric("snapAdd"))
 
-setMethod("snapAdd", signature = c(x = "job", glueString = "character"),
-  function(x, glueString, add = F, env = parent.frame(2), step = NULL) {
+setMethod("snapAdd", signature = c(x = "job", from = "character"),
+  function(x, from, add = F, env = parent.frame(2), step = NULL) {
     if (is.null(x$.snap)) {
       x$.snap <- list()
     }
     if (missing(step)) {
-      step <- x@step
+      if (!is.null(x$.map_step) && x$.map_step) {
+        step <- "m"
+      } else {
+        step <- x@step
+      }
     }
     if (missing(add)) {
       if (is.null(x$.snap_initial) || x$.snap_initial) {
@@ -662,14 +735,14 @@ setMethod("snapAdd", signature = c(x = "job", glueString = "character"),
     } else {
       former <- ""
     }
-    x$.snap[[ paste0("step", step) ]] <- paste0(former, glue::glue(glueString, .envir = env))
+    x$.snap[[ paste0("step", step) ]] <- paste0(former, glue::glue(from, .envir = env))
     return(x)
   })
 
-setMethod("snapAdd", signature = c(x = "job", glueString = "job"),
-  function(x, glueString, ...){
-    glueString <- paste0(unlist(glueString$.snap, use.names = FALSE), collapse = "")
-    snapAdd(x, glueString, ...)
+setMethod("snapAdd", signature = c(x = "job", from = "job"),
+  function(x, from, ...){
+    from <- paste0(unlist(from$.snap, use.names = FALSE), collapse = "")
+    snapAdd(x, from, ...)
   })
 
 .set_lab_batch <- function(objs, labs, sig) {
@@ -1318,8 +1391,11 @@ setGeneric("anno",
 
 setGeneric("map", 
   function(x, ref, ...) {
-    x$.snap_initial <- T
-    x$.meth_initial <- T
+    if (is(x, "job")) {
+      x$.snap_initial <- T
+      x$.meth_initial <- T
+      x$.map_step <- T
+    }
     x <- standardGeneric("map")
     if (is(x, "job")) {
       if (identical(parent.frame(1), .GlobalEnv)) {
@@ -1327,6 +1403,7 @@ setGeneric("map",
           job_append_heading(x, heading = x$.map_heading)
         }
       }
+      x$.map_step <- F
       stepPostModify(x)
     } else {
       x

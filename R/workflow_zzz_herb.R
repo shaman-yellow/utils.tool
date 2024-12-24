@@ -48,7 +48,21 @@ setMethod("intersect", signature = c(x = "JOB_herb", y = "JOB_herb"),
     }
   })
 
-setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
+setMethod("feature", signature = c(x = "JOB_herb", ref = "missing"),
+  function(x)
+  {
+    if (!is.null(x$.feature)) {
+      x$.feature
+    } else {
+      feature <- length(unique(x$data.allu$Target.name))
+      if (!length(feature)) {
+        stop('!length(feature)')
+      }
+      feature(feature, x)
+    }
+  })
+
+setMethod("map", signature = c(x = "JOB_herb", ref = "feature"),
   function(x, ref, HLs = NULL, levels = NULL, lab.level = "Level", name = "dis", compounds = NULL,
     compounds.keep.intersection = F,
     syns = NULL, enrichment = NULL, en.top = 10, use.enrich = c("kegg", "go"), ...)
@@ -69,7 +83,8 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
     if (length(ref)) {
       data <- dplyr::filter(data, Target.name %in% !!unlist(ref, use.names = F))
       p.venn2dis <- new_venn(Diseases = unlist(ref, use.names = F), Targets = rm.no(x$data.allu$Target.name))
-      p.venn2dis <- setLegend(p.venn2dis, "展示了中药的靶点与疾病靶点的交集数目。")
+      p.venn2dis <- setLegend(p.venn2dis, "展示了中药的靶点与{ref@type}靶点{snap(ref)}的交集数目。
+        两者共含有 {length(p.venn2dis$ins)} 个交集靶点。")
       x[[ paste0("p.venn2", name) ]] <- .set_lab(p.venn2dis, sig(x),
         "Targets intersect with targets of diseases")
     }
@@ -81,7 +96,8 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
     } else {
       p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
         lab.fill = lab.level, force.ax1 = herbs, ...)
-      p.pharm <- setLegend(p.pharm, "展示了中药、成分、靶点的网络图。该图对中心度 (centrality_degree) 较高的节点 (成分或靶点) 做了名称标注。")
+      p.pharm <- setLegend(p.pharm, "展示了中药、成分、靶点 (中药靶点与{ref@type}靶点的交集) 的网络图。
+        该图对中心度 (centrality_degree) 较高的节点 (成分或靶点) 做了名称标注。")
     }
     p.pharm$.data <- data
     if (length(ref)) {
@@ -89,7 +105,10 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "list"),
     } else {
       x$p.pharmMap <-  .set_lab(p.pharm, sig(x), "network pharmacology")
     }
-    x$.map_heading <- "Network 疾病-成分-靶点"
+    x <- snapAdd(x, "将 {ref@type} 的靶点与中药靶点取交集，随后过滤中药成分与靶点数据，形成中药-成分-{ref@type}-靶点网络。")
+    analysis <- glue::glue("中药-成分-{ref@type}-靶点网络")
+    x$.feature <- feature(p.venn2dis$ins, x, analysis = analysis)
+    x$.map_heading <- paste("Network", analysis)
     return(x)
   })
 
@@ -126,7 +145,9 @@ plot_network.enrich <- function(data, enrichment, use.enrich = c("kegg", "go"), 
   namel(p.pharm, dataPath)
 }
 
-filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T) {
+filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T,
+  symbol = "filter")
+{
   if (filter.hob || filter.dl) {
     if (test) {
       ids <- head(ids, n = 100)
@@ -136,7 +157,7 @@ filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T) {
         stop("is.numeric(ids) == F")
       }
       smiles <- get_smiles_batch(ids, n = 50)
-      smiles <- dplyr::rename(smiles, ID = CID, SMILES = IsomericSMILES)
+      smiles <- dplyr::select(smiles, ID = CID, SMILES = IsomericSMILES)
     } else {
       message("use.cids == F, so `ids` should be SMILES with names.")
       smiles <- ids
@@ -152,7 +173,7 @@ filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T) {
   }
   if (filter.hob) {
     hob <- job_hob(smiles)
-    hob <- step1(hob)
+    hob <- step1(hob, wd = paste0("hob_", symbol))
     hobSmiles <- dplyr::filter(res(hob), isOK)$smiles
     .add_internal_job(hob, T)
     setSmiles <- c(setSmiles, list(HOB_is_OK = hobSmiles))
@@ -160,7 +181,7 @@ filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T) {
     hob <- NULL
   }
   if (filter.dl) {
-    dl <- job_dl(smiles)
+    dl <- job_dl(smiles, TRUE)
     dl <- step1(dl)
     dl <- step2(dl)
     dlSmiles <- dplyr::filter(res(dl), isOK)$smiles
@@ -502,11 +523,11 @@ get_smiles_batch <- function(cids, n = 100, sleep = .5, db_dir = .prefix("smiles
   db <- not(db, cids)
   query <- db@query
   if (length(query)) {
-    res <- .get_properties_batch(query, n = 100, properties = "IsomericSMILES", sleep = sleep)
+    res <- .get_properties_batch(query, n = n, properties = "IsomericSMILES", sleep = sleep)
+    res <- do.call(dplyr::bind_rows, res)
     db <- upd(db, res)
   }
-  res <- dplyr::filter(db@db, CID %in% !!cids)
-  frbind(res, fill = T)
+  dplyr::filter(db@db, CID %in% !!cids)
 }
 
 .get_properties_batch <- function(ids, ..., n = 100, sleep = .5) {

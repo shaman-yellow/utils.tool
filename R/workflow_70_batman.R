@@ -42,7 +42,7 @@ setMethod("step0", signature = c(x = "job_batman"),
   })
 
 setMethod("step1", signature = c(x = "job_batman"),
-  function(x, anno = F, filter.hob = T, filter.dl = T, test = F)
+  function(x, anno = F, filter.hob = T, filter.dl = FALSE, test = F)
   {
     step_message("Filter and format the compounds and targets.")
     x$herbs_info <- dplyr::mutate(x$herbs_info,
@@ -56,6 +56,7 @@ setMethod("step1", signature = c(x = "job_batman"),
     )
     x$compounds_info <- dplyr::distinct(x$compounds_info)
     x <- methodAdd(x, "从数据库 `BATMAN-TCM` ({cite_show('BatmanTcm20Kong2024')}) 中获取 {bind(x$herbs_info$Pinyin.Name)} 等中药的成分、靶点数据。(即中药：{bind(x$herbs)})。")
+    x <- snapAdd(x, "从数据库 `BATMAN-TCM` 中药的成分、靶点数据 (详见方法章节) 。")
     if (anno) {
       x <- anno(x, "LiteratureCount")
       x$compounds_info <- dplyr::arrange(x$compounds_info, dplyr::desc(LiteratureCount))
@@ -73,8 +74,9 @@ setMethod("step1", signature = c(x = "job_batman"),
       dplyr::select(x$herbs_info, -Ingredients), "CID", unlist
     )
     herbs_compounds <- dplyr::distinct(herbs_compounds, Pinyin.Name, Latin.Name, CID)
-    lst <- filter_hob_dl(unique(herbs_compounds$CID), filter.hob, filter.dl, test)
+    lst <- filter_hob_dl(unique(herbs_compounds$CID), filter.hob, filter.dl, test, symbol = sig(x))
     if (filter.hob) {
+      x <- snapAdd(x, "通过 `PubChemR` 获取化合物的结构式 (SMILES)。")
       x <- methodAdd(x, lst$hob)
       x <- snapAdd(x, lst$hob)
     }
@@ -84,17 +86,21 @@ setMethod("step1", signature = c(x = "job_batman"),
     }
     if (length(lst)) {
       p.upset <- .set_lab(lst$p.upset, sig(x), "Prediction of HOB and Drug-Likeness")
+      p.upset <- setLegend(p.upset, "UpSet 图展示了经过 HOB 和 Drug-Likeness 预测前后的彼此交集。")
       x@plots[[ 1 ]] <- namel(p.upset)
       message("Filter the `herbs_compounds` and `compounds_targets`.")
       cids <- lst$ids
       herbs_compounds <- dplyr::filter(herbs_compounds, CID %in% !!cids)
       compounds_targets <- dplyr::filter(compounds_targets, PubChem_CID %in% !!cids)
       predicted <- dplyr::filter(predicted, PubChem_CID %in% !!cids)
+      x <- snapAdd(x, "经过筛选，")
     }
     x@tables[[ 1 ]] <- namel(herbs_compounds, compounds_targets, predicted)
     s.com <- try_snap(herbs_compounds, "Pinyin.Name", "CID")
     s.n <- length(unique(compounds_targets$PubChem_CID))
-    x <- snapAdd(x, "各中药的化合物组成统计：{s.com}。共包含化合物 {s.n} 个 (非重复)。")
+    x <- snapAdd(x, "各中药的化合物组成统计 (可能有交叉涵盖)：{s.com}。
+      共 {length(unique(herbs_compounds$CID))} 个化合物 (注：根据唯一 PubChem CID 统计)，
+      其中，含有靶点信息记录的化合物共 {s.n} 个 (非重复)。")
     return(x)
   })
 

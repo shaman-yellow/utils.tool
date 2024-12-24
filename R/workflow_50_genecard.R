@@ -53,7 +53,7 @@ setMethod("step1", signature = c(x = "job_genecard"),
     x$score <- attr(t.genecards, ".score")
     x <- methodAdd(x, "从 `GeneCards` 数据库 {cite_show('TheGenecardsSStelze2016')} 获取 {object(x)} 相关的基因集，得分 cut-off 为 {x$score}。")
     s.com <- try_snap(t.genecards, "Category", "Symbol")
-    x <- snapAdd(x, "从 `GeneCards` 取得的靶点数据，统计为 {s.com}。共 {nrow(t.genecards)} 个靶点。")
+    x <- snapAdd(x, "从 `GeneCards` 搜索 {object(x)}, 获取对应靶点数据，统计为 {s.com}。共 {nrow(t.genecards)} 个靶点。")
     return(x)
   })
 
@@ -171,6 +171,11 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_genecardn"),
 setMethod("res", signature = c(x = "job_genecard"),
   function(x){
     x@tables$step1$t.genecards
+  })
+
+setMethod("feature", signature = c(x = "job_genecard", ref = "missing"),
+  function(x){
+    feature(list(x@tables$step1$t.genecards$Symbol), x)
   })
 
 plot_col.genecard <- function(data, top = 10, facet = T)
