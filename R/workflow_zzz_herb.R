@@ -48,7 +48,7 @@ setMethod("intersect", signature = c(x = "JOB_herb", y = "JOB_herb"),
     }
   })
 
-setMethod("feature", signature = c(x = "JOB_herb", ref = "missing"),
+setMethod("feature", signature = c(x = "JOB_herb"),
   function(x)
   {
     if (!is.null(x$.feature)) {
@@ -58,7 +58,7 @@ setMethod("feature", signature = c(x = "JOB_herb", ref = "missing"),
       if (!length(feature)) {
         stop('!length(feature)')
       }
-      feature(feature, x)
+      as_feature(feature, x)
     }
   })
 
@@ -107,7 +107,7 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "feature"),
     }
     x <- snapAdd(x, "将 {ref@type} 的靶点与中药靶点取交集，随后过滤中药成分与靶点数据，形成中药-成分-{ref@type}-靶点网络。")
     analysis <- glue::glue("中药-成分-{ref@type}-靶点网络")
-    x$.feature <- feature(p.venn2dis$ins, x, analysis = analysis)
+    x$.feature <- as_feature(p.venn2dis$ins, x, analysis = analysis)
     x$.map_heading <- paste("Network", analysis)
     return(x)
   })

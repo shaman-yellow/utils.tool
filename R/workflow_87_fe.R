@@ -71,7 +71,7 @@ setMethod("map", signature = c(x = "job_fe", ref = "feature"),
     feature <- x$upset$ins
     x <- snapAdd(x, "将基因集 {snap(ref)} 与 FerrDb 数据库中铁死亡调控因子取交集。")
     x <- snapAdd(x, "共 {length(feature)} 个。")
-    x$.feature <- feature(feature, x, analysis = "铁死亡交集基因")
+    x$.feature <- as_feature(feature, x, analysis = "铁死亡交集基因")
     x$.map_heading <- "FerrDb 与铁死亡相关基因的交集"
     return(x)
   })

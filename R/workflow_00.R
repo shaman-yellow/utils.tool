@@ -59,14 +59,26 @@ setValidity("feature_char",
   })
 
 setGeneric("feature", 
-  function(x, ref, ...) standardGeneric("feature"))
+  function(x, ...) standardGeneric("feature"))
 
-setMethod("feature", signature = c(x = "job", ref = "missing"),
+setGeneric("feature<-", 
+  function(x, value) standardGeneric("feature<-"))
+
+setMethod("feature", signature = c(x = "job"),
   function(x){
     x$.feature
   })
 
-setMethod("feature", signature = c(x = "ANY", ref = "job"),
+setReplaceMethod("feature", signature = c(x = "job"),
+  function(x, value){
+    x$.feature <- value
+    return(x)
+  })
+
+setGeneric("as_feature", 
+  function(x, ref, ...) standardGeneric("as_feature"))
+
+setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
   function(x, ref, nature = c("genes", "compounds", "feature"),
     type = "disease", analysis = NULL)
   {

@@ -173,9 +173,9 @@ setMethod("res", signature = c(x = "job_genecard"),
     x@tables$step1$t.genecards
   })
 
-setMethod("feature", signature = c(x = "job_genecard", ref = "missing"),
+setMethod("feature", signature = c(x = "job_genecard"),
   function(x){
-    feature(list(x@tables$step1$t.genecards$Symbol), x)
+    as_feature(list(x@tables$step1$t.genecards$Symbol), x)
   })
 
 plot_col.genecard <- function(data, top = 10, facet = T)
