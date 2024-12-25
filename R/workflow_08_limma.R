@@ -14,7 +14,7 @@
     info = c("|log~2~(FC)| &gt; 0.03, P-value or adjusted P-value &lt; 0.05"),
     cite = "[@LimmaPowersDiRitchi2015; @EdgerDifferenChen]",
     method = "R package `Limma` and `edgeR` used for differential expression analysis",
-    params = list(isTcga = F, normed = F),
+    params = list(isTcga = F, normed = F, rna = FALSE),
     tag = "rna:diff",
     analysis = "Limma 差异分析"
     ))
@@ -108,6 +108,10 @@ setMethod("step0", signature = c(x = "job_limma"),
   if (x$normed) x$metadata[[ what ]] else x@object$samples[[ what ]]
 }
 
+.guess_symbol <- function(x) {
+  if (x$isTcga) "gene_name" else if (x$rna) "hgnc_symbol" else "GENE_SYMBOL"
+}
+
 .guess_formula <- function(envir = parent.frame(1)) {
   thisEnv <- environment()
   lapply(c("group", "batch", "pairs"),
@@ -131,47 +135,76 @@ setMethod("step1", signature = c(x = "job_limma"),
     pairs = .get_meta(x, "pairs"),
     formula = .guess_formula(), design = mx(as.formula(formula)),
     min.count = 10,
-    no.filter = if (x$normed) T else F,
-    no.norm = no.filter,
+    no.rna_filter = if (x$normed) TRUE else FALSE,
+    no.rna_norm = no.rna_filter,
+    no.array_norm = "guess",
     norm_vis = F, pca = F, data_type = c("count", "cpm"))
   {
     step_message("Preprocess expression data.")
-    x <- methodAdd(x, "以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 进行差异分析。")
-    x <- methodAdd(x, "分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。", T)
+    if (x$rna) {
+      x <- methodAdd(x, "以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 进行差异分析。")
+      x <- methodAdd(x, "分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。", T)
+    } else {
+      x <- methodAdd(x, "以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} 进行差异分析。")
+    }
     message(glue::glue("Use formula: {formula}"))
     data_type <- match.arg(data_type)
     plots <- list()
     s.com <- try_snap(if (x$normed) x$metadata else object(x)$sample, "group", "sample")
     x <- snapAdd(x, "样本分组：{s.com}。", F)
-    if (!no.filter && data_type == "count") {
-      object(x) <- filter_low.dge(object(x), group, min.count = min.count)
-      x <- methodAdd(x, "以 `edgeR::filterByExpr` 过滤 count 数量小于 {min.count} 的基因。", T)
-      p.filter <- wrap(attr(object(x), "p"), 8, 3)
-      p.filter <- .set_lab(p.filter, sig(x), "Filter low counts")
-      plots <- c(plots, namel(p.filter))
-    }
-    if (!no.norm) {
-      object(x) <- norm_genes.dge(object(x), design, vis = norm_vis, data_type = data_type)
-      x <- methodAdd(x, "以 `edgeR::calcNormFactors`，`limma::voom` 转化 count 数据为 log2 counts-per-million (logCPM)。", T)
-      if (norm_vis && data_type == "count") {
-        if (length(x@object$targets$sample) < 50) {
-          p.norm <- wrap(attr(object(x), "p"), 6, max(c(length(x@object$targets$sample) * .6, 10)))
-        } else {
-          p.norm <- wrap(attr(object(x), "p"))
-        }
-        p.norm <- .set_lab(p.norm, sig(x), "Normalization")
-        x@params$p.norm_data <- p.norm@data$data
+    if (x$rna) {
+      message("Data from RNA-seq.")
+      if (!no.rna_filter && data_type == "count") {
+        object(x) <- filter_low.dge(object(x), group, min.count = min.count)
+        x <- methodAdd(x, "以 `edgeR::filterByExpr` 过滤 count 数量小于 {min.count} 的基因。", T)
+        p.filter <- wrap(attr(object(x), "p"), 8, 3)
+        p.filter <- .set_lab(p.filter, sig(x), "Filter low counts")
+        plots <- c(plots, namel(p.filter))
       } else {
-        p.norm <- NULL
+        message("Skip from filtering.")
       }
-      plots <- c(plots, namel(p.norm))
-      x@params$normed_data <- object(x)
+      if (!no.rna_norm) {
+        object(x) <- norm_genes.dge(object(x), design, vis = norm_vis, data_type = data_type)
+        x <- methodAdd(x, "以 `edgeR::calcNormFactors`，`limma::voom` 转化 count 数据为 log2 counts-per-million (logCPM)。", T)
+        if (norm_vis && data_type == "count") {
+          if (length(x@object$targets$sample) < 50) {
+            p.norm <- wrap(attr(object(x), "p"), 6, max(c(length(x@object$targets$sample) * .6, 10)))
+          } else {
+            p.norm <- wrap(attr(object(x), "p"))
+          }
+          p.norm <- .set_lab(p.norm, sig(x), "Normalization")
+          x@params$p.norm_data <- p.norm@data$data
+        } else {
+          p.norm <- NULL
+        }
+        plots <- c(plots, namel(p.norm))
+        x@params$normed_data <- object(x)
+      } else {
+        if (x$rna && is(object(x), "df")) {
+          x$normed_data <- list(
+            genes = if (is.null(x$genes)) data.frame(rownames = rownames(object(x))) else x$genes,
+            targets = x$metadata,
+            E = object(x)
+          )  
+        } else {
+          x$normed_data <- object(x)
+        }
+      }
     } else {
-      x$normed_data <- list(
-        genes = if (is.null(x$genes)) data.frame(rownames = rownames(object(x))) else x$genes,
-        targets = x$metadata,
-        E = object(x)
-      )
+      message("Data from Microarray.")
+      if (no.array_norm == "guess") {
+        if (all(range(object(x)$counts) > 0)) {
+          message("All expression value larger than 0, may be raw expression dataset.")
+          no.array_norm <- FALSE
+        }
+      }
+      if (!no.array_norm) {
+        x <- methodAdd(x, "使用 `log2` 和 `limma::normalizeBetweenArrays` 对数据标准化。")
+        object(x)$counts <- e(limma::normalizeBetweenArrays(log2(object(x)$counts)))
+        x$normed_data <- new("EList",
+          list(genes = object(x)$genes, targets = object(x)$samples, E = object(x)$counts)
+        )
+      }
     }
     if (pca) {
       pca <- pca_data.long(as_data_long(object(x)))
@@ -184,6 +217,11 @@ setMethod("step1", signature = c(x = "job_limma"),
     x@params$group <- group
     x@params$design <- design
     x <- methodAdd(x, "以 公式 {formula} 创建设计矩阵 (design matrix) 用于线性分析。", T)
+    snap <- ""
+    if (!is.null(batch)) {
+      snap <- paste0("(Batch: ", try_snap(batch), ")")
+    }
+    x <- snapAdd(x, "以 公式 {formula} 创建设计矩阵 (design matrix) 用于线性分析{snap}。")
     x$.metadata <- .set_lab(x$.metadata, sig(x), "metadata of used sample")
     x$metadata <- .set_lab(x$metadata, sig(x), "metadata of used sample")
     return(x)
@@ -191,8 +229,8 @@ setMethod("step1", signature = c(x = "job_limma"),
 
 setMethod("step2", signature = c(x = "job_limma"),
   function(x, ..., contrasts = NULL, block = NULL, use = c("adj.P.Val", "P.Value"),
-    use.cut = .05, cut.fc = .5,
-    label = if (x$isTcga) "gene_name" else "hgnc_symbol", batch = F, HLs = NULL)
+    use.cut = .05, cut.fc = 1,
+    label = .guess_symbol(x), batch = F, HLs = NULL)
   {
     step_message("Difference test.")
     use <- match.arg(use)
@@ -296,7 +334,8 @@ setMethod("group", signature = c(x = "job_limma"),
   })
 
 setMethod("step3", signature = c(x = "job_limma"),
-  function(x, names = NULL, use = "all", use.gene = "hgnc_symbol", fun_filter = rm.no, trunc = NULL)
+  function(x, names = NULL, use = "all", use.gene = .guess_symbol(x),
+    fun_filter = rm.no, trunc = NULL)
   {
     step_message("Sets intersection.")
     tops <- x@tables$step2$tops
@@ -308,6 +347,11 @@ setMethod("step3", signature = c(x = "job_limma"),
     }
     tops <- lapply(tops,
       function(data){
+        if (is.null(data[[ use.gene ]])) {
+          stop(
+            glue::glue('is.null(data[[ use.gene ]]), you specified {use.gene}, but found NULL')
+          )
+        }
         up <- dplyr::filter(data, logFC > 0)[[ use.gene ]]
         down <- dplyr::filter(data, logFC < 0)[[ use.gene ]]
         lst <- list(up = up, down = down)
@@ -378,7 +422,8 @@ setMethod("clear", signature = c(x = "job_limma"),
   })
 
 setMethod("map", signature = c(x = "job_limma"),
-  function(x, ref, ref.use = "hgnc_symbol", group = NULL, group.use = "group", pvalue = T){
+  function(x, ref, ref.use = .guess_symbol(x),
+    group = NULL, group.use = "group", pvalue = T){
     object <- x@params$normed_data
     if (identical(class(object), "list")) {
       object <- new("EList", object)
@@ -395,7 +440,10 @@ setMethod("map", signature = c(x = "job_limma"),
     data <- tibble::as_tibble(t(object$E))
     data$group <- object$targets$group
     data <- tidyr::gather(data, var, value, -group)
-    p <- .map_boxplot2(data, pvalue)
+    p <- wrap(.map_boxplot2(data, pvalue))
+    p <- .set_lab(p, sig(x), "wilcox test for some genes")
+    snap(p) <- "以 wilcox.test 检验少量基因 ({bind(ref)}) 的表达。"
+    feature(p) <- ref
     p
   })
 
@@ -486,7 +534,7 @@ setMethod("tops", signature = c(x = "job_limma"),
 
 setMethod("cal_corp", 
   signature = c(x = "job_limma", y = "job_limma"),
-  function(x, y, from, to, names = NULL, use = if (x$isTcga) "gene_name" else "hgnc_symbol",
+  function(x, y, from, to, names = NULL, use = .guess_symbol(x),
     theme = NULL, HLs = NULL, mode = c("heatmap", "linear"))
   {
     message("Filter out others.")
@@ -521,7 +569,7 @@ setMethod("cal_corp",
   })
 
 setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
-  function(x, y, from, to, names = NULL, use = if (x$isTcga) "gene_name" else "hgnc_symbol",
+  function(x, y, from, to, names = NULL, use = .guess_symbol(x),
     theme = NULL, HLs = NULL, mode = c("heatmap", "linear"))
   {
     mode <- match.arg(mode)
@@ -746,6 +794,11 @@ diff_test <- function(x, design, contr = NULL, block = NULL){
     message("## Within-donor correlation:", cor)
   } else {
     cor <- NULL
+  }
+  if (is(x, "DGEList")) {
+    x <- new(
+      "EList", list(E = x$counts, targets = x$samples, genes = x$genes)
+    )
   }
   fit <- e(limma::lmFit(x, design, block = block, correlation = cor))
   if (!is.null(contr)) {

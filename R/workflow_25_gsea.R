@@ -256,7 +256,7 @@ setMethod("step3", signature = c(x = "job_gsea"),
     return(x)
   })
 
-.pathview_search <- function(name, search, x, lst) {
+.pathview_search <- function(name, search, x, lst, snap = "") {
   figs <- list.files(name, search, full.names = T)
   names <- get_realname(figs)
   p.pathviews <- mapply(figs, names, SIMPLIFY = F,
@@ -269,6 +269,7 @@ setMethod("step3", signature = c(x = "job_gsea"),
           "Enriched genes" = paste0(unique(genes), collapse = ", ")
         )
       )
+      x <- setLegend(x, "KEGG 通路可视化 ({name}) 展示了富集基因在该通路的上下游关系。{snap}")
       return(x)
     })
   names(p.pathviews) <- names

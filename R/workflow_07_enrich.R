@@ -18,6 +18,17 @@
     analysis = "富集分析"
     ))
 
+setGeneric("asjob_enrich", group = list("asjob_series"),
+  function(x, ...) standardGeneric("asjob_enrich"))
+
+setMethod("asjob_enrich", signature = c(x = "feature"),
+  function(x, ...){
+    snap <- snap(x)
+    x <- job_enrich(x@.Data)
+    x <- snapAdd(x, "对基因集{snap}进行 KEGG 和 GO 富集分析。")
+    x
+  })
+
 job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_id")
 {
   if (!is(ids, "list")) {
@@ -65,7 +76,6 @@ setMethod("step1", signature = c(x = "job_enrich"),
     res.kegg <- multi_enrichKEGG(object(x), organism = organism)
     p.kegg <- vis_enrich.kegg(res.kegg, maxShow = maxShow.kegg, use = use)
     use.p <- attr(p.kegg, "use.p")
-    p.kegg <- lapply(p.kegg, function(x) wrap(x, 7, 4 * (maxShow.kegg / 10)))
     p.kegg <- .set_lab(p.kegg, sig(x), names(p.kegg), "KEGG enrichment")
     fun <- function(sets) {
       lapply(sets,
@@ -94,7 +104,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
     x@plots[[ 1 ]] <- namel(p.kegg, p.go)
     x@params$check_go <- check_enrichGO(res.go)
     x$organism <- organism
-    x <- methodAdd(x, "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')}进行 KEGG 和 GO 富集分析。以 {use} 表示显著水平。提供的 KEGG 或 GO 富集图，展示了 KEGG Top {maxShow.kegg} 和 GO Top {maxShow.go} 的通路。具体显著水平和富集基因数见对应 Figure。")
+    x <- methodAdd(x, "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')}进行 KEGG 和 GO 富集分析。以 {use} 表示显著水平。")
     return(x)
   })
 
@@ -124,6 +134,9 @@ setMethod("step2", signature = c(x = "job_enrich"),
       message("Note that only hgnc_symbol support for this feature: `gene.level`")
       names(gene.level) <- x$annotation$entrezgene_id[ match(names(gene.level),
         x$annotation[[ gene.level.name ]]) ]
+      snap <- "通路图中的基因的映射颜色表示基因显著富集，并在数据集中有上调或下调变化趋势。"
+    } else {
+      snap <- "通路图中的基因的映射颜色表示是否显著富集。"
     }
     dir.create(name, F)
     setwd(name)
@@ -148,11 +161,13 @@ setMethod("step2", signature = c(x = "job_enrich"),
             bins <- 1
           }
           res.pathview <- try(
-            pathview::pathview(gene.data = genes,
+            pathview::pathview(
+              gene.data = genes,
               pathway.id = pathway, species = species,
               keys.align = "y", kegg.native = T, same.layer = F,
               key.pos = "topright", bins = list(gene = bins),
-              na.col = "grey90", discrete = list(gene = discrete))
+              na.col = "grey90", discrete = list(gene = discrete)
+            )
           )
           if (inherits(res.pathview, "try-error")) {
             try(dev.off(), silent = T)
@@ -161,11 +176,30 @@ setMethod("step2", signature = c(x = "job_enrich"),
         })
     }, finally = {setwd("../")})
     x@tables[[ 2 ]] <- namel(res.pathviews)
-    p.pathviews <- .pathview_search(name, search, x, res.pathviews)
+    p.pathviews <- .pathview_search(
+      name, search, x, res.pathviews, snap = snap
+    )
+    feature(x) <- lapply(p.pathviews, function(x) x$genes)
     x@plots[[ 2 ]] <- namel(p.pathviews)
     x <- methodAdd(x, "以 `pathview` R 包 ({packageVersion('pathview')}) 对选择的 KEGG 通路可视化。")
+    x <- snapAdd(x, "以 `pathview` 探究基因集在通路 {bind(pathways)} 中的上下游关系。")
     .add_internal_job(.job(method = "R package `pathview` used for KEGG pathways visualization", cite = "[@PathviewAnRLuoW2013]"))
     return(x)
+  })
+
+setMethod("feature", signature = c(x = "job_enrich"),
+  function(x, ref = 1L){
+    if (identical(ref, "all")) {
+      feas <- x$.feature
+      as_feature(
+        feas, x, analysis = "通路 ({bind(names(x$.feature))}) 中的富集基因"
+      )
+    } else {
+      feas <- x$.feature[[ ref ]]
+      as_feature(
+        feas, x, analysis = "通路 ({names(x$.feature)[ref]}) 中的富集基因"
+      )
+    }
   })
 
 setMethod("res", signature = c(x = "job_enrich", ref = "character"),
@@ -177,9 +211,6 @@ setMethod("res", signature = c(x = "job_enrich", ref = "character"),
     data <- x@tables$step1[[ paste0("res.", from) ]][[ key ]]
     data[[ type ]][ which ]
   })
-
-setGeneric("asjob_enrich", group = list("asjob_series"),
-  function(x, ...) standardGeneric("asjob_enrich"))
 
 setMethod("asjob_enrich", signature = c(x = "job_seurat"),
   function(x, exclude.pattern = NULL, exclude.use = NULL,
@@ -211,12 +242,6 @@ setMethod("asjob_enrich", signature = c(x = "job_seurat"),
     }
     ids <- lst_clear0(ids)
     job_enrich(ids, anno)
-  })
-
-setMethod("asjob_enrich", signature = c(x = "feature"),
-  function(x, ...){
-    fea <- x
-    x <- job_enrich(fea@.Data)
   })
 
 setMethod("focus", signature = c(x = "job_enrich"),
@@ -298,12 +323,15 @@ vis_enrich.kegg <- function(lst, cutoff = .1, maxShow = 10,
       data <- head(data, n = maxShow)
       data <- dplyr::mutate(data, GeneRatio = as_double.ratioCh(GeneRatio))
       p <- .plot_kegg(data, use)
+      p <- wrap(p, 7, 4 * (maxShow / 10))
+      p <- setLegend(p, "KEGG 富集图展示了以 {use} 排序，前 {maxShow} 的富集通路。")
       p
     })
   attr(res, "use.p") <- use.p
   res
 }
 
+# for external use
 plot_kegg <- function(data, cutoff = .1, maxShow = 10,
   use = c("p.adjust", "pvalue"), pattern = NULL, ...)
 {
@@ -352,7 +380,9 @@ vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
       data, GeneRatio = as_double.ratioCh(GeneRatio),
       stringr::str_wrap(Description, width = 30)
     )
-    p <- .plot_go(data, use)
+    p <- .plot_go_use_ggplot(data, use)
+    p <- wrap(p, 7.5, 1 + nrow(data) * .2)
+    p <- setLegend(p, "GO 富集图展示了基因集在 GO 的 BP (Biological Process), MF (Molecular Function), CC (Cellular Component) 组中的富集结果 (以 {use} 排序，各自展示前 {maxShow} 的富集通路) 。")
     p
   }
   res <- lapply(lst,
@@ -362,6 +392,7 @@ vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
   res
 }
 
+# this function is for external use. 
 plot_go <- function(data, cutoff = .1, maxShow = 10,
   use = c("p.adjust", "pvalue"), facet = ".id", pattern = NULL)
 {
@@ -371,9 +402,10 @@ plot_go <- function(data, cutoff = .1, maxShow = 10,
       .format_enrich(data, use, cutoff, maxShow, pattern)
     })
   data <- frbind(data)
-  p <- .plot_go(data, use, facet)
-  p <- wrap(p, 8, 1 + nrow(data) * .2)
+  p <- .plot_go_use_ggplot(data, use, facet)
+  p <- wrap(p, 7.5, 1 + nrow(data) * .2)
   p <- .set_lab(p, "GO-enrichment")
+  p <- setLegend(p, "GO 富集图展示了基因集在 GO 的 BP (Biological Process), MF (Molecular Function), CC (Cellular Component) 组中的富集结果 (以 {use} 排序，各自展示前 {maxShow} 的富集通路) 。")
   p
 }
 
@@ -396,7 +428,7 @@ plot_go <- function(data, cutoff = .1, maxShow = 10,
   less
 }
 
-.plot_go <- function(data, use, facet = ".id")
+.plot_go_use_ggplot <- function(data, use, facet = ".id")
 {
   p <- ggplot(data) +
     geom_point(aes(x = reorder(Description, GeneRatio),
@@ -410,7 +442,7 @@ plot_go <- function(data, cutoff = .1, maxShow = 10,
     rstyle("theme") +
     theme(axis.title.y = element_blank()) +
     geom_blank()
-  wrap(p, 8, 7)
+  p
 }
 
 setMethod("map", signature = c(x = "job_enrich", ref = "job_enrich"),

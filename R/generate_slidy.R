@@ -97,7 +97,11 @@ cite_show <- function(keys, as.character = T,
   if (as.character) {
     text <- vapply(eles,
       function(x) {
-        paste0("(", x$year, ", **IF:", x$IF, "**, ", x$Class, ", ", x$journal, ")")
+        if (is.null(x$IF)) {
+          paste0("(", x$year, ")")
+        } else {
+          paste0("(", x$year, ", **IF:", x$IF, "**, ", x$Class, ", ", x$journal, ")")
+        }
       }, character(1))
     paste0(text, "[@", keys, "]")
   } else eles

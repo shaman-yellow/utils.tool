@@ -86,7 +86,7 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "feature"),
       p.venn2dis <- setLegend(p.venn2dis, "展示了中药的靶点与{ref@type}靶点{snap(ref)}的交集数目。
         两者共含有 {length(p.venn2dis$ins)} 个交集靶点。")
       x[[ paste0("p.venn2", name) ]] <- .set_lab(p.venn2dis, sig(x),
-        "Targets intersect with targets of diseases")
+        "Targets intersect with related targets")
     }
     herbs <- unique(x$data.allu[[1]])
     if (!is.null(enrichment)) {
@@ -96,17 +96,31 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "feature"),
     } else {
       p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
         lab.fill = lab.level, force.ax1 = herbs, ...)
+      s.com <- ""
+      if (!is.null(p.pharm$Unique_Com)) {
+        s.com <- try_snap(
+          dplyr::filter(data, Ingredient.name %in% p.pharm$Unique_Com),
+          "Herb_pinyin_name", "Ingredient.name"
+        )
+        s.com <- paste0("唯一化合物统计为：", s.com)
+      }
       p.pharm <- setLegend(p.pharm, "展示了中药、成分、靶点 (中药靶点与{ref@type}靶点的交集) 的网络图。
-        该图对中心度 (centrality_degree) 较高的节点 (成分或靶点) 做了名称标注。")
+        该图对中心度 (centrality_degree) 较高的节点 (成分或靶点) 做了名称标注。
+        图中的图例标注了节点的所属类型：中药、化合物、靶点。
+        化合物可分为该中药唯一所含的化合物，或者与其他中药共有的化合物。
+        共有的化合物环绕在靶点周围，而唯一的化合物则环绕在中药周围。{s.com}")
     }
-    p.pharm$.data <- data
+    analysis <- glue::glue("中药-成分-{ref@type}-靶点网络")
+    data <- setLegend(data, "为用于绘制{analysis}的数据集。")
     if (length(ref)) {
-      x[[ paste0("p.pharm2", name) ]] <- .set_lab(p.pharm, sig(x), "network pharmacology with disease")
+      x[[ paste0("p.pharm2", name) ]] <- .set_lab(p.pharm, sig(x), "network pharmacology with filtered type")
+      x[[ paste0("t.pharm2", name) ]] <- .set_lab(data, sig(x),
+        "network pharmacology with filtered type original data")
     } else {
       x$p.pharmMap <-  .set_lab(p.pharm, sig(x), "network pharmacology")
+      x$t.pharmMap <- .set_lab(data, sig(x), "network pharmacology")
     }
     x <- snapAdd(x, "将 {ref@type} 的靶点与中药靶点取交集，随后过滤中药成分与靶点数据，形成中药-成分-{ref@type}-靶点网络。")
-    analysis <- glue::glue("中药-成分-{ref@type}-靶点网络")
     x$.feature <- as_feature(p.venn2dis$ins, x, analysis = analysis)
     x$.map_heading <- paste("Network", analysis)
     return(x)
@@ -200,7 +214,8 @@ filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T,
   }
 }
 
-plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax4 = 2, seed = sample(1:10, 1), HLs = NULL,
+plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax4 = 2,
+  seed = sample(1:10, 1), HLs = NULL,
   ax1 = "Herb", ax2 = "Compound", ax3 = "Target", ax4 = NULL, less.label = T,
   ax2.level = NULL, ax4.level = NULL, decImport.ax4Level = F, lab.fill = "",
   edge_width = .1, force.ax1 = NULL, ax3.layout = c("spiral", "grid"), ax4.layout = c("circle", "linear"),
@@ -225,6 +240,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
   }
   ax3.layout <- match.arg(ax3.layout)
   ax4.layout <- match.arg(ax4.layout)
+  Unique_Com <- NULL
   prepare_data <- function(data) {
     colnames(data) <- c(ax1, ax2, ax3, ax4)
     nodes <- tidyr::gather(data, type, value)
@@ -237,7 +253,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
       ComMul <- ed.12[[ ax2 ]]
     } else {
       freq12 <- table(ed.12[[ ax2 ]])
-      ComSin <- names(freq12[ freq12 == 1 ])
+      Unique_Com <<- ComSin <- names(freq12[ freq12 == 1 ])
       ComMul <- names(freq12[ freq12 > 1 ])
       ed.12sin <- dplyr::filter(ed.12, !!rlang::sym(ax2) %in% !!ComSin)
     }
@@ -507,13 +523,14 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
     if (spiral) {
       p <- wrap(p, 15, 12)
       p$spiral_order <- spiral_order
-      p
     } else {
-      wrap(p, 10, 8)
+      p <- wrap(p, 10, 8)
     }
   } else {
-    wrap(p, 15, 12)
+    p <- wrap(p, 15, 12)
   }
+  p$Unique_Com <- Unique_Com
+  p
 }
 
 get_smiles_batch <- function(cids, n = 100, sleep = .5, db_dir = .prefix("smiles", "db")) {

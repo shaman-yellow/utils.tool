@@ -671,8 +671,10 @@ custom_docx_document2 <- function(...){
           for (i in alls) {
             label <- stringr::str_extract(i, "(?<=autor_legend:)[a-zA-Z0-9-]*")
             replace <- autor_legend_env[[ label ]]
-            if (!is.null(replace) && nchar(label)) {
+            if (!is.null(replace) && length(replace)) {
               line <- sub(i, replace, line)
+              # only for once
+              autor_legend_env[[ label ]] <- NULL
             }
           }
         }

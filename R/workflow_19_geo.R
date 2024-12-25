@@ -61,7 +61,8 @@ setMethod("step1", signature = c(x = "job_geo"),
       anno = about[[ 1 ]]@annotation,
       anno.db = try(.get_biocPackage.gpl(about[[ 1 ]]@annotation), T)
     )
-    meth(x)$step1 <- glue::glue("以 R 包 `GEOquery` ({packageVersion('GEOquery')}) 获取 {object(x)} 数据集。")
+    x <- methodAdd(x, "以 R 包 `GEOquery` ({packageVersion('GEOquery')}) 获取 {object(x)} 数据集。")
+    x <- snapAdd(x, "以 `GEOquery` 获取 {object(x)} 的数据信息。")
     return(x)
   })
 
@@ -122,8 +123,10 @@ setMethod("meta", signature = c(x = "job_geo"),
   })
 
 setMethod("asjob_limma", signature = c(x = "job_geo"),
-  function(x, metadata, use = 1L, normed = F, use.col = NULL){
-    if (x$rna) {
+  function(x, metadata, use = 1L, normed = F, use.col = NULL)
+  {
+    rna <- x$rna
+    if (rna) {
       counts <- as_tibble(data.frame(x@params$about[[ use ]]@assays@data$counts, check.names = F))
       genes <- as_tibble(data.frame(x@params$about[[ use ]]@elementMetadata, check.names = F))
       genes <- dplyr::mutate(genes, rownames = as.character(GeneID), .before = 1)
@@ -169,6 +172,7 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
       rownames(counts) <- genes$rownames
       x <- job_limma_normed(counts, metadata)
       x$genes <- genes
+      x$rna <- rna
       x
     } else {
       cli::cli_alert_info("new_dge")
@@ -177,6 +181,7 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
         Terror <<- namel(metadata, counts, genes)
         stop("Error. Check `Terror`.")
       } else {
+        res$rna <- rna
         return(res)
       }
     }

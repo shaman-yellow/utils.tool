@@ -65,14 +65,29 @@ setGeneric("feature<-",
   function(x, value) standardGeneric("feature<-"))
 
 setMethod("feature", signature = c(x = "job"),
-  function(x){
-    x$.feature
+  function(x, ...){
+    feas <- x$.feature
+    if (!is(feas, "feature")) {
+      feas <- as_feature(feas, x, ...)
+    }
+    feas
   })
 
 setReplaceMethod("feature", signature = c(x = "job"),
   function(x, value){
     x$.feature <- value
     return(x)
+  })
+
+setReplaceMethod("feature", signature = c(x = "wrap"),
+  function(x, value){
+    x$.feature <- value
+    x
+  })
+
+setMethod("feature", signature = c(x = "wrap"),
+  function(x){
+    x$.feature
   })
 
 setGeneric("as_feature", 
@@ -93,12 +108,16 @@ setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
     } else if (is(x, "list")) {
       x <- .feature_list(x, type = type, nature = nature)
     } else {
+      stop("Now, only 'character' or 'list' types of 'feature' support.")
       x <- .feature(x, type = type, nature = nature)
     }
     if (is.null(analysis)) {
       analysis <- ref@analysis
+    } else {
+      ## upper the generic environment.
+      analysis <- glue::glue(analysis, .envir = parent.frame(2))
     }
-    snap(x) <- glue::glue(" ({nature} 来自于 {analysis} ({sig(ref)})) ")
+    snap(x) <- glue::glue(" ({nature}来自于{analysis}(Section: {sig(ref)})) ")
     return(x)
   })
 
@@ -106,7 +125,7 @@ setGeneric("snap",
   function(x, ref, ...) standardGeneric("snap"))
 
 setGeneric("snap<-", 
-  function(x, value) standardGeneric("snap<-"))
+  function(x, value, ...) standardGeneric("snap<-"))
 
 setMethod("snap", signature = c(x = "ANY"),
   function(x){
@@ -114,14 +133,24 @@ setMethod("snap", signature = c(x = "ANY"),
   })
 
 setReplaceMethod("snap", signature = c(x = "ANY"),
-  function(x, value){
-    attr(x, ".SNAP") <- value
+  function(x, value, ...){
+    attr(x, ".SNAP") <- glue::glue(value, ..., .envir = parent.frame(2))
     return(x)
   })
 
-setMethod("snap", signature = c(x = "feature"),
-  function(x){
-    x@snap
+setMethod("snap", signature = c(x = "feature", ref = "logical"),
+  function(x, ref = FALSE, limit = 20){
+    if (ref) {
+      if (is(x, "feature_list")) {
+        stop('is(x, "feature_list"), only "feature_char" support.')
+      }
+      if (length(x) > limit) {
+        stop('length(x) > limit, too many features to show.')
+      }
+      paste0(bind(x), x@snap)
+    } else {
+      x@snap
+    }
   })
 
 setReplaceMethod("snap", signature = c(x = "feature"),
@@ -419,7 +448,7 @@ setMethod("ref", signature = c(x = "character_ref"),
   })
 
 setMethod("ref", signature = c(x = "character"),
-  function(x, try = FALSE, ...){
+  function(x, legend = TRUE, try = FALSE, ...){
     codes_list <- knitr::knit_code$get()
     if (!length(codes_list)) {
       message("Not in rendering circumstance.")
@@ -440,7 +469,11 @@ setMethod("ref", signature = c(x = "character"),
       stop("Too many object name matched in 'autor()'.")
     }
     obj <- eval(parse(text = objName), parent.frame(2))
-    placeHolder <- glue::glue("<!-- autor_legend:{x} -->")
+    if (legend) {
+      placeHolder <- glue::glue("<!-- autor_legend:{x} -->")
+    } else {
+      placeHolder <- ""
+    }
     if (is(obj, "df")) {
       glue::glue("Tab. \\@ref(tab:{x}) {placeHolder}")
     } else if (is(obj, "can_not_be_draw") || is(obj, "can_be_draw") || is(obj, "fig")) {

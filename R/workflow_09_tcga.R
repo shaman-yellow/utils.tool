@@ -166,7 +166,7 @@ setMethod("step3", signature = c(x = "job_tcga"),
         x$metadata <- as_tibble(x$metadata)
       }
     }
-    obj <- object@assays@data[ names(object@assays@data %in% type) ]
+    obj@assays@data <- obj@assays@data[ names(obj@assays@data) %in% type ]
     x$dim <- dim(obj)
     object(x) <- obj
     return(x)

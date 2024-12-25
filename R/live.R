@@ -2371,9 +2371,13 @@ setMethod("abstract", signature = c(x = "lich", name = "character", latex = "NUL
       x <- head(x, n = 5)
       x <- c(x, list("(Others)" = "..."))
     }
+    isDocx <- knitr::pandoc_to("docx")
     str <- sapply(names(x),
       function(name){
         text <- x[[ name ]]
+        if (isDocx) {
+          text <- gs(text, "\\\\url\\{([^}]*)\\}", "<\\1>")
+        }
         text <- gs(text, "\\\\href\\{([^}]*)\\}", "<\\1>")
         glue::glue("- {name}: {stringr::str_trunc(text, 500)}")
       })
