@@ -231,7 +231,7 @@ trace_filter <- function(data, ..., quosures = NULL) {
         if (length(types) > 20) {
           stop("`trace_filter`: too many '{col}' ({length(types)}) to display. ")
         }
-        glue::glue("筛选 {col} 为 {bind(types)}")
+        glue::glue("筛选 {col} 为 {bind(types, quote = TRUE)}")
       } else {
         stop("`trace_filter`: Only 'character' or 'numeric' support.")
       }

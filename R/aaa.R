@@ -731,8 +731,12 @@ reset_object_name <- function(old, new, env = .GlobalEnv) {
   message(glue::glue("Rename object name: {old} -> {new}"))
 }
 
-bind <- function(..., co = ", ") {
-  paste0(..., collapse = co)
+bind <- function(..., co = ", ", quote = FALSE) {
+  if (quote) {
+    paste0('"', ..., '"', collapse = co)
+  } else {
+    paste0(..., collapse = co)
+  }
 }
 
 collate_common_function <- function(package, freq = 10) {

@@ -88,7 +88,7 @@ setMethod("step2", signature = c(x = "job_geo"),
       x$about[[1]] <- e(GEOquery::getRNASeqData(object(x)))
       message("Replace data in `x$about[[1]]`.")
       x <- methodAdd(x, "以 `GEOquery::getRNASeqData` 获取 RNA count 数据以及基因注释。")
-      x$rna <- T
+      x$rna <- TRUE
     } else {
       if (!dir.exists(baseDir)) {
         dir.create(baseDir)
@@ -126,6 +126,7 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
   function(x, metadata, use = 1L, normed = F, use.col = NULL)
   {
     rna <- x$rna
+    project <- object(x)
     if (rna) {
       counts <- as_tibble(data.frame(x@params$about[[ use ]]@assays@data$counts, check.names = F))
       genes <- as_tibble(data.frame(x@params$about[[ use ]]@elementMetadata, check.names = F))
@@ -173,6 +174,7 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
       x <- job_limma_normed(counts, metadata)
       x$genes <- genes
       x$rna <- rna
+      x$project <- project
       x
     } else {
       cli::cli_alert_info("new_dge")
@@ -182,6 +184,7 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
         stop("Error. Check `Terror`.")
       } else {
         res$rna <- rna
+        res$project <- project
         return(res)
       }
     }

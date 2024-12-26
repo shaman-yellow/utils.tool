@@ -60,7 +60,7 @@ setMethod("step0", signature = c(x = "job_tcga"),
   })
 
 setMethod("step1", signature = c(x = "job_tcga"),
-  function(x, query = c("RNA", "clinical"), keep_consensus = F){
+  function(x, query = c("RNA"), keep_consensus = FALSE){
     step_message("Get information in TCGA.")
     object(x) <- object(x)[ names(object(x)) %in% query ]
     pblapply <- pbapply::pblapply
@@ -69,7 +69,7 @@ setMethod("step1", signature = c(x = "job_tcga"),
           function(args) {
             do.call(TCGAbiolinks::GDCquery, args)
           }))
-      res_query <- sapply(names(object(x)), simplify = F,
+      res_query <- sapply(names(object(x)), simplify = FALSE,
         function(name) {
           as_tibble(object(x)[[ name ]]$results[[1]])
         })
@@ -252,9 +252,11 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     p.isTumor <- new_pie(metadata$isTumor, "Tumor distribution")
     p.isTumor <- .set_lab(p.isTumor, sig(x), "Tumor distribution")
     if (grpl(project, "^TCGA")) {
-      t.common <- dplyr::select(metadata, age_at_index, vital_status, gender, tumor_grade,
-        ajcc_pathologic_stage, classification_of_tumor)
-      x$t.common <- t.common
+      t.common <- try(dplyr::select(metadata, age_at_index, vital_status, gender, tumor_grade,
+        ajcc_pathologic_stage, classification_of_tumor), TRUE)
+      if (!inherits(t.common, "try-error")) {
+        x$t.common <- t.common
+      }
     }
     x$p.group <- p.group
     x$p.isTumor <- p.isTumor

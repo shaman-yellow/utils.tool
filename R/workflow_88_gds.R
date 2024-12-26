@@ -139,10 +139,14 @@ edirect_db <- function(db, query, elements,
 }
 
 setMethod("active", signature = c(x = "job_gds"),
-  function(x, ids = NULL, n = 10)
+  function(x, ids = NULL, which = NULL, n = 10)
   {
     if (is.null(ids)) {
-      ids <- head(object(x)$GSE, n = n)
+      if (!is.null(which)) {
+        ids <- object(x)$GSE[ which ]
+      } else {
+        ids <- head(object(x)$GSE, n = n)
+      }
     }
     urls <- paste0("https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=", ids)
     lapply(urls, browseURL)

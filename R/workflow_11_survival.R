@@ -85,7 +85,7 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
         data.frame(risk_score = data$risk_score,
           time = x$get(use_data)$time, event = x$get(use_data)$event),
         variables = "risk_score"
-      )$cutpoint$cutpoint
+        )$cutpoint$cutpoint
       data <- dplyr::mutate(data,
         score_group = ifelse(risk_score > cutoff, "High", "Low")
       )
@@ -105,9 +105,9 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
       "risk score related genes heatmap")
     object(y) <- data
     y$p.surv_genes_hp <- p.surv_genes_hp
-    y$fun_group <- function(score) ifelse(score > y$cutoff, "High", "Low")
+    y$fun_group <- function(score, ...) ifelse(score > y$cutoff, "High", "Low")
     y$genes_surv <- "risk_score"
-    y$fun_status <- sur_status
+    y$fun_status <- function(x) ifelse(x == "Alive", 0, 1) 
     y$time <- "days_to_last_follow_up"
     y$status <- "vital_status"
     y$cutoff <- cutoff
@@ -117,20 +117,30 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
 
 setMethod("asjob_survival", signature = c(x = "job_limma"),
   function(x, genes_surv, use = "gene_name",
-    time = "days_to_last_follow_up", status = "vital_status")
+    time = "days_to_last_follow_up", 
+    status = "vital_status", base_method = c("surv_cutpoint", "median"))
   {
     if (x@step < 1)
       stop("x@step < 1")
     if (x@step > 1) {
       object(x) <- x@params$normed_data
     }
+    if (is(object(x), "DGEList")) {
+      object(x) <- as_EList.DGEList(object(x))
+    }
     i.pos <- object(x)$genes[[ use ]] %in% genes_surv
     j.pos <- !is.na(object(x)$targets[[ status ]]) & !grpl(object(x)$targets[[ status ]], "not reported", T)
     object(x) <- e(limma::`[.EList`(object(x), i.pos, j.pos))
-    x <- snapAdd(x, "去除了生存状态未知的数据。")
     object <- object(x)
     counts <- object$E
-    rownames(counts) <- object$genes[[ use ]]
+    if (any(duplicated(names <- object$genes[[ use ]]))) {
+      message("As name duplicated, mutate with number.")
+      whichDup <- duplicated(names)
+      names[ whichDup ] <- paste0(
+        names[ whichDup ], "_", seq_along(names[ whichDup ])
+      )
+    }
+    rownames(counts) <- names
     data <- as_tibble(t(counts))
     data <- dplyr::bind_cols(data, select(as_tibble(object$targets), -1))
     if (any(is.na(data[[time]]))) {
@@ -142,14 +152,45 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
       data <- dplyr::mutate(data, dplyr::across(!!rlang::sym(time), fun_time_mutate))
     }
     data <- relocate(data, 1, !!rlang::sym(time), !!rlang::sym(status))
+    base_method <- match.arg(base_method)
+    if (base_method == "surv_cutpoint") {
+      message("Use `survminer::surv_cutpoint` to found cutoff.")
+      fun_group <- function(x, time, status) {
+        data <- data.frame(gene = x, time = time, event = status)
+        cutoff <- survminer::surv_cutpoint(data, variables = "gene")$cutpoint$cutpoint
+        group <- ifelse(x > cutoff, "High", "Low")
+        attr(group, "cutoff") <- cutoff
+        group
+      }
+      snap <- "按 `survminer::surv_cutpoint` 计算的 cutoff，将样本分为 Low 和 High 风险组，随后进行生存分析。"
+    } else if (base_method == "median") {
+      fun_group <- function(x, ...) {
+        cutoff <- median(x)
+        group <- ifelse(x > cutoff, "High", "Low")
+        attr(group, "cutoff") <- cutoff
+        group
+      }
+      snap <- "按中位风险评分，将样本分为 Low 和 High 风险组，随后进行生存分析。"
+    }
+    meth <- x@meth[[1]]
     x <- .job_survival(object = data)
+    x <- methodAdd(x, meth)
+    x <- methodAdd(x, "使用标准化过的基因表达数据生存分析。")
+    x <- snapAdd(x, "使用标准化过的基因表达数据生存分析。")
+    x <- snapAdd(x, "根据元数据信息 (即临床数据) ，去除了生存状态未知的样例。")
+    x <- snapAdd(x, snap)
     x$time <- time
     x$status <- status
     x$genes_surv <- genes_surv
-    x$fun_group <- sur_group_median
-    x$fun_status <- sur_status
+    x$fun_group <- fun_group
+    x$fun_status <- function(x) ifelse(x == "Alive", 0, 1) 
     return(x)
   })
+
+as_EList.DGEList <- function(object) {
+  new("EList", list(E = object$count,
+      targets = object$samples, genes = object$genes))
+}
 
 setMethod("step0", signature = c(x = "job_survival"),
   function(x){
@@ -175,8 +216,10 @@ setMethod("step1", signature = c(x = "job_survival"),
     lst <- pbapply::pbsapply(genes_surv, simplify = F,
       function(genes) {
         data <- dplyr::select(data, time, o_status, !!!rlang::syms(genes))
-        data <- dplyr::mutate(data, group = fun_group(!!!rlang::syms(genes)),
-          status = fun_status(o_status))
+        data <- dplyr::mutate(
+          data, status = fun_status(o_status),
+          group = fun_group(!!!rlang::syms(genes), time, status),
+        )
         fit <- survival::survfit(survival::Surv(time, status) ~ group, data = data)
         diff <- survival::survdiff(survival::Surv(time, status) ~ group, data = data)
         title <- paste0(genes, collapse = " & ")
@@ -187,12 +230,13 @@ setMethod("step1", signature = c(x = "job_survival"),
         p.surv$table <- p.surv$table + labs(x = "time (month)")
         p.surv <- wrap(p.surv, 6.5, 5)
         p.surv <- .set_lab(p.surv, sig(x), "survival curve of", title)
+        p.surv <- setLegend(p.surv, "为 {title} 生存曲线。")
         # timeROC
         if (length(genes) == 1) {
           require(survival)
           if (any(roc_time == 1) && !any(dplyr::filter(data, time / 12 <= 1)$o_status == "Dead")) {
             message("No event of 'Dead' in year 1, switch to 3, 5, 10.")
-            x <- snapAdd(x, "不存在 1 年以内 Dead 的样本，因此以 3, 5, 10 计算 ROC。")
+            x <<- snapAdd(x, "不存在 1 年以内 Dead 的样本，因此以 3, 5, 10 计算 ROC。")
             roc_time <- c(3, 5, 10)
           }
           cols <- c("blue", "red", "orange")[seq_along(roc_time)]
@@ -206,6 +250,7 @@ setMethod("step1", signature = c(x = "job_survival"),
           legend("bottomright", legends, text.col = cols, bty = "n")
           p.roc <- wrap(recordPlot(), 7, 7)
           p.roc <- .set_lab(p.roc, sig(x), "time ROC")
+          p.roc <- setLegend(p.roc, "为 {genes} {bind(roc_time)} 年生存分析 ROC 曲线。")
           data <- dplyr::mutate(data,
             var = ifelse(time / 12 <= 1, "year 1",
               ifelse(time / 12 <= 3, "year 3", "year 5")),
@@ -256,10 +301,3 @@ setMethod("step1", signature = c(x = "job_survival"),
     return(x)
   })
 
-sur_group_median <- function(x) {
-  ifelse(x > median(x), "High", "Low")
-}
-
-sur_status <- function(x) {
-  ifelse(x == "Alive", 0, 1)
-}

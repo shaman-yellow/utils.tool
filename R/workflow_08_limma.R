@@ -88,12 +88,13 @@ setMethod("filter", signature = c(x = "job_limma"),
     }
   })
 
-job_limma <- function(DGEList)
+job_limma <- function(DGEList, rna = TRUE)
 {
   if (!is(DGEList, 'DGEList'))
     stop("is(DGEList, 'DGEList') == F")
   x <- .job_limma(object = DGEList)
   x$.metadata <- tibble::as_tibble(dplyr::relocate(DGEList$samples, sample, group))
+  x$rna <- rna
   return(x)
 }
 
@@ -142,17 +143,15 @@ setMethod("step1", signature = c(x = "job_limma"),
   {
     step_message("Preprocess expression data.")
     if (x$rna) {
-      x <- methodAdd(x, "以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 进行差异分析。")
-      x <- methodAdd(x, "分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。", T)
-    } else {
-      x <- methodAdd(x, "以 R 包 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} 进行差异分析。")
+      x <- methodAdd(x, "以 R 包 `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 对数据预处理。")
+      x <- snapAdd(x, "以 `edgeR` 将{x$project} RNA-seq 数据标准化 (详见方法章节)。")
     }
     message(glue::glue("Use formula: {formula}"))
     data_type <- match.arg(data_type)
     plots <- list()
     s.com <- try_snap(if (x$normed) x$metadata else object(x)$sample, "group", "sample")
     x <- snapAdd(x, "样本分组：{s.com}。", F)
-    if (x$rna) {
+    if (x$rna || x$isTcga) {
       message("Data from RNA-seq.")
       if (!no.rna_filter && data_type == "count") {
         object(x) <- filter_low.dge(object(x), group, min.count = min.count)
@@ -196,6 +195,8 @@ setMethod("step1", signature = c(x = "job_limma"),
         if (all(range(object(x)$counts) > 0)) {
           message("All expression value larger than 0, may be raw expression dataset.")
           no.array_norm <- FALSE
+        } else {
+          no.array_norm <- TRUE
         }
       }
       if (!no.array_norm) {
@@ -216,12 +217,11 @@ setMethod("step1", signature = c(x = "job_limma"),
     }
     x@params$group <- group
     x@params$design <- design
-    x <- methodAdd(x, "以 公式 {formula} 创建设计矩阵 (design matrix) 用于线性分析。", T)
     snap <- ""
     if (!is.null(batch)) {
       snap <- paste0("(Batch: ", try_snap(batch), ")")
     }
-    x <- snapAdd(x, "以 公式 {formula} 创建设计矩阵 (design matrix) 用于线性分析{snap}。")
+    x <- snapAdd(x, "以 公式 {formula} 创建设计矩阵 (design matrix) {snap}。")
     x$.metadata <- .set_lab(x$.metadata, sig(x), "metadata of used sample")
     x$metadata <- .set_lab(x$metadata, sig(x), "metadata of used sample")
     return(x)
@@ -244,8 +244,10 @@ setMethod("step2", signature = c(x = "job_limma"),
       contr <- limma::makeContrasts(contrasts = contrasts, levels = x@params$design)
     }
     s.contr <- paste0(gsub('-', 'vs', colnames(contr)), collapse = ', ')
-    x <- methodAdd(x, "创建对比矩阵，差异分析：{s.contr}。")
-    x <- snapAdd(x, "差异分析：{s.contr}。(若 A vs B，则为前者比后者，LogFC 大于 0 时，A 表达量高于 B)。", F)
+    x <- methodAdd(x, "以 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} 差异分析。")
+    x <- methodAdd(x, "分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。")
+    x <- methodAdd(x, "创建设计矩阵，对比矩阵，差异分析：{s.contr}。")
+    x <- snapAdd(x, "差异分析：{s.contr}。(若 A vs B，则为前者比后者，LogFC 大于 0 时，A 表达量高于 B)。")
     ## here, remove batch effect
     ## limma::removeBatchEffect
     if (batch) {
@@ -255,11 +257,15 @@ setMethod("step2", signature = c(x = "job_limma"),
           ))
     }
     object(x) <- diff_test(object(x), x@params$design, contr, block)
-    x <- methodAdd(x, "使用 `limma::lmFit`, `limma::contrasts.fit`, `limma::eBayes` 拟合线形模型。", T)
+    x <- methodAdd(x, "使用 `limma::lmFit`, `limma::contrasts.fit`, `limma::eBayes` 拟合线形模型。")
     plots <- list()
     if (!is.null(contr)) {
       tops <- extract_tops(object(x), use = use, use.cut = use.cut, cut.fc = cut.fc)
-      x <- methodAdd(x, "以 `limma::topTable` 提取所有结果，并过滤得到 {use} 小于 {use.cut}，|Log2(FC)| 大于 {cut.fc} 的统计结果。", T)
+      tops <- lapply(
+        tops, dplyr::relocate,
+        logFC, !!rlang::sym(use)
+      )
+      x <- methodAdd(x, "以 `limma::topTable` 提取所有结果，并过滤得到 {use} 小于 {use.cut}，|Log2(FC)| 大于 {cut.fc} 的统计结果。")
       if (x$normed) {
         if (!is.null(x$genes)) {
           tops <- lapply(tops,
