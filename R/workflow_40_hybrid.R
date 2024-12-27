@@ -42,7 +42,7 @@ setMethod("step0", signature = c(x = "job_hybrid"),
 setMethod("step1", signature = c(x = "job_hybrid"),
   function(x, wd = timeName("hybrid")){
     step_message("Prepare computional files.")
-    dir.create(wd, F)
+    dir.create(wd, FALSE)
     x$wd <- wd
     # miRNA seq
     x$mirna_seq <- x$mi$mirdb[ object(x)$mirna ]
@@ -73,7 +73,7 @@ setMethod("step2", signature = c(x = "job_hybrid"),
         x <- lapply(x, function(x) data.frame(pvalue = x$pvalue, energy = x$energy))
         data.table::rbindlist(x)
       })
-    t.overs <- as_tibble(data.table::rbindlist(t.overs, idcol = T))
+    t.overs <- as_tibble(data.table::rbindlist(t.overs, idcol = TRUE))
     t.overs <- dplyr::relocate(t.overs, ref = .id)
     p.tops <- lapply(x$alls$cans,
       function(lst) {
@@ -93,7 +93,7 @@ setMethod("step2", signature = c(x = "job_hybrid"),
       x <- dplyr::mutate(x, candidate = paste0("C ", seq_len(nrow(x))))
     })
   p <- ggplot(data) +
-    geom_col(aes(x = reorder(candidate, energy, decreasing = T), y = energy, fill = pvalue), width = .7) +
+    geom_col(aes(x = reorder(candidate, energy, decreasing = TRUE), y = energy, fill = pvalue), width = .7) +
     facet_wrap(~ ref) +
     coord_flip(ylim = zoRange(data$energy, 1.2)) +
     labs(x = "Energy", y = "Candidates", fill = "P-value") +
@@ -127,7 +127,7 @@ setMethod("step2", signature = c(x = "job_hybrid"),
 
 .read_hybrid_results <- function(file) {
   body <- readLines(file)
-  cans <- sep_list(body, "^target:", T)
+  cans <- sep_list(body, "^target:", TRUE)
   cans <- lapply(cans, .read_unit.hybrid)
   belong <- vapply(cans, function(x) x$target, character(1))
   cans <- split(cans, make.names(belong))
@@ -177,7 +177,7 @@ setMethod("step2", signature = c(x = "job_hybrid"),
     message("Use custom database (fasta) for circRNA.")
     circdb <- e(Biostrings::readRNAStringSet(customdb))
   }
-  foundThat <- grpf(names(circdb), circrna, ignore.case = T)
+  foundThat <- grpf(names(circdb), circrna, ignore.case = TRUE)
   message("All found miRNA:\n\n", stringr::str_trunc(paste0(foundThat, collapse = "\n"), 100), "\n")
   if (length(foundThat) > 1) {
     message("Use the first.")

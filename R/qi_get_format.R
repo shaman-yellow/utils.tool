@@ -1,5 +1,5 @@
 
-qi_get_format <- function(file, metadata = F)
+qi_get_format <- function(file, metadata = FALSE)
 {
   df <- data.table::fread(file) %>% 
     dplyr::as_tibble()
@@ -21,12 +21,12 @@ qi_get_format <- function(file, metadata = F)
   ## ------------------------------------- 
   if(metadata){
     meta.sample <- mapply(function(from, to){
-      name <- unlist(meta.ori[3, ], use.names = F)
+      name <- unlist(meta.ori[3, ], use.names = FALSE)
       data.table::data.table(sample = name[from:to])
       }, meta.group$col, meta.group$col_end,
-      SIMPLIFY = F)
+      SIMPLIFY = FALSE)
     names(meta.sample) <- meta.group$group
-    meta.sample <- data.table::rbindlist(meta.sample, idcol = T) %>% 
+    meta.sample <- data.table::rbindlist(meta.sample, idcol = TRUE) %>% 
       dplyr::rename(group = .id)
     return(dplyr::as_tibble(meta.sample))
   }

@@ -65,7 +65,7 @@ setMethod("step1", signature = c(x = "job_fella"),
     x$inputs <- lapply(enrich.lst, FELLA::getInput)
     x$resTable <- lapply(enrich.lst,
       function(x) {
-        res <- sapply(c("pagerank", "diffusion", "hypergeom"), simplify = F,
+        res <- sapply(c("pagerank", "diffusion", "hypergeom"), simplify = FALSE,
           function(method) {
             res <- FELLA::generateResultsTable(
               object = x, method = method, threshold = .1, data = db

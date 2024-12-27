@@ -15,7 +15,7 @@
     cite = ""
     ))
 
-job_esearch <- function(key, jour = .jour_bioinf(), in_title_and_abstract = T)
+job_esearch <- function(key, jour = .jour_bioinf(), in_title_and_abstract = TRUE)
 {
   if (in_title_and_abstract) {
     key <- paste0(key, " [TIAB] ")
@@ -48,13 +48,13 @@ setMethod("step0", signature = c(x = "job_esearch"),
     "Briefings in Bioinformatics", "BMC genomics", "Nature Methods", "Nature Biotechnology")
 }
 
-esearch.mj <- function(key, jour = .jour_bioinf(), rbind = T)
+esearch.mj <- function(key, jour = .jour_bioinf(), rbind = TRUE)
 {
   query <- paste(jour, "[JOUR] AND", key)
   sear <- pbapply::pblapply(query, esearch)
   names(sear) <- jour
   if (rbind) {
-    sear <- tibble::as_tibble(data.table::rbindlist(sear, idcol = T, fill = T))
+    sear <- tibble::as_tibble(data.table::rbindlist(sear, idcol = TRUE, fill = TRUE))
     if (nrow(sear) > 0)
       sear <- dplyr::arrange(sear, dplyr::desc(SortPubDate))
   }
@@ -81,7 +81,7 @@ esearch <- function(query = NULL, fetch.save = paste0(gsub(" ", "_", query), ".x
     " -sep \"|\" -element ", paste0(fields, collapse = " "),
     " > ", tract.save, path = path)
   file <- paste0(path, "/", tract.save)
-  res <- ftibble(file, sep = "\t", quote = "", fill = T, header = F)
+  res <- ftibble(file, sep = "\t", quote = "", fill = TRUE, header = FALSE)
   if (nrow(res > 0)) {
     colnames(res) <- fields
     if (any("SortPubDate" == fields)) {

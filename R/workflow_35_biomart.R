@@ -18,7 +18,7 @@
     analysis = "Biomart 基因注释"
     ))
 
-job_biomart <- function(mart_dataset, global = T, clear = F)
+job_biomart <- function(mart_dataset, global = TRUE, clear = FALSE)
 {
   x <- .job_biomart()
   if (clear) {
@@ -86,7 +86,7 @@ setMethod("map", signature = c(x = "job_biomart", ref = "job_edqtl"),
     genes <- dplyr::filter(x$anno, grpl(chromosome_name, "^[0-9]+$"))
     genes <- split(genes, ~ chromosome_name)
     ## match
-    res <- sapply(names(ed.site), simplify = F,
+    res <- sapply(names(ed.site), simplify = FALSE,
       function(chr) {
         site <- ed.site[[ chr ]]
         genes <- genes[[ chr ]]
@@ -106,7 +106,7 @@ setMethod("map", signature = c(x = "job_biomart", ref = "job_edqtl"),
     db <- dplyr::relocate(db, ref_gene, gene_id)
     data <- dplyr::select(db, Editing_Site = gene_id, Variant = variant_id, Symbol = ref_gene)
     data <- dplyr::mutate(data, Editing_Site = gs(Editing_Site, "_", "\n"))
-    p.edqtl <- new_allu(data, col.fill = 3, axes = 1:3, label.auto = T, label.factor = label.factor)
+    p.edqtl <- new_allu(data, col.fill = 3, axes = 1:3, label.auto = TRUE, label.factor = label.factor)
     p.edqtl <- .set_lab(p.edqtl, sig(x), "The matched RNA editing site")
     x$p.edqtl <- p.edqtl
     db <- .set_lab(db, sig(x), "The matched RNA editing site DATA")

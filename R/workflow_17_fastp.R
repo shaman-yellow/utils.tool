@@ -36,7 +36,7 @@ setMethod("step1", signature = c(x = "job_fastp"),
     if (is.remote(x)) {
       fqs <- list.remote_rf(object(x), paste0(suffix, "$"))
     } else {
-      fqs <- list.files(object(x), paste0(suffix, "$"), full.names = T, recursive = T)
+      fqs <- list.files(object(x), paste0(suffix, "$"), full.names = TRUE, recursive = TRUE)
     }
     fqs_path <- unique(dirname(fqs))
     fqs_path <- fqs_path[!grepl("fastp_qc$", fqs_path)]
@@ -57,7 +57,7 @@ setMethod("step2", signature = c(x = "job_fastp"),
     if (is.remote(x)) {
       reports <- list.remote_rf(object(x), pattern_report)
     } else {
-      reports <- list.files(object(x), pattern_report, full.names = T, recursive = T)
+      reports <- list.files(object(x), pattern_report, full.names = TRUE, recursive = TRUE)
     }
     dirs <- dirname(dirname(reports))
     metadata <- data.frame(SampleName = get_realname(gs(dirs, "/$", "")),
@@ -68,7 +68,7 @@ setMethod("step2", signature = c(x = "job_fastp"),
     } else {
       filepath <- lapply(dirs,
         function(dir) {
-          list.files(dir, pattern_fq, full.names = T, recursive = T)
+          list.files(dir, pattern_fq, full.names = TRUE, recursive = TRUE)
         })
     }
     metadata <- try_fqs_meta(metadata, filepath)
@@ -115,16 +115,16 @@ list.remote_rf <- function(path, pattern, remote) {
     x <- get("x", envir = parent.frame(1))
     remote <- x@params$remote
   }
-  list.remote(path, pattern, remote, recursive = T, full.names = T)
+  list.remote(path, pattern, remote, recursive = TRUE, full.names = TRUE)
 }
 
 fastp_pair <- function(path, suffix = ".fastq.gz", pattern = paste0(".[1-2]", suffix, "$"),
   f1_r2 = c("R1", "R2"),
   names = unique(gs(list.files(path, pattern), pattern, "")), workers = 4,
-  copy_report = T, cdRun = get_fun("cdRun"))
+  copy_report = TRUE, cdRun = get_fun("cdRun"))
 {
-  dir.create(paste0(path, "/fastp_qc"), F)
-  dir.create(paste0(path, "/fastp_report"), F)
+  dir.create(paste0(path, "/fastp_qc"), FALSE)
+  dir.create(paste0(path, "/fastp_report"), FALSE)
   pbapply::pblapply(names,
     function(name) {
       i1 <- paste0(name, f1_r2[1], suffix)
@@ -145,13 +145,13 @@ fastp_pair <- function(path, suffix = ".fastq.gz", pattern = paste0(".[1-2]", su
       }
     })
   if (copy_report) {
-    file.copy(paste0(path, "/fastp_report"), ".", recursive = T)
+    file.copy(paste0(path, "/fastp_report"), ".", recursive = TRUE)
   }
   message("Job finished.")
 }
 
 fastp_pair.remote <- function(path, suffix = ".fastq.gz", pattern = paste0(".[1-2]", suffix, "$"),
-  f1_r2 = c("R1", "R2"), workers = 4, copy_report = T, cdRun = get_fun("cdRun"), x)
+  f1_r2 = c("R1", "R2"), workers = 4, copy_report = TRUE, cdRun = get_fun("cdRun"), x)
 {
   names <- unique(gs(list.remote_rf(path, pattern), pattern, ""))
   expr <- paste0("mkdir fastp_qc fastp_report;")

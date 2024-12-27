@@ -27,7 +27,7 @@
   #   }
   #   texts <- lapply(names(patterns), function(name) {
   #     data <- dplyr::filter(object(x),
-  #       grpl(summary, patterns[[name]], T) | grpl(title, patterns[[name]], T)
+  #       grpl(summary, patterns[[name]], TRUE) | grpl(title, patterns[[name]], TRUE)
   #     )
   #     if (nrow(data)) {
   #       alls <- paste0(data$GSE, collapse = ", ")
@@ -47,7 +47,7 @@ setMethod("focus", signature = c(x = "job_gds"),
     }
     lapply(names(patterns), function(name) {
       dplyr::filter(object(x),
-        grpl(summary, patterns[[name]], T) | grpl(title, patterns[[name]], T)
+        grpl(summary, patterns[[name]], TRUE) | grpl(title, patterns[[name]], TRUE)
       )
     })
   })
@@ -75,9 +75,38 @@ job_gds <- function(keys,
 }
 
 setMethod("step1", signature = c(x = "job_gds"),
-  function(x, single_cell = FALSE, ...){
+  function(x, single_cell = FALSE, clinical = TRUE, rna_or_array = TRUE, ...)
+  {
     step_message("Statistic.")
     args <- rlang::enquos(...)
+    if (!is.null(single_cell)) {
+      message(glue::glue("dim: {bind(dim(object(x)))}, single_cell == {single_cell}"))
+      if (single_cell) {
+        object(x) <- dplyr::filter(object(x), grpl(summary, "single[ -]cell|scRNA"))
+      } else {
+        object(x) <- dplyr::filter(object(x), !grpl(summary, "single[ -]cell|scRNA"))
+      }
+      snap <- if (single_cell) "仅保留" else "滤除"
+      x <- methodAdd(x, "以正则匹配，{snap} 包含 'single cell' 或 'scRNA' 的数据例。")
+    }
+    if (!is.null(clinical)) {
+      message(glue::glue("dim: {bind(dim(object(x)))}, clinical == {clinical}"))
+      if (clinical) {
+        object(x) <- dplyr::filter(object(x), !grpl(summary, "cell type|cell line|CD[0-9]+"))
+        x <- methodAdd(x,
+          "仅查询临床样本信息，因此滤除匹配到 'cell type' 或 'cell line' 的实验数据例。
+          此外，去除了以特定 Marker 细胞类型为研究对象的数据例 (CD4、CD8 T 细胞等)。")
+      }
+    }
+    if (!is.null(rna_or_array)) {
+      message(glue::glue("dim: {bind(dim(object(x)))}, rna_or_array == {rna_or_array}"))
+      if (rna_or_array) {
+        object(x) <- dplyr::filter(object(x), 
+          grpl(gdsType, "Expression profiling by high throughput sequencing|Expression profiling by array"))
+        x <- methodAdd(x, "仅获取类型包含 'Expression profiling by high throughput sequencing' 或 'Expression profiling by array' 的数据例。")
+      }
+    }
+    message(glue::glue("dim: {bind(dim(object(x)))}, args ..."))
     if (length(args)) {
       object(x) <- trace_filter(object(x), quosures = args)
       x <- snapAdd(x, "{snap(object(x))}")
@@ -88,7 +117,7 @@ setMethod("step1", signature = c(x = "job_gds"),
   })
 
 setMethod("step2", signature = c(x = "job_gds"),
-  function(x, which = "all", force = F, ...)
+  function(x, which = "all", force = FALSE, ...)
   {
     step_message("Try get metadata of GSE dataset.")
     if (identical(which, "all")) {
@@ -104,7 +133,30 @@ setMethod("step2", signature = c(x = "job_gds"),
       x$res$res <- NULL
     }
     x$querys <- gses
-    x <- snapAdd(x, "以 `GEOquery` 获取 GSE 数据集，检查元数据。")
+    snap <- length(which(vapply(x$res$metas, is, logical(1), "df")))
+    x <- methodAdd(x, "以 `GEOquery` 获取 GSE 数据集 (n={snap})。")
+    return(x)
+  })
+
+setMethod("step3", signature = c(x = "job_gds"),
+  function(x, ref, mode = c("survival"), from_backup = TRUE)
+  {
+    step_message("Search in metadata.")
+    if (missing(ref)) {
+      mode <- match.fun(mode)
+      if (mode == "survival") {
+        ref <- "Survival|Event|Dead|Alive|Status|Day|Time"
+      }
+    }
+    if (from_backup && !is.null(x$backup)) {
+      object(x) <- x$backup$object
+      x$res$metas <- x$backup$metas
+    }
+    which <- which(hunt(x, ref, "which"))
+    x <- methodAdd(x, "从元数据中匹配必要的组别关键词：'{ref}'，共得到 {length(which)} 个数据集。")
+    x$backup <- namel(object = object(x), metas = x$res$metas)
+    object(x) <- object(x)[which, ]
+    x$res$metas <- x$res$metas[ which ]
     return(x)
   })
 
@@ -119,9 +171,9 @@ add_field <- function(keys, field) {
 
 edirect_db <- function(db, query, elements,
   cache = .prefix(paste0("query_", db), "db"),
-  force = F)
+  force = FALSE)
 {
-  dir.create(cache, F)
+  dir.create(cache, FALSE)
   if (length(query)) {
     query <- paste0("(", query, ")")
     query <- paste0(query, collapse = " AND ")
@@ -136,7 +188,7 @@ edirect_db <- function(db, query, elements,
     )
     cdRun(script)  
   }
-  object <- as_tibble(read.csv(target, header = F, sep = "\t"))
+  object <- as_tibble(read.csv(target, header = FALSE, sep = "\t"))
   colnames(object) <- elements
   object
 }
@@ -153,6 +205,37 @@ setMethod("active", signature = c(x = "job_gds"),
     }
     urls <- paste0("https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=", ids)
     lapply(urls, browseURL)
+  })
+
+setMethod("hunt", signature = c(x = "job_gds", ref = "character"),
+  function(x, ref, get = c("meta", "gse", "summary", "which")){
+    if (is.null(x$res$metas)) {
+      stop('is.null(x$res$metas), has not run "step2" ?')
+    }
+    get <- match.arg(get)
+    isThat <- vapply(x$res$metas, 
+      function(data) {
+        if (is(data, "df")) {
+          any(vapply(data, 
+            function(col) {
+              any(grpl(col, ref, TRUE))
+            }, logical(1)) | grpl(colnames(data), ref, TRUE))
+        } else FALSE
+      }, logical(1))
+    if (get == "which") {
+      return(isThat)
+    } else if (get == "meta") {
+      return(x$res$metas[ isThat ])
+    } else {
+      if (length(x$res$metas) != nrow(object(x))) {
+        stop('length(x$res$metas) != object(x), you have filter the "object(x)" manually?')
+      }
+      if (get == "summary") {
+        return(object(x)[isThat, ])
+      } else if (get == "gse") {
+        return(object(x)$GSE[isThat])
+      }
+    }
   })
 
 setMethod("vis", signature = c(x = "job_gds"),

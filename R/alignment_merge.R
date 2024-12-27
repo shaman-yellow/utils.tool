@@ -23,7 +23,7 @@ align_merge <- function(main, sub, id = ".features_id",
     mz.main = "mz", mz.sub = "mz",
     rt.main = "rt.min", rt.sub = "rt.min",
     mz.tol = .05, rt.tol = .3, mz.weight = 75, rt.weight = 25,
-    unique = T)
+    unique = TRUE)
 {
   lst <- list(main = main, sub = sub)
   check_col <- function(col.x, col.y, lst) {
@@ -46,7 +46,7 @@ align_merge <- function(main, sub, id = ".features_id",
     (1 - .mz_diff / !!mz.tol) * mz.weight)
   data <- dplyr::arrange(data, .data[[id]], dplyr::desc(.score))
   if (unique)
-    data <- dplyr::distinct(data, .data[[id]], .keep_all = T)
+    data <- dplyr::distinct(data, .data[[id]], .keep_all = TRUE)
   data <- dplyr::select(data, -.rt_diff, -.mz_diff, -.score)
   tibble::as_tibble(data)
 }
@@ -74,7 +74,7 @@ tol_merge <- function(main, sub, main_col = "mz",
   sub.y$...id <- sub.x$...id + ( 1 * 10^-bin_size )
   sub <- rbind(sub.x, sub.y)
   ## expand merge
-  df <- merge(main, sub, by = "...id", all.x = T, allow.cartesian = T)
+  df <- merge(main, sub, by = "...id", all.x = TRUE, allow.cartesian = TRUE)
   df$...diff <- abs(df[[ main_col ]] - df[[ sub_col ]])
   df <- dplyr::arrange(df, abs(...diff))
   df <- dplyr::filter(df, ...diff <= !!tol)

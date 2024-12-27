@@ -4,7 +4,7 @@ backup_jobs.bosai <- function(alls, time = Sys.Date(),
   year = lubridate::year(.time - 12), back_dir = .prefix("backup", "db"),
   .time = if (is(time, "Date")) time else as.Date(time, tryFormats = "%Y-%m-%d"))
 {
-  dir.create(back_dir, F)
+  dir.create(back_dir, FALSE)
   file_records <- file.path(back_dir, "records.rds")
   if (file.exists(file_records)) {
     records <- readRDS(file_records)
@@ -22,16 +22,16 @@ backup_jobs.bosai <- function(alls, time = Sys.Date(),
   thedir <- .thedir_job(month, year, back_dir)
   data$backup_dir <- thedir
   num <- 0L
-  dir.create(thedir, F)
+  dir.create(thedir, FALSE)
   res <- mapply(data$.dir, data$id, data$client, data$type, data$title, data$save,
      FUN = function(dir, id, client, type, title, rds_item) {
        pattern <- paste0(".*", id, ".*", client, ".*", type, ".*", title, ".*")
-       files <- list.files(dir, pattern, full.names = T)
+       files <- list.files(dir, pattern, full.names = TRUE)
        if (!length(files)) {
          message("No zip files found in dir: ", pattern)
          isThat <- usethis::ui_yeah("Select other files?")
          if (isThat) {
-           files <- list.files(dir, "*.zip|*.docx|*.pdf", full.names = T)
+           files <- list.files(dir, "*.zip|*.docx|*.pdf", full.names = TRUE)
            files <- files[ menu(files, title = "All available files") ]
            if (!length(files)) {
              return()
@@ -64,7 +64,7 @@ formatName.bosai <- function(file, info) {
   }
   nfile <- paste0(info$id, "-", info$client, "-",
     info$type, "-", info$title, "-", format.Date(info$finish, "%Y.%m.%d"), ".docx")
-  file.copy(file, nfile, T)
+  file.copy(file, nfile, TRUE)
   browseURL(nfile)
   tools::file_path_sans_ext(nfile)
 }
@@ -77,12 +77,12 @@ summary_week.bosai <- function(
   week = lubridate::week(time),
   path = .prefix(),
   templ_dir = .prefix("summary/"),
-  rm = F, must_include = "__must_include__")
+  rm = FALSE, must_include = "__must_include__")
 {
   dir <- file.path(path, paste0("summary_", week))
   targets <- c(ass = "summary.xlsx")
   if (rm) {
-    unlink(list.files(dir, full.names = T, all.files = T, recursive = T), T, T)
+    unlink(list.files(dir, full.names = TRUE, all.files = TRUE, recursive = TRUE), TRUE, TRUE)
     dir.create(dir)
     file.copy(file.path(templ_dir, targets), dir)
   }
@@ -103,7 +103,7 @@ summary_week.bosai <- function(
     id, client, type, title, start, end, expect, finish, note
   )
   fun <- function(wb, data) {
-    openxlsx2::wb_add_data(wb, 1, data, col_names = F,
+    openxlsx2::wb_add_data(wb, 1, data, col_names = FALSE,
       dims = do.call(openxlsx2::wb_dims, pos.data_ass), na.strings = "")
   }
   pos.data_ass <- list(3, 1)
@@ -200,14 +200,14 @@ get_docx_cover.bosai_analysis <- function(env) {
 {
   fp_header <- officer::fp_par("center", line_spacing = 2)
   fp_items <- officer::fp_par(line_spacing = 2.5)
-  fp_tlarge <- officer::fp_text(font.size = 26, font.family = "Microsoft YaHei", bold = T)
-  fp_tsmall <- officer::fp_text(font.size = 14, font.family = "SimSun", bold = T)
-  fp_tsmall_und <- officer::fp_text(font.size = 14, font.family = "SimSun", bold = T, underlined = T)
+  fp_tlarge <- officer::fp_text(font.size = 26, font.family = "Microsoft YaHei", bold = TRUE)
+  fp_tsmall <- officer::fp_text(font.size = 14, font.family = "SimSun", bold = TRUE)
+  fp_tsmall_und <- officer::fp_text(font.size = 14, font.family = "SimSun", bold = TRUE, underlined = TRUE)
   blank <- officer::fpar()
   par_title <- list(officer::fpar(officer::ftext(header, fp_tlarge), fp_p = fp_header))
   N <- 0L
   NEnd <- length(items) / 2
-  par_items <- mapply(seq(1, length(items), 2), seq(2, length(items), 2), SIMPLIFY = F,
+  par_items <- mapply(seq(1, length(items), 2), seq(2, length(items), 2), SIMPLIFY = FALSE,
     FUN = function(n1, n2) {
       N <<- N + 1L
       query <- officer::ftext(items[n1], fp_tsmall)
@@ -327,7 +327,7 @@ extract_anno <- function(file, type = tools::file_ext(file), ...) {
 }
 
 postModify_annoDocx <- function(file, prefix = "comment",
-  save = file.path(dirname(file), paste0(prefix, "_reply.md")), add_reply = T)
+  save = file.path(dirname(file), paste0(prefix, "_reply.md")), add_reply = TRUE)
 {
   if (file.exists(save)) {
     if (!usethis::ui_yeah('file.exists(save), overwrite that?')) {

@@ -39,7 +39,7 @@ format_table <- function(data, filter = .filter_format, arrange = .arrange_forma
       data <- dplyr::arrange(data, !!!arrange)
     }
     if (!is.null(distinct))
-      data <- dplyr::distinct(data, !!!distinct, .keep_all = T)
+      data <- dplyr::distinct(data, !!!distinct, .keep_all = TRUE)
     if (!is.null(mutate))
       data <- dplyr::mutate(data, !!!mutate)
     if (!is.null(select)) {

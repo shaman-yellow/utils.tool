@@ -18,10 +18,10 @@ NULL
 #' @rdname plot_heatmap
 plot_heatmap <- function(id.lst, data, metadata,
   pal_class = ggsci::pal_futurama()(12), pal_group,
-  clust_row = T, clust_col = T, method = 'complete')
+  clust_row = TRUE, clust_col = TRUE, method = 'complete')
 {
   if (is.null(names(id.lst))) {
-    stop("is.null(names(id.lst)) == T. The names of `id.lst` should be chemical classes.")
+    stop("is.null(names(id.lst)) == TRUE. The names of `id.lst` should be chemical classes.")
   }
   if (is.null(names(pal_class))) {
     pal_class <- pal_class[seq_along(id.lst)]
@@ -29,7 +29,7 @@ plot_heatmap <- function(id.lst, data, metadata,
   }
   .check_columns(metadata, c("sample", "group"), "metadata")
   .check_columns(data, c(".features_id", "sample", "value"), "data")
-  lst <- sapply(names(id.lst), simplify = F,
+  lst <- sapply(names(id.lst), simplify = FALSE,
     function(class.name) {
       ## basic heatmap
       ids <- id.lst[[ class.name ]]
@@ -73,12 +73,12 @@ handling_na <- function(data, id.cols = c(".features_id"),
     function(group) {
       meta <- metadata[[ group ]]
       df <- data[, meta[[ sample.col ]]]
-      lst <- apply(df, 1, simplify = F,
+      lst <- apply(df, 1, simplify = FALSE,
         function(vec) {
           if (all(is.na(vec))) {
             vec[] <- 0
           } else if (any(!is.na(vec))) {
-            vec[is.na(vec)] <- mean(vec, na.rm = T)
+            vec[is.na(vec)] <- mean(vec, na.rm = TRUE)
           }
           dplyr::bind_rows(vec)
         })
@@ -96,7 +96,7 @@ handling_na <- function(data, id.cols = c(".features_id"),
 #' @rdname plot_heatmap
 log_trans <- function(data, id.cols = c(".features_id"),
   key = "sample", value = "value",
-  set_min = T, factor = 10, fun = log2, center = T)
+  set_min = TRUE, factor = 10, fun = log2, center = TRUE)
 {
   data <- tidyr::gather(data, !!key, !!value, -dplyr::all_of(id.cols))
   if (set_min) {
@@ -105,7 +105,7 @@ log_trans <- function(data, id.cols = c(".features_id"),
   }
   data[[ value ]] <- fun(data[[ value ]])
   if (center) {
-    data[[ value ]] <- scale(data[[ value ]], scale = F)[, 1]
+    data[[ value ]] <- scale(data[[ value ]], scale = FALSE)[, 1]
   }
   return(data)
 }
@@ -177,7 +177,7 @@ dot_heatmap <- function(data, x = "sample", y = ".features_id",
 tile_heatmap <- function(data, x = "sample", y = ".features_id", fill = "value",
   lab_x = "Sample", lab_y = "Feature ID", lab_fill = "log2 (Feature level)", ...)
 {
-  if ( 0L <= min(data[[ fill ]], na.rm = T) ) {
+  if ( 0L <= min(data[[ fill ]], na.rm = TRUE) ) {
     scale_fill <- scale_fill_gradient(
       high = "#A73030FF", low = "black",
       limits = c(min(data[[ fill ]]), max(data[[ fill ]])))
@@ -220,7 +220,7 @@ plot_xtree <- function(data, method = "complete") {
 #' @aliases add_tree.heatmap
 #' @description \code{add_tree.heatmap}: ...
 #' @rdname plot_heatmap
-add_tree.heatmap <- function(data, p, clust_row = T, clust_col = T, method = 'complete', ...){
+add_tree.heatmap <- function(data, p, clust_row = TRUE, clust_col = TRUE, method = 'complete', ...){
     if (clust_row) {
       phr <- plot_ytree(data)
       p <- aplot::insert_left(p, phr, width = 0.3)

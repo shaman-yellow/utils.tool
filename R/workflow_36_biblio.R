@@ -36,7 +36,7 @@ setMethod("step0", signature = c(x = "job_biblio"),
 
 setMethod("step1", signature = c(x = "job_biblio"),
   function(x, num, from = "~/Downloads", to = timeName("wos"), pattern = "^savedrecs",
-    filter_dup = T, filter_nonEng = T, filter_naAbs = T, filter_AbsKey = T)
+    filter_dup = TRUE, filter_nonEng = TRUE, filter_naAbs = TRUE, filter_AbsKey = TRUE)
   {
     step_message("Re-save the obtained files from WOS.")
     files <- unlist(collateFiles(paste0("wos_", 1:num), pattern, from = "~/Downloads",
@@ -66,7 +66,7 @@ setMethod("step1", signature = c(x = "job_biblio"),
       kds <- x$kds
       isThat.lst <- lapply(kds,
         function(ch) {
-          grpl(dat$AB, paste0(ch, collapse = "|"), ignore.case = T)
+          grpl(dat$AB, paste0(ch, collapse = "|"), ignore.case = TRUE)
         })
       isThat <- isThat.lst[[1]]
       for (i in 2:length(isThat.lst)) {
@@ -99,7 +99,7 @@ setMethod("step2", signature = c(x = "job_biblio"),
     step_message("Perform a descriptive analysis of the bibliographic data frame.")
     require(bibliometrix)
     x$overview <- e(bibliometrix::biblioAnalysis(object(x)))
-    t.summary <- e(bibliometrix:::summary.bibliometrix(object = x$overview, k = n, pause = F))
+    t.summary <- e(bibliometrix:::summary.bibliometrix(object = x$overview, k = n, pause = FALSE))
     t.summary <- lapply(t.summary,
       function(x) {
         if (is(x, "data.frame"))
@@ -130,7 +130,7 @@ setMethod("step3", signature = c(x = "job_biblio"),
       text = "AU_CO: country of author")
     object(x) <- e(bibliometrix::metaTagExtraction(object(x), Field = "AU_UN"),
       text = "AU_UN: affiliation of author")
-    if (T) {
+    if (TRUE) {
       ## country
       obj.net <- e(bibliometrix::biblioNetwork(object(x), analysis = "collaboration",
           network = "countries"))
@@ -143,10 +143,10 @@ setMethod("step3", signature = c(x = "job_biblio"),
       p.co_country <- wrap(p.co_country, 9, 7)
       p.co_country <- .set_lab(p.co_country, sig(x), "country collaboration network")
     }
-    if (T) {
+    if (TRUE) {
       ## Journal (SO)
       obj <- object(x)
-      stat_jour <- head(sort(table(obj$SO), decreasing = T), n = n)
+      stat_jour <- head(sort(table(obj$SO), decreasing = TRUE), n = n)
       journal_top <- data.frame(journal = names(stat_jour), count = as.integer(stat_jour))
       match2 <- function(x, y) {
         lst <- lapply(list(x, y),
@@ -163,14 +163,14 @@ setMethod("step3", signature = c(x = "job_biblio"),
       t.journal_top <- dplyr::select(t.journal_top, journal, count, CATEGORY, `2022IF`)
       t.journal_top <- .set_lab(t.journal_top, sig(x), "top publication journal by count")
     }
-    if (T) {
+    if (TRUE) {
       ## C/Y filter and export (average citation counts per year)
       obj <- object(x)
       obj$C.Y <- obj$TC / (as.integer(format(Sys.time(), "%Y")) - obj$PY + 1)
       if (rank.by == "C/Y") {
-        obj <- obj[order(obj$C.Y, decreasing = T), ]
+        obj <- obj[order(obj$C.Y, decreasing = TRUE), ]
       } else if (rank.by == "TC") {
-        obj <- obj[order(obj$TC, decreasing = T), ]
+        obj <- obj[order(obj$TC, decreasing = TRUE), ]
       }
       obj <- head(obj, n = n)
       t.most_citation <- as_tibble(data.frame(obj))
@@ -179,17 +179,17 @@ setMethod("step3", signature = c(x = "job_biblio"),
       t.most_citation <- dplyr::select(t.most_citation, short_name = rownames,
         dplyr::all_of(tags.export$tag), citation_per_year = C.Y)
       t.most_citation <- dplyr::rename(t.most_citation,
-        dplyr::all_of(nl(tags.export$description, tags.export$tag, F)))
+        dplyr::all_of(nl(tags.export$description, tags.export$tag, FALSE)))
       t.most_citation <- .set_lab(t.most_citation, sig(x), "top ranked documents of citation per year")
     }
-    if (T) {
+    if (TRUE) {
       ## co-citation
       ## by look into the source code of `biblioNetwork`: n, the most frequent reference were selected.
       obj.net <- e(bibliometrix::biblioNetwork(object(x), analysis = "co-citation",
           network = "references"))
       p.net <- e(bibliometrix::networkPlot(obj.net,
           Title = "Co-Citation Network", type = "fruchterman", n = n,
-          size = T, remove.multiple = FALSE, labelsize = 0.7, edgesize = 5), text = "co-citation")
+          size = TRUE, remove.multiple = FALSE, labelsize = 0.7, edgesize = 5), text = "co-citation")
       p.co_citation <- .plot_coNetwork(p.net$graph, fill = "color", size = "deg",
         edge_color = "orange", zoRange = 1.5, fun_edge = ggraph::geom_edge_arc,
         width_range = c(.01, .05)
@@ -200,13 +200,13 @@ setMethod("step3", signature = c(x = "job_biblio"),
       p.co_citation <- wrap(p.co_citation, 9, 7)
       p.co_citation <- .set_lab(p.co_citation, sig(x), "top ranked of co citation")
     }
-    if (T) {
+    if (TRUE) {
       ## keywords
       ## all used for keywords analysis
       obj.net <- e(bibliometrix::biblioNetwork(object(x), analysis = "co-occurrences", network = "keywords"))
       ## top n used for plot
-      p.net <- e(bibliometrix::networkPlot(obj.net, normalize = "association", weighted = T, n = n,
-          Title = "Keyword Co-occurrences", type = "fruchterman", size = T,
+      p.net <- e(bibliometrix::networkPlot(obj.net, normalize = "association", weighted = TRUE, n = n,
+          Title = "Keyword Co-occurrences", type = "fruchterman", size = TRUE,
           edgesize = 5, labelsize = 0.7), text = "co-occurrences")
       p.co_keywords <- recordPlot()
       p.co_keywords <- .set_lab(p.co_keywords, sig(x), "top ranked keywords of co occurrences")
@@ -252,7 +252,7 @@ setMethod("step4", signature = c(x = "job_biblio"),
   fun_edge = ggraph::geom_edge_arc, width_range = c(.5, 1))
 {
   graph <- tidygraph::as_tbl_graph(igraph)
-  graph <- create_layout(graph, layout = 'linear', circular = T)
+  graph <- create_layout(graph, layout = 'linear', circular = TRUE)
   p <- ggraph(graph) +
     fun_edge(aes(width = !!rlang::sym(width)), color = edge_color, alpha = .5) +
     geom_node_point(aes(size = !!rlang::sym(size), fill = !!rlang::sym(fill)), alpha = .7, shape = 21) +

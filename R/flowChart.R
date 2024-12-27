@@ -2,7 +2,7 @@
 # help with drawing flow chart
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-sortSugi <- function(values, dec = T) {
+sortSugi <- function(values, dec = TRUE) {
   num <- values
   i <- 1L
   order <- order(values, decreasing = dec)
@@ -37,7 +37,7 @@ as_network <- function(lst, layout = 'sugiyama', seed = 100)
     })
   data <- data.table::rbindlist(lst)
   data <- dplyr::mutate(data, from = Hmisc::capitalize(from), to = Hmisc::capitalize(to))
-  nodes <- data.frame(name = unique(unlist(apply(data, 1, c, simplify = F), use.names = F)))
+  nodes <- data.frame(name = unique(unlist(apply(data, 1, c, simplify = FALSE), use.names = FALSE)))
   if (!is.null(seed)) {
     data <- lapply(seed,
       function(s) {
@@ -94,7 +94,7 @@ preview.gl <- function(p.lst) {
   lst <- lapply(p.lst, as_grob)
   names(lst) <- n(p, length(lst))
   panel <- frame_col(fill_list(names(lst), 1), lst)
-  legend <- sapply(names(lst), simplify = F, gtext, gp_arg = list(cex = 2))
+  legend <- sapply(names(lst), simplify = FALSE, gtext, gp_arg = list(cex = 2))
   legend <- frame_col(fill_list(names(legend), 1), legend)
   frame <- frame_row(c(legend = 1, panel = 5), namel(panel, legend))
   setdev(width = 20)

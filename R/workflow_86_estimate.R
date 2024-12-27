@@ -48,7 +48,7 @@ job_estimate <- function(data, dir = "estimate")
     data <- data[!duplicated(rownames(data)), ]
   }
   meta <- tibble::tibble(sample = colnames(data), mutate = make.names(colnames(data)))
-  data.table::fwrite(data, inputfile, row.names = T, sep = "\t")
+  data.table::fwrite(data, inputfile, row.names = TRUE, sep = "\t")
   .job_estimate(object = inputfile, params = list(dir = dir, meta = meta))
 }
 
@@ -85,7 +85,7 @@ setMethod("step2", signature = c(x = "job_estimate"),
     t.immuneScores <- dplyr::ungroup(t.immuneScores)
     if (!is.null(metadata) && !is.null(sig.test)) {
       t.immuneScores <- map(t.immuneScores, "sample", metadata, "sample", sig.test, col = sig.test)
-      p.immuneScoresPlot <- wrap(.map_boxplot2(t.immuneScores, T,
+      p.immuneScoresPlot <- wrap(.map_boxplot2(t.immuneScores, TRUE,
         x = "Group", y = sig.test, xlab = "Group", ylab = sig.test, ids = "NAME"
       ), 8, 3.5)
     } else {
@@ -114,9 +114,9 @@ setMethod("step3", signature = c(x = "job_estimate"),
 
 .plot_imMod_boxplot <- function(data, file_tisidb, metadata, group = "group") {
   if (!file.exists(file_tisidb)) {
-    dir.create(dirname(file_tisidb), F)
+    dir.create(dirname(file_tisidb), FALSE)
     immunoModulator <- data.table::fread(
-      text = RCurl::getURL("http://cis.hku.hk/TISIDB/data/immunomodulator.txt"), header = F)
+      text = RCurl::getURL("http://cis.hku.hk/TISIDB/data/immunomodulator.txt"), header = FALSE)
     data.table::fwrite(immunoModulator, file_tisidb, sep = "\t")
   } else {
     immunoModulator <- ftibble(file_tisidb)
@@ -136,7 +136,7 @@ setMethod("step3", signature = c(x = "job_estimate"),
   dataSig <- dplyr::filter(dataSig, p.value < .05)
   p.Top10ImmuneRelatedGenes <- .map_boxplot2(
     dplyr::filter(data, gene %in% head(dataSig$gene, n = 10)),
-    T, x = group, xlab = group, y = "expr", ylab = "Expression", ids = "gene", nrow = 1
+    TRUE, x = group, xlab = group, y = "expr", ylab = "Expression", ids = "gene", nrow = 1
   )
   p.Top10ImmuneRelatedGenes <- wrap(p.Top10ImmuneRelatedGenes, 10, 6)
   namel(dataSig, p.Top10ImmuneRelatedGenes)

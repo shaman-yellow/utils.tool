@@ -59,14 +59,14 @@ new_qzv <- function(..., lst = NULL, path, x, pg = NULL) {
   files <- lapply(files,
     function(file) {
       if (dir.exists(file)) {
-        list.files(file, "*.qzv", full.names = T, recursive = T)
+        list.files(file, "*.qzv", full.names = TRUE, recursive = TRUE)
       } else {
         file
       }
     })
   files <- unlist(files)
   names(files) <- get_realname(files)
-  sapply(files, simplify = F,
+  sapply(files, simplify = FALSE,
     function(file) {
       .qzv(file, pg = pg)
     })
@@ -240,7 +240,7 @@ setMethod("step5", signature = c(x = "job_qiime"),
           )
         })
     )
-    qzvs <- sapply(basename(c(ga, gb)), simplify = F,
+    qzvs <- sapply(basename(c(ga, gb)), simplify = FALSE,
       function(dir) {
         new_qzv(dir)
       })
@@ -288,7 +288,7 @@ setMethod("step6", signature = c(x = "job_qiime"),
   })
 
 setMethod("step7", signature = c(x = "job_qiime"),
-  function(x, levels = 2:6, table = "table.qza", force = F)
+  function(x, levels = 2:6, table = "table.qza", force = FALSE)
   {
     step_message("Differential analysis.")
     if (force || is.null(x@plots$step7$qzv_raw)) {
@@ -392,7 +392,7 @@ setMethod("pattern", signature = c(x = "job_qiime"),
     }
     lst <- unlist(strsplit(data$id, ";"))
     lst <- gs(lst, "^.__([^_]+).*", "\\1")
-    lst <- lst[ !grpl(lst, paste0(not, collapse = "|"), T) ]
+    lst <- lst[ !grpl(lst, paste0(not, collapse = "|"), TRUE) ]
     lst[ !duplicated(lst) ]
   })
 
@@ -404,18 +404,18 @@ plot_volcano.ancom <- function(data, res) {
     ggrepel::geom_text_repel(aes(label = label)) +
     guides(color = guide_legend(override.aes = list(size = 5))) +
     scale_color_manual(values = color_set()) +
-    labs(x = "F-statistic (clr)", y = "W-value")
+    labs(x = "FALSE-statistic (clr)", y = "W-value")
   p
 }
 
 setMethod("write", signature = c(x = "qzv"),
-  function(x, output = NULL, output_dir = "qiime_export", pg = get_fun("pg")("qiime", F), overwrite = T)
+  function(x, output = NULL, output_dir = "qiime_export", pg = get_fun("pg")("qiime", FALSE), overwrite = TRUE)
   {
     file <- as.character(x)
     if (is.null(output)) {
       output <- get_realname(file)
     }
-    dir.create(output_dir, F)
+    dir.create(output_dir, FALSE)
     cdRun(pg, " tools export ",
     " --input-path ", file,
     " --output-path ", name <- paste0(output_dir, "/", output))
@@ -473,13 +473,13 @@ remote_file.exists <- function(file, remote = "remote") {
     x <- get("x", envir = parent.frame(1))
     remote <- x@params$remote
   }
-  res <- system(paste0("ssh ", remote, " '", expr_sys.file.exists(file), "'"), intern = T)
-  if (res == "T") T
-  else F
+  res <- system(paste0("ssh ", remote, " '", expr_sys.file.exists(file), "'"), intern = TRUE)
+  if (res == "TRUE") TRUE
+  else FALSE
 }
 
 expr_sys.file.exists <- function(file) {
-  paste0("if [ -e ", file, " ]; then echo T; else echo F; fi")
+  paste0("if [ -e ", file, " ]; then echo TRUE; else echo FALSE; fi")
 }
 
 setMethod("set_remote", signature = c(x = "job_qiime"),
@@ -488,7 +488,7 @@ setMethod("set_remote", signature = c(x = "job_qiime"),
   {
     ## must be here
     files <- list.remote_rf(paste0(path, "/", object(x)$Run), pattern)
-    metadata <- try_fqs_meta(object(x), files, filter = T)
+    metadata <- try_fqs_meta(object(x), files, filter = TRUE)
     print(metadata)
     object(x) <- metadata
     meta_file <- tempfile("metadata", fileext = "tsv")
@@ -500,11 +500,11 @@ setMethod("set_remote", signature = c(x = "job_qiime"),
     return(x)
   })
 
-try_fqs_meta <- function(metadata, filepath, filter = F) {
+try_fqs_meta <- function(metadata, filepath, filter = FALSE) {
   if (any(duplicated(metadata[[ "dirs" ]]))) {
-    filepath <- mapply(get_realname(metadata$reports), filepath, SIMPLIFY = F,
+    filepath <- mapply(get_realname(metadata$reports), filepath, SIMPLIFY = FALSE,
       FUN = function(name, files) {
-        files <- files[ grpl(files, name, fixed = T) ]
+        files <- files[ grpl(files, name, fixed = TRUE) ]
         if (length(files) > 2) {
           files <- files[ grpl(files, paste0("/", name, "[^/]+$")) ]
         }
@@ -542,7 +542,7 @@ get_taxon_data <- function(file = .prefix("qiime2/taxonomy.tsv", "db")) {
 }
 
 query_class <- function(x, level = c("g", "p", "c", "o", "f", "s"),
-  use.first = T, fun_data = get_taxon_data, strict = T)
+  use.first = TRUE, fun_data = get_taxon_data, strict = TRUE)
 {
   if (is.null(ref <- getOption("taxon_data", NULL))) {
     message("Got and set global taxonomy data for querying")
@@ -557,7 +557,7 @@ query_class <- function(x, level = c("g", "p", "c", "o", "f", "s"),
   ref <- dplyr::distinct(ref)
   xUnique <- unique(x)
   res <- .find_and_sort_strings(ref$Taxon,
-    if (strict) paste0("__", xUnique, ";") else xUnique, T)
+    if (strict) paste0("__", xUnique, ";") else xUnique, TRUE)
   res <- vapply(res,
     function(x) {
       if (identical(x, character(0))) {
@@ -571,7 +571,7 @@ query_class <- function(x, level = c("g", "p", "c", "o", "f", "s"),
         x
       }
     },
-    FUN.VALUE = character(1), USE.NAMES = F
+    FUN.VALUE = character(1), USE.NAMES = FALSE
   )
   res[ match(x, xUnique) ]
 }

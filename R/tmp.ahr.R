@@ -10,7 +10,7 @@ set.sig.wd <- function(gse)
     wd <- paste0(path.work, path.de.1, gse.dir, "/", gse, "/suppl")
     setwd(wd)
     cat("## The work directory at:", getwd(), "\n")
-    print(list.files(all.files = T))
+    print(list.files(all.files = TRUE))
     cat("## Done\n")
   }
  
@@ -78,7 +78,7 @@ anno.gene.edb <-
       keys = keys,
       columns = columns)
     genes <- dplyr::distinct(
-      genes, dplyr::across(dplyr::all_of(keytype)), .keep_all = T
+      genes, dplyr::across(dplyr::all_of(keytype)), .keep_all = TRUE
     )
   }
 
@@ -87,8 +87,8 @@ anno.into.list <-
   {
     genes <- data.frame(col = rownames(dge))
     colnames(genes) <- col
-    genes <- merge(genes, anno, all.x = T, by = col, sort = F)
-    genes <- dplyr::distinct(genes, dplyr::across(dplyr::all_of(col)), .keep_all = T)
+    genes <- merge(genes, anno, all.x = TRUE, by = col, sort = FALSE)
+    genes <- dplyr::distinct(genes, dplyr::across(dplyr::all_of(col)), .keep_all = TRUE)
     cat("## is.na:\n")
     check.col <- colnames(genes)[2]
     check.na <- dplyr::filter(
@@ -134,7 +134,7 @@ fpkm_log2tpm <-
       function(vec){
         log2(
           # vec / sum(vec) * 1e6 + 1
-          exp(log(vec) - log(sum(vec, na.rm = T)) + log(1e6)) + 1
+          exp(log(vec) - log(sum(vec, na.rm = TRUE)) + log(1e6)) + 1
         )
       })
     dge$counts <- cset

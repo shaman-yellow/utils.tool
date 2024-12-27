@@ -3,7 +3,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 pretty_table <- function(
     df, title = "compounds summary", subtitle = "LC-MS",
-    footnote = "...", spanner = F, default = F,
+    footnote = "...", spanner = FALSE, default = FALSE,
     filename = "tmp.html", path = tempdir(),
     font = "Times New Roman", widths = NULL, caption = NULL)
   {

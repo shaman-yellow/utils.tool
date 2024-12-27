@@ -49,7 +49,7 @@ setMethod("step2", signature = c(x = "job_musite"),
       "Phosphotyrosine", "Pyrrolidone_carboxylic_acid", "S-palmitoyl_cysteine",
       "SUMOylation", "Ubiquitination"
       ), all_types = type,
-    cutoff = .5, respective = T,
+    cutoff = .5, respective = TRUE,
     output = timeName("musite"))
   {
     step_message("Compute PTM position.")
@@ -69,7 +69,7 @@ setMethod("step2", signature = c(x = "job_musite"),
         " -model-prefix \"", models, "\""
       )
     }
-    lst <- sep_list(readLines(output_file), "^>", T)
+    lst <- sep_list(readLines(output_file), "^>", TRUE)
     t.data <- lapply(lst[-1],
       function(x) {
         data.table::fread(text = x[-1])
@@ -100,11 +100,11 @@ setMethod("step2", signature = c(x = "job_musite"),
     data <- dplyr::mutate(t.data, str_around = fun_str(Sequence_name, Position))
     data <- tidyr::separate(data, str_around, c(NA, n(pos, 5)), "")
     data <- tidyr::pivot_longer(data,
-      tidyselect::starts_with("pos", F),
+      tidyselect::starts_with("pos", FALSE),
       names_to = "pos", values_to = "amino"
     )
     data <- dplyr::mutate(data,
-      isTarget = ifelse(pos == "pos3", T, F),
+      isTarget = ifelse(pos == "pos3", TRUE, FALSE),
       pos = (as.double(strx(pos, "[0-9]+")) - 6L) / 20,
       cand = paste0(Sequence_name, "_", PTM_type, "_", Position)
     )

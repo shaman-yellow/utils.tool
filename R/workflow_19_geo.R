@@ -15,7 +15,7 @@
     method = "GEO <https://www.ncbi.nlm.nih.gov/geo/> used for expression dataset aquisition",
     tag = "raw:geo",
     analysis = "GEO 数据获取",
-    params = list(rna = F)
+    params = list(rna = FALSE)
     ))
 
 .job_publish <- setClass("job_publish", 
@@ -39,7 +39,7 @@ setMethod("step0", signature = c(x = "job_geo"),
   })
 
 setMethod("step1", signature = c(x = "job_geo"),
-  function(x, getGPL = T){
+  function(x, getGPL = TRUE){
     step_message("Get GEO metadata and information.")
     about <- e(GEOquery::getGEO(object(x), getGPL = getGPL))
     metas <- get_metadata.geo(about)
@@ -56,10 +56,10 @@ setMethod("step1", signature = c(x = "job_geo"),
     guess <- .set_lab(guess, sig(x), object(x), "metadata")
     x@params$guess <- guess
     x@params$test <- list(
-      genes = try(as_tibble(about[[ 1 ]]@featureData@data), T),
-      counts = try(as_tibble(about[[ 1 ]]@assayData$exprs), T),
+      genes = try(as_tibble(about[[ 1 ]]@featureData@data), TRUE),
+      counts = try(as_tibble(about[[ 1 ]]@assayData$exprs), TRUE),
       anno = about[[ 1 ]]@annotation,
-      anno.db = try(.get_biocPackage.gpl(about[[ 1 ]]@annotation), T)
+      anno.db = try(.get_biocPackage.gpl(about[[ 1 ]]@annotation), TRUE)
     )
     x <- methodAdd(x, "以 R 包 `GEOquery` ({packageVersion('GEOquery')}) 获取 {object(x)} 数据集。")
     x <- snapAdd(x, "以 `GEOquery` 获取 {object(x)} 的数据信息。")
@@ -77,7 +77,7 @@ setMethod("step1", signature = c(x = "job_geo"),
 }
 
 setMethod("step2", signature = c(x = "job_geo"),
-  function(x, filter_regex = NULL, baseDir = .prefix("GEO", "db"), rna = T)
+  function(x, filter_regex = NULL, baseDir = .prefix("GEO", "db"), rna = TRUE)
   {
     step_message("Download geo datasets or yellow{{RNA seq data}}.")
     if (rna) {
@@ -107,7 +107,7 @@ setMethod("step2", signature = c(x = "job_geo"),
     return(x)
   })
 
-batch_geo <- function(gses, getGPL = F, cl = 5) {
+batch_geo <- function(gses, getGPL = FALSE, cl = 5) {
   res <- pbapply::pblapply(gses,
     function(x) try(step1(job_geo(x), getGPL = getGPL)), cl = 5
   )
@@ -123,13 +123,13 @@ setMethod("meta", signature = c(x = "job_geo"),
   })
 
 setMethod("asjob_limma", signature = c(x = "job_geo"),
-  function(x, metadata, use = 1L, normed = F, use.col = NULL)
+  function(x, metadata, use = 1L, normed = FALSE, use.col = NULL)
   {
     rna <- x$rna
     project <- object(x)
     if (rna) {
-      counts <- as_tibble(data.frame(x@params$about[[ use ]]@assays@data$counts, check.names = F))
-      genes <- as_tibble(data.frame(x@params$about[[ use ]]@elementMetadata, check.names = F))
+      counts <- as_tibble(data.frame(x@params$about[[ use ]]@assays@data$counts, check.names = FALSE))
+      genes <- as_tibble(data.frame(x@params$about[[ use ]]@elementMetadata, check.names = FALSE))
       genes <- dplyr::mutate(genes, rownames = as.character(GeneID), .before = 1)
       if (missing(use.col)) {
         use.col <- "Symbol"
@@ -149,7 +149,7 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
           genes <- dplyr::relocate(genes, rownames, hgnc_symbol = `Gene Symbol`)
         }
       } else {
-        guess <- grpf(colnames(genes), "^gene", ignore.case = T)
+        guess <- grpf(colnames(genes), "^gene", ignore.case = TRUE)
         message("All available:\n\t", paste0(guess, collapse = ", "))
         message("Use the firist.")
         guess <- guess[[ 1 ]]
@@ -203,7 +203,7 @@ get_metadata.geo <- function(lst,
     main <- lapply(res,
       function(data){
         cols <- colnames(data)
-        extra <- unlist(.find_and_sort_strings(cols, pattern), use.names = F)
+        extra <- unlist(.find_and_sort_strings(cols, pattern), use.names = FALSE)
         namesSelect <- vapply(select, rlang::as_label, character(1))
         select <- select[ which(namesSelect %in% cols) ]
         dplyr::select(data, !!!select, dplyr::all_of(extra))
@@ -212,7 +212,7 @@ get_metadata.geo <- function(lst,
       abbrev <- lapply(res,
         function(data){
           cols <- colnames(data)
-          extra <- unlist(.find_and_sort_strings(cols, abbrev), use.names = F)
+          extra <- unlist(.find_and_sort_strings(cols, abbrev), use.names = FALSE)
           dplyr::distinct(data, dplyr::pick(extra))
         })
     } else abbrev <- NULL

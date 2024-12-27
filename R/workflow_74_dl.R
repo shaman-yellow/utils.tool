@@ -24,7 +24,7 @@ job_dl <- function(smiles, force_cpu = TRUE)
   x <- .job_dl()
   if (is.data.frame(smiles)) {
     message("The input is data.frame. Use first column as names, next column as smiles.")
-    smiles <- nl(smiles[[1]], smiles[[2]], F)
+    smiles <- nl(smiles[[1]], smiles[[2]], FALSE)
   }
   smiles <- smiles[ !duplicated(smiles) ]
   ## check smiles character
@@ -39,7 +39,7 @@ job_dl <- function(smiles, force_cpu = TRUE)
   sys$path <- c(sys$path, pg("dl"))
   if (force_cpu) {
     message("Use CPU for computing.")
-    x$force_cpu <- T
+    x$force_cpu <- TRUE
     fun <- function(name) {
       file_py <- file.path(pg("dl"), paste0(name, ".py"))
       raw <- readLines(file_py)
@@ -49,9 +49,9 @@ job_dl <- function(smiles, force_cpu = TRUE)
       writeLines(revise, file_py)
       namel(raw, revise, file_py)
     }
-    x$scripts <- sapply(c("train", "predict", "preprocess", "DGCAN"), fun, simplify = F)
+    x$scripts <- sapply(c("train", "predict", "preprocess", "DGCAN"), fun, simplify = FALSE)
   } else {
-    x$force_cpu <- F
+    x$force_cpu <- FALSE
   }
   predict <- reticulate::import("predict")
   train <- reticulate::import("train")
@@ -112,7 +112,7 @@ setMethod("step2", signature = c(x = "job_dl"),
     res <- tryCatch(x@params$predict$predict(
       normalizePath(file_smiles),
       # the following parameter is useless and can be ignore.
-      radius = 1L, property = F, dim = 52L,
+      radius = 1L, property = FALSE, dim = 52L,
       layer_hidden = 4L, layer_output = 10L, dropout = 0.45,
       batch_train = 8L, batch_test = 8L, lr = 3e-4,
       lr_decay = 0.85, decay_interval = 25L, iteration = 140L, N = 5000L
@@ -121,7 +121,7 @@ setMethod("step2", signature = c(x = "job_dl"),
       stop("length(res) != length(object(x))")
     }
     message("Get length of results: ", length(res))
-    t.res <- tibble::tibble(name = names(object(x)), smiles = object(x), drugLike = ifelse(res, T, F))
+    t.res <- tibble::tibble(name = names(object(x)), smiles = object(x), drugLike = ifelse(res, TRUE, FALSE))
     t.res <- dplyr::mutate(t.res, isOK = drugLike)
     x <- methodAdd(x, "以 Python 工具 `D-GCAN` {cite_show('PredictionOfDSunJ2022')} 预测 Drug-likeness。
       `D-GCAN` 的训练和使用参数参考 <https://github.com/JinYSun/D-GCAN>。")

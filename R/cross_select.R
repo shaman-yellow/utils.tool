@@ -20,9 +20,9 @@ NULL
 select_features <- function(
   mcn, classes = unique(nebula_index(mcn)$class.name),
   q.value = .05, logfc = .3, coef = NULL, tani.score_cutoff = NULL,
-  order_by_coef = NULL, togather = F) 
+  order_by_coef = NULL, togather = FALSE) 
 {
-  if (!requireNamespace("MCnebula2", quietly = T))
+  if (!requireNamespace("MCnebula2", quietly = TRUE))
     stop("package 'MCnebula2' must be available.")
   .check_data(statistic_set(mcn), list(top_table = "binary_comparison"))
   .check_data(mcn, list(nebula_index = "create_nebula_index",
@@ -50,7 +50,7 @@ select_features <- function(
       })
   }
   if (togather) {
-    res <- unlist(res, use.names = F)
+    res <- unlist(res, use.names = FALSE)
     res <- ranks[ ranks %in% res ]
   }
   return(res)
@@ -96,7 +96,7 @@ cross_select <- function(data.lst, filter.lst, target, split = NULL) {
     mapply(lst, names(lst), FUN = function(value, name){
              obj <- match.fun(name)(object)
              if (is.null(obj)) {
-               stop(paste0("is.null(", name, "(", target, ")) == T. ",
+               stop(paste0("is.null(", name, "(", target, ")) == TRUE. ",
                            "use `", value, tip, "` previously."))
              }
              if (is.list(obj)) {

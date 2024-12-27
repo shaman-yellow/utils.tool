@@ -19,7 +19,7 @@ NULL
 #' @description \code{query_synonyms}: ...
 #' @rdname query_synonyms
 query_synonyms <- function(cid, dir, rdata.name = "synonyms.rdata", curl_cl = NULL,
-  gather_as_rdata = T, group_number = 50, ...)
+  gather_as_rdata = TRUE, group_number = 50, ...)
 {
   if (!dir.exists(dir)) {
     dir.create(dir)
@@ -47,7 +47,7 @@ query_synonyms <- function(cid, dir, rdata.name = "synonyms.rdata", curl_cl = NU
   if (gather_as_rdata) {
     cat("## gather data\n")
     packing_as_rdata_list(dir, pattern = "^G[0-9]{1,}$",
-      dedup = F,
+      dedup = FALSE,
       rdata = rdata.name,
       extra = extra)
   }
@@ -68,7 +68,7 @@ pubchem_get_synonyms <- function(cid, dir, ...)
   url <- paste0(url_start, cid, url_end)
   check <- 0
   while(check == 0 | inherits(check, "try-error")){
-    check <- try(text <- RCurl::getURL(url), silent = T)
+    check <- try(text <- RCurl::getURL(url), silent = TRUE)
   }
   while(grepl("Status:	503", text)){
     text <- RCurl::getURL(url)
@@ -89,7 +89,7 @@ pubchem_get_synonyms <- function(cid, dir, ...)
             })
         data.table::data.table(cid = list$CID, syno = unlist(syno))
       })
-  text <- data.table::rbindlist(text, fill = T)
+  text <- data.table::rbindlist(text, fill = TRUE)
   write_tsv(text, filename = file)
 }
 
@@ -117,14 +117,14 @@ extract_rdata_list <- function(rdata, names = NULL){
 #' @description \code{packing_as_rdata_list}: gather table as .rdata
 #' @rdname query_synonyms
 packing_as_rdata_list <- function(path, pattern, rdata,
-  extra = NULL, rm_files = T, dedup = T)
+  extra = NULL, rm_files = TRUE, dedup = TRUE)
 {
   file_set <- list.files(path, pattern = pattern)
   if (!length(file_set))
     return()
   list <- pbapply::pblapply(paste0(path, "/", file_set),
     function(file) {
-      res <- try(ftibble(file), T)
+      res <- try(ftibble(file), TRUE)
       if (inherits(res, "try-error")) {
         data.frame()
       } else {
@@ -135,7 +135,7 @@ packing_as_rdata_list <- function(path, pattern, rdata,
   list <- c(extra, list)
   if (dedup){
     df <- data.table::data.table(name = names(list), n = seq_along(list))
-    df <- dplyr::distinct(df, name, .keep_all = T)
+    df <- dplyr::distinct(df, name, .keep_all = TRUE)
     list <- list[df$n]
   }
   if (rm_files){

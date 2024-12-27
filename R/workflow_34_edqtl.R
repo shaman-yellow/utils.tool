@@ -38,7 +38,7 @@ job_edqtl <- function(mode = c("edqtl", "eqtl"))
   lst <- lst[[ mode ]]
   .check_untar(paste0(lst$path, "/", lst$file))
   x <- .job_edqtl()
-  files <- list.files(lst$path, "txt.gz$", full.names = T, recursive = T)
+  files <- list.files(lst$path, "txt.gz$", full.names = TRUE, recursive = TRUE)
   x$metadata <- tibble::tibble(
     tissue = stringr::str_extract(basename(files), "^[^.]*"),
     files = files
@@ -62,7 +62,7 @@ setMethod("step1", signature = c(x = "job_edqtl"),
     step_message("Read the tissue QRL files.")
     db <- sapply(x$patterns,
       function(pattern) {
-        file <- list.files(x$db_path, paste0(tissue, ".*", pattern, ".*"), full.names = T, recursive = T)
+        file <- list.files(x$db_path, paste0(tissue, ".*", pattern, ".*"), full.names = TRUE, recursive = TRUE)
         message("Search get files:\n\t", paste0(file, collapse = ", "))
         if (length(file) == 0) {
           stop("Check the input tissue as no file retrieved.")

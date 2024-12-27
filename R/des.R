@@ -8,7 +8,7 @@
   vapply(names(lst), function(x) lst[[ x ]], character(1))
 }
 
-.get_db_des <- function(fresh = F) {
+.get_db_des <- function(fresh = FALSE) {
   if (is.null(maybe <- getOption("des")) | fresh) {
     des <- .parse_md()
     options(des = des)
@@ -20,7 +20,7 @@
 .parse_md <- function(dir = .prefix(), pattern = "^help.*md$|description.*md$",
   excludes = c("id", ".id"))
 {
-  files <- list.files(dir, pattern, full.names = T, recursive = T)
+  files <- list.files(dir, pattern, full.names = TRUE, recursive = TRUE)
   if (!length(files)) {
     return(list())
   }
@@ -39,7 +39,7 @@
       lines <- strsplit(lines, ":")
       lines
     })
-  lst <- unlist(lst, recursive = F)
+  lst <- unlist(lst, recursive = FALSE)
   lst <- lapply(lst, function(x) if (length(x) > 1) x else NULL)
   lst <- lst_clear0(lst)
   names(lst) <- NULL

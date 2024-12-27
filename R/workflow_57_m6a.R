@@ -32,15 +32,15 @@ setMethod("step1", signature = c(x = "job_m6a"),
   function(x, genes, save = .prefix("m6a_Atlas", "db"), sleep = .1)
   {
     step_message("Get data from the website.")
-    dir.create(save, F)
+    dir.create(save, FALSE)
     types <- c("LowResolution", "HighResolution")
-    t.data <- sapply(types, simplify = F,
+    t.data <- sapply(types, simplify = FALSE,
       function(type) {
         db <- new_db(paste0(save, "/", object(x), "_", type, ".rds"), ".id")
         db <- not(db, genes)
         if (length(db@query)) {
           cli::cli_alert_info(paste0("Obtain data of ", type))
-          res <- pbapply::pbsapply(db@query, simplify = F,
+          res <- pbapply::pbsapply(db@query, simplify = FALSE,
             function(gene) {
               url <- paste0("http://www.rnamd.org/m6a/api", type, ".php?species=", object(x), "&gene=", gene)
               content <- RCurl::getURL(url)
@@ -57,7 +57,7 @@ setMethod("step1", signature = c(x = "job_m6a"),
                 }
               }
             })
-          res <- frbind(res, idcol = T, fill = T)
+          res <- frbind(res, idcol = TRUE, fill = TRUE)
           db <- upd(db, res, db@query)
         }
         res(db, what = genes)

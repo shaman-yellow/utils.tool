@@ -38,7 +38,7 @@ setMethod("step0", signature = c(x = "job_mn2kat"),
 setMethod("step1", signature = c(x = "job_mn2kat"),
   function(x, ...){
     x <- callNextMethod(x, ...)
-    p.cancer_position <- suppressMessages(map(x$sr_cancer, x$kat, cutree = T))
+    p.cancer_position <- suppressMessages(map(x$sr_cancer, x$kat, cutree = TRUE))
     x@plots[[ 1 ]] <- c(x@plots[[ 1 ]], namel(p.cancer_position))
     return(x)
   })

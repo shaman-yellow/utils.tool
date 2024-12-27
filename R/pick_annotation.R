@@ -22,11 +22,11 @@ pick_class <-
     fun = PickClass){
     class <- extract_rdata_list(class.rdata, inchikey2d)
     if (!is.null(filter)) {
-      class <- data.frame(data.table::rbindlist(class, idcol = T))
+      class <- data.frame(data.table::rbindlist(class, idcol = TRUE))
       class <- dplyr::filter(class, !!!filter)
       class <- split(class, ~ .id)
     }
-    class <- sapply(inchikey2d, simplify = F,
+    class <- sapply(inchikey2d, simplify = FALSE,
       function(key2d) {
         class[[ key2d ]]$Classification
       })
@@ -70,10 +70,10 @@ pick_synonym <-
     }
     if (!is.null(inchikey2d)) {
       inchikey <- extract_rdata_list(inchikey.rdata, inchikey2d)
-      meta <- sapply(inchikey, simplify = F, function(x) as.character(x$CID))
+      meta <- sapply(inchikey, simplify = FALSE, function(x) as.character(x$CID))
       syno$cid <- as.character(syno$cid)
       syno <- group_switch(syno, meta, by = "cid")
-      syno <- sapply(inchikey2d, simplify = F,
+      syno <- sapply(inchikey2d, simplify = FALSE,
         function(key2d) {
           if (is.null(syno[[ key2d ]]))
             return()
@@ -91,7 +91,7 @@ pick_synonym <-
       } else {
         iupac <- lapply(iupac, function(set) set$IUPACName)
       }
-      syno <- sapply(names(syno), simplify = F,
+      syno <- sapply(names(syno), simplify = FALSE,
         function(name) {
           c(syno[[ name ]], iupac[[ name ]])
         })
@@ -111,7 +111,7 @@ pick_synonym <-
     quote(!grepl('[0-9]{3}', syno)),
     quote(!grepl('^[A-Z-]{1,5}$', syno)),
     quote(!grepl('^[A-Z0-9]{1,}$', syno)),
-    quote(!grepl('(?<=-)[A-Z0-9]{5,}$', syno, perl = T)),
+    quote(!grepl('(?<=-)[A-Z0-9]{5,}$', syno, perl = TRUE)),
     quote(!grepl('^[0-9-]*$', syno)),
     quote(!grepl('^[A-Z]{14}-', syno))
   )

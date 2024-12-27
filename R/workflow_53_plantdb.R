@@ -31,18 +31,18 @@ setMethod("step0", signature = c(x = "job_plantdb"),
 setMethod("step1", signature = c(x = "job_plantdb"),
   function(x){
     step_message("Query plants.")
-    res <- sapply(object(x), simplify = F,
+    res <- sapply(object(x), simplify = FALSE,
       function(query) {
         url <- paste0("https://plantaedb.com/search?src=", gs(query, " ", "%20"), "&tab=taxa")
         res <- RCurl::getURL(url)
-        res <- try(get_table.html(res, elFun = tryGetLink.plantaedb), T)
+        res <- try(get_table.html(res, elFun = tryGetLink.plantaedb), TRUE)
         if (!inherits(res, "try-error")) {
           trySepCols.tcmsp(as_tibble(res[[1]]))
         } else {
           data.frame()
         }
       })
-    res <- frbind(res, fill = T, idcol = T)
+    res <- frbind(res, fill = TRUE, idcol = TRUE)
     x$herbs_info <- dplyr::relocate(res, .id, Result, Authority, Rank)
     return(x)
   })
@@ -62,19 +62,19 @@ setMethod("step2", signature = c(x = "job_plantdb"),
         get_plantaedb_data(x)$compounds
       })
     names(t.data) <- x$herbs_info$Result
-    t.data <- frbind(t.data, idcol = T)
+    t.data <- frbind(t.data, idcol = TRUE)
     x@tables[[ 2 ]] <- namel(t.data)
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_plantdb"),
-  function(x, hob_filter = F, ...)
+  function(x, hob_filter = FALSE, ...)
   {
     step_message("Use PubChemR to obtain compounds information.")
     data <- x@tables$step2$t.data
-    query <- nl(data$Name, data$`PubChem ID`, F)
+    query <- nl(data$Name, data$`PubChem ID`, FALSE)
     if (!identical(duplicated(query), duplicated(names(query)))) {
-      warning("identical(duplicated(query), duplicated(names(query))) == F")
+      warning("identical(duplicated(query), duplicated(names(query))) == FALSE")
     }
     query <- query[ !duplicated(query) ]
     pr <- job_pubchemr(query)
@@ -107,7 +107,7 @@ setMethod("step4", signature = c(x = "job_plantdb"),
   })
 
 setMethod("step5", signature = c(x = "job_plantdb"),
-  function(x, vis = F){
+  function(x, vis = FALSE){
     step_message("Network pharmacology preparation.")
     metadata <- dplyr::distinct(x@tables[[2]]$t.data, herb = .id, cid = `PubChem ID`)
     x$hb <- do_herb(x$pr, x$sp, run_step3 = vis, metadata = metadata)
@@ -170,7 +170,7 @@ get_plantaedb_data <- function(url) {
     names <- x[[ "0" ]]$Name
     x <- x[-1]
     names(x) <- names
-    x <- dplyr::rename(frbind(x, idcol = T), classes = .id)
+    x <- dplyr::rename(frbind(x, idcol = TRUE), classes = .id)
     x <- dplyr::mutate(x, `Canonical SMILES` = gs(`Canonical SMILES`, "^Click to see\n\\s*", ""))
     x
   }
@@ -213,7 +213,7 @@ get_drugbank_data <- function(url = "https://go.drugbank.com/releases/5-1-11/dow
 {
   if (!file.exists(file_unzip)) {
     if (!file.exists(save)) {
-      dir.create(dirname(save), F)
+      dir.create(dirname(save), FALSE)
       cdRun("wget ", " --http-user=", user[1], " --http-passwd=", user[2], " ", url, " -O ", save)
     }
     utils::unzip(save, exdir = dirname(save))

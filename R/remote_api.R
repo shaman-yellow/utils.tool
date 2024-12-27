@@ -82,11 +82,11 @@ scriptPrefix <- function(x) {
 }
 
 rem_list.files <- function(path, pattern,
-  all.files = F, full.names = F, recursive = F, x)
+  all.files = FALSE, full.names = FALSE, recursive = FALSE, x)
 {
   if (!check_remote()) {
     if (length(path) > 1) {
-      sapply(path, list.files, pattern = pattern, simplify = F)
+      sapply(path, list.files, pattern = pattern, simplify = FALSE)
     } else {
       list.files(path, pattern, all.files = all.files,
         full.names = full.names, recursive = recursive)
@@ -117,7 +117,7 @@ rem_get <- function(file) {
     file
   } else {
     x <- get("x", envir = parent.frame(1))
-    dir.create(x$map_local, F)
+    dir.create(x$map_local, FALSE)
     local <- paste0(x$map_local, "/", file)
     get_file_from_remote(file, x$wd, local)
     local
@@ -143,7 +143,7 @@ rem_ftibble <- function(file, ...) {
   }
 }
 
-rem_file.copy <- function(from, to, recursive = F, ...) {
+rem_file.copy <- function(from, to, recursive = FALSE, ...) {
   if (!check_remote()) {
     file.copy(from, to, recursive = recursive, ...)
   } else {
@@ -196,8 +196,8 @@ rem_file.exists <- function(file, wd) {
     res <- system(paste0("ssh ", x$remote, " '",
         "cd ", wd, "; ",
         paste0(expr_sys.file.exists(file), collapse = "; "), "'"),
-      intern = T)
-    ifelse(res == "T", T, F)
+      intern = TRUE)
+    ifelse(res == "TRUE", TRUE, FALSE)
   }
 }
 
@@ -209,7 +209,7 @@ rem_normalizePath <- function(...) {
     system(paste0("ssh ", x$remote, " '",
         "cd ", x$wd, "; ",
         "readlink -f ", paste0(unlist(list(...)), collapse = " "),
-        "'"), intern = T)
+        "'"), intern = TRUE)
   }
 }
 
@@ -238,12 +238,12 @@ rem_dir.create <- function(path, ..., wd) {
 }
 
 check_remote <- function(n = 2) {
-  remote <- F
+  remote <- FALSE
   if (exists("x", envir = parent.frame(n))) {
     x <- get("x", envir = parent.frame(n))
     if (is(x, "job")) {
       if (is.remote(x)) {
-        remote <- T
+        remote <- TRUE
       }
     }
   }
@@ -258,7 +258,7 @@ set_if_null <- function(object, value) {
 }
 
 list.remote <- function(path, pattern, remote = "remote",
-  all.files = F, full.names = F, recursive = F, x)
+  all.files = FALSE, full.names = FALSE, recursive = FALSE, x)
 {
   if (missing(x))
     x <- get("x", envir = parent.frame(1))
@@ -280,19 +280,19 @@ list.remote <- function(path, pattern, remote = "remote",
     }
     files <- system(paste0("ssh ", remote, " '", before,
         " find ", path, " ", options, "'"),
-      intern = T)
+      intern = TRUE)
     files[ grepl(pattern, basename(files)) ]
   } else if (length(path) > 1) {
     if (!full.names) {
       files <- system(paste0("ssh ", remote, " ",
           "'", before, " for i in ", paste0(path, collapse = " "),
           "; do cd $i; find . ", options, "; echo -----; done'"),
-        intern = T)
+        intern = TRUE)
     } else {
       files <- system(paste0("ssh ", remote, " ",
           "'", before, " for i in ", paste0(path, collapse = " "),
           "; do find $i ", options, "; echo -----; done'"),
-        intern = T)
+        intern = TRUE)
     }
     files <- sep_list(files, "^-----$")
     files <- lapply(files,

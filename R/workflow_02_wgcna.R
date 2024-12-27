@@ -60,7 +60,7 @@ setMethod("step0", signature = c(x = "job_wgcna"),
   })
 
 setMethod("step1", signature = c(x = "job_wgcna"),
-  function(x, mutate_name = T){
+  function(x, mutate_name = TRUE){
     step_message("Cluster sample tree.",
     "This do:",
     "generate `x@params$raw_sample_tree`; `x@plots[[ 1 ]]`"
@@ -146,7 +146,7 @@ setMethod("step5", signature = c(x = "job_wgcna"),
       x@params$allTraits <- .wgcTrait(traits)
     }
     if (is.null(params(x)$allTraits))
-      stop("is.null(params(x)$allTraits) == T")
+      stop("is.null(params(x)$allTraits) == TRUE")
     if (ncol(params(x)$allTraits) == 0)
       stop("ncol(params(x)$allTraits) == 0, no data in `allTraits`.")
     hps_corp <- new_heatdata(params(x)$MEs, params(x)$allTraits)
@@ -193,7 +193,7 @@ cut_tree <- function(tree, height, size) {
 cal_sft <- function(data, powers = c(c(1:10), seq(12, 20, by = 2))) 
 {
   if (!is(data, "wgcData")) {
-    stop("is(data, \"wgcData\") == F")
+    stop("is(data, \"wgcData\") == FALSE")
   }
   sft <- e(WGCNA::pickSoftThreshold(data, powerVector = powers, verbose = 5))
   sft
@@ -219,14 +219,14 @@ cal_module <- function(data, power, cut_hight = .25, min_size = 30, save_tom = "
   maxBlockSize = 25000, ...)
 {
   if (!is(data, "wgcData")) {
-    stop("is(data, \"wgcData\") == F")
+    stop("is(data, \"wgcData\") == FALSE")
   }
   require(WGCNA)
   net <- e(WGCNA::blockwiseModules(
       data, power = power,
       TOMType = "unsigned", minModuleSize = min_size,
       reassignThreshold = 0, mergeCutHeight = cut_hight,
-      numericLabels = TRUE, pamRespectsDendro = FALSE, loadTOM = T,
+      numericLabels = TRUE, pamRespectsDendro = FALSE, loadTOM = TRUE,
       saveTOMs = TRUE, saveTOMFileBase = save_tom,
       maxBlockSize = maxBlockSize, verbose = 3, ...
       ))

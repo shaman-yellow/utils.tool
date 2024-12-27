@@ -29,8 +29,8 @@ job_genecardn <- function(...) {
 setValidity("job_genecardn", 
   function(object){
     if (all(vapply(object, function(x) is(x, "job_genecard"), logical(1))))
-      T
-    else F
+      TRUE
+    else FALSE
   })
 
 job_genecard <- function(disease)
@@ -44,7 +44,7 @@ setMethod("step0", signature = c(x = "job_genecard"),
   })
 
 setMethod("step1", signature = c(x = "job_genecard"),
-  function(x, score = NULL, restrict = T)
+  function(x, score = NULL, restrict = TRUE)
   {
     step_message("Get from GeneCards website.")
     t.genecards <- get_from_genecards(object(x), score = score, restrict = restrict)
@@ -57,8 +57,8 @@ setMethod("step1", signature = c(x = "job_genecard"),
     return(x)
   })
 
-get_from_genecards <- function(query, score = 5, keep_drive = F, restrict = F,
-  advance = F, term = c("compounds"))
+get_from_genecards <- function(query, score = 5, keep_drive = FALSE, restrict = FALSE,
+  advance = FALSE, term = c("compounds"))
 {
   link <- start_drive(browser = "firefox")
   Sys.sleep(3)
@@ -121,7 +121,7 @@ setMethod("map", signature = c(x = "job_genecard", ref = "job_genecard"),
 
 setMethod("cal_corp", signature = c(x = "job_limma", y = "job_genecardn"),
   function(x, y, from, names = NULL, use = if (x$isTcga) "gene_name" else "hgnc_symbol",
-    HLs = NULL, ..., top = NULL, tidyheatmap = T, linear = F)
+    HLs = NULL, ..., top = NULL, tidyheatmap = TRUE, linear = FALSE)
   {
     genes.to <- lapply(y,
       function(x) {
@@ -132,9 +132,9 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_genecardn"),
         }
         nl(x@object, list(genes))
       })
-    genes.to <- unlist(genes.to, recursive = F)
+    genes.to <- unlist(genes.to, recursive = FALSE)
     dat.to <- as_df.lst(genes.to)
-    datUni.to <- dplyr::distinct(dat.to, name, .keep_all = T)
+    datUni.to <- dplyr::distinct(dat.to, name, .keep_all = TRUE)
     if (length(y) == 1 && is.null(names)) {
       names <- c("From", make.names(y[[1]]@object))
     }
@@ -178,7 +178,7 @@ setMethod("feature", signature = c(x = "job_genecard"),
     as_feature(list(x@tables$step1$t.genecards$Symbol), x)
   })
 
-plot_col.genecard <- function(data, top = 10, facet = T)
+plot_col.genecard <- function(data, top = 10, facet = TRUE)
 {
   data <- head(data, top)
   p <- ggplot(data, aes(x = reorder(Symbol, Score), y = Score, fill = Score)) +

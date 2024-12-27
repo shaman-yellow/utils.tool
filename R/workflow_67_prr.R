@@ -60,7 +60,7 @@ setMethod("asjob_prr", signature = c(x = "job_tcga"),
     x <- suppressMessages(step3(x, query = "RNA"))
     message("for normalization")
     x <- suppressMessages(asjob_limma(x))
-    x <- suppressMessages(step1(x, norm_vis = F))
+    x <- suppressMessages(step1(x, norm_vis = FALSE))
     ## forma
     rownames <- gname(object(x)$genes$gene_name)
     useWhich <- !is.na(rownames) & !duplicated(rownames)
@@ -100,11 +100,11 @@ setMethod("step0", signature = c(x = "job_prr"),
 #
 # The positive predictive value (PPV) of the test can be defined as the
 # probability that the survival of a marker-positive patient will be longer if
-# the patient receives treatment T than if the patient receives control treatment
+# the patient receives treatment TRUE than if the patient receives control treatment
 # C
 #
 # The negative predictive value (NPV) is the probability that a
-# biomarker-negative patient will not have longer survival on T rather than C. 
+# biomarker-negative patient will not have longer survival on TRUE rather than C. 
 # 
 
 setMethod("step1", signature = c(x = "job_prr"),
@@ -195,7 +195,7 @@ setMethod("map", signature = c(x = "job_limma", ref = "job_prr"),
       stop("x@step != 1L")
     }
     metadata <- ref@tables$step2$t.predict
-    metadata <- .assign_resistance(metadata, use, filter.na = F)
+    metadata <- .assign_resistance(metadata, use, filter.na = FALSE)
     metadata <- dplyr::mutate(metadata, group = ifelse(is.na(group), "Others", group))
     object(x)$targets <- map(object(x)$targets, "sample", metadata, "sample", "group",
       col = "predicted_resistance")
@@ -209,7 +209,7 @@ setMethod("map", signature = c(x = "job_limma", ref = "job_prr"),
   })
 
 setMethod("map", signature = c(x = "job_limma", ref = "job_limma"),
-  function(x, ref, from_tcga = T)
+  function(x, ref, from_tcga = TRUE)
   {
     message("This method mapped the metadata of `ref` into `x`")
     if (x@step > 0) {
@@ -384,7 +384,7 @@ prr_drug <- function() {
     "Z.LLNle.CHO", "ZM.447439")
 }
 
-.assign_resistance <- function(metadata, use, filter.na = T)
+.assign_resistance <- function(metadata, use, filter.na = TRUE)
 {
   data <- dplyr::group_by(metadata, kmeans_group)
   data <- dplyr::summarise(data, mean = mean(sensitivity))

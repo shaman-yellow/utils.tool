@@ -55,13 +55,13 @@ setMethod("step1", signature = c(x = "job_superpred"),
         ele <- link$findElement("xpath", "//table//td/button[@type='submit']")
         # ele$sendKeysToElement(list("Start Calculation", key = "enter"))
         ele$clickElement()
-        ele <- F
+        ele <- FALSE
         n <- 0L
         while ((is.logical(ele) | inherits(ele, "try-error")) & n < 20L) {
           Sys.sleep(1)
           n <- n + 1L
           ele <- try(link$findElement("xpath",
-              "//div[@id='targets_wrapper']//div/button[@class='dt-button buttons-csv buttons-html5']"), T)
+              "//div[@id='targets_wrapper']//div/button[@class='dt-button buttons-csv buttons-html5']"), TRUE)
         }
         if (!inherits(ele, "try-error")) {
           ele$clickElement()
@@ -73,7 +73,7 @@ setMethod("step1", signature = c(x = "job_superpred"),
       ##########################
       ##########################
       ## running body
-      groups <- grouping_vec2list(db@query, 5, T)
+      groups <- grouping_vec2list(db@query, 5, TRUE)
       pbapply::pblapply(groups,
         function(queries) {
           lapply(queries, fun_get)
@@ -82,9 +82,9 @@ setMethod("step1", signature = c(x = "job_superpred"),
             suffix = ".csv")
           data <- ftibble(files)
           names(data) <- queries
-          data <- frbind(data, idcol = T, fill = T)
+          data <- frbind(data, idcol = TRUE, fill = TRUE)
           db <<- upd(db, data)
-          unlink(files, T, T)
+          unlink(files, TRUE, TRUE)
         })
       ##########################
       ##########################
@@ -118,7 +118,7 @@ setGeneric("do_herb",
   function(x, ref, ...) standardGeneric("do_herb"))
 
 setMethod("do_herb", signature = c(x = "job_pubchemr", ref = "job_superpred"),
-  function(x, ref, disease = NULL, disease.score = 5, HLs = NULL, names = NULL, run_step3 = T,
+  function(x, ref, disease = NULL, disease.score = 5, HLs = NULL, names = NULL, run_step3 = TRUE,
     metadata = NULL)
   {
     if (is.null(names)) {
@@ -130,12 +130,12 @@ setMethod("do_herb", signature = c(x = "job_pubchemr", ref = "job_superpred"),
       object(x) <- names
     }
     plots <- list()
-    if (T) {
+    if (TRUE) {
       targets <- dplyr::rename(ref@tables$step1$targets, smiles = .id)
       if (is.null(names(object(x)))) {
         stop("is.null(names(object(x)))")
       }
-      dic <- nl(unlist(x$smiles, use.names = F), names(x$smiles))
+      dic <- nl(unlist(x$smiles, use.names = FALSE), names(x$smiles))
       dic2 <- nl(unname(object(x)), names(object(x)))
       targets <- dplyr::mutate(targets, pubchem_id = dplyr::recode(smiles, !!!dic),
         name = dplyr::recode(pubchem_id, !!!dic2)
@@ -170,7 +170,7 @@ setMethod("do_herb", signature = c(x = "job_pubchemr", ref = "job_superpred"),
       metadata <- dplyr::select(metadata, herb, cid)
       data <- tibble::tibble(cid = unname(object(x)), name = names(object(x)))
       ## the data maybe filtered in step3 (HOB), so not set 'all.x'
-      data <- tbmerge(metadata, data, by = "cid", allow.cartesian = T)
+      data <- tbmerge(metadata, data, by = "cid", allow.cartesian = TRUE)
       data <- dplyr::mutate(data, herb_id = herb, Herb_cn_name = herb)
       data <- dplyr::rename(data, Herb_pinyin_name = herb,
         Ingredient.id = cid, Ingredient.name = name
@@ -198,7 +198,7 @@ setMethod("do_herb", signature = c(x = "job_pubchemr", ref = "job_superpred"),
   })
 
 setMethod("asjob_superpred", signature = c(x = "job_herb"),
-  function(x, hob_filter = F, ..., tmp = "PubChemR.rds"){
+  function(x, hob_filter = FALSE, ..., tmp = "PubChemR.rds"){
     db <- object(x)$component
     cpds <- x@tables$step1$herbs_compounds
     cpds <- map(cpds, "Ingredient.id", db, "Ingredient_id", "Ingredient_Smile", col = "smile")
@@ -215,8 +215,8 @@ setMethod("asjob_superpred", signature = c(x = "job_herb"),
     } else {
       info <- try_get_cids.smile(query)
     }
-    info <- dplyr::distinct(info, Identifier, .keep_all = T)
-    if (T) {
+    info <- dplyr::distinct(info, Identifier, .keep_all = TRUE)
+    if (TRUE) {
       if (!all(query %in% info$Identifier)) {
         print(table(query %in% info$Identifier))
         isThat <- usethis::ui_yeah("Not all smiles got CIDs, continue?")
@@ -226,7 +226,7 @@ setMethod("asjob_superpred", signature = c(x = "job_herb"),
       }
     }
     cpds <- map(cpds, "smile", info, "Identifier", "CID", col = "cid")
-    query <- nl(info$CID, info$Identifier, F)
+    query <- nl(info$CID, info$Identifier, FALSE)
     if (hob_filter) {
       ho <- job_hob(query)
       ho <- suppressMessages(step1(ho, ...))
@@ -250,7 +250,7 @@ setMethod("map", signature = c(x = "job_herb", ref = "job_superpred"),
     data <- map(data, "smile", cpds, "smile", "Ingredient.id")
     data <- dplyr::rename(data, Ingredient_id = Ingredient.id)
     x@tables$step2$compounds_targets %<>% dplyr::bind_rows(data)
-    x@tables$step2$compounds_targets %<>% dplyr::distinct(Ingredient_id, Target.name, .keep_all = T)
+    x@tables$step2$compounds_targets %<>% dplyr::distinct(Ingredient_id, Target.name, .keep_all = TRUE)
     message("Set `step` to 2L.")
     x@step <- 2L
     return(x)

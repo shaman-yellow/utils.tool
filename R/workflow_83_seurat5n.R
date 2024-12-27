@@ -90,7 +90,7 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
     object(x) <- e(Seurat::RunUMAP(object(x), dims = dims,
         reduction = "pca", reduction.name = "umap_unintegrated"))
     p.umapUint <-  e(Seurat::DimPlot(object(x), reduction = "umap_unintegrated",
-        group.by = c("orig.ident", "seurat_clusters"), cols = color_set(T)))
+        group.by = c("orig.ident", "seurat_clusters"), cols = color_set(TRUE)))
     p.umapUint <- .set_lab(wrap(p.umapUint, 10, 5), sig(x), "UMAP Unintegrated")
     ## integrated
     methods <- list(CCAIntegration = Seurat::CCAIntegration,
@@ -105,7 +105,7 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
     ## method of job_seurat
     x <- callNextMethod(x, dims, resolution, reduction = use)
     p.umapInt <-  e(Seurat::DimPlot(object(x),
-        group.by = c("orig.ident", "seurat_clusters"), cols = color_set(T)))
+        group.by = c("orig.ident", "seurat_clusters"), cols = color_set(TRUE)))
     p.umapInt <- .set_lab(wrap(p.umapInt, 10, 5), sig(x), "UMAP Integrated")
     plots <- namel(p.umapUint, p.umapInt)
     x@plots[[ 3 ]] <- c(x@plots[[ 3 ]], plots)

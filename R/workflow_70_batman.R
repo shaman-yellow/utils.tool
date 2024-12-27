@@ -42,7 +42,7 @@ setMethod("step0", signature = c(x = "job_batman"),
   })
 
 setMethod("step1", signature = c(x = "job_batman"),
-  function(x, anno = F, filter.hob = T, filter.dl = FALSE, test = F)
+  function(x, anno = FALSE, filter.hob = TRUE, filter.dl = FALSE, test = FALSE)
   {
     step_message("Filter and format the compounds and targets.")
     x$herbs_info <- dplyr::mutate(x$herbs_info,
@@ -60,7 +60,7 @@ setMethod("step1", signature = c(x = "job_batman"),
     if (anno) {
       x <- anno(x, "LiteratureCount")
       x$compounds_info <- dplyr::arrange(x$compounds_info, dplyr::desc(LiteratureCount))
-      x <- methodAdd(x, "以 `PubChemR` 获取 `PubChemR` 数据库中，化合物的文献记录数量。", T)
+      x <- methodAdd(x, "以 `PubChemR` 获取 `PubChemR` 数据库中，化合物的文献记录数量。", TRUE)
     }
     cids <- rm.no(unlist(x$herbs_info$CID))
     compounds_targets <- dplyr::filter(
@@ -105,12 +105,12 @@ setMethod("step1", signature = c(x = "job_batman"),
   })
 
 setMethod("step2", signature = c(x = "job_batman"),
-  function(x, use.predicted = T, cutoff = .9)
+  function(x, use.predicted = TRUE, cutoff = .9)
   {
     step_message("Format target genes symbol")
     compounds_targets <- x@tables$step1$compounds_targets
     compounds_targets <- reframe_split(compounds_targets, "known_target_proteins", "\\|")
-    x <- methodAdd(x, "使用 `BATMAN-TCM` 数据库中的 `known_target_proteins` 作为成分靶点。", T)
+    x <- methodAdd(x, "使用 `BATMAN-TCM` 数据库中的 `known_target_proteins` 作为成分靶点。", TRUE)
     if (use.predicted) {
       predicted <- x@tables$step1$predicted
       predicted <- reframe_split(predicted, "predicted_target_proteins", "\\|")
@@ -133,10 +133,10 @@ setMethod("step2", signature = c(x = "job_batman"),
       )
       compounds_targets <- frbind(lst, idcol = "target_type")
       compounds_targets <- dplyr::distinct(compounds_targets,
-        PubChem_CID, IUPAC_name, symbol, .keep_all = T)
+        PubChem_CID, IUPAC_name, symbol, .keep_all = TRUE)
       compounds_targets <- dplyr::relocate(compounds_targets, IUPAC_name, symbol)
-      x <- methodAdd(x, "此外，还使用了 `BATMAN-TCM` 数据库中的 `predicted_target_proteins` 作为成分靶点，并设定 分数 cut-off 为 {cutoff}。合并靶点数据。", T)
-      x <- methodAdd(x, "以 `BiomaRt` ({cite_show('MappingIdentifDurinc2009')}) 对靶点信息的 entrez_id 转化为基因 Symbol (hgnc_symbol) 。", T)
+      x <- methodAdd(x, "此外，还使用了 `BATMAN-TCM` 数据库中的 `predicted_target_proteins` 作为成分靶点，并设定 分数 cut-off 为 {cutoff}。合并靶点数据。", TRUE)
+      x <- methodAdd(x, "以 `BiomaRt` ({cite_show('MappingIdentifDurinc2009')}) 对靶点信息的 entrez_id 转化为基因 Symbol (hgnc_symbol) 。", TRUE)
     }
     compounds_targets <- .set_lab(compounds_targets, sig(x), "Compounds and targets")
     x@tables[[ 2 ]] <- namel(compounds_targets)
@@ -145,7 +145,7 @@ setMethod("step2", signature = c(x = "job_batman"),
   })
 
 setMethod("step3", signature = c(x = "job_batman"),
-  function(x, HLs = NULL, disease = NULL, shortName = T, test = F)
+  function(x, HLs = NULL, disease = NULL, shortName = TRUE, test = FALSE)
   {
     step_message("Network pharmacology.")
     ########################
@@ -167,7 +167,7 @@ setMethod("step3", signature = c(x = "job_batman"),
       if (test) {
         stop_debug(namel(herbs_compounds))
       }
-      x <- methodAdd(x, "以 `PubChemR` 获取化合物同义名 (Synonym)，按正则表达式 (Regex) 匹配化合物简短的同义名用以化合物注释。", T)
+      x <- methodAdd(x, "以 `PubChemR` 获取化合物同义名 (Synonym)，按正则表达式 (Regex) 匹配化合物简短的同义名用以化合物注释。", TRUE)
     }
     hb@tables$step1$herbs_compounds <- dplyr::select(
       herbs_compounds, herb_id = Pinyin.Name, Ingredient.id = CID,
@@ -203,7 +203,7 @@ reframe_col <- function(data, col, fun) {
   dplyr::ungroup(data)
 }
 
-get_batman_data <- function(savedir = .prefix("batman", "db"), reload = F) {
+get_batman_data <- function(savedir = .prefix("batman", "db"), reload = FALSE) {
   if (!dir.exists(savedir)) {
     dir.create(savedir)
   }
@@ -250,7 +250,7 @@ setMethod("anno", signature = c(x = "job_batman"),
     use <- match.arg(use)
     if (use == "LiteratureCount") {
       .add_properties.PubChemR()
-      querys <- grouping_vec2list(x@params$compounds_info$cids, 100, T)
+      querys <- grouping_vec2list(x@params$compounds_info$cids, 100, TRUE)
       anno <- pbapply::pblapply(querys,
         function(query) {
           props <- PubChemR::get_properties(
@@ -260,7 +260,7 @@ setMethod("anno", signature = c(x = "job_batman"),
           )
           PubChemR::retrieve(props, .combine.all = TRUE)
         })
-      anno <- unlist(anno, recursive = F)
+      anno <- unlist(anno, recursive = FALSE)
       anno <- dplyr::bind_rows(anno)
       anno <- dplyr::mutate_all(anno, as.integer)
       x@params$compounds_info <- map(
@@ -287,7 +287,7 @@ setMethod("anno", signature = c(x = "job_batman"),
 try_get_syn <- function(cids, db_dir = .prefix("synonyms", "db")) {
   cids <- unique(cids)
   if (!is.null(db_dir)) {
-    dir.create(db_dir, F)
+    dir.create(db_dir, FALSE)
     db <- new_db(file.path(db_dir, "synonyms.rdata"), "CID")
     db <- not(db, cids)
     query <- db@query

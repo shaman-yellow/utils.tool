@@ -2,7 +2,7 @@
 # for summary text files
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-sumText <- function(num, simplify = T, files = paste0("ch", num, ".md")) {
+sumText <- function(num, simplify = TRUE, files = paste0("ch", num, ".md")) {
   sapply(files, simplify = simplify,
     function(file) {
       md <- paste0(readLines(file), collapse = "\n")
@@ -13,10 +13,10 @@ sumText <- function(num, simplify = T, files = paste0("ch", num, ".md")) {
 }
 
 format_chname <- function(dir, pattern = "ch[0-9]{1,}\\.md", num = 3){
-  files <- list.files(dir, pattern, full.names = T)
+  files <- list.files(dir, pattern, full.names = TRUE)
   names <- basename(files)
   count <- nchar(stringr::str_extract(names, "[0-9]{1,}"))
-  mapply(files, count, USE.NAMES = F,
+  mapply(files, count, USE.NAMES = FALSE,
     FUN = function(file, c){
       if (c <= num) {
         fix <- paste0(rep("0", num - c), collapse = "")

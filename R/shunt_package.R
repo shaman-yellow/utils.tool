@@ -11,7 +11,7 @@ new_package.fromFiles <- function(pkg.path, files, path = NULL,
   new_package(pkg.path, imports, depends, ...)
   if (!is.null(path))
     files <- paste0(path, "/", files)
-  file.copy(files, paste0(pkg.path, "/R"), T)
+  file.copy(files, paste0(pkg.path, "/R"), TRUE)
 }
 
 new_package <- function(path, imports = NULL, depends = NULL, extdata = NULL,
@@ -22,7 +22,7 @@ new_package <- function(path, imports = NULL, depends = NULL, extdata = NULL,
   if (!file.exists(path)) {
     usethis::create_package(path, fields)
     usethis::use_mit_license()
-    dir.create("inst/extdata", recursive = T)
+    dir.create("inst/extdata", recursive = TRUE)
     if (!is.null(extdata)) {
       file.copy(extdata, "inst/extdata")
     }
@@ -57,7 +57,7 @@ parent_packs <- function(files, path = NULL){
 grep_operater <- function(txt){
   packs <- stringr::str_extract(txt, "[a-zA-Z][a-zA-Z0-9._]{0,}(?=::)")
   packs <- packs[!vapply(packs, is.na, logical(1))]
-  packs <- packs[vapply(packs, requireNamespace, logical(1), quietly = T)]
+  packs <- packs[vapply(packs, requireNamespace, logical(1), quietly = TRUE)]
 }
 
 match_function <- function(txt){
@@ -65,7 +65,7 @@ match_function <- function(txt){
   funs <- funs[!vapply(funs, is.na, logical(1))]
   funs <- unique(funs)
   parent <- lapply(funs, findFunction)
-  parent <- parent[vapply(parent, function(p) if (length(p) > 0) T else F, logical(1))]
+  parent <- parent[vapply(parent, function(p) if (length(p) > 0) TRUE else FALSE, logical(1))]
   parent <- lapply(parent, function(envs) {
     name <- lapply(envs,
       function(env) {

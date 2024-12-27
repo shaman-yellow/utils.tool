@@ -2,7 +2,7 @@
 # tools for fastly write formatting thesis
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
+inclu.fig <- function(image, land = FALSE, saveDir = "thesis_fig", dpi = 300,
   scale = if (land) {
     list(width = 10, height = 6.2)
   } else {
@@ -18,14 +18,14 @@ inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
     savename <- file.path(saveDir, sub("\\.pdf$", ".png", file))
     if (!file.exists(savename)) {
       pdf_convert(image, filenames = savename, dpi = dpi, pages = 1)
-      need_trim <- T
-    } else need_trim <- F
+      need_trim <- TRUE
+    } else need_trim <- FALSE
   } else {
     savename <- paste0(saveDir, "/", file)
     if (!file.exists(savename)) {
       file.copy(image, savename)
-      need_trim <- T
-    } else need_trim <- F
+      need_trim <- TRUE
+    } else need_trim <- FALSE
   }
   ## trim the border
   if (!need_trim) {
@@ -72,7 +72,7 @@ inclu.fig <- function(image, land = F, saveDir = "thesis_fig", dpi = 300,
         pre_label = knitr::opts_chunk$get("fig.cap.pre"),
         post_label = knitr::opts_chunk$get("fig.cap.sep"),
         bkm = label,
-        prop = officer::fp_text_lite(bold = T)
+        prop = officer::fp_text_lite(bold = TRUE)
       )
       caption <- officer::block_caption(as_caption(label), "Image Caption", autonum = run_num)
       content <- officer:::to_wml_block_caption_pandoc(caption)
@@ -96,14 +96,14 @@ prepare.fig <- function(image, saveDir = "thesis_fig", dpi = 300)
     savename <- paste0(saveDir, "/", sub("\\.pdf$", ".png", file))
     if (!file.exists(savename)) {
       pdf_convert(image, filenames = savename, dpi = dpi, pages = 1)
-      need_trim <- T
-    } else need_trim <- F
+      need_trim <- TRUE
+    } else need_trim <- FALSE
   } else {
     savename <- paste0(saveDir, "/", file)
     if (!file.exists(savename)) {
       file.copy(image, savename)
-      need_trim <- T
-    } else need_trim <- F
+      need_trim <- TRUE
+    } else need_trim <- FALSE
   }
   ## trim the border
   if (need_trim) {
@@ -136,24 +136,24 @@ pic_trim <- function(file){
 }
 
 pretty_flex2 <- function(data,
-  caption = "This is table", footer = NULL,  bold_header = F,
+  caption = "This is table", footer = NULL,  bold_header = FALSE,
   weight = sc(colnames(data), rep(1, length(data))), width = 6,
   family = "Times New Roman", e.family = "SimSun", font.size = 10.5,
-  caption_style = "Table Caption", form_body = F, form_header = T)
+  caption_style = "Table Caption", form_body = FALSE, form_header = TRUE)
 {
   args <- as.list(environment())
   do.call(pretty_flex, args)
 }
 
 pretty_flex <- function(data,
-  caption = "This is table", footer = "This is footer",  bold_header = F,
+  caption = "This is table", footer = "This is footer",  bold_header = FALSE,
   weight = sc(colnames(data), rep(1, length(data))), width = 6,
   family = "Times New Roman", e.family = "SimSun", font.size = 10.5,
-  caption_style = "Table Caption", form_body = T, form_header = T)
+  caption_style = "Table Caption", form_body = TRUE, form_header = TRUE)
 {
   if (form_body) {
     data <- dplyr::mutate_if(
-      data, function(x) ifelse(is.character(x) | is.factor(x), T, F), form
+      data, function(x) ifelse(is.character(x) | is.factor(x), TRUE, FALSE), form
     )
   }
   if (form_header) {
@@ -165,7 +165,7 @@ pretty_flex <- function(data,
   weight <- vapply(colnames(data),
     function(name) {
       if (is.null(weight[[ name ]])) 1 else weight[[ name ]]
-    }, double(1), USE.NAMES = F)
+    }, double(1), USE.NAMES = FALSE)
   w.width <- weight * (width / sum(weight))
   data <- flextable::flextable(data)
   data <- flextable::valign(data, valign = "top", part = "body")
@@ -206,7 +206,7 @@ match_class <- function(txt){
     function(x) {
       if (!isVirtualClass(x))
         slotNames(new(x))
-    }, simplify = F)
+    }, simplify = FALSE)
 }
 
 as_code_list <- function(names, value = rep("", length(names)), prefix = "c"){
@@ -264,7 +264,7 @@ as_kable.flex <- function(obj, page.width = 14, landscape.width = 19) {
   if (length(footnotes <- obj$footer$dataset[[ 1 ]]) > 0 ) {
     footnotes <- strsplit(footnotes, split = "\n")[[1]]
     kable <- kableExtra::footnote(
-      kable, number = footnotes, fixed_small_size = T
+      kable, number = footnotes, fixed_small_size = TRUE
     )
   }
   kable
@@ -345,7 +345,7 @@ thesis_as_latex.word <- function(md, flex_as_kable = "(^flex_.*)") {
   }
 }
 
-insert_pdf.tex <- function(lines, pos, pdf, set_pagenumber = T) {
+insert_pdf.tex <- function(lines, pos, pdf, set_pagenumber = TRUE) {
   if (set_pagenumber) {
     command <- "\\includepdfset{pagecommand={\\thispagestyle{fancy}}}"
     lines[pos] <- paste0(lines[pos], "\n", command)
@@ -366,7 +366,7 @@ insert_tocCont.tex <- function(lines, pos, name, style = "section") {
 # insert text
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-if (requireNamespace("officer", quietly = T)) {
+if (requireNamespace("officer", quietly = TRUE)) {
   ftext <- officer::ftext
   fp_text <- officer::fp_text
   fpar <- officer::fpar
@@ -424,7 +424,7 @@ custom_render <- function(file, theme = 'thesis', fix = fix_spell,
           content
         })
       for (i in seq_along(refs)) {
-        md <- gsub(paste0("{@@ref:", refs[i], "}"), refs.content[i], md, fixed = T)
+        md <- gsub(paste0("{@@ref:", refs[i], "}"), refs.content[i], md, fixed = TRUE)
       }
     }
   }
@@ -462,8 +462,8 @@ fix_spell <- function(md) {
 
 fix_quote <- function(lines, left = "‘", right = "’", extra = "：、，。+（）") {
   pattern <- paste0("[\u4e00-\u9fa5", extra, "]")
-  lines <- gsub(paste0("(?<=", pattern, ")\\s*\'\\s*(?=[a-zA-Z])"), left, lines, perl = T)
-  lines <- gsub(paste0("(?<=[a-zA-Z0-9])\\s*\'\\s*(?=", pattern, ")"), right, lines, perl = T)
+  lines <- gsub(paste0("(?<=", pattern, ")\\s*\'\\s*(?=[a-zA-Z])"), left, lines, perl = TRUE)
+  lines <- gsub(paste0("(?<=[a-zA-Z0-9])\\s*\'\\s*(?=", pattern, ")"), right, lines, perl = TRUE)
   lines
 }
 
@@ -492,8 +492,8 @@ search_toc <- function(pos, toc, toc.pos)
     function(level) {
       if (level < top.level) {
         top.level <<- level
-        return(T)
-      } else F
+        return(TRUE)
+      } else FALSE
     }))
   previous[ is.rel ]
 }
@@ -779,7 +779,7 @@ repl_xml.fontShd <- function(xml,
   target = "rPr", ttag = "shd")
 {
   args <- as.list(environment())
-  args$match.arg <- F
+  args$match.arg <- FALSE
   do.call(repl_xml.font, args)
 }
 
@@ -792,7 +792,7 @@ insert_xml.tabs <-
       namespace = namespace))
   {
     args <- as.list(environment())
-    args$match.arg <- F
+    args$match.arg <- FALSE
     do.call(repl_xml.font, args)
   }
 
@@ -805,7 +805,7 @@ insert_xml.praNum <-
       namespace = namespace))
   {
     args <- as.list(environment())
-    args$match.arg <- F
+    args$match.arg <- FALSE
     do.call(repl_xml.font, args)
   }
 
@@ -813,10 +813,10 @@ repl_xml.fontSpace <- function(xml,
   param = "after", as = "0", name = "caption",
   main = "style", target = "pPr", ttag = "spacing", namespace = "w",
   insert_ttag = XML::xmlNode(ttag, attrs = sc(param, as), namespace = namespace),
-  force_target = F, insert_param = T)
+  force_target = FALSE, insert_param = TRUE)
 {
   args <- as.list(environment())
-  args$match.arg <- F
+  args$match.arg <- FALSE
   do.call(repl_xml.font, args)
 }
 
@@ -824,10 +824,10 @@ repl_xml.fontOutl <- function(xml,
   param = "val", as = 0, name = c(paste0("heading ", 1:9), paste0("toc ", 1:9)),
   main = "style", target = "pPr", ttag = "outlineLvl", namespace = "w",
   insert_ttag = XML::xmlNode(ttag, attrs = sc(param, as), namespace = namespace),
-  force_target = F)
+  force_target = FALSE)
 {
   args <- as.list(environment())
-  args$match.arg <- F
+  args$match.arg <- FALSE
   do.call(repl_xml.font, args)
 }
 
@@ -835,10 +835,10 @@ repl_xml.fontAlign <- function(xml,
   param = "val", as = "center", name = "caption",
   main = "style", target = "pPr", ttag = "jc", namespace = "w",
   insert_ttag = XML::xmlNode(ttag, attrs = sc(param, as), namespace = namespace),
-  force_target = F)
+  force_target = FALSE)
 {
   args <- as.list(environment())
-  args$match.arg <- F
+  args$match.arg <- FALSE
   do.call(repl_xml.font, args)
 }
 
@@ -846,10 +846,10 @@ repl_xml.fontSz <- function(xml,
   param = "val", as = "18", name = "heading 1",
   main = "style", target = "rPr", ttag = "sz", namespace = "w",
   insert_ttag = XML::xmlNode(ttag, attrs = sc(param, as), namespace = namespace),
-  force_target = F)
+  force_target = FALSE)
 {
   args <- as.list(environment())
-  args$match.arg <- F
+  args$match.arg <- FALSE
   do.call(repl_xml.font, args)
 }
 
@@ -857,63 +857,63 @@ repl_xml.fontSzCs <- function(xml,
   param = "val", as = "24", name = c(paste0("heading ", 1:9), paste0("toc ", 1:9)),
   main = "style", target = "rPr", ttag = "szCs", namespace = "w",
   insert_ttag = XML::xmlNode(ttag, attrs = sc(param, as), namespace = namespace),
-  force_target = F)
+  force_target = FALSE)
 {
   args <- as.list(environment())
-  args$match.arg <- F
+  args$match.arg <- FALSE
   do.call(repl_xml.font, args)
 }
 
 dele_xml.lang <- function(xml,
-  name = "Normal", target = "rPr", ttag = "lang", delete_ttag = T)
+  name = "Normal", target = "rPr", ttag = "lang", delete_ttag = TRUE)
 {
   args <- as.list(environment())
-  args$match.arg <- F
+  args$match.arg <- FALSE
   do.call(repl_xml.font, args)
 }
 
 dele_xml.ital <- function(xml,
-  name = "caption", target = "rPr", ttag = "i", delete_ttag = T)
+  name = "caption", target = "rPr", ttag = "i", delete_ttag = TRUE)
 {
   args <- as.list(environment())
-  args$match.arg <- F
+  args$match.arg <- FALSE
   do.call(repl_xml.font, args)
 }
 
 dele_xml.szCs <- function(xml,
   name = c(paste0("heading ", 1:9), paste0("toc ", 1:9)),
-  target = "rPr", ttag = "szCs", delete_ttag = T)
+  target = "rPr", ttag = "szCs", delete_ttag = TRUE)
 {
   args <- as.list(environment())
-  args$match.arg <- F
+  args$match.arg <- FALSE
   do.call(repl_xml.font, args)
 }
 
 dele_xml.qform <- function(xml,
   name = c(paste0("heading ", 1:9), paste0("toc ", 1:9)),
-  target = "qFormat", delete_target = T)
+  target = "qFormat", delete_target = TRUE)
 {
   args <- as.list(environment())
-  args$match.arg <- F
+  args$match.arg <- FALSE
   do.call(repl_xml.font, args)
 }
 
 dele_xml.unhide <- function(xml,
   name = c(paste0("heading ", 1:9), paste0("toc ", 1:9)),
-  target = "unhideWhenUsed", delete_target = T)
+  target = "unhideWhenUsed", delete_target = TRUE)
 {
   args <- as.list(environment())
-  args$match.arg <- F
+  args$match.arg <- FALSE
   do.call(repl_xml.font, args)
 }
 
 reset_xml.fontCol <- function(xml,
   param = "val", as = "000000",
   ttag = "color", name = "TOC Heading",
-  remove_ttagAttr = T, ...)
+  remove_ttagAttr = TRUE, ...)
 {
   args <- as.list(environment())
-  args$match.arg <- F
+  args$match.arg <- FALSE
   args <- c(args, list(...))
   do.call(repl_xml.font, args)
 }
@@ -923,9 +923,9 @@ repl_xml.font <- function(xml,
   as = c("SimHei", "SimSun", "Times New Roman"),
   name = show_allName(xml),
   main = "style", target = "rPr", ttag = "rFonts", namespace = "w",
-  match.arg = T, delete_target = F,
-  insert_ttag = NULL, force_target = F, delete_ttag = F, insert_param = F,
-  remove_ttagAttr = F)
+  match.arg = TRUE, delete_target = FALSE,
+  insert_ttag = NULL, force_target = FALSE, delete_ttag = FALSE, insert_param = FALSE,
+  remove_ttagAttr = FALSE)
 {
   if (match.arg) {
     param <- match.arg(param)
@@ -1011,7 +1011,7 @@ show_allTok <- function(xml){
   c(all[ grep("Tok$", all) ])
 }
 
-if (requireNamespace("XML", quietly = T)) {
+if (requireNamespace("XML", quietly = TRUE)) {
   .xmlFont <- XML::xmlNode("rFonts",
     attrs = c(ascii = "Times New Roman",
       hAnsi = "Times New Roman",
@@ -1096,8 +1096,8 @@ pdf_convert <- function (pdf, format = "png", pages = NULL, filenames = NULL,
 
 as_df.lst <- function(lst, col.name = 'type', col.value = 'name') {
   data <- data.frame(
-    x = rep(names(lst), lengths(lst), each = T), 
-    y = unlist(lst, use.names = F)
+    x = rep(names(lst), lengths(lst), each = TRUE), 
+    y = unlist(lst, use.names = FALSE)
   )
   colnames(data) <- c(col.name, col.value)
   data
@@ -1113,7 +1113,7 @@ cutWords <- function(ch, len = 15, len.post = 3, max = len + len.post + 1) {
 formatBib <- function(bib = paste0(.expath, "/library.bib"), savename = "tmp.bib", 
   journalAbb_file = paste0(.expath, "/endlib.txt"))
 {
-  endlib <- tibble::as_tibble(data.table::fread(journalAbb_file, header = F))
+  endlib <- tibble::as_tibble(data.table::fread(journalAbb_file, header = FALSE))
   dics <- .as_dic(endlib[[2]], endlib[[1]])
   names(dics) <- tolower(names(dics))
   lst <- read_bib(bib)

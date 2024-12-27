@@ -94,7 +94,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
     res.go <- lapply(res.go,
       function(data) {
         if (all(vapply(data, is.data.frame, logical(1)))) {
-          data <- as_tibble(data.table::rbindlist(data, idcol = T))
+          data <- as_tibble(data.table::rbindlist(data, idcol = TRUE))
           data <- dplyr::mutate(data, geneName_list = fun(geneID_list))
           dplyr::relocate(data, ont = .id)
         }
@@ -112,7 +112,7 @@ setMethod("step2", signature = c(x = "job_enrich"),
   function(x, pathways, which.lst = 1, species = x$organism,
     name = paste0("pathview", gs(Sys.time(), " |:", "_")),
     search = "pathview",
-    external = F, gene.level = NULL, gene.level.name = "hgnc_symbol")
+    external = FALSE, gene.level = NULL, gene.level.name = "hgnc_symbol")
   {
     step_message("Use pathview to visualize reults pathway.")
     require(pathview)
@@ -125,7 +125,7 @@ setMethod("step2", signature = c(x = "job_enrich"),
     if (!is.null(gene.level)) {
       if (is(gene.level, "data.frame")) {
         message("Use first (symbol) and second (logFC) columns of `gene.level`.")
-        gene.level <- nl(gene.level[[1]], gene.level[[2]], F)
+        gene.level <- nl(gene.level[[1]], gene.level[[2]], FALSE)
       } else if (is.numeric(gene.level)) (
         if (is.null(names(gene.level))) {
           stop("is.null(names(gene.level))")
@@ -138,11 +138,11 @@ setMethod("step2", signature = c(x = "job_enrich"),
     } else {
       snap <- "通路图中的基因的映射颜色表示是否显著富集。"
     }
-    dir.create(name, F)
+    dir.create(name, FALSE)
     setwd(name)
     cli::cli_alert_info("pathview::pathview")
     tryCatch({
-      res.pathviews <- sapply(pathways, simplify = F,
+      res.pathviews <- sapply(pathways, simplify = FALSE,
         function(pathway) {
           if (!external) {
             data <- dplyr::filter(data, ID == !!pathway)
@@ -154,23 +154,23 @@ setMethod("step2", signature = c(x = "job_enrich"),
           }
           if (!is.null(gene.level)) {
             genes <- gene.level[ match(genes, names(gene.level)) ]
-            discrete <- F
+            discrete <- FALSE
             bins <- 10
           } else {
-            discrete <- T
+            discrete <- TRUE
             bins <- 1
           }
           res.pathview <- try(
             pathview::pathview(
               gene.data = genes,
               pathway.id = pathway, species = species,
-              keys.align = "y", kegg.native = T, same.layer = F,
+              keys.align = "y", kegg.native = TRUE, same.layer = FALSE,
               key.pos = "topright", bins = list(gene = bins),
               na.col = "grey90", discrete = list(gene = discrete)
             )
           )
           if (inherits(res.pathview, "try-error")) {
-            try(dev.off(), silent = T)
+            try(dev.off(), silent = TRUE)
           }
           return(res.pathview)
         })
@@ -214,7 +214,7 @@ setMethod("res", signature = c(x = "job_enrich", ref = "character"),
 
 setMethod("asjob_enrich", signature = c(x = "job_seurat"),
   function(x, exclude.pattern = NULL, exclude.use = NULL,
-    ignore.case = T, marker.list = x@params$contrasts, geneType = "hgnc_symbol")
+    ignore.case = TRUE, marker.list = x@params$contrasts, geneType = "hgnc_symbol")
   {
     if (is.null(marker.list)) {
       if (x@step < 5) {
@@ -275,13 +275,13 @@ multi_enrichGO <- function(lst.entrez_id, orgDb = 'org.Hs.eg.db', cl = NULL)
   res <- pbapply::pblapply(lst.entrez_id, cl = cl,
     function(ids) {
       onts <- c("BP", "CC", "MF")
-      res <- sapply(onts, simplify = F,
+      res <- sapply(onts, simplify = FALSE,
         function(ont) {
-          res.go <- try(clusterProfiler::enrichGO(ids, orgDb, ont = ont), T)
+          res.go <- try(clusterProfiler::enrichGO(ids, orgDb, ont = ont), TRUE)
           if (inherits(res.go, "try-error")) {
             return("try-error of enrichment")
           }
-          res.res <- try(res.go@result, T)
+          res.res <- try(res.go@result, TRUE)
           if (inherits(res.res, "try-error")) {
             value <- "try-error of enrichment"
             attr(value, "data") <- res.res
@@ -372,7 +372,7 @@ vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
         data <- head(data, n = maxShow)
         data
       })
-    data <- data.table::rbindlist(data, idcol = T)
+    data <- data.table::rbindlist(data, idcol = TRUE)
     if (!nrow(data)) {
       return()
     }
@@ -387,7 +387,7 @@ vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
   }
   res <- lapply(lst,
     function(x) {
-      try(fun(x), silent = T)
+      try(fun(x), silent = TRUE)
     })
   res
 }
@@ -415,7 +415,7 @@ plot_go <- function(data, cutoff = .1, maxShow = 10,
   data <- dplyr::arrange(data, !!rlang::sym(use))
   less <- head(data, n = maxShow)
   if (!is.null(pattern)) {
-    extra <- dplyr::filter(data, grpl(Description, pattern, T))
+    extra <- dplyr::filter(data, grpl(Description, pattern, TRUE))
     if (nrow(extra)) {
       less <- dplyr::bind_rows(less, extra)
       less <- dplyr::distinct(less)

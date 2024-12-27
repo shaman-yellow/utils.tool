@@ -46,7 +46,7 @@ setMethod("asjob_monocle", signature = c(x = "job_seurat"),
       stop("x@step < 3. At least step 3 was needed with `Seurat::FindClusters`.")
     }
     if (is.null(group.by))
-      stop("is.null(group.by) == T")
+      stop("is.null(group.by) == TRUE")
     if (FALSE) {
       # https://github.com/cole-trapnell-lab/monocle3/issues/438
       actAssay <- SeuratObject::DefaultAssay(object(x))
@@ -91,7 +91,7 @@ setMethod("step0", signature = c(x = "job_monocle"),
   })
 
 setMethod("step1", signature = c(x = "job_monocle"),
-  function(x, groups = x@params$group.by, pt.size = 1.5, pre = F, norm_method = "none"){
+  function(x, groups = x@params$group.by, pt.size = 1.5, pre = FALSE, norm_method = "none"){
     step_message("Constructing single-cell trajectories.
       red{{`groups`}} would passed to `monocle3::plot_cells` for
       annotation in plot. Mutilple group could be given.
@@ -109,10 +109,10 @@ setMethod("step1", signature = c(x = "job_monocle"),
     }
     object(x) <- e(monocle3::cluster_cells(object(x)))
     object(x) <- e(monocle3::learn_graph(object(x)))
-    p.traj <- e(sapply(groups, simplify = F,
+    p.traj <- e(sapply(groups, simplify = FALSE,
         function(group) {
           p <- monocle3::plot_cells(object(x), color_cells_by = group,
-            label_cell_groups = T, label_branch_points = T,
+            label_cell_groups = TRUE, label_branch_points = TRUE,
             group_label_size = 4, graph_label_size = 2,
             cell_size = x$pt.size, cell_stroke = 0, alpha = .7
           )
@@ -121,7 +121,7 @@ setMethod("step1", signature = c(x = "job_monocle"),
         }))
     p.prin <- monocle3::plot_cells(
       object(x), color_cells_by = groups[1],
-      label_cell_groups = F, label_principal_points = T,
+      label_cell_groups = FALSE, label_principal_points = TRUE,
       graph_label_size = 3, cell_size = x$pt.size, cell_stroke = 0,
       alpha = .7
     )
@@ -178,7 +178,7 @@ setMethod("step3", signature = c(x = "job_monocle"),
       x@tables[[ 3 ]] <- list()
     if (!is.null(formula_string)) {
       if (!is.character(formula_string)) {
-        stop("is.character(formula_string) == F")
+        stop("is.character(formula_string) == FALSE")
       }
       if (is.null(x@tables[[ 3 ]]$fit_coefs)) {
         if (FALSE) {
@@ -189,7 +189,7 @@ setMethod("step3", signature = c(x = "job_monocle"),
             pkgload::unload("Seurat")
           }
         }
-        fits <- e(monocle3::fit_models(object(x), formula_string, cores = cores, verbose = T))
+        fits <- e(monocle3::fit_models(object(x), formula_string, cores = cores, verbose = TRUE))
         fit_coefs <- e(monocle3::coefficient_table(fits))
         fit_coefs.sig <- dplyr::filter(fit_coefs, term != "(Intercept)", q_value < .05)
         fit_coefs.sig <- dplyr::arrange(fit_coefs.sig, q_value)
@@ -230,7 +230,7 @@ setMethod("step3", signature = c(x = "job_monocle"),
     )
     x@params$cell_group <- cell_group
     if (is.null(x@tables[[ 3 ]]$gene_module)) {
-      gene_module <- try(cal_modules.cds(object(x), gene_sigs, cell_group), T)
+      gene_module <- try(cal_modules.cds(object(x), gene_sigs, cell_group), TRUE)
       gene_module_heatdata <- lapply(gene_module,
         function(lst) {
           if (!is.null(lst$aggregate)) {
@@ -250,7 +250,7 @@ setMethod("step3", signature = c(x = "job_monocle"),
     } else {
       x@tables[[ 3 ]] <- namel(graph_test, graph_test.sig, gene_module)
     }
-    x$cellClass_tree.gene_module <- try(hclust(dist(t(gene_module$graph_test.sig$aggregate))), silent = T)
+    x$cellClass_tree.gene_module <- try(hclust(dist(t(gene_module$graph_test.sig$aggregate))), silent = TRUE)
     return(x)
   })
 
@@ -263,7 +263,7 @@ setMethod("step4", signature = c(x = "job_monocle"),
     )
     cds <- object(x)
     fun_sub <- selectMethod("[", class(cds))
-    gene.groups <- grouping_vec2list(genes, 10, T)
+    gene.groups <- grouping_vec2list(genes, 10, TRUE)
     pblapply <- pbapply::pblapply
     colData <- SummarizedExperiment::colData
     if (is.null(group.by)) {
@@ -278,7 +278,7 @@ setMethod("step4", signature = c(x = "job_monocle"),
             )
           }
           p <- monocle3::plot_genes_in_pseudotime(cds,
-            label_by_short_name = F,
+            label_by_short_name = FALSE,
             color_cells_by = group.by,
             min_expr = cutoff
           )
@@ -305,14 +305,14 @@ setMethod("step4", signature = c(x = "job_monocle"),
 
 
 setMethod("regroup", signature = c(x = "job_seurat", ref = "hclust"),
-  function(x, ref, k, by.name = F, rename = NULL){
+  function(x, ref, k, by.name = FALSE, rename = NULL){
     ref <- cutree(ref, k)
     x$cutree <- ref
     regroup(x, ref, k, by.name, rename)
   })
 
 setMethod("regroup", signature = c(x = "job_seurat", ref = "integer"),
-  function(x, ref, k, by.name = F, rename = NULL){
+  function(x, ref, k, by.name = FALSE, rename = NULL){
     if (!is.null(rename)) {
       if (is.character(rename)) {
         ref[] <- paste0(rename, "_", ref[])
@@ -323,9 +323,9 @@ setMethod("regroup", signature = c(x = "job_seurat", ref = "integer"),
     }
     idents <- SeuratObject::Idents(object(x))
     if (by.name) {
-      re.idents <- nl(names(idents), dplyr::recode(names(idents), !!!ref), F)
+      re.idents <- nl(names(idents), dplyr::recode(names(idents), !!!ref), FALSE)
     } else {
-      re.idents <- nl(names(idents), dplyr::recode(unname(idents), !!!ref), F)
+      re.idents <- nl(names(idents), dplyr::recode(unname(idents), !!!ref), FALSE)
     }
     re.idents <- factor(re.idents, levels = sort(as.character(unique(re.idents))))
     e(SeuratObject::Idents(object(x)) <- re.idents)
@@ -334,7 +334,7 @@ setMethod("regroup", signature = c(x = "job_seurat", ref = "integer"),
   })
 
 setMethod("ids", signature = c(x = "job_monocle"),
-  function(x, id = x@params$group.by, unique = T){
+  function(x, id = x@params$group.by, unique = TRUE){
     ids <- SummarizedExperiment::colData(object(x))[[ id ]]
     if (unique)
       unique(ids)
@@ -354,7 +354,7 @@ setMethod("add_anno", signature = c(x = "job_monocle"),
     if (!is.null(branches)) {
       branches <- get_branches.mn(x, branches)
       branches <- as_df.lst(branches)
-      branches <- dplyr::distinct(branches, name, .keep_all = T)
+      branches <- dplyr::distinct(branches, name, .keep_all = TRUE)
       branches <- dplyr::arrange(branches, type)
       branches <- dplyr::mutate(branches,
         branch = paste0("time_", unlist(lapply(table(type), seq))),
@@ -452,7 +452,7 @@ setMethod("map", signature = c(x = "job_monocle", ref = "character"),
       if (is.null(object(x)@colData$principal_node)) {
         x <- add_anno(x)
       }
-      groupCells <- nl(rownames(object(x)@colData), object(x)@colData$principal_node, F)
+      groupCells <- nl(rownames(object(x)@colData), object(x)@colData$principal_node, FALSE)
       groupCells <- lapply(branches,
         function(yn) {
           names(groupCells[ groupCells %in% yn ])
@@ -463,11 +463,11 @@ setMethod("map", signature = c(x = "job_monocle", ref = "character"),
           n <<- n + 1L
           pseudotime <- pseudotime[ names(pseudotime) %in% cells ]
           if (hpMode == "212" && n == 1L) {
-            rev <- T
+            rev <- TRUE
           } else if (hpMode == "121" && n == 2L) {
-            rev <- T
+            rev <- TRUE
           } else {
-            rev <- F
+            rev <- FALSE
           }
           prepare_pseudo_heatmap_tidydata(seurat[, cells], pseudotime, rev)
         })
@@ -523,10 +523,10 @@ map.fluxGene <- function(x, ref, branches = NULL, enrich = NULL, seurat = NULL, 
     assay = assay, enrichExtra = enrichExtra, group_by = group_by, ...)
 }
 
-prepare_pseudo_heatmap_tidydata <- function(seurat, pseudotime, rev.pseudotime = F)
+prepare_pseudo_heatmap_tidydata <- function(seurat, pseudotime, rev.pseudotime = FALSE)
 {
   dat <- pseudotime_heatmap(seurat,
-    show_rownames = T, pseudotime = pseudotime
+    show_rownames = TRUE, pseudotime = pseudotime
   )
   dat <- as_tibble(dat)
   dat <- tidyr::pivot_longer(dat, -rownames, names_to = "Pseudo_Time", values_to = "Levels")
@@ -620,24 +620,24 @@ plot_pseudo_heatmap.seurat <- function(dat, enrich = NULL,
     dat <- dplyr::group_by(dat, !!!rlang::syms(group_by))
   }
   p.hp <- tidyHeatmap::heatmap(dat, rownames, .Pseudo_Time, Levels,
-    cluster_columns = F, cluster_rows = T,
+    cluster_columns = FALSE, cluster_rows = TRUE,
     row_title = "Genes", column_title = character(0),
     row_km = split, palette_value = fun_color(-maxBreak, maxBreak),
-    show_column_names = F,
+    show_column_names = FALSE,
     ...
   )
   maxBreak <- max(ceiling(abs(range(dat$Pseudo_Time))))
-  # p.hp <- tidyHeatmap::annotation_line(p.hp, Pseudo_Time, show_annotation_name = F)
-  p.hp <- tidyHeatmap::annotation_tile(p.hp, Pseudo_Time, show_annotation_name = F)
-  # p.hp@top_annotation$color[[ which(p.hp@top_annotation$col_name == "Pseudo_Time") ]] <- fun_color(0, maxBreak, T, "seq")
+  # p.hp <- tidyHeatmap::annotation_line(p.hp, Pseudo_Time, show_annotation_name = FALSE)
+  p.hp <- tidyHeatmap::annotation_tile(p.hp, Pseudo_Time, show_annotation_name = FALSE)
+  # p.hp@top_annotation$color[[ which(p.hp@top_annotation$col_name == "Pseudo_Time") ]] <- fun_color(0, maxBreak, TRUE, "seq")
   if (!is.null(enrich)) {
     dat <- dplyr::ungroup(dat)
     allAnno <- lapply(dplyr::select(dat, dplyr::all_of(anno_enrich)), levels)
-    palAnno <- head(color_set(T), length(unlist(allAnno)))
+    palAnno <- head(color_set(TRUE), length(unlist(allAnno)))
     palAnno <- split(palAnno, rep(seq_along(allAnno), lengths(allAnno)))
     palAnno <- lapply(seq_along(palAnno),
       function(n) {
-        nl(allAnno[[n]], palAnno[[n]], F)
+        nl(allAnno[[n]], palAnno[[n]], FALSE)
       })
     names(palAnno) <- anno_enrich
     pals <- list()
@@ -647,7 +647,7 @@ plot_pseudo_heatmap.seurat <- function(dat, enrich = NULL,
       p.hp <- tidyHeatmap::annotation_tile(p.hp, !!rlang::sym(i), palette = pal)
       pals[[ i ]] <- pal
     }
-    if (T) {
+    if (TRUE) {
       # as 'tidyHeatmap::annotation_tile' not support (or bug?) for named vector for color map
       p.hp@left_annotation$color[p.hp@left_annotation$col_name %in% anno_enrich] <- pals
     }
@@ -688,7 +688,7 @@ cal_modules.cds <- function(cds, gene_sigs, cell_group) {
       anno <- paste0("with ", names(gene_sigs)[n])
       res <- try(
         monocle3::find_gene_modules(cds[genes, ], cores = 4, resolution = 10 ^ seq(-6,-1)),
-        silent = F
+        silent = FALSE
       )
       if (!inherits(res, "try-error")) {
         aggregate <- monocle3::aggregate_gene_expression(cds, res, cell_group)
@@ -750,7 +750,7 @@ cal_modules.cds <- function(cds, gene_sigs, cell_group) {
 
 
 setMethod("asjob_seurat", signature = c(x = "job_monocle"),
-  function(x, k, rename = NULL, reset_palette = T){
+  function(x, k, rename = NULL, reset_palette = TRUE){
     x <- regroup(x$sr_sub, x$cellClass_tree.gene_module, k, rename = rename)
     if (reset_palette)
       x$palette <- NULL
@@ -760,7 +760,7 @@ setMethod("asjob_seurat", signature = c(x = "job_monocle"),
 
 setMethod("vis", signature = c(x = "job_monocle"),
   function(x, refs, group.by = x@param$group.by,
-    use = "logcounts", rownames = T, rownames.size = 5, smooth = T)
+    use = "logcounts", rownames = TRUE, rownames.size = 5, smooth = TRUE)
   {
     if (!is(refs, "list")) {
       refs <- list(Value = refs)
@@ -787,9 +787,9 @@ setMethod("vis", signature = c(x = "job_monocle"),
         params <- list(
           expr, name = names(refs)[n], km = 2,
           col = .get_col_fun(expr),
-          cluster_columns = F,
+          cluster_columns = FALSE,
           row_names_gp = gpar(fontsize = rownames.size),
-          show_column_names = F,
+          show_column_names = FALSE,
           show_row_names = rownames,
           clustering_method_rows = "ward.D2",
           heatmap_legend_param = list(title = names(refs)[n], ncol = 1)
@@ -815,7 +815,7 @@ setMethod("vis", signature = c(x = "job_monocle"),
   } else {
     levels <- sort(unique(groups))
   }
-  nl(levels, palette[seq_along(levels)], F)
+  nl(levels, palette[seq_along(levels)], FALSE)
 }
 
 .get_col_fun <- function(data) {
@@ -832,7 +832,7 @@ setMethod("skel", signature = c(x = "job_monocle"),
     code <- c('',
       paste0('mn <- do_monocle(sr, "', pattern, '")'),
       '',
-      'mn <- step1(mn, "cell_type", pre = T)',
+      'mn <- step1(mn, "cell_type", pre = TRUE)',
       'mn@plots$step1$p.prin',
       'mn <- step2(mn, "Y_2")',
       'mn@plots$step2$p.pseu',

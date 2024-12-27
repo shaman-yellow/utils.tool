@@ -42,7 +42,7 @@ setMethod("step0", signature = c(x = "job_mime"),
   })
 
 setMethod("step1", signature = c(x = "job_mime"),
-  function(x, unicox = T, mode = c("all", "single", "double"), seed = 555, ...){
+  function(x, unicox = TRUE, mode = c("all", "single", "double"), seed = 555, ...){
     step_message("Predict results.")
     if (is.null(x$res)) {
       x$mode <- match.arg(mode)

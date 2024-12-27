@@ -13,12 +13,12 @@ new_notes <- function(scene, weight, parent = "notes") {
 }
 
 new_scene <- function(scene, weight = rep(100, length(scene)), ex_weight = weight,
-    path = hugoDir, suffix = "/content/en", tar = "docs", index_Draft = T){
+    path = hugoDir, suffix = "/content/en", tar = "docs", index_Draft = TRUE){
     if (!is.vector(scene)) {
-      stop("is.vector(scene) == F")
+      stop("is.vector(scene) == FALSE")
     }
     if (!is.character(names(scene))){
-      stop( "is.character(names(scene)) == F" )
+      stop( "is.character(names(scene)) == FALSE" )
     }
     path <- paste0(path, suffix)
     path <- target_dir(path, tar)
@@ -43,8 +43,8 @@ new_scene <- function(scene, weight = rep(100, length(scene)), ex_weight = weigh
 
 target_dir <- 
   function(path, tar){
-    lst <- list.dirs(path, recursive = T)
-    lst <- lst[grepl(paste0("(?<=/)", tar, "$"), lst, perl = T)][1]
+    lst <- list.dirs(path, recursive = TRUE)
+    lst <- lst[grepl(paste0("(?<=/)", tar, "$"), lst, perl = TRUE)][1]
     lst
   }
 
@@ -86,8 +86,8 @@ index_Draft <- function(title, weight = 100){
 
 target_file <- 
   function(path, tar){
-    lst <- list.files(path, recursive = T, full.names = T)
-    lst <- lst[grepl(paste0("(?<=/)", tar, "$"), lst, perl = T)][1]
+    lst <- list.files(path, recursive = TRUE, full.names = TRUE)
+    lst <- lst[grepl(paste0("(?<=/)", tar, "$"), lst, perl = TRUE)][1]
     lst
   }
 
@@ -115,9 +115,9 @@ repl_huto <-
   function(key, content, lines,
     left = "\"", right = "\"", link = " = "){
     pattern <- paste0("^\\s{0,}", key, "\\s{0,}(?![a-z|A-Z|0-9|_|.])")
-    n <- grep(pattern, lines, perl = T)
+    n <- grep(pattern, lines, perl = TRUE)
     pattern <- paste0("(?<=", link, left, ")", "[^\"]{1,}", "(?=", right, ")")
-    lines[n] <- gsub(pattern, content, lines[n], perl = T)
+    lines[n] <- gsub(pattern, content, lines[n], perl = TRUE)
     lines
   }
 repl_yaml <- function(key, content, lines){
@@ -175,7 +175,7 @@ inclu.fig.ht <- function(src, to, caption = "This is a figure",
 {
   if (!file.exists(paste0(rel.path, to))) {
     if (!file.exists(src)) {
-      stop("file.exists(", src, ") == F")
+      stop("file.exists(", src, ") == FALSE")
     }
     if (grepl("\\.pdf$", src)) {
       system(paste0("pdf2svg ", src, " ", rel.path, to, " 1"))

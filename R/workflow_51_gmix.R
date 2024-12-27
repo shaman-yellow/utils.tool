@@ -35,10 +35,10 @@ setMethod("step0", signature = c(x = "job_gmix"),
   })
 
 setMethod("step1", signature = c(x = "job_gmix"),
-  function(x, get_pharm = T, get_dis = T, get_genecard = T){
+  function(x, get_pharm = TRUE, get_dis = TRUE, get_genecard = TRUE){
     step_message("Search databases.")
     fun <- function(name, col) {
-      grpf(unique(x[[ name ]][[ col ]]), x$fuzzy, T)
+      grpf(unique(x[[ name ]][[ col ]]), x$fuzzy, TRUE)
     }
     fun_show <- function(name, max = 10) {
       if (length(x[[ name ]]) > max) {
@@ -65,7 +65,7 @@ setMethod("step1", signature = c(x = "job_gmix"),
   })
 
 setMethod("step2", signature = c(x = "job_gmix"),
-  function(x, use.pharm = NULL, use.dis = NULL, use.score = NULL, restrict = F)
+  function(x, use.pharm = NULL, use.dis = NULL, use.score = NULL, restrict = FALSE)
   {
     step_message("Get data.")
     tables <- list()
@@ -106,7 +106,7 @@ setMethod("step2", signature = c(x = "job_gmix"),
 setMethod("map", signature = c(x = "job_gmix", ref = "job_gmix"),
   function(x, ref, extra = NULL)
   {
-    fun <- function(x) rm.no(unlist(x@params$lst.genes, use.names = F))
+    fun <- function(x) rm.no(unlist(x@params$lst.genes, use.names = FALSE))
     gene.x <- fun(x)
     gene.y <- fun(ref)
     lst <- nl(c(sig(x), sig(ref)), list(gene.x, gene.y))
@@ -170,7 +170,7 @@ setMethod("merge", signature = c(x = "job_gmix", y = "job_gmix"),
   function(x, y, ...){
     lst <- c(list(x), list(y), list(...))
     lst <- lapply(lst, function(x) x@params$lst.genes)
-    lst <- unlist(lst, recursive = F)
+    lst <- unlist(lst, recursive = FALSE)
     p.cols <- new_col(lst = lst)
     p.cols <- .set_lab(p.cols, "All diseases", "Overall targets number of datasets")
     namel(p.cols, lst)

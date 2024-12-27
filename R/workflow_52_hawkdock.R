@@ -24,7 +24,7 @@ job_hawkdock <- function(symbols, .layout = NULL)
     message("Use columns of `.layout` as 'from' and 'to'.")
     .layout <- .layout[, 1:2]
     colnames(.layout) <- c("from", "to")
-    symbols <- unlist(.layout, use.names = F)
+    symbols <- unlist(.layout, use.names = FALSE)
   }
   .job_hawkdock(object = rm.no(symbols), params = list(.layout = .layout))
 }
@@ -39,9 +39,9 @@ setMethod("step1", signature = c(x = "job_hawkdock"),
     step_message("Download pdb files for protein docking.")
     mart <- new_biomart()
     x$anno <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
-      object(x), distinct = F)
+      object(x), distinct = FALSE)
     x$anno <- dplyr::filter(x$anno, pdb != "")
-    data <- dplyr::distinct(x$anno, hgnc_symbol, .keep_all = T)
+    data <- dplyr::distinct(x$anno, hgnc_symbol, .keep_all = TRUE)
     if (!is.null(extra_pdbs)) {
       data <- tibble::add_row(data, hgnc_symbol = names(extra_pdbs), pdb = unname(extra_pdbs))
     }
@@ -50,16 +50,16 @@ setMethod("step1", signature = c(x = "job_hawkdock"),
       message("Not got pdb: ", paste0(x$notGot, collapse = ", "))
     }
     if (is.null(x$.layout)) {
-      x$layouts <- combn(data$pdb, 2, simplify = F)
+      x$layouts <- combn(data$pdb, 2, simplify = FALSE)
     } else {
       layouts <- x$.layout
-      layouts <- map(layouts, "from", data, "hgnc_symbol", "pdb", rename = F)
-      layouts <- map(layouts, "to", data, "hgnc_symbol", "pdb", rename = F)
-      x$layouts <- apply(layouts, 1, tolower, simplify = F)
+      layouts <- map(layouts, "from", data, "hgnc_symbol", "pdb", rename = FALSE)
+      layouts <- map(layouts, "to", data, "hgnc_symbol", "pdb", rename = FALSE)
+      x$layouts <- apply(layouts, 1, tolower, simplify = FALSE)
       names(x$layouts) <- paste0(x$.layout$from, "_", x$.layout$to)
     }
     x$pdb_files <- get_pdb(rm.no(unlist(x$layouts)))
-    x$pdb_from <- nl(data$hgnc_symbol, data$pdb, F)
+    x$pdb_from <- nl(data$hgnc_symbol, data$pdb, FALSE)
     return(x)
   })
 
@@ -102,7 +102,7 @@ setMethod("step2", signature = c(x = "job_hawkdock"),
   })
 
 setMethod("map", signature = c(x = "job_hawkdock"),
-  function(x, ref, id, rev = F, tops = 1){
+  function(x, ref, id, rev = FALSE, tops = 1){
     ref <- match.arg(ref, "hawkdock")
     message("Create dir and naming as `id` as savepath.")
     mapped <- list()
@@ -131,7 +131,7 @@ setMethod("map", signature = c(x = "job_hawkdock"),
       show_score <- function() {
         data <- head(ftibble(paste0(id, "/score.tsv")), n = 10)
         p <- ggplot(data) +
-          geom_col(aes(x = reorder(V1, V2, decreasing = T), y = V2, fill = V2), width = .7) +
+          geom_col(aes(x = reorder(V1, V2, decreasing = TRUE), y = V2, fill = V2), width = .7) +
           labs(x = "Candidate", y = "Score") +
           guides(fill = "none") +
           coord_flip()
@@ -163,7 +163,7 @@ setMethod("map", signature = c(x = "job_hawkdock"),
 {
   data <- head(ftibble(paste0(dir, "/", file_score)), n = 10)
   p.score <- ggplot(data) +
-    geom_col(aes(x = reorder(V1, V2, decreasing = T), y = V2, fill = V2), width = .7) +
+    geom_col(aes(x = reorder(V1, V2, decreasing = TRUE), y = V2, fill = V2), width = .7) +
     labs(x = "Candidate", y = "Score") +
     guides(fill = "none") +
     coord_flip()
@@ -175,7 +175,7 @@ vis_pdb.hawkdock <- function(pdb, label.a, label.b,
   save = paste0(get_savedir("figs"), "/", make.names(label.a), "_with_", make.names(label.b), ".png"),
   command = "pymol")
 {
-  data <- ftibble(pdb, fill = T)
+  data <- ftibble(pdb, fill = TRUE)
   coa <- dplyr::filter(data, V13 == "1.A")
   cob <- dplyr::filter(data, V13 == "1.B")
   fun_pos <- function(x) {

@@ -53,7 +53,7 @@ setMethod("step2", signature = c(x = "job_sra"),
             exists <- file.exists(paste0(path, "/", id))
           }
         })
-    x@params$all_sra <- list.files(x@params$wd, "\\.sra$", full.names = T, recursive = T)
+    x@params$all_sra <- list.files(x@params$wd, "\\.sra$", full.names = TRUE, recursive = TRUE)
     return(x)
   })
 
@@ -73,12 +73,12 @@ setMethod("step3", signature = c(x = "job_sra"),
   })
 
 setMethod("step4", signature = c(x = "job_sra"),
-  function(x, filter = T){
+  function(x, filter = TRUE){
     step_message("Try to format `x@params$info` as metadata.")
     info <- dplyr::mutate(x@params$info, SampleName = gs(SampleName, "_", "."))
     filepath <- lapply(info$Run,
       function(id) {
-        path <- list.files(paste0(x@params$wd, "/", id), x@params$pattern, full.names = T)
+        path <- list.files(paste0(x@params$wd, "/", id), x@params$pattern, full.names = TRUE)
         normalizePath(path)
       })
     metadata <- dplyr::select(info, "sample-id" = SampleName, Run)

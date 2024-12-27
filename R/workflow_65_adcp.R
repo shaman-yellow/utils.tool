@@ -44,16 +44,16 @@ setMethod("step2", signature = c(x = "job_adcp"),
     }
     step_message("Download sdf files and convert as pdbqt for ligands.")
     sdfFile <- query_sdfs(unique(names(x$dock_layout)), curl_cl = cl)
-    dir.create(dir, F)
+    dir.create(dir, FALSE)
     cdRun("obabel -isdf ", sdfFile, " -opdb -m -O ", dir, "/obabel.pdb ")
-    pdbs <- lapply(list.files(dir, full.names = T),
+    pdbs <- lapply(list.files(dir, full.names = TRUE),
       function(file) {
         name <- strx(readLines(file, n = 1), "[0-9]+")
         if (is.na(name)) {
           stop("Can not recognize the compound id of: ", file)
         }
         file.rename(file, nfile <- paste0(dir, "/", name, ".pdb"))
-        nl(name, nfile, F)
+        nl(name, nfile, FALSE)
       })
     pdbqts <- lapply(unlist(pdbs),
       function(file) {
@@ -94,10 +94,10 @@ setMethod("step4", signature = c(x = "job_adcp"),
     step_message("Run ADFR and ADCP ...")
     runs <- tibble::tibble(
       Ligand = rep(names(x$dock_layout), lengths(x$dock_layout)),
-      Receptor = tolower(unlist(x$dock_layout, use.names = F))
+      Receptor = tolower(unlist(x$dock_layout, use.names = FALSE))
     )
     x$show_layout <- runs
-    x$runs <- runs <- apply(runs, 1, unname, simplify = F)
+    x$runs <- runs <- apply(runs, 1, unname, simplify = FALSE)
     x$savedir <- savedir
     n <- 0
     if (file.exists(log)) {
@@ -118,11 +118,11 @@ setMethod("step4", signature = c(x = "job_adcp"),
 adcp <- function(lig, recep, timeLimit = 3600, dir = "adcp_space", stout = "/tmp/res.log")
 {
   if (!file.exists(dir)) {
-    dir.create(dir, F)
+    dir.create(dir, FALSE)
   } 
   subdir <- paste0(reals <- get_realname(c(lig, recep)), collapse = "_into_")
   wd <- paste0(dir, "/", subdir)
-  dir.create(wd, F)
+  dir.create(wd, FALSE)
   file.copy(c(recep, lig), wd)
   .message_info("Generate the target file containing the affinity maps: ", subdir)
   files <- basename(c(lig, recep))
@@ -132,7 +132,7 @@ adcp <- function(lig, recep, timeLimit = 3600, dir = "adcp_space", stout = "/tmp
     path = wd
   )
   if (file.exists(paste0(wd, "/", subdir, ".trg"))) {
-    cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = T)
+    cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = TRUE)
     try(cdRun("timeout ", timeLimit, " adcp",
         " -t ", subdir, ".trg",
         " -s npisdvd",
@@ -140,7 +140,7 @@ adcp <- function(lig, recep, timeLimit = 3600, dir = "adcp_space", stout = "/tmp
         " -n 1000000",
         " -o redocking ",
         " -ref ", files[1],
-        " >> ", stout, path = wd), T)
+        " >> ", stout, path = wd), TRUE)
   } else {
     warning("File ", wd, "/", subdir, ".trg not exists.")
   }

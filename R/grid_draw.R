@@ -124,11 +124,11 @@ setMethod("weight", signature = c(x = "ANY", sub = "character"),
   function(x, sub){
     if (isS4(x)) {
       weight <-
-        sapply(sub, simplify = F, function(sub) {
+        sapply(sub, simplify = FALSE, function(sub) {
           get_weight(slot(x, sub))
       })
     }
-    as.list(sort(unlist(weight), decreasing = T))
+    as.list(sort(unlist(weight), decreasing = TRUE))
   })
 
 #' @exportMethod as_grob
@@ -230,7 +230,7 @@ setMethod("frame_place", signature = setMissing("frame_place",
     fun <- paste0("layout_", type)
     layout <- match.fun(fun)(weight)
     frame <- frameGrob(layout = layout)
-    data <- sapply(names(data), simplify = F,
+    data <- sapply(names(data), simplify = FALSE,
       function(name) {
         grob <- data[[ name ]]
         if (is(grob, "graph"))
@@ -287,7 +287,7 @@ NULL
 #' @description \code{setnull}: ...
 #' @rdname setnull
 setnull <- function(target, args, name = "null"){
-  gPath <- grid.grep(gPath(target), vpPath = T, grep = T)
+  gPath <- grid.grep(gPath(target), vpPath = TRUE, grep = TRUE)
   vpPath <- attr(gPath, "vpPath")
   args <- .fresh_param2(list(name = name, vp = vpPath), args)
   do.call(nullGrob, args)
@@ -297,7 +297,7 @@ setnull <- function(target, args, name = "null"){
 #' @aliases setnullvp
 #' @description \code{setnullvp}: ...
 #' @rdname setnull
-setnullvp <- function(pattern, args, x, name = NULL, fix = T, perl = F){
+setnullvp <- function(pattern, args, x, name = NULL, fix = TRUE, perl = FALSE){
   if (fix) pattern <- paste0("::", pattern, "$")
   vpPath <- gsub("ROOT::", "", grepPath(pattern, x = x, perl = perl)[1])
   vpPath <- vpPath(vpPath)
@@ -315,8 +315,8 @@ ruler <- function(p1, p2){
 #' @aliases grepPath
 #' @description \code{grepPath}: ...
 #' @rdname setnull
-grepPath <- function (pattern, x = NULL, grobs = T, viewports = T, perl = F) {
-    args <- list(x = x, grobs = grobs, viewports = viewports, print = F)
+grepPath <- function (pattern, x = NULL, grobs = TRUE, viewports = TRUE, perl = FALSE) {
+    args <- list(x = x, grobs = grobs, viewports = viewports, print = FALSE)
     dl <- do.call(grid.ls, args)
     if (viewports) {
       keep <- dl$type == "vpListing" | dl$type == "grobListing" | 
@@ -335,7 +335,7 @@ grepPath <- function (pattern, x = NULL, grobs = T, viewports = T, perl = F) {
 #' @rdname setnull
 sort_vpPaths <- function(vpPaths){
   nums <- vapply(vpPaths, FUN.VALUE = 0,
-    function(ch) {length(grepRaw("::", ch, all = T))})
+    function(ch) {length(grepRaw("::", ch, all = TRUE))})
   lapply(order(nums), function(n) vpPaths[[ n ]])
 }
 
@@ -449,7 +449,7 @@ setGeneric("garrow",
 #' @exportMethod garrow
 setMethod("garrow", signature = setMissing("garrow"),
   function(){
-    args_line <- list(square = F, ncp = 10, curvature = .3,
+    args_line <- list(square = FALSE, ncp = 10, curvature = .3,
       gp = gpar(fill = "black"))
     args_arrow <- list(angle = 15, length = unit(.7, "line"), type = "closed")
     list(args_line = args_line,
@@ -548,7 +548,7 @@ garrow_city <- function(p1, p2, up, left, shift, gp_line){
     shift <- -shift
   }
   args <- list(curvature = curvature,
-    square = T,
+    square = TRUE,
     ncp = 1)
   garrow(p1, p2, list(gp = gp_line), 
     city = list(args_line = args, shift = shift))
@@ -559,7 +559,7 @@ garrow_city <- function(p1, p2, up, left, shift, gp_line){
 #' @description \code{garrow_snake}: ...
 #' @rdname arrow
 garrow_snake <- function(p1, p2, color, lwd = u(1, line), cur = 1){
-  garrow(p1, p2, list(curvature = cur, square = T, ncp = 1, inflect = T,
+  garrow(p1, p2, list(curvature = cur, square = TRUE, ncp = 1, inflect = TRUE,
       gp = gpar(lwd = lwd, col = color, fill = color)))
 }
 
@@ -569,8 +569,8 @@ garrow_snake <- function(p1, p2, color, lwd = u(1, line), cur = 1){
 #' @rdname arrow
 garrow_city_args <- 
   function(shift = u(2, line), axis = "x", mid = .5,
-    args_line = list(ncp = 1, curvature = 1, square = T),
-    grob_anno = NULL, vp_anno = NULL, rev = F
+    args_line = list(ncp = 1, curvature = 1, square = TRUE),
+    grob_anno = NULL, vp_anno = NULL, rev = FALSE
     ){
     as.list(environment())
   }
@@ -579,7 +579,7 @@ garrow_city_args <-
 #' @aliases sagnage
 #' @description \code{sagnage}: ...
 #' @rdname arrow
-sagnage <- function(grob, left = T, l_gpar, borderF = 1.5, front_len = .1,
+sagnage <- function(grob, left = TRUE, l_gpar, borderF = 1.5, front_len = .1,
   vp_shift = u(1.5, line), ...){
   l_gpar <- .fresh_param2f(gpar(linejoin = "round", fill = "grey85",
       col = "transparent"), l_gpar)
@@ -631,19 +631,19 @@ maparrow <-
     if (is.null(data$sag))
       data$sag <- paste0(substr(form(data$fun), 1, 3), ".")
     target <- unique(c(data$from, data$to))
-    nulls <- sapply(target, simplify = F,
+    nulls <- sapply(target, simplify = FALSE,
       function(name) {
         pattern <- 
           if (!is.null(pattern[[ name ]]))
             pattern[[ name ]]
           else
             name
-        sapply(names(pos), simplify = F,
+        sapply(names(pos), simplify = FALSE,
           function(p){
             setnullvp(pattern, pos[[p]], obj)
           })
       })
-    bafs <- sapply(target, simplify = F,
+    bafs <- sapply(target, simplify = FALSE,
       function(name) {
         null <- nulls[[ name ]]
         null <- null[names(null) %in% c("l", "r")]
@@ -653,14 +653,14 @@ maparrow <-
           }
           })
       })
-    bafs <- unlist(bafs, F)
+    bafs <- unlist(bafs, FALSE)
     keep <- lapply(c("from", "to"),
       function(ch) {
         pos <- ifelse(data[[ "left" ]], "l", "r")
         paste0(data[[ ch ]], ".", pos)
       })
     bafs <- bafs[names(bafs) %in% unique(unlist(keep))]
-    arr_city <- apply(data, 1, simplify = F,
+    arr_city <- apply(data, 1, simplify = FALSE,
       function(v) {
         pos <- ifelse(as.logical(v[[ "left" ]]), "l", "r")
         garrow_city(nulls[[ v[["from"]] ]][[ pos ]],
@@ -671,7 +671,7 @@ maparrow <-
             lwd = u(1, line))
         )
       })
-    arr_round <- apply(data, 1, simplify = F,
+    arr_round <- apply(data, 1, simplify = FALSE,
       function(v) {
         pos <- ifelse(as.logical(v[[ "left" ]]), "l", "r")
         cur <- if (pos == "l") round_cur else -round_cur
@@ -697,7 +697,7 @@ maparrow <-
         vp <- vpStack(vp, viewport(x, y))
         ggather(sag, vp = vp)
       })
-    sags <- sags[!vapply(sags, is.null, T)]
+    sags <- sags[!vapply(sags, is.null, TRUE)]
     namel(nulls, bafs, arr_city, arr_round, sags, data)
   }
 
@@ -732,7 +732,7 @@ NULL
 #' @aliases gtext
 #' @description \code{gtext}: ...
 #' @rdname text
-gtext <- function(label, gp_arg, form = T, ...){
+gtext <- function(label, gp_arg, form = TRUE, ...){
   args <- list(...)
   args <- .fresh_param2(list(x = 0.5, y = 0.5), args)
   args$label <- if (form) form(label) else label
@@ -744,7 +744,7 @@ gtext <- function(label, gp_arg, form = T, ...){
 #' @aliases gtextp
 #' @description \code{gtextp}: ...
 #' @rdname text
-gtextp <- function(label, gp_arg, form = T, ...){
+gtextp <- function(label, gp_arg, form = TRUE, ...){
   if (missing(gp_arg))
     gp_arg <- list()
   gp_arg$font <- c(plain = 1)
@@ -755,7 +755,7 @@ gtextp <- function(label, gp_arg, form = T, ...){
 #' @aliases gtext0
 #' @description \code{gtext0}: ...
 #' @rdname text
-gtext0 <- function(label, gp_arg, form = T, ...) {
+gtext0 <- function(label, gp_arg, form = TRUE, ...) {
   gtext(label, gp_arg, form, x = .1, hjust = 0, ...)
 }
 
@@ -772,7 +772,7 @@ form <- function(label){
 #' @description \code{gltext}: ...
 #' @rdname text
 gltext <- function(label, gp_arg = list(), args = list(),
-  l_gp = .gpar_dotted_line, flip = F, borderF = 1.2){
+  l_gp = .gpar_dotted_line, flip = FALSE, borderF = 1.2){
   if (flip) args$rot <- 90
   title <- do.call(gtext, c(list(label, gp_arg), args))
   if (flip) {
@@ -855,12 +855,12 @@ grecti <- function(label, cex = 1, x = 0.5, y = 1.005,
   borderF = 2, just = c("center", "top"),
   tfill = "#E18727FF", vp = .grecti.vp,
   order = c(2, 1), cvp_clip = "on",
-  cvp_fix = T, ...){
+  cvp_fix = TRUE, ...){
   if (is.list(borderF)) {
     borderF <- borderF[[1]]
-    xmax <- T
+    xmax <- TRUE
   } else {
-    xmax <- F
+    xmax <- FALSE
   }
   if (is(label, "grob")) {
     gtext <- label
@@ -928,7 +928,7 @@ grecti3 <- function(label, cex = 1, tfill = "#E18727FF",
 grecto <- function(label, cex = 1, x = 0.5, y = 0.995,
   borderF = 2, just = c("center", "bottom"),
   tfill = "#E18727FF", vp = .grecto.vp,
-  order = c(1, 2), cvp_clip = "on", cvp_fix = F, ...){
+  order = c(1, 2), cvp_clip = "on", cvp_fix = FALSE, ...){
   args <- c(as.list(environment()), list(...))
   do.call(grecti, args)
 }
@@ -950,7 +950,7 @@ grectn <- function(bfill = "white", b_args, bgp_args, b = roundrectGrob,
 #' @aliases grectn_frame
 #' @description \code{grectn_frame}: ...
 #' @rdname rect
-grectn_frame <- function(content, title, zo = T){
+grectn_frame <- function(content, title, zo = TRUE){
   if (zo) content <- zo(content)
   content <- frame_row(c(title = .2, content = 1), namel(title, content))
   rect <- grectn(, , list(lty = "solid"))
@@ -962,7 +962,7 @@ grectn_frame <- function(content, title, zo = T){
 #' @description \code{lst_grecti}: ...
 #' @rdname rect
 lst_grecti <- function(names, pal, tar = "slot", fun = grecti, ...){
-  sapply(names, simplify = F,
+  sapply(names, simplify = FALSE,
     function(name){
       graph <- match.fun(fun)(form(name), , tfill = pal[[ tar ]], ...)
     })
@@ -987,7 +987,7 @@ grectN <- function(lab.1, lab.2, gp = gpar(fontface = "plain"),
 #' @rdname rect
 grecta <- function(label, cex = 4) {
   grob <- gtext(
-    label, list(cex = cex), form = F,
+    label, list(cex = cex), form = FALSE,
     x = 0, y = u(1, npc),
     just = c("left", "top")
   )
@@ -1047,7 +1047,7 @@ sym_fill <- function(long, short){
     res <- c(short[1:(half + 1)], rev(short[1:half]))
   }
   if (any(is.na(res)))
-    stop( "any(is.na(res)) == T" )
+    stop( "any(is.na(res)) == TRUE" )
   else
     return(res)
 }
@@ -1094,14 +1094,14 @@ NULL
 fast_layout <- function(edges, layout = "fr", nodes = NULL, ...){
   if (!is.null(edges)) {
     if (is(edges, "data.frame")) {
-      graph <- igraph::graph_from_data_frame(edges, directed = T, vertices = nodes)
+      graph <- igraph::graph_from_data_frame(edges, directed = TRUE, vertices = nodes)
     } else if (is(edges, "igraph")) {
       graph <- edges
     }
   } else {
     edges <- data.frame(from = nodes[[1]][1], to = nodes[[1]][1])
     edges <- tibble::tibble(from = character(0), to = character(0))
-    graph <- igraph::graph_from_data_frame(edges, directed = T, vertices = nodes)
+    graph <- igraph::graph_from_data_frame(edges, directed = TRUE, vertices = nodes)
   }
   graph <- tidygraph::as_tbl_graph(graph)
   graph <- dplyr::mutate(graph, centrality_degree = tidygraph::centrality_degree(mode = 'all'),
@@ -1148,7 +1148,7 @@ NULL
 #' @description \code{zoom_pdf}: ...
 #' @rdname zoom_pdf
 zoom_pdf <- function(file, position = c(.5, .5), size = c(.15, .1), page = 1, dpi = 2000,
-  as.grob = T)
+  as.grob = TRUE)
 {
   position[2] <- 1 - position[2]
   png <- pdftools::pdf_render_page(file, page = page, dpi = dpi)
@@ -1176,8 +1176,8 @@ zoom_pdf <- function(file, position = c(.5, .5), size = c(.15, .1), page = 1, dp
 simulate_peaks <- function(all_range = list(1:30, 31:60, 61:100, 101:140),
   shift = rnorm(10, 2, 1))
 {
-  lst <- mapply(shift, seq_along(shift), SIMPLIFY = F, FUN = function(shift, id){
-    peak <- mapply(all_range, SIMPLIFY = F,
+  lst <- mapply(shift, seq_along(shift), SIMPLIFY = FALSE, FUN = function(shift, id){
+    peak <- mapply(all_range, SIMPLIFY = FALSE,
       FUN = function(range){
         peak <- dnorm(range, median(range) + shift, rnorm(1, 5, 1.2)) *
           rnorm(1, 0.7, 0.15)

@@ -100,7 +100,7 @@ cdRun <- function(..., path = ".", sinkFile = NULL)
   } else {
     tryCatch(
       capture.output(system(expr),
-        file = sinkFile, split = T),
+        file = sinkFile, split = TRUE),
       finally = setwd(owd))
   }
 }
@@ -111,7 +111,7 @@ cdRun <- function(..., path = ".", sinkFile = NULL)
 
 # sdfs_as_pdbqts <- function(lst.sdf, mkdir.sdf = "sdf", mkdir.pdbqt = "pdbqt")
 # {
-#   lapply(c(mkdir.sdf, mkdir.pdbqt), dir.create, showWarnings = F)
+#   lapply(c(mkdir.sdf, mkdir.pdbqt), dir.create, showWarnings = FALSE)
 #   all_sdfs <- paste0(lst.sdf, collapse = "\n\n\n")
 #   writeLines(all_sdfs, paste0(mkdir.sdf, "/all_compounds.sdf"))
 #   n <- 1
@@ -154,7 +154,7 @@ get_c2_data <- function(pattern = NULL,
   db <- get(name)
   names(db) <- tolower(names(db))
   if (!is.null(pattern))
-    db <- db[ grep(pattern, names(db), ignore.case = T) ]
+    db <- db[ grep(pattern, names(db), ignore.case = TRUE) ]
   job <- .job(method = "Database of `MSigDB` (c2, curated gene sets) was used for signiture screening", cite = "")
   .add_internal_job(job)
   return(db)
@@ -175,7 +175,7 @@ writePlots <- function(lst, dir, width = 7, height = 7, ..., postfix = ".pdf")
 writeDatas <- function(lst, dir, ..., fun = data.table::fwrite, postfix = ".csv") 
 {
   if (is.null(names(lst))) {
-    stop("is.null(names(lst)) == T")
+    stop("is.null(names(lst)) == TRUE")
   }
   if (postfix %in% c(".pdf", ".png", ".jpg")) {
     super.dir <- get_savedir("figs")
@@ -183,7 +183,7 @@ writeDatas <- function(lst, dir, ..., fun = data.table::fwrite, postfix = ".csv"
     super.dir <- get_savedir("tabs")
   }
   dir <- paste0(super.dir, "/", dir)
-  dir.create(dir, F)
+  dir.create(dir, FALSE)
   n <- 1
   lapply(names(lst),
     function(name) {
@@ -228,7 +228,7 @@ fxlsx <- function(file, ...) {
   as_tibble(data.frame(openxlsx::read.xlsx(file, ...)))
 }
 
-fxlsx2 <- function(file, n = NULL, .id = "sheet", bind = T, pattern = NULL, ...) {
+fxlsx2 <- function(file, n = NULL, .id = "sheet", bind = TRUE, pattern = NULL, ...) {
   sheets <- openxlsx::getSheetNames(file)
   if (is.null(n)) {
     if (is.null(pattern)) {
@@ -243,7 +243,7 @@ fxlsx2 <- function(file, n = NULL, .id = "sheet", bind = T, pattern = NULL, ...)
     })
   names(lst) <- sheets[n]
   if (bind) {
-    data <- data.table::rbindlist(lst, idcol = .id, fill = T)
+    data <- data.table::rbindlist(lst, idcol = .id, fill = TRUE)
     as_tibble(data)
   } else {
     lapply(lst, as_tibble)
@@ -264,7 +264,7 @@ get_nci60_data <- function(comAct = .prefix("comAct_nci60/DTP_NCI60_ZSCORE.xlsx"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 mul_corTest <- function(data.x, data.y, namecol.x = 1, namecol.y = 1, method = "pearson",
-  p.cutoff = .05, cor.cutoff = NULL, saveAllRes = T)
+  p.cutoff = .05, cor.cutoff = NULL, saveAllRes = TRUE)
 {
   key.x <- unlist(data.x[, namecol.x])
   key.y <- unlist(data.y[, namecol.y])
@@ -272,11 +272,11 @@ mul_corTest <- function(data.x, data.y, namecol.x = 1, namecol.y = 1, method = "
   data.x <- dplyr::select(data.x, dplyr::all_of(inter))
   data.y <- dplyr::select(data.y, dplyr::all_of(inter))
   n <- 1
-  lst <- pbapply::pbapply(data.x, 1, simplify = F,
+  lst <- pbapply::pbapply(data.x, 1, simplify = FALSE,
     function(x) {
       message("\nCalculate data.x of row ", n, " to data.y")
       n <<- n + 1
-      data <- pbapply::pbapply(data.y, 1, simplify = F,
+      data <- pbapply::pbapply(data.y, 1, simplify = FALSE,
         function(y) {
           cor <- cor.test(as.numeric(x), as.numeric(y), method = method)
           data.frame(cor = cor$estimate, p.value = cor$p.value)
@@ -294,12 +294,12 @@ mul_corTest <- function(data.x, data.y, namecol.x = 1, namecol.y = 1, method = "
         data <- dplyr::filter(data, cor > cor.cutoff)
       }
       data <- dplyr::arrange(data, p.value)
-      attr <- apply(data.y, 1, simplify = F,  
+      attr <- apply(data.y, 1, simplify = FALSE,  
         function(y) {
           data.frame(x = as.numeric(x), y = as.numeric(y))
         })
       names(attr) <- key.y
-      attr <- data.table::rbindlist(attr, idcol = T)
+      attr <- data.table::rbindlist(attr, idcol = TRUE)
       attr <- dplyr::rename(attr, group = .id)
       attr <- dplyr::filter(attr, group %in% data$name)
       attr <- dplyr::arrange(attr, factor(group, levels = data$name))
@@ -310,7 +310,7 @@ mul_corTest <- function(data.x, data.y, namecol.x = 1, namecol.y = 1, method = "
   lst
 }
 
-vis_relcurve <- function(data, anno, rev = F, lab.x = "Expression (FPKM)",
+vis_relcurve <- function(data, anno, rev = FALSE, lab.x = "Expression (FPKM)",
   lab.y = "IC50 (Z-score)")
 {
   if (rev) {
@@ -338,7 +338,7 @@ cal_lm <- function(data, col = "group") {
     zoRange(num, 1)
   }
   fun2 <- function(value, range) {
-    ifelse(value > range[1] & value < range[2], T, F)
+    ifelse(value > range[1] & value < range[2], TRUE, FALSE)
   }
   lst <- split(data, data[[ col ]])
   lst <- lapply(lst,
@@ -358,12 +358,12 @@ cal_annoCoord <- function(data, col = "group", pos.x = .1, pos.y = 1.3) {
     range[1] + (range[2] - range[1]) * shift
   }
   data <- split(data, data[[ col ]])
-  anno <- sapply(names(data), simplify = F,
+  anno <- sapply(names(data), simplify = FALSE,
     function(name) {
       data <- data[[ name ]]
       data.frame(x = fun(data$x, pos.x), y = fun(data$y, pos.y))
     })
-  data.table::rbindlist(anno, idcol = T)
+  data.table::rbindlist(anno, idcol = TRUE)
 }
 
 # ==========================================================================
@@ -399,7 +399,7 @@ get_savedir <- function(target = NULL) {
   if (!is.null(target)) {
     res <- res[[ target ]]
     if (!dir.exists(res))
-      dir.create(res, F)
+      dir.create(res, FALSE)
     res
   } else {
     res
@@ -428,7 +428,7 @@ write_xlsx2 <- function(data, name, ..., file = paste0(get_realname(name), ".xls
 }
 
 set_showtext <- function() {
-  options(SHOWTEXT = T)
+  options(SHOWTEXT = TRUE)
 }
 
 write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".pdf"), page = -1,
@@ -437,9 +437,9 @@ write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".
   if (!file.exists(mkdir))
     dir.create(mkdir)
   file <- paste0(mkdir, "/", file)
-  showtext <- getOption("SHOWTEXT", F)
+  showtext <- getOption("SHOWTEXT", FALSE)
   if (is(data, "wrap")) {
-    res <- try(data@showtext, T)
+    res <- try(data@showtext, TRUE)
     if (!inherits(res, "try-error")) {
       showtext <- res
     }
@@ -465,7 +465,7 @@ write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".
       page <- len
     newfile <- tempfile(fileext = ".pdf")
     qpdf::pdf_subset(file, page, newfile)
-    file.copy(newfile, file, T)
+    file.copy(newfile, file, TRUE)
   }
   return(file)
 }
@@ -511,7 +511,7 @@ search_resFile <- function(file = "index.Rmd",
   res <- lapply(files,
     function(file) {
       if (!file.exists(file))
-        stop("file.exists(", file, ") == F")
+        stop("file.exists(", file, ") == FALSE")
       file
     })
   unlist(res)
@@ -544,7 +544,7 @@ show_multi <- function(layers, col, symbol = "Progein"){
     })
 }
 
-split_lapply_rbind <- function(data, f, fun, ..., verbose = F, args = list(use.names = T)) {
+split_lapply_rbind <- function(data, f, fun, ..., verbose = FALSE, args = list(use.names = TRUE)) {
   data <- split(data, f)
   if (verbose)
     data <- pbapply::pblapply(data, fun, ...)
@@ -590,7 +590,7 @@ variance_analysis <- function(data.long){
   p.bartlett <- data.frame(type = "Bartlett", name = "All", p.value = p.bartlett)
   ## aov
   aov <- aov(value ~ group, data = data.long)
-  p.aov <- unlist(summary(aov))[[ "Pr(>F)1" ]]
+  p.aov <- unlist(summary(aov))[[ "Pr(>FALSE)1" ]]
   p.aov <- data.frame(type = "Variance.", name = "All", p.value = p.aov)
   ## lsd or hsd
   res <- lapply(c("hsd", "lsd"),
@@ -638,7 +638,7 @@ setMethod("pal", signature = c(x = "andata"),
     pal <- x@palette
     if (is.null(pal)) {
       group <- unique(x@metadata$group)
-      pal <- nl(group, color_set()[seq_along(group)], F)
+      pal <- nl(group, color_set()[seq_along(group)], FALSE)
     }
     pal
   })
@@ -652,7 +652,7 @@ pca_data.long <- function(x, fun_scale = function(x) scale(x)) {
   if (!is.null(fun_scale)) {
     data <- fun_scale(data)
   }
-  data <- prcomp(data, retx = F)
+  data <- prcomp(data, retx = FALSE)
   anno <- round(summary(data)$importance[2, ], 3)
   data <- tibble::as_tibble(data$rotation)
   data <- dplyr::mutate(data, sample = metadata$sample,
@@ -665,12 +665,12 @@ pca_data.long <- function(x, fun_scale = function(x) scale(x)) {
   contains = c("andata"),
   representation = representation(vip = "ANY"), prototype = NULL)
 
-opls_data.long <- function(data.long, combns, inter.fig = F) {
+opls_data.long <- function(data.long, combns, inter.fig = FALSE) {
   lst <- .split_data.long(data.long)
   data <- lst$data
   metadata <- lst$metadata
   if (!is.list(combns)) {
-    stop("is.list(combns) == F")
+    stop("is.list(combns) == FALSE")
   }
   res <- lapply(combns,
     function(combn){
@@ -679,14 +679,14 @@ opls_data.long <- function(data.long, combns, inter.fig = F) {
       data <- data[whi, ]
       opls <- ropls::opls(
         data, as.character(metadata$group),
-        predI = 1, orthoI = NA, fig.pdfC = F
+        predI = 1, orthoI = NA, fig.pdfC = FALSE
       )
       data <- cbind(opls@scoreMN[, 1], opls@orthoScoreMN[, 1])
       colnames(data) <- c("h1", "o1")
       data <- tibble::as_tibble(data)
       anno <- c(
-        x = paste0("T score[1](", opls@modelDF[1, "R2X"] * 100, "%)"),
-        y = paste0("Orthogonal T score[1](", opls@modelDF[2, "R2X"] * 100, "%)")
+        x = paste0("TRUE score[1](", opls@modelDF[1, "R2X"] * 100, "%)"),
+        y = paste0("Orthogonal TRUE score[1](", opls@modelDF[2, "R2X"] * 100, "%)")
       )
       vip <- data.frame(opls@vipVn)
       vip <- cbind(rownames(vip), vip)
@@ -731,7 +731,7 @@ show_lst.ch <- function(lst, width = 60) {
   sapply(names(lst),
     function(name){
       message("+++ ", name, " +++\n")
-      textSh(lst[[ name ]], wrap_width = width, pre_wrap = T)
+      textSh(lst[[ name ]], wrap_width = width, pre_wrap = TRUE)
     })
   message()
 }
@@ -759,16 +759,16 @@ new_lich <- function(lst, sep = ", ") {
   .lich(lst)
 }
 
-new_hp.cor <- function(data, ..., sig = T, fontsize = 6, names = c("From", "To")) {
+new_hp.cor <- function(data, ..., sig = TRUE, fontsize = 6, names = c("From", "To")) {
   if (length(unique(data[[ names[2] ]])) == 1) {
-    cluster_columns <- F
+    cluster_columns <- FALSE
   } else {
-    cluster_columns <- T
+    cluster_columns <- TRUE
   }
   if (length(unique(data[[ names[1] ]])) == 1) {
-    cluster_rows <- F
+    cluster_rows <- FALSE
   } else {
-    cluster_rows <- T
+    cluster_rows <- TRUE
   }
   groups <- dplyr::groups(data)
   if (length(groups)) {
@@ -832,8 +832,8 @@ elist <- setClass("elist",
 setValidity("elist", 
   function(object){
     if (nrow(object$E) != nrow(object$genes))
-      F
-    else T
+      FALSE
+    else TRUE
   })
 
 .data_long.eset <- setClass("data_long.eset", 
@@ -851,10 +851,10 @@ setMethod("as_data_long", signature = c(x = "DGEList"),
     data <- tidyr::gather(data, sample, value, -gene)
     if (!all(unique(data$sample) %in% x$samples$sample)) {
       Terror <<- namel(data, x$samples$sample)
-      stop("!all(unique(data$sample) %in% x$samples$sample) == T, use Terror debug.")
+      stop("!all(unique(data$sample) %in% x$samples$sample) == TRUE, use Terror debug.")
     }
     data <- tbmerge(data, dplyr::select(x$samples, sample, group),
-      by = "sample", all.x = T)
+      by = "sample", all.x = TRUE)
     .data_long.eset(data)
   })
 
@@ -863,7 +863,7 @@ setMethod("as_data_long", signature = c(x = "EList"),
     data <- tibble::as_tibble(x$E)
     data$gene <- x$genes[[ 1 ]]
     data <- tidyr::gather(data, sample, value, -gene)
-    data <- tbmerge(data, x$targets, by = "sample", all.x = T)
+    data <- tbmerge(data, x$targets, by = "sample", all.x = TRUE)
     .data_long.eset(data)
   })
 
@@ -885,21 +885,21 @@ mx <- function(...){
 }
 
 limma_downstream <- function(dge.list, group., design, contr.matrix,
-    min.count = 10, voom = T, cut.q = 0.05, cut.fc = 0.3,
-    get_ebayes = F, get_normed.exprs = F, block = NULL)
+    min.count = 10, voom = TRUE, cut.q = 0.05, cut.fc = 0.3,
+    get_ebayes = FALSE, get_normed.exprs = FALSE, block = NULL)
   {
     # if (NA %in% dge.list$samples[["lib.size"]]){
-    # dge.list$samples[["lib.size"]] <- apply(dge.list$counts, 2, sum, na.rm = T)
+    # dge.list$samples[["lib.size"]] <- apply(dge.list$counts, 2, sum, na.rm = TRUE)
     # }
     keep.exprs <- e(edgeR::filterByExpr(dge.list, group = group., min.count = min.count))
-    dge.list <- edgeR::`[.DGEList`(dge.list, keep.exprs, , keep.lib.sizes = F)
+    dge.list <- edgeR::`[.DGEList`(dge.list, keep.exprs, , keep.lib.sizes = FALSE)
     if (voom){
       dge.list <- e(edgeR::calcNormFactors(dge.list, method = "TMM"))
       dge.list <- e(limma::voom(dge.list, design))
     }else{
       genes <- dge.list$genes
       targets <- dge.list$samples
-      dge.list <- scale(dge.list$counts, scale = F, center = T)
+      dge.list <- scale(dge.list$counts, scale = FALSE, center = TRUE)
     }
     if (get_normed.exprs)
       return(dge.list)
@@ -969,7 +969,7 @@ get_fun <- function(name, envir = topenv()) {
       y_aesn = list(x = "Group", y = "rname", fill = "group",
         lab_x = "", lab_y = "", lab_fill = "Row group"),
       para = list(
-        clust_row = T, clust_col = T, method = 'average'),
+        clust_row = TRUE, clust_col = TRUE, method = 'average'),
       fun_plot = list(
         xtree = get_fun("plot_xtree"),
         ytree = get_fun("plot_ytree"),
@@ -1013,7 +1013,7 @@ heatdata_gene <- setClass("heatdata_gene",
       lab_color = "Correlation", lab_size = "-log2(P.value)",
       lab_shape = "Significant"),
     para = list(
-      clust_row = T, clust_col = T, method = 'average'),
+      clust_row = TRUE, clust_col = TRUE, method = 'average'),
     x_aesn = list(x = "col_var", y = "group", color = "group",
       lab_x = "", lab_y = "", lab_color = "Column Group"),
     x_pal = color_set(),
@@ -1071,7 +1071,7 @@ setMethod("standby", signature = c(x = "heatdata"),
     .check_columns(x@data_long, cols, "x@data_long")
     main <- dplyr::select(x@data_long, dplyr::all_of(unname(cols)))
     main <- tidyr::spread(main, cols[[ "x" ]], cols[[ x@aesh ]])
-    main <- data.frame(main, check.names = F)
+    main <- data.frame(main, check.names = FALSE)
     rownames(main) <- main[[ cols[[ "y" ]] ]]
     main <- dplyr::select(main, -!!rlang::sym(cols[[ "y" ]]))
     x@main <- main
@@ -1174,7 +1174,7 @@ as_df.distframe <- function(data, threshold = NULL) {
     function(value){
       row <<- row + 1
       data.frame(from = names[row], to = names(value), value = unname(value))
-    }, simplify = F)
+    }, simplify = FALSE)
   data <- do.call(rbind, data)
   data <- tibble::as_tibble(data)
   if (!is.null(threshold)) {
@@ -1190,7 +1190,7 @@ as_edges.distframe <- function(data, threshold = NULL)
   meta <- data.frame(t(meta))
   colnames(meta) <- c("from", "to")
   data <- cbind(meta, data[, -(1:2)])
-  data <- dplyr::distinct(data, from, to, .keep_all = T)
+  data <- dplyr::distinct(data, from, to, .keep_all = TRUE)
   data <- dplyr::filter(data, from != to)
   tibble::as_tibble(data)
 }
@@ -1209,7 +1209,7 @@ setMethod("show", signature = c(object = "wgcData"),
     print(tibble::as_tibble(data.frame(object)))
     message(crayon::green("Rownames (Sample names):"))
     textSh(crayon::cyan(paste0(rownames(object), collapse = ", ")),
-      pre_trunc = T, pre_wrap = T)
+      pre_trunc = TRUE, pre_wrap = TRUE)
   })
 
 setGeneric("as_wgcData", 
@@ -1256,7 +1256,7 @@ setMethod("draw_sampletree", signature = c(x = "wgcData"),
     return(x)
   })
 
-wrap <- function(data, width = 10, height = 8, showtext = F) {
+wrap <- function(data, width = 10, height = 8, showtext = FALSE) {
   if (is(data, "wrap")) {
     data@width <- width
     data@height <- height
@@ -1338,7 +1338,7 @@ setGeneric("cal_corp",
   function(x, y, ...) standardGeneric("cal_corp"))
 
 setMethod("cal_corp", signature = c(x = "df", y = "df"),
-  function(x, y, row_var = "row_var", col_var = "col_var", trans = F, fast = T)
+  function(x, y, row_var = "row_var", col_var = "col_var", trans = FALSE, fast = TRUE)
   {
     x <- data.frame(x)
     y <- data.frame(y)
@@ -1361,9 +1361,9 @@ setMethod("cal_corp", signature = c(x = "df", y = "df"),
       data <- as_data_long(cor$correlation, cor$pvalue, row_var, col_var, "cor", "pvalue")
       .corp(add_anno(.corp(data)))
     } else {
-      alls <- pbapply::pbapply(x, 2, simplify = F,
+      alls <- pbapply::pbapply(x, 2, simplify = FALSE,
         function(i) {
-          group <- apply(y, 2, simplify = F,
+          group <- apply(y, 2, simplify = FALSE,
             function(j) {
               fit <- lm(j ~ i)
               tibble::tibble(
@@ -1457,7 +1457,7 @@ setMethod("new_heatdata", signature = c(x = "wgcEigen", y = "wgcTrait"),
     .heatdata_gene_cor(
       data_long = data,
       ymeta = dplyr::select(x@colors, module),
-      y_pal = nl(x@colors$module, x@colors$color, F)
+      y_pal = nl(x@colors$module, x@colors$color, FALSE)
     )
   })
 
@@ -1592,7 +1592,7 @@ trans <- function(str) {
   }
   if (length(str) > 1) {
     ref <- unique(str)
-    ref <- sapply(ref, simplify = F,
+    ref <- sapply(ref, simplify = FALSE,
       function(x) {
         fun(x)
     })
@@ -1608,7 +1608,7 @@ trans.google <- function(str, from = "auto", to = "zh-CN") {
 }
 
 trans.youdao <- function(str) {
-  res <- try(e(ecce::translate(str)), silent = T)
+  res <- try(e(ecce::translate(str)), silent = TRUE)
   if (inherits(res, "try-error")) {
     stop("The `str` (", str, ") could not be translated (error).")
   }
@@ -1628,7 +1628,7 @@ workflow_publish <- function(file = "index.Rmd", output = "output.Rmd", title = 
   fun = write_articlePdf)
 {
   browseURL(path <- fun(file, output, title))
-  file.copy(path, paste0(getOption("title"), ".pdf"), T)
+  file.copy(path, paste0(getOption("title"), ".pdf"), TRUE)
 }
 
 order_publish <- function(file = "index.Rmd", output = "output.Rmd", title = "",
@@ -1688,7 +1688,7 @@ auto_method <- function(rm = NULL, class = "job", envir = .GlobalEnv, exclude = 
         if (any(obj@cite == rm)) {
           NULL
         } else {
-          res <- try(list(cite = obj@cite, method = obj@method), T)
+          res <- try(list(cite = obj@cite, method = obj@method), TRUE)
           if (inherits(res, "try-error")) {
             NULL
           } else {
@@ -1724,7 +1724,7 @@ auto_method <- function(rm = NULL, class = "job", envir = .GlobalEnv, exclude = 
   type = c("name", "class"))
 {
   type <- match.arg(type)
-  names <- ls(envir = envir, all.names = F)
+  names <- ls(envir = envir, all.names = FALSE)
   names <- lapply(names,
     function(x) {
       if (is(get(x, envir = envir), "job")) {
@@ -1755,7 +1755,7 @@ auto_method <- function(rm = NULL, class = "job", envir = .GlobalEnv, exclude = 
 }
 
 get_job_source <- function(jobs = .get_job_list(type = "class"), path = "~/utils.tool/") {
-  files <- list.files(path, "workflow.*\\.R$", full.names = T, recursive = T)
+  files <- list.files(path, "workflow.*\\.R$", full.names = TRUE, recursive = TRUE)
   names <- basename(files)
   jobs <- gs(jobs, "^job_", "")
   isThat <- vapply(names, FUN.VALUE = logical(1),
@@ -1774,7 +1774,7 @@ get_job_source <- function(jobs = .get_job_list(type = "class"), path = "~/utils
   obj
 }
 
-.add_internal_job <- function(job, clear = F, limit = 20) {
+.add_internal_job <- function(job, clear = FALSE, limit = 20) {
   if (clear) {
     job@params <- list()
     job@plots <- list()
@@ -1832,15 +1832,15 @@ set_cover <- function(title, author = "LiChuang Huang", date = Sys.Date(),
 }
 
 needTex <- function() {
-  isThat <- getOption("needTex", T)
+  isThat <- getOption("needTex", TRUE)
   if (isThat && knitr::is_latex_output()) {
-    return(T)
+    return(TRUE)
   } else {
-    return(F)
+    return(FALSE)
   }
 }
 
-set_index <- function(fig = T, tab = T, for_docx = F) {
+set_index <- function(fig = TRUE, tab = TRUE, for_docx = FALSE) {
   if (knitr::is_latex_output()) {
     symbol <- function(num) {
       paste0("\n\n\\begin{center}\\vspace{1.5cm}\\pgfornament[anchor=center,ydelta=0pt,width=8cm]{",
@@ -1879,11 +1879,11 @@ set_appendix <- function() {
   }
 }
 
-autor_preset <- function(echo = F, eval = F, autor_relocate = T, ...) {
+autor_preset <- function(echo = FALSE, eval = FALSE, autor_relocate = TRUE, ...) {
   options(autor_unnamed_number = 1, autor_relocate = autor_relocate)
   knitr::opts_chunk$set(
-    echo = echo, eval = eval, message = F, warning = F,
-    fig.cap = character(0), collapse = F,
+    echo = echo, eval = eval, message = FALSE, warning = FALSE,
+    fig.cap = character(0), collapse = FALSE,
     out.width = "\\linewidth", ...)
   fun_fig.cap <- function(options) {
     options$fig.cap <- Hmisc::capitalize(gsub("-", " ", options$label))
@@ -1899,13 +1899,13 @@ autor_preset <- function(echo = F, eval = F, autor_relocate = T, ...) {
 ## orinal function, for save file, and return file name
 
 auto_clear <- function(wd = ".", cache = "cache", ft = "Figure+Table",
-  rep = "report_picture", register = T)
+  rep = "report_picture", register = TRUE)
 {
   fun <- function(dir) {
     if (!is.null(dir)) {
       dir <- file.path(wd, dir)
       if (dir.exists(dir)) {
-        unlink(dir, T, T)
+        unlink(dir, TRUE, TRUE)
       }  
     }
   }
@@ -1919,23 +1919,23 @@ autorm <- function(names) {
   autoRegisters <<- autoRegisters[ -which(names(autoRegisters) %in% names) ]
 }
 
-autosv <- function(x, name, ..., showtext = F, cache = T, force = F) {
+autosv <- function(x, name, ..., showtext = FALSE, cache = TRUE, force = FALSE) {
   if (!exists("autoRegisters")) {
     autoRegisters <- character(0)
   }
   if (!any(name == names(autoRegisters)) || force) {
     if (!is(x, "files")) {
       if (showtext) {
-        options(SHOWTEXT = T)
+        options(SHOWTEXT = TRUE)
       }
       if (!is(x, "df") && cache) {
         cache <- getOption("cache", "cache")
-        dir.create(cache, F)
+        dir.create(cache, FALSE)
         saveRDS(x, file.path(cache, paste0(name, ".rds")))
       }
       file <- select_savefun(x)(x, name, ...)
       if (showtext) {
-        options(SHOWTEXT = F)
+        options(SHOWTEXT = FALSE)
       }
     } else if (file.exists(x)) {
       file <- as.character(x)
@@ -1943,14 +1943,14 @@ autosv <- function(x, name, ..., showtext = F, cache = T, force = F) {
         .dir <- get_savedir("figs")
         nfile <- file.path(.dir, paste0(name, strx(file, "\\.[^.]+$")))
         if (file != nfile) {
-          file.copy(file, nfile, T)
+          file.copy(file, nfile, TRUE)
         }
         file <- nfile
       }
     } else {
-      stop("file.exists(x) == F")
+      stop("file.exists(x) == FALSE")
     }
-    autoRegisters <<- c(autoRegisters, nl(name, file, F))
+    autoRegisters <<- c(autoRegisters, nl(name, file, FALSE))
   } else {
     file <- autoRegisters[[ name ]]
     .message_info("autor", "file.exists:", name, sig = "[INFO]")
@@ -2050,7 +2050,7 @@ setMethod("autor", signature = c(x = "can_be_draw", name = "character"),
 
 ## autor for data.frame
 setMethod("autor", signature = c(x = "df", name = "character"),
-  function(x, name, ..., asis = getOption("autor_asis", T)){
+  function(x, name, ..., asis = getOption("autor_asis", TRUE)){
     if (needTex()) {
       cat("\\begin{center}\\vspace{1.5cm}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{89}\\end{center}")
     }
@@ -2078,7 +2078,7 @@ setMethod("autor", signature = c(x = "df", name = "character"),
 
 ## autor for figures of file
 setMethod("autor", signature = c(x = "fig", name = "character"),
-  function(x, name, ..., asis = getOption("autor_asis", T)){
+  function(x, name, ..., asis = getOption("autor_asis", TRUE)){
     if (needTex()) {
       cat("\\begin{center}\\vspace{1.5cm}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{88}\\end{center}")
     }
@@ -2098,7 +2098,7 @@ setMethod("autor", signature = c(x = "fig", name = "character"),
   })
 
 setMethod("autor", signature = c(x = "files", name = "character"),
-  function(x, name, ..., asis = getOption("autor_asis", T)){
+  function(x, name, ..., asis = getOption("autor_asis", TRUE)){
     file <- autosv(x, name, ...)
     if (needTex()) {
       cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{85}\\vspace{1.5cm}\\end{center}")
@@ -2122,7 +2122,7 @@ setMethod("autor", signature = c(x = "character", name = "character"),
     if (length(x) > 1)
       stop("length(x) == 1")
     if (!file.exists(x))
-      stop("file.exists(x) == F")
+      stop("file.exists(x) == FALSE")
     fig.type <- c(".jpg", ".png", ".pdf")
     file.type <- stringr::str_extract(x, "\\.[a-zA-Z]+$")
     if (!is.na(file.type)) {
@@ -2299,12 +2299,12 @@ setMethod("abstract", signature = c(x = "ANY", name = "character", latex = "miss
   function(x, name, ...){
     restype <- knitr::opts_current$get("results")
     if (is.null(restype)) {
-      warning("is.null(knitr::opts_current$get(\"results\")) == T")
+      warning("is.null(knitr::opts_current$get(\"results\")) == TRUE")
     } else if (restype != "asis") {
       warning("restype != \"asis\"")
     }
     if (needTex()) {
-      latex <- T
+      latex <- TRUE
     } else {
       latex <- NULL
     }
@@ -2312,7 +2312,7 @@ setMethod("abstract", signature = c(x = "ANY", name = "character", latex = "miss
   })
 
 setMethod("abstract", signature = c(x = "df", name = "character", latex = "NULL"),
-  function(x, name, latex, ..., key = 1, abs = NULL, summary = T, sum.ex = NULL){
+  function(x, name, latex, ..., key = 1, abs = NULL, summary = TRUE, sum.ex = NULL){
     x <- tibble::as_tibble(x)
     if (!is.null(abs))
       cat(abs, "\n")
@@ -2321,7 +2321,7 @@ setMethod("abstract", signature = c(x = "df", name = "character", latex = "NULL"
 
 ## abstract for table
 setMethod("abstract", signature = c(x = "df", name = "character", latex = "logical"),
-  function(x, name, latex, ..., key = 1, abs = NULL, summary = T, sum.ex = NULL){
+  function(x, name, latex, ..., key = 1, abs = NULL, summary = TRUE, sum.ex = NULL){
     x <- tibble::as_tibble(x)
     cat("Table \\@ref(tab:", name, ")", " (下方表格) ",
       "为表格", gsub("-", " ", name), "概览。\n", sep = "")
@@ -2463,7 +2463,7 @@ sumTbl <- function(x, key, sum.ex = NULL, mustSum = getOption("abstract.mustSum"
     "以下预览的表格可能省略部分数据；", sums, "'。\n", sum.ex)
 }
 
-locate_file <- function(name, des = "File path: ", relocate = getOption("autor_relocate", F)) {
+locate_file <- function(name, des = "File path: ", relocate = getOption("autor_relocate", FALSE)) {
   if (!exists('autoRegisters'))
     stop("!exists('autoRegisters')")
   ## The `chunk_location` is setup by 'write_biocStyle'
@@ -2484,13 +2484,13 @@ locate_file <- function(name, des = "File path: ", relocate = getOption("autor_r
     file <- autoRegisters[[ name ]]
   }
   if (!file.exists(autoRegisters[[ name ]]))
-    stop("file.exists(autoRegisters[[ name ]] == F)")
+    stop("file.exists(autoRegisters[[ name ]] == FALSE)")
   if (needTex()) {
     cat("\n**(", des, " `", file, "`)**", "\n", sep = "")  
   } else if (knitr::pandoc_to("docx")) {
     content <- officer::fpar(
       officer::ftext(glue::glue("({des}{file})"),
-        officer::fp_text_lite(bold = T)),
+        officer::fp_text_lite(bold = TRUE)),
       fp_p = officer::fp_par("center", line_spacing = 1.2))
     writeLines(assis_docx_par(content))
   }
@@ -2622,7 +2622,7 @@ yf <- function(..., DATA_object = list(), Env = parent.frame(1)) {
 
 get_from_env <- function (weight, data = list(), env = parent.frame(1)){
   names <- names(weight)
-  sapply(names, simplify = F,
+  sapply(names, simplify = FALSE,
     function(name) {
       if (is.null(data[[ name ]]))
         get(name, envir = env)
@@ -2658,13 +2658,13 @@ setMethod("show", signature = c(object = "upset_data"),
     upset <- UpSetR::upset(data, sets = colnames(data), nintersects = NA,
       show.numbers = if (ncol(data) <= 4) "yes" else "no",
       sets.bar.color = "lightblue", order.by = "freq",
-      set_size.show = T, set_size.scale_max = 1.5 * maxnum,
+      set_size.show = TRUE, set_size.scale_max = 1.5 * maxnum,
       text.scale = c(1.4, 1, 1.4, 1.1, 1, 1.1)
     )
     show(wrap(upset, ncol(data) * 1.4, ncol(data) * 1.3))
   })
 
-new_upset2 <- function(..., lst = NULL, trunc = "left", width = 30, convert = T) {
+new_upset2 <- function(..., lst = NULL, trunc = "left", width = 30, convert = TRUE) {
   p <- new_upset(..., lst = lst, trunc = trunc, width = width, convert = convert)
   if (is.null(lst)) {
     ins <- ins(...)
@@ -2674,12 +2674,12 @@ new_upset2 <- function(..., lst = NULL, trunc = "left", width = 30, convert = T)
   namel(p, ins)
 }
 
-new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T, ins = NULL) {
+new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = TRUE, ins = NULL) {
   if (is.null(lst)) {
     lst <- list(...)
   }
   raw.lst <- lst <- lapply(lst, unique)
-  members <- unique(unlist(lst, use.names = F))
+  members <- unique(unlist(lst, use.names = FALSE))
   data <- data.frame(members = members)
   lst <- lapply(lst,
     function(set) {
@@ -2713,7 +2713,7 @@ new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = T, 
   }
 }
 
-new_venn <- function(..., lst = NULL, wrap = T, fun_pre = rm.no, force_upset = T) {
+new_venn <- function(..., lst = NULL, wrap = TRUE, fun_pre = rm.no, force_upset = TRUE) {
   if (!is.null(lst) && length(list(...))) {
     lst <- c(lst, list(...))
   }
@@ -2722,7 +2722,7 @@ new_venn <- function(..., lst = NULL, wrap = T, fun_pre = rm.no, force_upset = T
   }
   lst <- lapply(lst, function(x) as.character(fun_pre(x)))
   if (force_upset) {
-    p <- ggVennDiagram::ggVennDiagram(lst, force_upset = T)
+    p <- ggVennDiagram::ggVennDiagram(lst, force_upset = TRUE)
     p$plotlist[[2]]$layers[[1]]$geom_params$width <- .4
     p$plotlist[[3]]$layers[[1]]$geom_params$width <- .7
   } else {
@@ -2751,7 +2751,7 @@ setdev <- function(width, height) {
 }
 
 ## logistic
-new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"), B = 500, ...)
+new_lrm <- function(data, formula, rev.level = FALSE, lang = c("cn", "en"), B = 500, ...)
 {
   fun_escape_bug_of_rms <- function() {
     wh <- which(vapply(seq_len(ncol(data)), function(n) is.factor(data[[ n ]]), FUN.VALUE = logical(1)))
@@ -2790,10 +2790,10 @@ new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"), B = 500,
   }
   message("Check levels: ", paste0(levels <- levels(data[[ y ]]), collapse = ", "))
   set_rms_datadist(data)
-  fit <- e(rms::lrm(formula, data = data, x = T, y = T))
+  fit <- e(rms::lrm(formula, data = data, x = TRUE, y = TRUE))
   # 95\\% CL
   # exp(confint.default(lrm.eff$fit))
-  if (T) {
+  if (TRUE) {
     message("Use boot to calculate average C-index ...")
     ## use boot to calculate average C-index and 95\\% CI
     fun_c_index <- function(data, indices) {
@@ -2814,7 +2814,7 @@ new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"), B = 500,
     lich <- .set_lab(lich, "bootstrap others")
     boots <- namel(boot, boot.ci, lich)
   }
-  if (F) {
+  if (FALSE) {
     old <- getOption("prType")
     options(prType = "html")
     html <- paste0(print(lrm.supp$fit))
@@ -2833,7 +2833,7 @@ new_lrm <- function(data, formula, rev.level = F, lang = c("cn", "en"), B = 500,
   }
   p.cal <- as_grob(
     expression(plot(cal, xlim = c(0, 1), ylim = c(0, 1),
-        xlab = xlab, ylab = ylab, subtitle = F)), environment()
+        xlab = xlab, ylab = ylab, subtitle = FALSE)), environment()
   )
   if (lang == "cn") {
     message("Try convert English legend as Chinese.")
@@ -2857,7 +2857,7 @@ set_rms_datadist <- function(data) {
 }
 
 new_nomo <- function(lrm, fun_label = lrm$levels[2], lang = lrm$lang,
-  lp = F, fun_at = seq(.1, .9, by = .1))
+  lp = FALSE, fun_at = seq(.1, .9, by = .1))
 {
   if (!is(lrm, "list")) {
     stop("the `lrm` should be object 'list' return by `new_lrm`")
@@ -2888,8 +2888,8 @@ new_nomo <- function(lrm, fun_label = lrm$levels[2], lang = lrm$lang,
 new_roc <- function(y, x, ..., plot.thres = NULL, lang = c("en", "cn"), cn.mode = c("zhen", "1-"))
 {
   lang <- match.arg(lang)
-  roc <- pROC::roc(y, x, ..., ci = T)
-  if (T) {
+  roc <- pROC::roc(y, x, ..., ci = TRUE)
+  if (TRUE) {
     # try get p-value
     # https://stackoverflow.com/questions/61997453/how-to-get-p-value-after-roc-analysis-with-proc-package
     fun_p <- function() {
@@ -2916,7 +2916,7 @@ new_roc <- function(y, x, ..., plot.thres = NULL, lang = c("en", "cn"), cn.mode 
     ylab <- "Sensitivity"
   }
   p.roc <- as_grob(
-    expression(pROC::plot.roc(roc, print.thres = plot.thres, print.auc = T,
+    expression(pROC::plot.roc(roc, print.thres = plot.thres, print.auc = TRUE,
         print.auc.x = .4, print.auc.y = .05,
         xlab = xlab, ylab = ylab)), environment()
   )
@@ -2935,7 +2935,7 @@ new_roc <- function(y, x, ..., plot.thres = NULL, lang = c("en", "cn"), cn.mode 
 }
 
 new_allu <- function(data, col.fill = 1, axes = 1:2,
-  label.auto = F, label.freq = NULL, label.factor = 1, shiny = F, trunc = F)
+  label.auto = FALSE, label.freq = NULL, label.factor = 1, shiny = FALSE, trunc = FALSE)
 {
   require(ggalluvial)
   fill <- colnames(data)[col.fill]
@@ -2962,7 +2962,7 @@ new_allu <- function(data, col.fill = 1, axes = 1:2,
   scale_fill <- if (is.numeric(data[[ fill ]])) {
     scale_fill_gradientn(colors = color_set2())
   } else {
-    scale_fill_manual(values = color_set(T))
+    scale_fill_manual(values = color_set(TRUE))
   }
   geom_stratum <- if (shiny) {
     geom_stratum(aes(fill = fill))
@@ -3002,7 +3002,7 @@ new_col <- function(..., lst = NULL, fun = function(x) x[ !is.na(x) & x != ""]) 
   wrap(p, 7, nrow(data) * .5 + .5)
 }
 
-new_pie <- function(x, title = NULL, use.ggplot = T, overlap = 30,
+new_pie <- function(x, title = NULL, use.ggplot = TRUE, overlap = 30,
   fun_text = function(...) ggrepel::geom_label_repel(..., max.overlaps = overlap))
 {
   x <- split(x, x)
@@ -3019,7 +3019,7 @@ new_pie <- function(x, title = NULL, use.ggplot = T, overlap = 30,
       lab.y = sum(value) - (value / 2 + c(0, cumsum(value)[ -length(value) ]))
     )
     palette <- if (length(x) > 40)
-      color_set(T)
+      color_set(TRUE)
     else if (length(x) > 10)
       color_set()
     else
@@ -3057,7 +3057,7 @@ plot_median_expr_line <- function(data) {
           names(fn) <- n(v, 5)
           do.call(data.frame, as.list(fn))
         })
-      data <- data.table::rbindlist(data, idcol = T)
+      data <- data.table::rbindlist(data, idcol = TRUE)
       rename(data, sample = .id)
     })
   seq <- seq_len(nrow(lst[[1]]))
@@ -3086,15 +3086,15 @@ rm.no <- function(x) {
   unique(x[ !is.na(x) & x != "" ])
 }
 
-grp <- function(x, pattern, ignore.case = F, ...) {
+grp <- function(x, pattern, ignore.case = FALSE, ...) {
   grep(pattern, x, ignore.case = ignore.case, ...)
 }
 
-grpl <- function(x, pattern, ignore.case = F, ...) {
+grpl <- function(x, pattern, ignore.case = FALSE, ...) {
   grepl(pattern, x, ignore.case = ignore.case, ...)
 }
 
-grpf <- function(x, pattern, ignore.case = F, ...) {
+grpf <- function(x, pattern, ignore.case = FALSE, ...) {
   x[grepl(pattern, x, ignore.case = ignore.case, ...)]
 }
 
@@ -3114,7 +3114,7 @@ strx <- function(...) {
   stringr::str_extract(...)
 }
 
-search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 10, db = "scopusV2.rds", port = 7777)
+search.scopus <- function(data, try_format = TRUE, sleep = 3, group.sleep = 5, n = 10, db = "scopusV2.rds", port = 7777)
 {
   if (try_format) {
     .check_columns(data, c("name", "inst"))
@@ -3152,7 +3152,7 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
   db <- new_db(db, ".id")
   db <- not(db, data$.id)
   query <- dplyr::filter(data, .id %in% db@query)
-  query <- dplyr::distinct(query, .id, .keep_all = T)
+  query <- dplyr::distinct(query, .id, .keep_all = TRUE)
   #######################
   #######################
   if (nrow(query)) {
@@ -3171,7 +3171,7 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
       N <- N + 1L
       cli::cli_h1(paste0("Group: ", N, " (", length(lst), ")"))
       Sys.sleep(sleep)
-      res <- apply(query, 1, simplify = F,
+      res <- apply(query, 1, simplify = FALSE,
         function(x) {
           x <- as.list(x)
           link$navigate("https://www.scopus.com/freelookup/form/author.uri?zone=TopNavBar&origin=NO%20ORIGIN%20DEFINED")
@@ -3192,7 +3192,7 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
           table
         })
       .names <- names(res) <- query$.id
-      res <- frbind(res, fill = T, idcol = T)
+      res <- frbind(res, fill = TRUE, idcol = TRUE)
       db <- upd(db, res, .names)
     }
     link$close()
@@ -3200,7 +3200,7 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
   }
   res <- dplyr::filter(db@db, .id %in% !!data$.id)
   # keep the first search result
-  res <- dplyr::distinct(res, .id, .keep_all = T)
+  res <- dplyr::distinct(res, .id, .keep_all = TRUE)
   res <- res[match(data$.id, res$.id), ]
   res <- dplyr::rename(res, `query (Name + Affiliation)` = .id)
   ################################
@@ -3209,7 +3209,7 @@ search.scopus <- function(data, try_format = T, sleep = 3, group.sleep = 5, n = 
 }
 
 read_from_compoundDiscovery <- function(file_xlsx, exdir = "compound_discovery") {
-  db <- openxlsx::read.xlsx(file_xlsx, colNames = F)
+  db <- openxlsx::read.xlsx(file_xlsx, colNames = FALSE)
   fun_format <- function(x) {
     x <- dplyr::filter(x, !is.na(X2))
     x <- dplyr::select_if(x, function(x) !all(is.na(x)))
@@ -3236,11 +3236,11 @@ read_from_compoundDiscovery <- function(file_xlsx, exdir = "compound_discovery")
   }
   table <- as_tibble(fun_format(db))
   ## peak area image
-  dir.create(exdir, F)
+  dir.create(exdir, FALSE)
   unzip(file_xlsx, exdir = exdir)
   fun <- function(dir) {
-    files <- list.files(dir, ".png$", full.names = T)
-    scale <- sapply(files, simplify = F,
+    files <- list.files(dir, ".png$", full.names = TRUE)
+    scale <- sapply(files, simplify = FALSE,
       function(x) {
         try(bitmap_info(x))
       })
@@ -3268,7 +3268,7 @@ try_get_area.compoundDiscovery <- function(lstcd, res_ocr) {
     format = gs(value, "^([0-9])\\.?", "\\1."),
     format = gs(format, "B$", "8"),
     format = as.double(format))
-  if (all(!is.na(res_ocr$format)) & identical(sort(res_ocr$format, decreasing = T), res_ocr$format)) {
+  if (all(!is.na(res_ocr$format)) & identical(sort(res_ocr$format, decreasing = TRUE), res_ocr$format)) {
     message("Got the expected value.")
   } else {
     Terror <<- res_ocr

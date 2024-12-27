@@ -44,7 +44,7 @@ setMethod("asjob_vina", signature = c(x = "job_stringdb"),
         Ingredient_id %in% compounds_targets$Ingredient_id)
       cids <- compounds$PubChem_id
       cids <- cids[ !is.na(cids) ]
-      from_job_herb <- T
+      from_job_herb <- TRUE
     } else {
       from_job_herb <- NULL
     }
@@ -62,7 +62,7 @@ setMethod("step0", signature = c(x = "job_vina"),
   })
 
 setMethod("step1", signature = c(x = "job_vina"),
-  function(x, bdb = F, each_target = 1, pdbs = NULL, bdb_file = .prefix("BindingDB_All_202401.tsv", "db"))
+  function(x, bdb = FALSE, each_target = 1, pdbs = NULL, bdb_file = .prefix("BindingDB_All_202401.tsv", "db"))
   {
     step_message("Prepare Docking Combination.")
     if (is.null(x$mart)) {
@@ -71,16 +71,16 @@ setMethod("step1", signature = c(x = "job_vina"),
       mart <- x$mart
     }
     x$targets_annotation <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
-      object(x)$hgnc_symbols, distinct = F)
+      object(x)$hgnc_symbols, distinct = FALSE)
     x$targets_annotation <- dplyr::filter(x$targets_annotation, pdb != "")
-    x$targets_annotation <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = T)
+    x$targets_annotation <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = TRUE)
     if (!is.null(pdbs)) {
       pdbs <- list(hgnc_symbol = names(pdbs), pdb = unname(pdbs))
       if (!is.character(x$targets_annotation$pdb)) {
         x$targets_annotation <- dplyr::mutate(x$targets_annotation, pdb = as.character(pdb))
       }
       x$targets_annotation <- tibble::add_row(x$targets_annotation, !!!pdbs)
-      x$targets_annotation <- dplyr::distinct(x$targets_annotation, hgnc_symbol, .keep_all = T)
+      x$targets_annotation <- dplyr::distinct(x$targets_annotation, hgnc_symbol, .keep_all = TRUE)
     }
     if (any(isThat <- !object(x)$hgnc_symbols %in% x$targets_annotation$hgnc_symbol)) {
       message("PDB not found:\n\t", paste0(unique(object(x)$hgnc_symbols[ isThat ]), collapse = ", "))
@@ -110,19 +110,19 @@ setMethod("step1", signature = c(x = "job_vina"),
       }
     } else {
       pdbs <- split(x$targets_annotation$pdb, x$targets_annotation$hgnc_symbol)
-      pdbs <- unlist(lapply(pdbs, head, n = each_target), use.names = F)
-      x$dock_layout <- sapply(object(x)$cids, function(cid) pdbs, simplify = F)
+      pdbs <- unlist(lapply(pdbs, head, n = each_target), use.names = FALSE)
+      x$dock_layout <- sapply(object(x)$cids, function(cid) pdbs, simplify = FALSE)
       names(x$dock_layout) <- object(x)$cids
     }
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_vina"),
-  function(x, try_cluster_random = T, nGroup = 30, nMember = 3, cl = 10, sdf.3d = NULL)
+  function(x, try_cluster_random = TRUE, nGroup = 30, nMember = 3, cl = 10, sdf.3d = NULL)
   {
     step_message("Download sdf files and convert as pdbqt for ligands.")
     sdfFile <- query_sdfs(unique(names(x$dock_layout)), curl_cl = cl)
-    Show_filter <- F
+    Show_filter <- FALSE
     if (try_cluster_random) {
       if (length(object(x)$cids) > nGroup) {
         message("To reduce docking candidates, clustering the molecules, and random sample each group to get `n`")
@@ -147,7 +147,7 @@ setMethod("step2", signature = c(x = "job_vina"),
               sample(x, nMember)
             } else x
           })
-        sdfset <- sdfset[unlist(groups, use.names = F)]
+        sdfset <- sdfset[unlist(groups, use.names = FALSE)]
         MaybeError <- vapply(ChemmineR::cid(sdfset), FUN.VALUE = logical(1),
           function(x) {
             dim(sdfset[[x]][[2]])[2] < 3
@@ -155,7 +155,7 @@ setMethod("step2", signature = c(x = "job_vina"),
         sdfset <- sdfset[which(!MaybeError)]
         sdfFile <- gs(sdfFile, "\\.sdf$", "_random.sdf")
         e(ChemmineR::write.SDF(sdfset, sdfFile))
-        Show_filter <- T
+        Show_filter <- TRUE
         .add_internal_job(.job(method = "R package `ChemmineR` used for similar chemical compounds clustering",
             cite = "[@ChemminerACoCaoY2008]"
             ))
@@ -174,7 +174,7 @@ setMethod("step2", signature = c(x = "job_vina"),
       message("Use '", sdf.3d, "'")
       sdfFile <- sdf.3d
     } else {
-      stop("file.exists(sdf.3d) == F")
+      stop("file.exists(sdf.3d) == FALSE")
     }
     if (Show_filter) {
       message("Filter out (Due to Chemmine bug): ", length(which(MaybeError)))
@@ -192,10 +192,10 @@ setMethod("step2", signature = c(x = "job_vina"),
 
 setMethod("step3", signature = c(x = "job_vina"),
   function(x, cl = 10, pattern = NULL,
-    extra_pdb.files = NULL, extra_layouts = NULL, extra_symbols = NULL, filter = T)
+    extra_pdb.files = NULL, extra_layouts = NULL, extra_symbols = NULL, filter = TRUE)
   {
     step_message("Dowload pdb files for Receptors.")
-    ids <- unique(unlist(x$dock_layout, use.names = F))
+    ids <- unique(unlist(x$dock_layout, use.names = FALSE))
     if (length(ids)) {
       pdb.files <- get_pdb(ids, cl = cl)
     } else {
@@ -205,16 +205,16 @@ setMethod("step3", signature = c(x = "job_vina"),
       names(extra_pdb.files) <- tolower(names(extra_pdb.files))
       pdb.files <- c(pdb.files, extra_pdb.files)
       if (is.null(extra_symbols)) {
-        extra_symbols <- nl(toupper(names(extra_pdb.files)), names(extra_pdb.files), F)
+        extra_symbols <- nl(toupper(names(extra_pdb.files)), names(extra_pdb.files), FALSE)
       }
       if (!nrow(x@params$targets_annotation)) {
         x@params$targets_annotation <- dplyr::mutate(x@params$targets_annotation, pdb = character(0))
       }
       x@params$targets_annotation %<>%
         tibble::add_row(hgnc_symbol = names(extra_symbols), pdb = unname(extra_symbols))
-      layoutNeedRevise <- T
+      layoutNeedRevise <- TRUE
     } else {
-      layoutNeedRevise <- F
+      layoutNeedRevise <- FALSE
     }
     if (!is.null(extra_layouts)) {
       if (is(extra_layouts, "character")) {
@@ -229,7 +229,7 @@ setMethod("step3", signature = c(x = "job_vina"),
     }
     x$res.receptor <- prepare_receptor(pdb.files)
     names <- names(x$res.receptor)
-    anno <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = T)
+    anno <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = TRUE)
     gotSymbols <- anno$hgnc_symbol[ match(tolower(names), tolower(anno$pdb)) ]
     x$res.receptor.symbol <- gotSymbols
     fun <- function(x) x[ !x %in% gotSymbols ]
@@ -253,7 +253,7 @@ setMethod("filter", signature = c(x = "job_vina"),
     if (is.null(cid)) {
       cid <- unname(object(x)$cids[ match(cpd, names(object(x)$cids)) ])
     }
-    ref <- dplyr::distinct(x$targets_annotation, hgnc_symbol, .keep_all = T)
+    ref <- dplyr::distinct(x$targets_annotation, hgnc_symbol, .keep_all = TRUE)
     pdb <- ref$pdb[ match(symbol, ref$hgnc_symbol) ]
     layout <- nl(cid, pdb)
     x$dock_layout <- layout
@@ -266,10 +266,10 @@ setMethod("step4", signature = c(x = "job_vina"),
     step_message("Run vina ...")
     runs <- tibble::tibble(
       Ligand = rep(names(x$dock_layout), lengths(x$dock_layout)),
-      Receptor = tolower(unlist(x$dock_layout, use.names = F))
+      Receptor = tolower(unlist(x$dock_layout, use.names = FALSE))
     )
     x$show_layout <- runs
-    runs <- apply(runs, 1, unname, simplify = F)
+    runs <- apply(runs, 1, unname, simplify = FALSE)
     x$runs <- runs
     x$savedir <- savedir
     n <- 0
@@ -300,7 +300,7 @@ setMethod("step5", signature = c(x = "job_vina"),
     x$summary_vina <- summary_vina(x$savedir)
     x$summary_vina <- dplyr::filter(x$summary_vina,
       PubChem_id %in% !!names(x$dock_layout),
-      PDB_ID %in% tolower(unlist(x$dock_layout, use.names = F))
+      PDB_ID %in% tolower(unlist(x$dock_layout, use.names = FALSE))
     )
     if (!is.null(top)) {
       x$summary_vina <- split_lapply_rbind(x$summary_vina, ~ PDB_ID,
@@ -332,7 +332,7 @@ setMethod("step5", signature = c(x = "job_vina"),
     }
     res_dock <- dplyr::arrange(res_dock, Affinity)
     res_dock <- dplyr::filter(res_dock, !is.na(!!rlang::sym(facet)))
-    data <- dplyr::distinct(res_dock, PubChem_id, hgnc_symbol, .keep_all = T)
+    data <- dplyr::distinct(res_dock, PubChem_id, hgnc_symbol, .keep_all = TRUE)
     if (!is.null(cutoff.af)) {
       data <- dplyr::filter(data, Affinity < !!cutoff.af)
     }
@@ -347,7 +347,7 @@ setMethod("step5", signature = c(x = "job_vina"),
     }
     data <- dplyr::mutate(data, dplyr::across(!!rlang::sym(facet), function(x) stringr::str_trunc(x, 30)))
     p.res_vina <- ggplot(data) + 
-      geom_col(aes(x = reorder(hgnc_symbol, Affinity, decreasing = T), y = Affinity, fill = Affinity), width = .7) +
+      geom_col(aes(x = reorder(hgnc_symbol, Affinity, decreasing = TRUE), y = Affinity, fill = Affinity), width = .7) +
       geom_text(data = dplyr::filter(data, Affinity <= 0),
         aes(x = hgnc_symbol, y = Affinity - .5, label = round(Affinity, 1)), hjust = 1) +
       labs(x = "", y = "Affinity (kcal/mol)") +
@@ -365,7 +365,7 @@ setMethod("step5", signature = c(x = "job_vina"),
   })
 
 setMethod("step6", signature = c(x = "job_vina"),
-  function(x, time = 15, top = NULL, save = T, unique = F, symbol = NULL, cpd = NULL)
+  function(x, time = 15, top = NULL, save = TRUE, unique = FALSE, symbol = NULL, cpd = NULL)
   {
     step_message("Use pymol for all visualization.")
     data <- dplyr::filter(x@tables$step5$res_dock, Affinity < 0)
@@ -376,17 +376,17 @@ setMethod("step6", signature = c(x = "job_vina"),
       data <- dplyr::filter(data, Ingredient_name %in% !!cpd)
     }
     if (unique) {
-      data <- dplyr::distinct(data, hgnc_symbol, .keep_all = T)
+      data <- dplyr::distinct(data, hgnc_symbol, .keep_all = TRUE)
     }
     if (!is.null(top)) {
       data <- head(data, n = top)
     }
-    figs <- pbapply::pbapply(data, 1, simplify = F,
+    figs <- pbapply::pbapply(data, 1, simplify = FALSE,
       function(v) {
         vinaShow(v[[ "Combn" ]], v[[ "PDB_ID" ]], timeLimit = time, save = save)
       }
     )
-    figs <- unlist(figs, recursive = F)
+    figs <- unlist(figs, recursive = FALSE)
     lab(figs) <- paste(sig(x), "docking visualization")
     names(figs) <- paste0("Top", seq_along(figs), "_", names(figs))
     x@plots[[ 6 ]] <- figs
@@ -397,15 +397,15 @@ setMethod("step6", signature = c(x = "job_vina"),
   })
 
 setMethod("step7", signature = c(x = "job_vina"),
-  function(x, save = T){
+  function(x, save = TRUE){
     step_message("Show docking results in deep and in detail.")
     data <- x@tables$step6$data
-    figs <- pbapply::pbapply(data, 1, simplify = F,
+    figs <- pbapply::pbapply(data, 1, simplify = FALSE,
       function(v) {
-        vinaShow(v[[ "Combn" ]], v[[ "PDB_ID" ]], save = save, detail = T)
+        vinaShow(v[[ "Combn" ]], v[[ "PDB_ID" ]], save = save, detail = TRUE)
       }
     )
-    figs <- unlist(figs, recursive = F)
+    figs <- unlist(figs, recursive = FALSE)
     lab(figs) <- paste(sig(x), "docking interaction details")
     names(figs) <- paste0("Top", seq_along(figs), "_", names(figs))
     x@plots[[ 7 ]] <- figs
@@ -417,8 +417,8 @@ pretty_docking <- function(protein, ligand, path,
   script = paste0(.expath, "/pretty_docking.pymol"))
 {
   script <- readLines(script)
-  script <- gs(script, "{{protein.pdbqt}}", protein, fixed = T)
-  script <- gs(script, "{{ligand.pdbqt}}", ligand, fixed = T)
+  script <- gs(script, "{{protein.pdbqt}}", protein, fixed = TRUE)
+  script <- gs(script, "{{ligand.pdbqt}}", ligand, fixed = TRUE)
   temp <- tempfile("Pymol", fileext = ".pml")
   writeLines(script, temp)
   cli::cli_alert_info(paste0("Pymol run script: ", temp))
@@ -434,26 +434,26 @@ pretty_docking <- function(protein, ligand, path,
 }
 
 vina_limit <- function(lig, recep, timeLimit = 120, dir = "vina_space", ...) {
-  try(vina(lig, recep, ..., timeLimit = timeLimit, dir = dir), T)
+  try(vina(lig, recep, ..., timeLimit = timeLimit, dir = dir), TRUE)
 }
 
 vina <- function(lig, recep, dir = "vina_space",
   exhaustiveness = 32, scoring = "ad4", stout = "/tmp/res.log", timeLimit = 60,
   excludes.atom = c("G0", "CG0"), x)
 {
-  remote <- F
+  remote <- FALSE
   if (!missing(x)) {
     if (is.remote(x)) {
-      remote <- T
+      remote <- TRUE
     }
   }
   if (!file.exists(dir)) {
-    dir.create(dir, F)
+    dir.create(dir, FALSE)
   } 
   subdir <- paste0(reals <- get_realname(c(lig, recep)), collapse = "_into_")
   wd <- paste0(dir, "/", subdir)
   if (!file.exists(paste0(wd, "/", subdir, "_out.pdbqt"))) {
-    dir.create(wd, F)
+    dir.create(wd, FALSE)
     file.copy(c(recep, lig), wd)
     .message_info("Generating affinity maps", subdir)
     .cdRun <- function(...) cdRun(..., path = wd)
@@ -483,20 +483,20 @@ vina <- function(lig, recep, dir = "vina_space",
         " >> ", stout)
       try(get_file_from_remote(output, x$wd, paste0(wd, "/", output)))
     } else {
-      cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = T)
+      cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = TRUE)
       try(.cdRun("timeout ", timeLimit, 
           " vina  --ligand ", files[1],
           " --maps ", reals[2],
           " --scoring ", scoring,
           " --exhaustiveness ", exhaustiveness,
           " --out ", subdir, "_out.pdbqt",
-          " >> ", stout), T)
+          " >> ", stout), TRUE)
     }
   }
 }
 
 vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
-  timeLimit = 3, backup = NULL, save = T, detail = F)
+  timeLimit = 3, backup = NULL, save = TRUE, detail = FALSE)
 {
   if (!file.exists(path <- paste0(dir, "/", subdir))) {
     stop("file.exists(path <- paste0(dir, \"/\", subdir))")
@@ -505,7 +505,7 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
   out <- paste0(Combn, "_out.pdbqt")
   recep <- paste0(recep, ".pdbqt")
   if (!file.exists(recep)) {
-    maybethat <- list.files(wd, recep, ignore.case = T)
+    maybethat <- list.files(wd, recep, ignore.case = TRUE)
     if (length(maybethat)) {
       recep <- maybethat[1]
     }
@@ -531,11 +531,11 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
         " pymol ",
         " -d \"load ", out, ";",
         " load ", recep, ";",
-        " ray;", expr, "\" "), T)
+        " ray;", expr, "\" "), TRUE)
   }
   if (is.character(backup)) {
-    dir.create(backup, F)
-    file.copy(img, backup, T)
+    dir.create(backup, FALSE)
+    file.copy(img, backup, TRUE)
   }
   fig <- file_fig(Combn, img)
   lab(fig[[1]]) <- paste0("docking ", Combn, if (!detail) NULL else " detail")
@@ -544,7 +544,7 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
 
 summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$")
 {
-  files <- list.files(space, pattern, recursive = T, full.names = T)
+  files <- list.files(space, pattern, recursive = TRUE, full.names = TRUE)
   res_dock <- lapply(files,
     function(file) {
       lines <- readLines(file)
@@ -570,7 +570,7 @@ summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$")
 }
 
 smiles_as_sdfs.obabel <- function(smiles) {
-  lst.sdf <- pbapply::pbsapply(smiles, simplify = F,
+  lst.sdf <- pbapply::pbsapply(smiles, simplify = FALSE,
     function(smi) {
       ChemmineOB::convertFormat("SMI", "SDF", source = test)
     })
@@ -589,10 +589,10 @@ ld_cols <- function(file, sep = "\t") {
 }
 
 lst_clear0 <- function(lst, len = 0) {
-  lst[ vapply(lst, function(v) if (length(v) > len) T else F, logical(1)) ]
+  lst[ vapply(lst, function(v) if (length(v) > len) TRUE else FALSE, logical(1)) ]
 }
 
-ld_cutRead <- function(file, cols, abnum = T, sep = "\t", tmp = "/tmp/ldtmp.txt") {
+ld_cutRead <- function(file, cols, abnum = TRUE, sep = "\t", tmp = "/tmp/ldtmp.txt") {
   if (is.character(cols)) {
     names <- ld_cols(file, sep)
     message("Find columns of: ", paste0(names[ names %in% cols ], collapse = ", "))
@@ -607,8 +607,8 @@ ld_cutRead <- function(file, cols, abnum = T, sep = "\t", tmp = "/tmp/ldtmp.txt"
   ftibble(tmp)
 }
 
-mk_prepare_ligand.sdf <- function(sdf_file, mkdir.pdbqt = "pdbqt", check = F) {
-  dir.create(mkdir.pdbqt, F)
+mk_prepare_ligand.sdf <- function(sdf_file, mkdir.pdbqt = "pdbqt", check = FALSE) {
+  dir.create(mkdir.pdbqt, FALSE)
   check_sdf_validity <- function(file) {
     lst <- sep_list(readLines(file), "^\\${4,}$")
     lst <- lst[ - length(lst) ]
@@ -634,7 +634,7 @@ mk_prepare_ligand.sdf <- function(sdf_file, mkdir.pdbqt = "pdbqt", check = F) {
   cdRun(pg("mk_prepare_ligand.py"), " -i ", sdf_file,
     " --multimol_outdir ", mkdir.pdbqt)
   lst$file <- sdf_file
-  lst$pdbqt <- list.files(mkdir.pdbqt, "\\.pdbqt$", full.names = T)
+  lst$pdbqt <- list.files(mkdir.pdbqt, "\\.pdbqt$", full.names = TRUE)
   lst$pdbqt.num <- length(lst$pdbqt)
   lst$pdbqt.cid <- stringr::str_extract(lst$pdbqt, "(?<=/|^)[0-9]{1,}")
   return(lst)
@@ -644,7 +644,7 @@ select_files_by_grep <- function(files, pattern){
   res <- lapply(files,
     function(file) {
       line <- readLines(file)
-      if (any(grepl(pattern, line, T)))
+      if (any(grepl(pattern, line, TRUE)))
         return(file)
       else NULL
     })
@@ -657,7 +657,7 @@ filter_pdbs <- function(files, pattern = "ORGANISM_SCIENTIFIC: HOMO SAPIENS") {
 }
 
 prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {
-  dir.create(mkdir.pdbqt, F)
+  dir.create(mkdir.pdbqt, FALSE)
   file <- lapply(files,
     function(file) {
       if (!is.null(file)) {
@@ -680,7 +680,7 @@ setMethod("set_remote", signature = c(x = "job_vina"),
 
 cal_3d_sdf <- function(sdf) {
   output <- gs(sdf, "\\.sdf$", "_3D.sdf")
-  isThat <- T
+  isThat <- TRUE
   if (file.exists(output)) {
     isThat <- usethis::ui_yeah("Overwrite the exists file?")
   }

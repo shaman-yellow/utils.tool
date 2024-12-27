@@ -94,7 +94,7 @@ setMethod("step2", signature = c(x = "job_cardinal"),
 
 setMethod("step3", signature = c(x = "job_cardinal"),
   function(x, formula = "~ group", show = 10,
-    use.segment = F, workers = 5, ...)
+    use.segment = FALSE, workers = 5, ...)
   {
     step_message("Segment-based means testing.")
     if ( use.segment ) {
@@ -115,11 +115,11 @@ setMethod("step3", signature = c(x = "job_cardinal"),
         })
       names(x) <- paste0("I = ", i)
       x <- frbind(x, idcol = "features")
-      x <- dplyr::mutate(x, features = sortCh(features, F, T))
+      x <- dplyr::mutate(x, features = sortCh(features, FALSE, TRUE))
       x
     }
     data <- get_data.mtest(x$mtest, tops <- head(t.tops$i, show))
-    p.boxTops <- .map_boxplot2(data, F, x = "group", y = "intensity",
+    p.boxTops <- .map_boxplot2(data, FALSE, x = "group", y = "intensity",
       ids = "features", scales = "free_y",
       xlab = "Group", ylab = "Normalized Itensity"
     )
@@ -131,7 +131,7 @@ setMethod("step3", signature = c(x = "job_cardinal"),
   })
 
 setMethod("map", signature = c(x = "job_cardinal", ref = "df"),
-  function(x, ref, order_by = "i", distinct = T, tol = .01, ...)
+  function(x, ref, order_by = "i", distinct = TRUE, tol = .01, ...)
   {
     message("Merge identification data into feature data and top tables.")
     if (x@step < 1L) {
@@ -143,7 +143,7 @@ setMethod("map", signature = c(x = "job_cardinal", ref = "df"),
           ))
       x <- dplyr::arrange(x, !!!rlang::syms(as.list(order_by)))
       if (distinct) {
-        x <- dplyr::distinct(x, i, .keep_all = T)
+        x <- dplyr::distinct(x, i, .keep_all = TRUE)
       }
       x
     }
@@ -194,7 +194,7 @@ setMethod("vis", signature = c(x = "job_cardinal"),
   })
 
 setMethod("ids", signature = c(x = "job_cardinal"),
-  function(x, which = "run", unique = T){
+  function(x, which = "run", unique = TRUE){
     ids <- object(x)[[ which ]]
     if ( unique ) {
       if ( is.factor(ids) ) {

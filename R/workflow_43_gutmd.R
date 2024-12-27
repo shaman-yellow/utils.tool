@@ -38,7 +38,7 @@ setMethod("step0", signature = c(x = "job_gutmd"),
   })
 
 setMethod("step1", signature = c(x = "job_gutmd"),
-  function(x, micro_patterns = NULL, metab_patterns = NULL, label = NULL, label.auto = T)
+  function(x, micro_patterns = NULL, metab_patterns = NULL, label = NULL, label.auto = TRUE)
   {
     step_message("Match microbiota or metabolite in database")
     tables <- list()
@@ -47,7 +47,7 @@ setMethod("step1", signature = c(x = "job_gutmd"),
       res$matches <- matchThats(object(x)[[1]], micro_patterns)
       if (length(res$matches)) {
         db_matched <- dplyr::filter(object(x),
-          Gut.Microbiota %in% unlist(!!res$matches, use.names = F)
+          Gut.Microbiota %in% unlist(!!res$matches, use.names = FALSE)
         )
         dic <- as_df.lst(res$matches)
         dic <- nl(dic$name, dic$type)
@@ -56,7 +56,7 @@ setMethod("step1", signature = c(x = "job_gutmd"),
         db_matched <- .set_lab(db_matched, sig(x), "Matched data in gutMDisorder")
         res$db_matched <- db_matched
         data <- dplyr::select(db_matched, Query, Gut.Microbiota, Substrate, Metabolite)
-        p.allu <- new_allu(data, axes = 1:4, label.auto = label.auto, shiny = T)
+        p.allu <- new_allu(data, axes = 1:4, label.auto = label.auto, shiny = TRUE)
         res$p.allu <- .set_lab(wrap(p.allu), sig(x), "alluvium plot of Matched data in gutMDisorder")
         res$data <- dplyr::distinct(data)
         x$res_micro <- res
@@ -68,7 +68,7 @@ setMethod("step1", signature = c(x = "job_gutmd"),
       res <- list()
       alls <- rm.no(c(object(x)$Substrate, object(x)$Metabolite))
       res$matches <- matchThats(alls, metab_patterns)
-      names <- unlist(res$matches, use.names = F)
+      names <- unlist(res$matches, use.names = FALSE)
       res$db_matched <- dplyr::filter(object(x),
         Substrate %in% !!names | Metabolite %in% !!names
       )
@@ -107,7 +107,7 @@ setMethod("map", signature = c(x = "job_gutmd", ref = "job_publish"),
       ref.data <- dplyr::filter(object(ref), pubchem_cid %in% !!cids, !is.na(pubchem_cid))
       ##############
       ##############
-      matched <- tbmerge(main, ref.data, by.x = ".id", by.y = "pubchem_cid", allow.cartesian = T)
+      matched <- tbmerge(main, ref.data, by.x = ".id", by.y = "pubchem_cid", allow.cartesian = TRUE)
       matched <- dplyr::relocate(matched, .id, .id_from, Substrate, Metabolite, Gut.Microbiota)
       matched <- dplyr::select(matched, -dplyr::ends_with("PubChem.CID"))
       matched <- dplyr::mutate(matched, Target_Gene = gs(Target_Gene, "\\s*,\\s*|\\s+", " "))
@@ -133,7 +133,7 @@ setMethod("map", signature = c(x = "job_limma", ref = "job_gutmd"),
   function(x, ref, tops, use = "hgnc_symbol", plot_max = 1000)
   {
     if (is.null(data <- ref$ProteinMetabolBenson2023$matched)) {
-      stop("is.null(ref$ProteinMetabolBenson2023$matched) == T")
+      stop("is.null(ref$ProteinMetabolBenson2023$matched) == TRUE")
     }
     sigs <- rm.no(tops[[ use ]])
     lst <- list(Microbiota_associated = data$Target_Gene, DEGs = sigs)
@@ -145,7 +145,7 @@ setMethod("map", signature = c(x = "job_limma", ref = "job_gutmd"),
     data.network <- dplyr::select(head(data, n = plot_max), Gut.Microbiota, Metabolite, Target_Gene)
     data.network <- .set_lab(data.network, sig(x), paste0("Top ", plot_max, " relationship data"))
     p.network <- plot_network.pharm(data.network,
-      ax1 = "Microbiota", ax2 = "Metabolite", ax3 = "DEGs", less.label = F
+      ax1 = "Microbiota", ax2 = "Metabolite", ax3 = "DEGs", less.label = FALSE
     )
     p.network <- .set_lab(p.network, sig(x), paste0("Top ", plot_max, " relationship network"))
     namel(p.venn, data, p.network, data.network)

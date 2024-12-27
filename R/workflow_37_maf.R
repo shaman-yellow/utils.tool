@@ -22,9 +22,9 @@ setGeneric("asjob_maf", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_maf"))
 
 setMethod("asjob_maf", signature = c(x = "job_tcga"),
-  function(x, use = "follow_up", keep_consensus = T){
+  function(x, use = "follow_up", keep_consensus = TRUE){
     n.all_raw <- colSum(object(x)$Tumor_Sample_Barcode)
-    object <- e(maftools::read.maf(object(x), isTCGA = T))
+    object <- e(maftools::read.maf(object(x), isTCGA = TRUE))
     n.all <- colSum(maftools::getClinicalData(object)$Tumor_Sample_Barcode)
     if (!is.null(x$queries$clinical)) {
       clinical <- e(TCGAbiolinks::GDCprepare_clinic(x$queries$clinical, use))
@@ -33,7 +33,7 @@ setMethod("asjob_maf", signature = c(x = "job_tcga"),
         data <- dplyr::distinct(clinical, bcr_patient_barcode, vital_status)
         stats <- table(data$bcr_patient_barcode)
         clinical <- dplyr::filter(clinical, bcr_patient_barcode %in% names(stats[stats == 1]))
-        clinical <- dplyr::distinct(clinical, bcr_patient_barcode, .keep_all = T)
+        clinical <- dplyr::distinct(clinical, bcr_patient_barcode, .keep_all = TRUE)
         clinical <- dplyr::filter(clinical, vital_status != "")
         object.bar <- e(maftools::getClinicalData(object)$Tumor_Sample_Barcode)
         clinical <- dplyr::filter(clinical, bcr_patient_barcode %in% object.bar)
@@ -72,7 +72,7 @@ setMethod("step0", signature = c(x = "job_maf"),
 setMethod("step1", signature = c(x = "job_maf"),
   function(x, genes = NULL, top = 30){
     step_message("Visualize the overview of data.")
-    e(maftools::plotmafSummary(object(x), addStat = 'median', titvRaw = T))
+    e(maftools::plotmafSummary(object(x), addStat = 'median', titvRaw = TRUE))
     p.summary <- wrap(recordPlot())
     p.summary <- .set_lab(p.summary, sig(x), "summary of mutation")
     e(maftools::titv(object(x)))

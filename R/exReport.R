@@ -3,7 +3,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # gather_sections <- function(prefix = "s", envir = parent.frame(),
-#   sort = T, get = T)
+#   sort = TRUE, get = TRUE)
 # {
 #   objs <- ls(envir = envir)
 #   sections <- objs[ grepl(paste0("^", prefix, "[0-9]"), objs) ]
@@ -14,7 +14,7 @@
 #     sections <- sections[order(as.numeric(num))]
 #   }
 #   if (get) {
-#     sections <- sapply(sections, get, envir = envir, simplify = F)
+#     sections <- sapply(sections, get, envir = envir, simplify = FALSE)
 #   }
 #   sections
 # }

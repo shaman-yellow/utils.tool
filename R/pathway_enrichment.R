@@ -20,18 +20,18 @@ NULL
 #' @description \code{init_fella}: ...
 #' @seealso [FELLA::buildDataFromGraph()], [FELLA::buildGraphFromKEGGREST()]
 #' @rdname pathway_enrichment
-init_fella <- function(dir, org = c("hsa", "mmu", "rno"), seed = 1, rebuild = F) {
+init_fella <- function(dir, org = c("hsa", "mmu", "rno"), seed = 1, rebuild = FALSE) {
     if (!file.exists(dir))
-      stop("file.exists(dir) == F")
+      stop("file.exists(dir) == FALSE")
     dir <- paste0(dir, "/fella_pathway")
-    dir.create(dir, F)
+    dir.create(dir, FALSE)
     org <- match.arg(org)
     db.dir <- paste0(dir, "/", org, ".db.dir")
     if (file.exists(db.dir) & !rebuild) {
       return(db.dir)
     } else {
       graph.file <- paste0(dir, "/", org, ".graph.Rdata")
-      unlink(db.dir, T)
+      unlink(db.dir, TRUE)
       set.seed(seed)
       graph <- e(FELLA::buildGraphFromKEGGREST(organism = org))
       save(graph, file = graph.file)
@@ -51,7 +51,7 @@ init_fella <- function(dir, org = c("hsa", "mmu", "rno"), seed = 1, rebuild = F)
 #' @rdname pathway_enrichment
 load_fella <- function(dir) {
   if(!file.exists(dir)){
-    stop("file.exists(dir) == F")
+    stop("file.exists(dir) == FALSE")
   }
   e(FELLA::loadKEGGdata(
     databaseDir = dir, internalDir = FALSE, 
@@ -111,7 +111,7 @@ graph_fella <- function( obj.lst, data, method = c("pagerank", "diffusion", "hyp
           abbrev.name = paste0(stringr::str_trunc(NAME, 15), "\n(", name, ")"),
           input = ifelse(input, "Input", "Others"),
           type = vapply(
-            name, FUN.VALUE = "", USE.NAMES = F,
+            name, FUN.VALUE = "", USE.NAMES = FALSE,
             function(str){
               str <- stringr::str_extract(str, "^[^[0-9]]{1,3}|\\.")
               str <- ifelse(nchar(str) > 1, "pathway", str)
@@ -154,7 +154,7 @@ plotGraph_fella <- function(
     geom_edge_fan(
       aes(edge_width = weight),
       color = "black",
-      show.legend = F,
+      show.legend = FALSE,
       end_cap = ggraph::circle(3, 'mm'),
       arrow = arrow(length = unit(2, 'mm'))) + 
     geom_node_point(
@@ -191,11 +191,11 @@ plotGraph_fella <- function(
 #' @description \code{cid.to.kegg}: ...
 #' @rdname pathway_enrichment
 cid.to.kegg <- function(cids, from = "pubchem"){
-    if (!requireNamespace("MetaboAnalystR", quietly = T)) {
+    if (!requireNamespace("MetaboAnalystR", quietly = TRUE)) {
       stop("package 'MetaboAnalystR' not available.",
         "See <https://github.com/xia-lab/MetaboAnalystR> for installation.")
     }
-    obj <- MetaboAnalystR::InitDataObjects("conc", "msetora", F)
+    obj <- MetaboAnalystR::InitDataObjects("conc", "msetora", FALSE)
     obj <- MetaboAnalystR::Setup.MapData(obj, cids)
     obj <- MetaboAnalystR::CrossReferencing(obj, from)
     obj <- MetaboAnalystR::CreateMappingResultTable(obj)

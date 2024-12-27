@@ -46,7 +46,7 @@ setMethod("step0", signature = c(x = "job_kat"),
   })
 
 setMethod("step1", signature = c(x = "job_kat"),
-  function(x, workers = 5, path = timeName("copykat"), test = F)
+  function(x, workers = 5, path = timeName("copykat"), test = FALSE)
   {
     step_message("Run copyKAT.")
     x$savepath <- path
@@ -55,7 +55,7 @@ setMethod("step1", signature = c(x = "job_kat"),
       if (dir.exists(path)) {
         path <- paste0("copykat", gs(Sys.time(), " |:", "_"))
       }
-      dir.create(path, F)
+      dir.create(path, FALSE)
       setwd(path)
       x@params$wd <- path
       if (isNamespaceLoaded("copykat") && !test) {
@@ -75,7 +75,7 @@ setMethod("step1", signature = c(x = "job_kat"),
         e(copykat::copykat(rawmat = object(x),
             genome = "hg20", n.cores = workers)), finally = setwd(wd)
       )
-      try(rm(list = c("full.anno", "cyclegenes", "DNA.hg20"), envir = .GlobalEnv), silent = T)
+      try(rm(list = c("full.anno", "cyclegenes", "DNA.hg20"), envir = .GlobalEnv), silent = TRUE)
       x$res_copykat <- res_copykat
       meth(x)$step1 <- glue::glue("R 包 `CopyKAT` 用于鉴定恶性细胞 {cite_show('DelineatingCopGaoR2021')}。`CopyKAT` 可以区分整倍体与非整倍体，其中非整倍体被认为是肿瘤细胞，而整倍体是正常细胞 {cite_show('CausesAndConsGordon2012')}。")
     }
@@ -126,14 +126,14 @@ setMethod("merge",
       x@object@meta.data[[ ref ]], res)
     x@object@meta.data[[ to ]] <- res
     p.map_cancer <- e(Seurat::DimPlot(
-        object(x), reduction = "umap", label = F, pt.size = .7,
+        object(x), reduction = "umap", label = FALSE, pt.size = .7,
         group.by = "copykat_cell", cols = color_set()
         ))
     p.map_cancer <- wrap(as_grob(p.map_cancer), 7, 4)
     p.map_cancer <- .set_lab(p.map_cancer, sig(x), "Cancer", "Cell type annotation")
     x@params$p.map_cancer <- p.map_cancer
     meth(x)$merge <- glue::glue("将 `CopyKAT` 的预测结果映射细胞注释中。")
-    .append_heading(glue::glue("Seurat 癌细胞注释 ({x@sig})"), T)
+    .append_heading(glue::glue("Seurat 癌细胞注释 ({x@sig})"), TRUE)
     return(x)
   })
 
@@ -144,7 +144,7 @@ setMethod("regroup", signature = c(x = "job_seurat", ref = "job_kat"),
     }
     ka.tree <- readRDS(paste0(ref$savepath, "/_copykat_clustering_results.rds"))
     ka.tree$labels <- gs(ka.tree$labels, "\\.", "-")
-    x <- regroup(x, ka.tree, k, T)
+    x <- regroup(x, ka.tree, k, TRUE)
     x$ka.tree <- ka.tree
     return(x)
   })
@@ -177,7 +177,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_kat"),
         data <- dplyr::mutate(data, group = obj@object@meta.data$regroup.hclust[match(name, cells)])
         levels <- names(sort(vapply(split(data$value, data$group), mean, double(1))))
         data <- dplyr::mutate(data, x = factor(group, levels = !!levels))
-        p <- .map_boxplot2(data, F, x = "x") +
+        p <- .map_boxplot2(data, FALSE, x = "x") +
           vis(obj, "regroup.hclust", pt.size)@data
         return(wrap(p, 12, 5))
       }
@@ -220,9 +220,9 @@ plot_heatmap.copyKAT <- function(copykat.obj) {
     distfun = function(x) parallelDist::parDist(x, threads = 4, method = "euclidean"),
     hclustfun = function(x) hclust(x, method = "ward.D2"), ColSideColors = chr1,
     RowSideColors = cells, Colv = NA, Rowv = TRUE, notecol = "black", col = my_palette,
-    breaks = col_breaks, key = F, keysize = .5,
+    breaks = col_breaks, key = FALSE, keysize = .5,
     density.info = "none", trace = "none", cexRow = 0.1, cexCol = 0.1, cex.main = 1,
-    cex.lab = 0.1, symm = F, symkey = F, symbreaks = T, cex = 1, cex.main = 4,
+    cex.lab = 0.1, symm = FALSE, symkey = FALSE, symbreaks = TRUE, cex = 1, cex.main = 4,
     margins = c(7, 5))
   data <- data.frame(x = c(-1, 1), y = c(-1, 1),
     Cell = factor(that <- c("diploid", "aneuploid"), levels = that))
@@ -239,7 +239,7 @@ plot_heatmap.copyKAT <- function(copykat.obj) {
   plot <- recordPlot()
   return(plot)
   ## not used
-  if (F) {
+  if (FALSE) {
     tumor.cells <- pred.data$cell.names[grepl("aneuploid", pred.data$copykat.pred)]
     tumor.mat <- CNA.data[, colnames(CNA.data) %in% make.names(tumor.cells)]
     hcc <- hclust(parallelDist::parDist(t(tumor.mat), threads = 4, method = "euclidean"), method = "ward.D2")
@@ -254,7 +254,7 @@ plot_heatmap.copyKAT <- function(copykat.obj) {
       notecol = "black", col = my_palette, breaks = col_breaks, key = TRUE, keysize = 1,
       density.info = "none", trace = "none",
       cexRow = 0.1, cexCol = 0.1, cex.main = 1, cex.lab = 0.1, 
-      symm = F, symkey = F, symbreaks = T, cex = 1, cex.main = 4, margins = c(10, 10))
+      symm = FALSE, symkey = FALSE, symbreaks = TRUE, cex = 1, cex.main = 4, margins = c(10, 10))
     legend("topright", c("c1", "c2"), pch = 15, 
       col = RColorBrewer::brewer.pal(n = 8, name = "Dark2")[3:4], cex = 0.9, bty = 'n')
   }

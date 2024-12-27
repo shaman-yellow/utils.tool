@@ -22,21 +22,28 @@ setGeneric("asjob_lasso", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_lasso"))
 
 setMethod("asjob_lasso", signature = c(x = "job_limma"),
-  function(x, use.filter = NULL, use = "gene_name", from_normed = T,
+  function(x, use.filter = NULL, use = "gene_name", from_normed = TRUE,
     fun_scale = function(x) log2(x + 1), dup_method = c("max", "min", "mean"))
   {
     step_message("The default, 'job_limma' from 'job_tcga' were adapted to convertion.")
     dup_method <- match.arg(dup_method)
+    project <- x$project
     if (x$normed) {
       x$normed_data <- new("EList", list(E = object(x), targets = x$metadata, genes = x$genes))
-      from_normed <- T
+      from_normed <- TRUE
       x@step <- 1L
     }
     if (from_normed && x@step >= 1L) {
+      snap <- ""
       if (!is(x@params$normed_data, 'EList'))
-        stop("is(x@params$normed_data, 'EList') == F")
+        stop("is(x@params$normed_data, 'EList') == FALSE")
       if (!is.null(use.filter)) {
-        pos <- x@params$normed_data$genes[[use]] %in% use.filter
+        if (is(use.filter, "feature")) {
+          message("Detected feature input.")
+          snap <- glue::glue("将基因集{snap(use.filter)}用于 COX 回归分析。")
+          use.filter <- unlist(use.filter@.Data, use.names = FALSE)
+        }
+        pos <- gname(x@params$normed_data$genes[[use]]) %in% use.filter
         object <- e(limma::`[.EList`(x@params$normed_data, pos, ))
         if (any(duplicated(object$genes[[ use ]]))) {
           cli::cli_alert_warning("Duplicated names (genes) founds.")
@@ -44,6 +51,7 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
           object$E <- lst$counts
           object$genes <- lst$genes
         }
+        message(glue::glue("After filtered, dim: {bind(dim(object$E))}"))
       } else {
         object <- x@params$normed_data
       }
@@ -51,8 +59,11 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
       mtx <- t(object$E)
       colnames(mtx) <- object$genes[[ use ]]
       x <- .job_lasso(object = mtx)
+      x <- snapAdd(x, snap)
+      x <- snapAdd(x, "共 {ncol(mtx)} 个基因在数据集 {project} 中找到 (根据基因名匹配)。")
       x@params$metadata <- as_tibble(object$targets)
     } else {
+      stop("x@step == 0L, case deprecated.")
       if (x@step == 0L) {
         message(glue::glue("x@step == 0L, use raw counts."))
       }
@@ -84,14 +95,14 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
   })
 
 .deduplicated_genes <- function(counts, genes, use, dup_method) {
-  counts <- data.frame(counts, check.names = F)
+  counts <- data.frame(counts, check.names = FALSE)
   counts <- dplyr::mutate(counts, gene = !!genes[[ use ]])
   counts <- dplyr::group_by(counts, gene)
   message(glue::glue("Use function `{dup_method}` for deduplicated."))
   dup_method <- match.fun(dup_method)
   counts <- dplyr::summarise(counts, dplyr::across(dplyr::everything(), ~ dup_method(.x)))
   counts <- dplyr::arrange(counts, gene)
-  counts <- data.frame(counts[, -1], check.names = F)
+  counts <- data.frame(counts[, -1], check.names = FALSE)
   genes <- genes[!duplicated(genes[[ use ]]), ]
   genes <- dplyr::arrange(genes, !!rlang::sym(use))
   rownames(counts) <- rownames(genes)
@@ -113,6 +124,12 @@ setMethod("step1", signature = c(x = "job_lasso"),
   {
     step_message("Data preparation.")
     set.seed(seed)
+    x$metadata[[ time ]] <- .mutate_last_follow_up_time(x$metadata[[ time ]])
+    if (TRUE) {
+      keep <- (x$metadata[[ target ]] %in% levels) & (x$metadata[[ time ]] > 0)
+      x$metadata <- x$metadata[keep, ]
+      object(x) <- object(x)[keep, ]
+    }
     num <- nrow(object(x))
     x$n.train
     x$wh.train <- sample(1:num, round(num * n.train))
@@ -137,12 +154,12 @@ setMethod("step1", signature = c(x = "job_lasso"),
     p.consist <- wrap(xf(p.all = 1, p.train = 1, p.valid = 1), 6, 2)
     x <- plotsAdd(x, p.consist)
     target <- x$get("a")$types
-    x <- snapAdd(x, "所有数据生存状态，({try_snap(target)})。")
+    x <- snapAdd(x, "所有数据生存状态 (去除生存状态未知的数据)，({try_snap(target)})。")
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_lasso"),
-  function(x, use_data = c("all", "train"), top = 30, efs = F)
+  function(x, use_data = c("all", "train"), top = 30, efs = FALSE)
   {
     step_message("Evaluate variable (genes) importance.")
     use_data <- match.arg(use_data)
@@ -167,7 +184,7 @@ setMethod("step2", signature = c(x = "job_lasso"),
   })
 
 setMethod("step3", signature = c(x = "job_lasso"),
-  function(x, use_data = x$use_data, family = "cox", use_tops = F, cutoff = .05)
+  function(x, use_data = x$use_data, family = "cox", use_tops = FALSE, cutoff = .05)
   {
     lst <- x$get(use_data)
     data <- lst$data
@@ -187,7 +204,7 @@ setMethod("step3", signature = c(x = "job_lasso"),
     uni_cox <- pbapply::pblapply(colnames(data),
       function(feature) {
         res <- survival::coxph(as.formula(paste0("target ~ `", feature, "`")),
-          data.frame(data, check.names = F))
+          data.frame(data, check.names = FALSE))
         summary(res)$coefficients[1, ]
       })
     uni_cox <- do.call(dplyr::bind_rows, uni_cox)
@@ -195,6 +212,7 @@ setMethod("step3", signature = c(x = "job_lasso"),
     sig.uni_cox <- dplyr::mutate(uni_cox, p.adjust = stats::p.adjust(`Pr(>|z|)`, "fdr"))
     sig.uni_cox <- dplyr::filter(sig.uni_cox, `Pr(>|z|)` < cutoff)
     x$sig.uni_cox <- dplyr::rename(sig.uni_cox, pvalue = `Pr(>|z|)`)
+    feature(x) <- x$sig.uni_cox$feature
     x <- tablesAdd(x, t.sigUnivariateCoxCoefficients = x$sig.uni_cox)
     x <- snapAdd(x, "执行单因素 COX 回归，筛选 P 值 &lt; {cutoff}，共筛选到 {nrow(x$sig.uni_cox)} 个基因。")
     if (!is.null(x$efs_tops)) {
@@ -207,7 +225,7 @@ setMethod("step3", signature = c(x = "job_lasso"),
   })
 
 setMethod("step4", signature = c(x = "job_lasso"),
-  function(x, use_data = x$use_data, inherit_unicox = T,
+  function(x, use_data = x$use_data, inherit_unicox = TRUE,
     fun = c("coxph", "glmnet", "cv.glmnet"), nfold = 10,
     alpha = 1, family = "cox", type.measure = c("deviance", "C"), ...)
   {
@@ -233,28 +251,28 @@ setMethod("step4", signature = c(x = "job_lasso"),
     multi_cox <- list()
     # Multivariate
     if (fun_multiCox == "coxph") {
-      res <- survival::coxph(target ~ ., data.frame(data, check.names = F))
+      res <- survival::coxph(target ~ ., data.frame(data, check.names = FALSE))
       multi_cox$model <- res
       multi_cox$coef <- dplyr::rename(as_tibble(summary(res)$coefficients), feature = 1)
       x <- tablesAdd(x, t.sigMultivariateCoxCoefficients = multi_cox$coef)
-      x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 做多因素 COX 回归 (`survival::coxph`)。", T)
+      x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 做多因素 COX 回归 (`survival::coxph`)。", TRUE)
       x <- snapAdd(x, "执行多因素 COX 回归 (`survival::coxph`)。")
     } else if (fun_multiCox == "cv.glmnet") {
       methodName <- if (alpha) "lasso" else "ridge"
       set.seed(x$seed)
       multi_cox$model <- model <- e(glmnet::cv.glmnet(data, target,
           alpha = alpha, family = family, nfold = nfold, type.measure = "deviance", ...))
-      p.lassoCOX_model <- wrap(as_grob(expression(plot(model)), environment()), 6, 6, showtext = T)
+      p.lassoCOX_model <- wrap(as_grob(expression(plot(model)), environment()), 6, 6, showtext = TRUE)
       lambdas <- c("lambda.min", "lambda.1se")
-      res <- sapply(lambdas, simplify = F,
+      res <- sapply(lambdas, simplify = FALSE,
         function(lam) {
           preds <- e(stats::predict(model, newx = valid, s = model[[ lam ]]))
-          roc <- e(pROC::roc(valid_lst$types, as.numeric(preds), plot = F, levels = x$levels))
+          roc <- e(pROC::roc(valid_lst$types, as.numeric(preds), plot = FALSE, levels = x$levels))
           namel(preds, roc)
         })
       multi_cox$preds <- lapply(res, function(lst) lst$preds)
       multi_cox$roc <- lapply(res, function(lst) lst$roc)
-      if (T) {
+      if (TRUE) {
         message("Got coefficients.")
         x$lambda <- c(min = model$lambda.min, `1se` = model$lambda.1se)
         x <- snapAdd(x, "使用 `glmnet::cv.glmnet` 作 {nfold} 倍交叉验证 (评估方式为 {model$name})，筛选 lambda 值。lambda.min, lambda.1se 值分别为 {bind(round(x$lambda, 3))} (R 随机种子为 {x$seed})。")
@@ -276,14 +294,14 @@ setMethod("step4", signature = c(x = "job_lasso"),
         x <- snapAdd(x, "对应的特征数 (基因数) 分别为 {bind(s.com)}。")
         x <- tablesAdd(x, t.sigMultivariateCoxCoefficients = sig.mul_cox)
       }
-      if (T) {
+      if (TRUE) {
         p.lassoCOX_ROC <- lapply(multi_cox$roc,
           function(roc) {
             plot_roc(roc)
           })
         names(p.lassoCOX_ROC) <- lambdas
       }
-      if (T) {
+      if (TRUE) {
         coef <- as_tibble(Matrix::as.matrix(multi_cox$coef))
         colnames(coef)[-1] <- lambdas
         coef <- arrange(coef, dplyr::desc(abs(lambda.min)))
@@ -292,13 +310,13 @@ setMethod("step4", signature = c(x = "job_lasso"),
         p.lassoCOX_coeffients <- plot_sig(filter(coef, !grepl("Inter", variable)))
       }
       x <- plotsAdd(x, p.lassoCOX_model, p.lassoCOX_ROC, p.lassoCOX_coeffients)
-      x <- methodAdd(x, "以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归，以 `{fun_multiCox}` 函数作 {nfold} 交叉验证获得模型。", T)
+      x <- methodAdd(x, "以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归，以 `{fun_multiCox}` 函数作 {nfold} 交叉验证获得模型。", TRUE)
     } else if (fun_multiCox == "glmnet") {
       methodName <- if (alpha) "lasso" else "ridge"
       multi_cox$model <- e(glmnet::glmnet(data, target,
           alpha = alpha, family = family, ...))  
       multi_cox$coef <- coefficients(multi_cox$model)
-      x <- methodAdd(x, "以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归。", T)
+      x <- methodAdd(x, "以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归。", TRUE)
     }
     x$multi_cox <- multi_cox
     x$fun_multiCox <- fun_multiCox
@@ -312,7 +330,7 @@ setMethod("step5", signature = c(x = "job_lasso"),
       message("Try merge results.")
       if (nrow(x$uni_cox) == nrow(x$multi_cox$coef)) {
         message("The same row number of Univariate COX and Multivariate COX, try merge.")
-        coefMerge <- mapply(list(x$uni_cox, x$multi_cox$coef), c("Uni_", "Multi_"), SIMPLIFY = F,
+        coefMerge <- mapply(list(x$uni_cox, x$multi_cox$coef), c("Uni_", "Multi_"), SIMPLIFY = FALSE,
           FUN = function(data, name) {
             data <- dplyr::select(data, coefficients = coef, p = `Pr(>|z|)`)
             colnames(data) <- paste0(name, colnames(data))
@@ -356,15 +374,15 @@ plot_colStack.efs <- function(raw, top = 30,
   data <- as_tibble(raw)
   data <- rename(data, group = rownames)
   data <- tidyr::gather(data, var, value, -group)
-  tops <- sort(vapply(split(data$value, data$var), sum, double(1)), decreasing = T)
+  tops <- sort(vapply(split(data$value, data$var), sum, double(1)), decreasing = TRUE)
   tops <- head(names(tops), top)
   data <- filter(data, var %in% dplyr::all_of(tops))
   if (top > 50) {
     data_tops <- data.frame(var = tops, .rank = seq_along(tops))
-    groups <- grouping_vec2list(data_tops$.rank, 50, T)
+    groups <- grouping_vec2list(data_tops$.rank, 50, TRUE)
     groups <- rep(paste0("Rank ", seq_along(groups)), lengths(groups))
     data_tops$.groups <- groups
-    data <- tbmerge(data, data_tops, by = "var", all.x = T)
+    data <- tbmerge(data, data_tops, by = "var", all.x = TRUE)
     data <- mutate(data, var = stringr::str_trunc(var, 30))
   }
   p <- ggplot(data, aes(x = reorder(var, value), y = value)) +
@@ -384,7 +402,7 @@ plot_colStack.efs <- function(raw, top = 30,
 }
 
 setMethod("map", signature = c(x = "job_lasso"),
-  function(x, ref, pvalue = T){
+  function(x, ref, pvalue = TRUE){
     data <- select(object(x), dplyr::all_of(ref))
     data$group <- x$metadata$group
     data <- tidyr::gather(data, var, value, -group)
@@ -393,7 +411,7 @@ setMethod("map", signature = c(x = "job_lasso"),
   })
 
 setMethod("merge", signature = c(x = "job_lasso", y = "job_lasso"),
-  function(x, y, scale = T, ...)
+  function(x, y, scale = TRUE, ...)
   {
     common <- intersect(colnames(x$metadata), colnames(y$metadata))
     message(glue::glue("merge metadata of columns: {bind(common)}"))
@@ -454,3 +472,12 @@ setMethod("merge", signature = c(x = "job_lasso", y = "job_lasso"),
   p
 }
 
+.mutate_last_follow_up_time <- function(x) {
+  if (any(is.na(x))) {
+    message(glue::glue("NA in 'time' found, as max"))
+    max <- max(x, na.rm = TRUE)
+    ifelse(is.na(x), max, x)
+  } else {
+    x
+  }
+}

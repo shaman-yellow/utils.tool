@@ -47,7 +47,7 @@ setMethod("step1", signature = c(x = "job_msconvert"),
           " ", ion,
           path = x$wd)
       })
-    x$mzmls <- list.files(paste0(x$wd, "/", dir), ".mzML$", full.names = T)
+    x$mzmls <- list.files(paste0(x$wd, "/", dir), ".mzML$", full.names = TRUE)
     try_metadata <- function(files) {
       if (is.null(pattern)) {
         pattern <- c(group = ".")

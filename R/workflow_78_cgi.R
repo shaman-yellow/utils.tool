@@ -35,15 +35,15 @@ setMethod("step1", signature = c(x = "job_cgi"),
     return(x)
   })
 
-get_cpgIsland_data <- function(type = c("hg38", "mm10", "rn4"), db = .prefix("cpgIsland", "db"), addInternalJob = T)
+get_cpgIsland_data <- function(type = c("hg38", "mm10", "rn4"), db = .prefix("cpgIsland", "db"), addInternalJob = TRUE)
 {
-  dir.create(db, F)
+  dir.create(db, FALSE)
   type <- match.arg(type)
   filename <- paste0("model-based-cpg-islands-", type, ".txt")
   savename <- file.path(db, filename)
   if (!file.exists(savename)) {
     url <- paste0("https://www.haowulab.org/software/makeCGI/", filename)
-    e(curl::curl_download(url, savename, F))
+    e(curl::curl_download(url, savename, FALSE))
   }
   if (addInternalJob) {
     .add_internal_job(.job_cgi())

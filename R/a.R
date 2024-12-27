@@ -9,7 +9,7 @@ n.l <- function(name, object) {
   return(object)
 }
 
-nl <- function(names, values, as.list = T, ...) {
+nl <- function(names, values, as.list = TRUE, ...) {
   .as_dic(values, names, as.list = as.list, ...)
 }
 
@@ -26,7 +26,7 @@ obj.size <- function(x, ...) {
 #' @description \code{.as_dic}: ...
 #' @rdname utilites
 .as_dic <- function(vec, names, default,
-  fill = T, as.list = T, na.rm = F)
+  fill = TRUE, as.list = TRUE, na.rm = FALSE)
 {
   if (is.null(names(vec))) {
     names(vec) <- names[seq_along(vec)]
@@ -53,7 +53,7 @@ obj.size <- function(x, ...) {
 #' @aliases grouping_vec2list
 #' @description \code{grouping_vec2list}: ...
 #' @rdname query_synonyms
-grouping_vec2list <- function(vector, group_number, byrow = F){
+grouping_vec2list <- function(vector, group_number, byrow = FALSE){
   if(length(vector) < group_number){
     attr(vector, "name") <- "G1"
     return(list(vector))
@@ -62,7 +62,7 @@ grouping_vec2list <- function(vector, group_number, byrow = F){
   group <- matrix(vector[1:(length(vector) - rest)],
     ncol = group_number,
     byrow = byrow)
-  group <- apply(group, 1, c, simplify = F)
+  group <- apply(group, 1, c, simplify = FALSE)
   group <- c(group, list(tail(vector, n = rest)))
   group <- lapply(seq_along(group),
     function(n) {

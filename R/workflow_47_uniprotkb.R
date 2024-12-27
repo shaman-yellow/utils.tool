@@ -37,25 +37,25 @@ setMethod("step1", signature = c(x = "job_uniprotkb"),
     step_message("Query via UniProtKB API.")
     db <- new_db(x$db_file, ".id")
     db <- not(db, object(x))
-    res <- pbapply::pbsapply(db@query, simplify = F, cl = cl,
+    res <- pbapply::pbsapply(db@query, simplify = FALSE, cl = cl,
       function(query) {
         url <- paste0("https://rest.uniprot.org/uniprotkb/search?query=",
           gs(query, " ", "%20"),
           "+reviewed:true+AND+organism_id:", x$organism_id,
           "&format=tsv")
-        res <- try(data.table::fread(text = RCurl::getURL(url)), T)
+        res <- try(data.table::fread(text = RCurl::getURL(url)), TRUE)
         if (!inherits(res, "try-error")) {
           res
         } else NULL
       })
-    res <- frbind(res, idcol = T, fill = T)
+    res <- frbind(res, idcol = TRUE, fill = TRUE)
     db <- upd(db, res)
     raw_results <- as_tibble(dplyr::filter(db@db, .id %in% object(x)))
     fun_format <- function() {
       data <- dplyr::select(raw_results, query = .id, protein.names = `Protein names`,
         gene.names = `Gene Names`)
       message("Only keep the first row for formated results.")
-      data <- dplyr::distinct(data, query, .keep_all = T)
+      data <- dplyr::distinct(data, query, .keep_all = TRUE)
       data <- split_lapply_rbind(data, seq_len(nrow(data)),
         function(x) {
           data.frame(x, symbols = strsplit(x$gene.names, " ")[[1]])

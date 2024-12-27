@@ -43,7 +43,7 @@ setMethod("step2", signature = c(x = "job_xcms"),
   function(x, savepath = timeName(x$ion))
   {
     step_message("Output the mgf file.")
-    dir.create(savepath, F)
+    dir.create(savepath, FALSE)
     x$mgf <- paste0(savepath, "/msms.mgf")
     object(x) <- e(MCnebula2::run_export(object(x), saveMgf = x$mgf))
     x$mgf <- format_mgf.xcms(x$mgf, x$ion)
@@ -69,7 +69,7 @@ setMethod("asjob_xcms", signature = c(x = "job_msconvert"),
     return(x)
   })
 
-format_mgf.xcms <- function(mgf, ion, rm.title = T, revise.charge = T) {
+format_mgf.xcms <- function(mgf, ion, rm.title = TRUE, revise.charge = TRUE) {
   lines <- readLines(mgf)
   if (rm.title) {
     lines <- lines[ !grpl(lines, "TITLE") ]

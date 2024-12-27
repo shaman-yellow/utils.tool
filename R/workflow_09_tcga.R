@@ -90,7 +90,7 @@ setMethod("step1", signature = c(x = "job_tcga"),
       for (i in 2:length(data_id)) {
         cons <- merge(cons, data_id[[ i ]], by = ".id")
       }
-      cons <- distinct(cons, .id, .keep_all = T)
+      cons <- distinct(cons, .id, .keep_all = TRUE)
       if (keep_consensus) {
         for (i in seq_along(object(x))) {
           object(x)[[i]]$results[[1]] %<>%
@@ -106,7 +106,7 @@ setMethod("step1", signature = c(x = "job_tcga"),
   })
 
 setMethod("filter", signature = c(x = "job_tcga"),
-  function(x, ids, type = "RNA", use.tnbc = F){
+  function(x, ids, type = "RNA", use.tnbc = FALSE){
     message("Filter the 'query' before downloading the data.")
     if (x@step != 1) {
       stop("x@step != 1")
@@ -188,7 +188,7 @@ setMethod("merge", signature = c(x = "job_tcga", y = "job_tcga"),
     )
     print(table(object(x)@colData$batch))
     x$dim <- dim(object(x))
-    s.com <- try_snap(data.frame(object(x)@colData, check.names = F), "batch", "sample")
+    s.com <- try_snap(data.frame(object(x)@colData, check.names = FALSE), "batch", "sample")
     x <- methodAdd(x, "将 {s.com} 数据集合并。")
     x <- snapAdd(x, "将 {s.com} 数据集合并。", step = "merge")
     x$project <- bind(projects)
@@ -200,7 +200,7 @@ setGeneric("asjob_limma", group = list("asjob_series"),
 
 setMethod("asjob_limma", signature = c(x = "job_tcga"),
   function(x, ..., col_id = "sample", row_id = "gene_id", group = "vital_status",
-    get_treatment = T)
+    get_treatment = TRUE)
   {
     step_message("Use `object(x)@assays@data$unstranded` converted as job_limma.")
     filter_sample <- rlang::enquos(...)
@@ -237,7 +237,7 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
       counts <- counts[, orders]
       metadata <- metadata[orders, ]
       counts <- counts[ , !duplicated(colnames(counts)) ]
-      metadata <- dplyr::distinct(metadata, sample, .keep_all = T)
+      metadata <- dplyr::distinct(metadata, sample, .keep_all = TRUE)
     }
     object <- e(edgeR::DGEList(counts, samples = metadata, genes = genes))
     project <- x$project
@@ -260,7 +260,7 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     }
     x$p.group <- p.group
     x$p.isTumor <- p.isTumor
-    x$isTcga <- T
+    x$isTcga <- TRUE
     x$project <- project
     if (length(filter_sample)) {
       x <- methodAdd(x, "{meta.snap}")
@@ -286,7 +286,7 @@ summary_tibble2 <- function(data, group) {
 
 .get_treatment.lm.tc <- function(x,
   type = c("Pharmaceutical Therapy, NOS", "Radiation Therapy, NOS"),
-  attr = c("treatment_or_therapy"), add_into = T, name_suffix = NULL)
+  attr = c("treatment_or_therapy"), add_into = TRUE, name_suffix = NULL)
 {
   type <- match.arg(type)
   treats <- select(x@object$samples, dplyr::contains("treat"))

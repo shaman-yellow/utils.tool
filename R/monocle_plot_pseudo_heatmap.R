@@ -19,7 +19,7 @@ pseudotime_heatmap <- function(
     cores = 1,
     nCol = 100,
     pseudotime = NULL,
-    plot_heatmap = F)
+    plot_heatmap = FALSE)
 {
   ## NOTE: object of cell_data_set converted by 'SeuratWrapper' may caused error.' 
   if (is(object, "cell_data_set")) {
@@ -34,7 +34,7 @@ pseudotime_heatmap <- function(
   }
   if (exists("sm.ns", envir = .GlobalEnv)) {
     fun <- get("sm.ns", envir = .GlobalEnv)
-    if (!identical(fun, VGAM::sm.ns, ignore.environment = T)) {
+    if (!identical(fun, VGAM::sm.ns, ignore.environment = TRUE)) {
       stop("`sm.ns` in .GlobalEnv should be VGAM::sm.ns")
     }
   } else {
@@ -51,7 +51,7 @@ pseudotime_heatmap <- function(
     )
   )
   m <- genSmoothCurves(object, new_data = newdata,
-    trend_formula = trend_formula, relative_expr = T)
+    trend_formula = trend_formula, relative_expr = TRUE)
   # remove genes with no expression in any condition
   m <- m[apply(m, 1, sum) != 0, ]
   # Row-center the data.
@@ -71,11 +71,11 @@ pseudotime_heatmap <- function(
     bks <- seq(-3.1, 3.1, length.out = length(hmcols))
   }
   ph <- pheatmap::pheatmap(heatmap_matrix,
-    useRaster = T,
+    useRaster = TRUE,
     cluster_cols = FALSE,
     cluster_rows = cluster_rows,
-    show_rownames = F,
-    show_colnames = F,
+    show_rownames = FALSE,
+    show_colnames = FALSE,
     clustering_distance_rows = row_dist,
     clustering_method = hclust_method,
     cutree_rows = num_clusters,
@@ -114,9 +114,9 @@ pseudotime_heatmap <- function(
   colnames(heatmap_matrix) <- c(seq_len(ncol(heatmap_matrix)))
   if (plot_heatmap) {
     ph_res <- pheatmap::pheatmap(heatmap_matrix[, ], # ph$tree_row$order
-      useRaster = T,
+      useRaster = TRUE,
       cluster_cols = FALSE, cluster_rows = cluster_rows,
-      show_rownames = show_rownames, show_colnames = F,
+      show_rownames = show_rownames, show_colnames = FALSE,
       clustering_distance_rows = row_dist, # row_dist
       clustering_method = hclust_method, # ward.D2
       cutree_rows = num_clusters,
@@ -133,7 +133,7 @@ pseudotime_heatmap <- function(
 
 genSmoothCurves <- function(
     object, new_data, trend_formula = "~ sm.ns(Pseudotime, df = 3)",
-    relative_expr = T, response_type = "response")
+    relative_expr = TRUE, response_type = "response")
 {
   if (is(object, "Seurat") || is(object, "cell_data_set")) {
     expressionFamily <- VGAM::uninormal()
@@ -209,7 +209,7 @@ fit_model_helper <- function(
         backup_expression_family <- NULL
       }
       if (!is.null(backup_expression_family)) {
-        # FM_fit <- VGAM::vglm(as.formula(modelFormulaStr), family=backup_expression_family, trace=T, epsilon=1e-1, checkwz=F)
+        # FM_fit <- VGAM::vglm(as.formula(modelFormulaStr), family=backup_expression_family, trace=TRUE, epsilon=1e-1, checkwz=FALSE)
         test_res <- tryCatch(
           {
             if (verbose) {

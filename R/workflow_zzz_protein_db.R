@@ -76,7 +76,7 @@ setMethod("vis", signature = c(x = "query_pdb"),
     obj <- m_zoom_to(obj)
     obj <- m_set_style(obj, style = m_style_cartoon(color = '#00cc96'))
     obj <- m_set_style(obj, sel = m_sel(ss = 's'),
-      style = m_style_cartoon(color = '#636efa', arrows = F))
+      style = m_style_cartoon(color = '#636efa', arrows = FALSE))
     obj <- m_set_style(obj, sel = m_sel(ss = 'h'),
       style = m_style_cartoon(color = '#ff7f0e'))
     obj <- m_rotate(obj, angle = 90, axis = 'y')
@@ -96,7 +96,7 @@ setMethod("anno", signature = c(x = "query_pdb"),
       })
     ids <- vapply(objs, function(x) attr(x, ".PDB_id"), character(1))
     names(objs) <- ids
-    meta <- apply(object(x), 1, c, simplify = F)
+    meta <- apply(object(x), 1, c, simplify = FALSE)
     names(meta) <- symbols
     names(ids) <- symbols
     des_all <- lapply(symbols,
@@ -118,7 +118,7 @@ setMethod("anno", signature = c(x = "query_pdb"),
 structure_protein <- function(ids) {
   lines <- unlist(lapply(ids, function(id) {
       c(paste0("PDB ID: ", ids), "",
-        "```{r, echo = F}",
+        "```{r, echo = FALSE}",
         paste0("objs[[\"", id, "\"]]"),
         "```", "")
       }))
@@ -138,7 +138,7 @@ descrip_protein <- function(lst.xml) {
   fun_site <- function(lst.xml, name, fun) {
     xmls <- lst.xml[[ name ]]
     if (length(xmls) >= 1) {
-      unlist(lapply(xmls, fun), use.names = F)
+      unlist(lapply(xmls, fun), use.names = FALSE)
     } else "No records"
   }
   active <- fun_site(lst.xml, "active_sites", text_activeSite)
@@ -189,7 +189,7 @@ xmlToList2 <- function(xml) {
     value <- NULL
   }
   if (length(xml) > 0L) {
-    children <- XML::xmlSApply(xml, xmlToList2, simplify = F)
+    children <- XML::xmlSApply(xml, xmlToList2, simplify = FALSE)
   } else {
     children <- NULL
   }
@@ -242,7 +242,7 @@ touch_uniprotkb <- function(ids) {
 }
 
 .get_needed <- function(lines) {
-  x <- XML::xmlParse(lines, useInternalNodes = F)
+  x <- XML::xmlParse(lines, useInternalNodes = FALSE)
   x <- x$doc$children$uniprot$children$entry$children
   x.feature <- x[ names(x) == "feature" ]
   x.dbReference <- x[ names(x) == "dbReference" ]
@@ -254,7 +254,7 @@ touch_uniprotkb <- function(ids) {
     x[ isThat ]
   }
   getId <- function(x) {
-    vapply(x, FUN.VALUE = character(1), USE.NAMES = F,
+    vapply(x, FUN.VALUE = character(1), USE.NAMES = FALSE,
       function(x) {
         XML::xmlGetAttr(x, "id")
       })
@@ -267,7 +267,7 @@ touch_uniprotkb <- function(ids) {
 
 get_pdb <- function(ids, cl = 3, mkdir.pdb = "protein_pdb", fun_download = download_pdb.RCurl) {
   cli::cli_alert_info("Obtain PDB files")
-  dir.create(mkdir.pdb, F)
+  dir.create(mkdir.pdb, FALSE)
   ids <- tolower(ids)
   if (length(ids) == 0) {
     stop("length(ids) == 0")
@@ -277,7 +277,7 @@ get_pdb <- function(ids, cl = 3, mkdir.pdb = "protein_pdb", fun_download = downl
   if (length(ids) > 0) {
     fun_download(ids, cl = cl, mkdir.pdb = mkdir.pdb)
   }
-  files <- list.files(mkdir.pdb, ".*\\.pdb$", full.names = T)
+  files <- list.files(mkdir.pdb, ".*\\.pdb$", full.names = TRUE)
   names(files) <- gsub(".*?([^/]{1,})\\.pdb$", "\\1", files)
   files
 }
@@ -293,14 +293,14 @@ download_pdb.RCurl <- function(ids, cl, mkdir.pdb) {
 }
 
 download_pdb.shell <- function(ids, cl, mkdir.pdb) {
-  ids <- grouping_vec2list(ids, round(length(ids) / cl), T)
+  ids <- grouping_vec2list(ids, round(length(ids) / cl), TRUE)
   pbapply::pblapply(ids, cl = cl,
     function(ids) {
       tmp <- tempfile(fileext = ".txt")
       cat(ids, sep = ", ", file = tmp)
       system(paste0("get_pdb.sh", " -f ", tmp, " -p -o ", mkdir.pdb))
     })
-  lapply(list.files(mkdir.pdb, ".*\\.gz$", full.names = T), R.utils::gunzip)
+  lapply(list.files(mkdir.pdb, ".*\\.gz$", full.names = TRUE), R.utils::gunzip)
 }
 
 

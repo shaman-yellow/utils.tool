@@ -30,7 +30,7 @@ setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
       stop("x@step < 2. At least, preprocessed assay data should be ready.")
     }
     if (is.null(group.by))
-      stop("is.null(group.by) == T")
+      stop("is.null(group.by) == TRUE")
     if (is.character(object(x)@meta.data[[ group.by ]])) {
       object(x)@meta.data[[ group.by ]] %<>% as.factor()
     } else {
@@ -54,7 +54,7 @@ setMethod("step0", signature = c(x = "job_cellchat"),
 
 setMethod("step1", signature = c(x = "job_cellchat"),
   function(x, db = CellChat::CellChatDB.human,
-    ppi = CellChat::PPI.human, cl = 4, python = NULL, debug = F)
+    ppi = CellChat::PPI.human, cl = 4, python = NULL, debug = FALSE)
   {
     step_message("One step forward computation of most.
       yellow{{In a nutshell, this do:
@@ -103,7 +103,7 @@ setMethod("step1", signature = c(x = "job_cellchat"),
         for (i in c("functional", "structural")) {
           object(x) <- CellChat::computeNetSimilarity(object(x), type = i)
           object(x) <- CellChat::netEmbedding(object(x), type = i)
-          object(x) <- CellChat::netClustering(object(x), type = i, do.parallel = F)
+          object(x) <- CellChat::netClustering(object(x), type = i, do.parallel = FALSE)
         }
       })
     )
@@ -139,43 +139,43 @@ setMethod("step2", signature = c(x = "job_cellchat"),
       pathways <- object(x)@netP$pathways
     }
     sapply <- pbapply::pbsapply
-    cell_comm_heatmap <- e(sapply(pathways, simplify = F,
+    cell_comm_heatmap <- e(sapply(pathways, simplify = FALSE,
       function(name) {
         main <- try(CellChat::netVisual_heatmap(
-          object(x), color.heatmap = "Reds", signaling = name), T)
+          object(x), color.heatmap = "Reds", signaling = name), TRUE)
         if (inherits(main, "try-error")) {
           return(list(main = NULL, contri = NULL))
         }
         if (!is.null(name)) {
           contri <- CellChat::extractEnrichedLR(object(x),
-            signaling = name, geneLR.return = F)
+            signaling = name, geneLR.return = FALSE)
           return(namel(main, contri))
         } else {
           return(namel(wrap(main)))
         }
       }))
     lr_comm_bubble <- e(CellChat::netVisual_bubble(object(x), remove.isolate = FALSE))
-    gene_expr_violin <- e(sapply(pathways, simplify = F,
+    gene_expr_violin <- e(sapply(pathways, simplify = FALSE,
       function(name) {
         CellChat::plotGeneExpression(object(x),
             signaling = name, group.by = NULL) +
           theme(legend.position = "none")
       }))
-    role_comps_heatmap <- e(sapply(pathways, simplify = F,
+    role_comps_heatmap <- e(sapply(pathways, simplify = FALSE,
         function(name) {
           res <- try({CellChat::netAnalysis_signalingRole_network(object(x), signaling = name,
-            width = 8, height = 2.5, font.size = 8, cluster.rows = T)
-            recordPlot()}, T)
+            width = 8, height = 2.5, font.size = 8, cluster.rows = TRUE)
+            recordPlot()}, TRUE)
           if (inherits(res, "try-error"))
             return(NULL)
           else res
         }))
-    role_weight_scatter <- e(sapply(pathways, simplify = F,
+    role_weight_scatter <- e(sapply(pathways, simplify = FALSE,
         function(name) {
           CellChat::netAnalysis_signalingRole_scatter(object(x),
             signaling = name)
         }))
-    res <- try(lr_role_heatmap <- e(sapply(c("outgoing", "incoming", "all"), simplify = F,
+    res <- try(lr_role_heatmap <- e(sapply(c("outgoing", "incoming", "all"), simplify = FALSE,
           function(name) {
             p <- CellChat::netAnalysis_signalingRole_heatmap(object(x), pattern = name,
               height = 1 + length(object(x)@netP$pathways) * .35
@@ -217,13 +217,13 @@ setMethod("step4", signature = c(x = "job_cellchat"),
     if (missing(k.out) | missing(k.in))
       stop("missing(k.out) | missing(k.in)")
     object(x) <- e(CellChat::identifyCommunicationPatterns(
-        object(x), pattern = "outgoing", k = k.out, heatmap.show = F
+        object(x), pattern = "outgoing", k = k.out, heatmap.show = FALSE
         ))
     object(x) <- CellChat::identifyCommunicationPatterns(
-      object(x), pattern = "incoming", k = k.in, heatmap.show = F
+      object(x), pattern = "incoming", k = k.in, heatmap.show = FALSE
     )
     require(ggalluvial)
-    lst.p <- e(sapply(c("outgoing", "incoming"), simplify = F,
+    lst.p <- e(sapply(c("outgoing", "incoming"), simplify = FALSE,
         function(pattern) {
           p.alluvial <- CellChat::netAnalysis_river(object(x), pattern = pattern)
           p.alluvial <- wrap(p.alluvial, 12, 7)
@@ -238,16 +238,16 @@ setMethod("step4", signature = c(x = "job_cellchat"),
 plot_communication.cellchat <- function(x) {
   groupSize <- as.integer(table(x@idents))
   p.aggre_count <- CellChat::netVisual_circle(x@net$count, vertex.weight = groupSize,
-    weight.scale = T, label.edge = F, title.name = "Number of interactions")
+    weight.scale = TRUE, label.edge = FALSE, title.name = "Number of interactions")
   p.aggre_weight <- CellChat::netVisual_circle(x@net$weight, vertex.weight = groupSize,
-    weight.scale = T, label.edge = F, title.name = "Interaction weights/strength")
+    weight.scale = TRUE, label.edge = FALSE, title.name = "Interaction weights/strength")
   mat <- x@net$weight
   scale <- cal_panelScale(length(levels(x@idents)))
   par(mfrow = scale, xpd = TRUE, omi = rep(0, 4), mar = rep(1.5, 4))
   for (i in seq_len(nrow(mat))) {
     mat2 <- matrix(0, nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
     mat2[i, ] <- mat[i, ]
-    CellChat::netVisual_circle(mat2, vertex.weight = groupSize, weight.scale = T,
+    CellChat::netVisual_circle(mat2, vertex.weight = groupSize, weight.scale = TRUE,
       edge.weight.max = max(mat), title.name = rownames(mat)[i])
   }
   p.commSep <- recordPlot()

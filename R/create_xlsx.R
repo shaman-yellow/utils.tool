@@ -23,7 +23,7 @@ xl_table <- function(
   title_dim <- xl_dim(1, seq_along(data))
   wb$add_font(, title_dim, font, bold = "double")
   ## data
-  wb$add_data_table(x = data, startRow = 2, withFilter = F, na.strings = "")
+  wb$add_data_table(x = data, startRow = 2, withFilter = FALSE, na.strings = "")
   data_dim <- xl_dim(2:(nrow(data) + 2), seq_len(ncol(data)))
   wb$add_font(, data_dim, font)
   wb$add_cell_style(, data_dim, horizontal = "left", vertical = "top")
@@ -37,7 +37,7 @@ xl_table <- function(
   }
   ## width
   nchar <- rbind(nchar(colnames(data)), apply(data, 2, nchar))
-  nchar.max <- apply(nchar, 2, function(x) max(x, na.rm = T))
+  nchar.max <- apply(nchar, 2, function(x) max(x, na.rm = TRUE))
   nchar.max <- vapply(nchar.max, function(x) if (x > 30) 30 else x, numeric(1))
   for (i in seq_len(ncol(data))) {
     wb$set_col_widths(, cols = i, width = nchar.max[i] * 1 + 3)

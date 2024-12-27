@@ -22,7 +22,7 @@ job_hob <- function(smiles)
 {
   if (is.data.frame(smiles)) {
     message("The input is data.frame. Use first column as names, next column as smiles.")
-    smiles <- nl(smiles[[1]], smiles[[2]], F)
+    smiles <- nl(smiles[[1]], smiles[[2]], FALSE)
   }
   smiles <- smiles[ !duplicated(smiles) ]
   .job_hob(object = smiles)
@@ -50,15 +50,15 @@ setMethod("step1", signature = c(x = "job_hob"),
     cutoff <- match.arg(cutoff)
     if (is.null(dir)) {
       if (!file.exists(strx(command, "[^ ]+$"))) {
-        stop('file.exists(strx(command, "[^ ]+$")) == F')
+        stop('file.exists(strx(command, "[^ ]+$")) == FALSE')
       }
       if (!file.exists(model)) {
-        stop("file.exists(model) == F")
+        stop("file.exists(model) == FALSE")
       }
       x$wd <- wd
       file_res <- file.path(wd, "pred_result.csv")
       if (!file.exists(file_res)) {
-        dir.create(wd, F)
+        dir.create(wd, FALSE)
         file.copy(extra, wd)
         writeLines(object(x), paste0(wd, "/smiles.txt"))
         cdRun(command, " ", model, " smiles.txt ", cutoff, path = x$wd)  
@@ -83,8 +83,8 @@ setMethod("step1", signature = c(x = "job_hob"),
       names <- paste0("Compound ", seq_along(object(x)))
       lab.x <- ""
     }
-    t.hob <- dplyr::mutate(t.hob, name = !!names, isOK = ifelse(prediction, T, F))
-    if (F) {
+    t.hob <- dplyr::mutate(t.hob, name = !!names, isOK = ifelse(prediction, TRUE, FALSE))
+    if (FALSE) {
       p.hob <- ggplot(t.hob) +
         geom_col(aes(x = reorder(name, `probability(+)`), y = `probability(+)`, fill = `probability(+)`),
           width = .7) +

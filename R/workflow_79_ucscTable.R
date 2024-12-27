@@ -54,9 +54,9 @@ get_cpgIsland_data.ucsc <- function(genome, table = "cpgIslandExt", ...)
   get_data.ucsc(genome, table, ...)
 }
 
-get_data.ucsc <- function(genome, table, db_dir = .prefix("ucscTable", "db"), addInternalJob = T)
+get_data.ucsc <- function(genome, table, db_dir = .prefix("ucscTable", "db"), addInternalJob = TRUE)
 {
-  dir.create(db_dir, F)
+  dir.create(db_dir, FALSE)
   file <- file.path(db_dir, paste0(genome, "_", table, ".csv"))
   if (!file.exists(file)) {
     query <- e(rtracklayer::ucscTableQuery(genome, table = table))

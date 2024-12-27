@@ -11,12 +11,12 @@ diann <- function(targets, fasta,
   min.pr.mz = 300, max.pr.mz = 1800, min.pr.charge = 1, max.pr.charge = 4,
   qvalue = .01, threads = 10, verbose = 1,
   command = "/usr/diann/1.8.1/diann-1.8.1",
-  pattern = "\\.mzML|\\.wiff", recursive = F,
+  pattern = "\\.mzML|\\.wiff", recursive = FALSE,
   notRun = NULL, more.args = NULL)
 {
   if (length(targets == 1) & dir.exists(targets[1])) {
     if (dir.exists(targets)) {
-      files <- list.files(targets, pattern, full.names = T, recursive = recursive)
+      files <- list.files(targets, pattern, full.names = TRUE, recursive = recursive)
       if (!length(files)) {
         stop("No files found of pattern: ", pattern)
       }
@@ -30,7 +30,7 @@ diann <- function(targets, fasta,
   if (!dir.exists(savepath)) {
     dir.create(savepath)
   }
-  normp <- function(x) normalizePath(x, mustWork = T)
+  normp <- function(x) normalizePath(x, mustWork = TRUE)
   savepath <- normp(savepath)
   if (any(file.exists(c(out, out.lib)))) {
     res <- menu(c("Overwrite the files.", "Stop running."))
@@ -80,7 +80,7 @@ diann <- function(targets, fasta,
   if (!is.null(more.args)) {
     expr <- paste0(expr, " ", paste0(more.args, collapse = " "))
   }
-  res <- try(system(expr), T)
+  res <- try(system(expr), TRUE)
   runlog <- tempfile(pattern = "diann_script", fileext = ".sh")
   writeLines(expr, runlog)
   message("\nThe script for Diann running: ", runlog)

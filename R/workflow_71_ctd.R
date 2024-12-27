@@ -35,14 +35,14 @@ setMethod("step1", signature = c(x = "job_ctd"),
   function(x, pattern)
   {
     step_message("Search disease in `CTD_diseases`")
-    dis <- dplyr::filter(object(x)$CTD_diseases, grpl(DiseaseName, pattern, T))
+    dis <- dplyr::filter(object(x)$CTD_diseases, grpl(DiseaseName, pattern, TRUE))
     x$dis <- .set_lab(dis, sig(x), "matched disease")
     message("Get disease:\n\t", paste0(x$dis$DiseaseName, collapse = ",\n\t"))
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_ctd"),
-  function(x, rm.na = T){
+  function(x, rm.na = TRUE){
     step_message("Get relationship table.")
     t.chemical <- dplyr::filter(
       object(x)$CTD_chemicals_diseases,
@@ -61,7 +61,7 @@ setMethod("step2", signature = c(x = "job_ctd"),
   })
 
 get_ctd_data <- function(name = "chemical.rds",
-  savedir = .prefix("ctd", "db"), reload = F)
+  savedir = .prefix("ctd", "db"), reload = FALSE)
 {
   if (!dir.exists(savedir)) {
     dir.create(savedir)
@@ -85,7 +85,7 @@ get_ctd_data <- function(name = "chemical.rds",
         c("DiseaseName", "DiseaseID")
       )
     }
-    lst <- pbapply::pbmapply(files, selects, col.names, SIMPLIFY = F,
+    lst <- pbapply::pbmapply(files, selects, col.names, SIMPLIFY = FALSE,
       FUN = function(file, select, col.names) {
         url <- paste0(url_base, file)
         target <- paste0(savedir, "/", file)
@@ -122,7 +122,7 @@ get_ctd_data <- function(name = "chemical.rds",
   }
 }
 
-get_ctd_compoundInfo <- function(savedir = .prefix("ctd", "db"), reload = F)
+get_ctd_compoundInfo <- function(savedir = .prefix("ctd", "db"), reload = FALSE)
 {
   file <- paste0(savedir, "/meshID2sid.rds")
   if (!file.exists(file) || reload) {

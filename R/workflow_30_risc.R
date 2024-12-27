@@ -29,7 +29,7 @@ setMethod("asjob_risc", signature = c(x = "list"),
     lapply(x,
       function(x) {
         if (!is(x, "job_seurat")) {
-          stop("is(x, 'job_seurat') == F")
+          stop("is(x, 'job_seurat') == FALSE")
         }
       })
     if (!is.null(filter)) {
@@ -56,7 +56,7 @@ setMethod("asjob_risc", signature = c(x = "list"),
           if (nrow(cells) != ncol(counts)) {
             counts <- counts[, colnames(counts) %in% rownames(cells)]
           }
-          RISC::readsc(counts, cells, genes, is.filter = F)
+          RISC::readsc(counts, cells, genes, is.filter = FALSE)
         }))
     x <- .job_risc(object = x)
     x$group.by <- group.by
@@ -90,14 +90,14 @@ setMethod("step1", signature = c(x = "job_risc"),
           function(object) {
             RISC::scDisperse(object)
           }))
-      x$isNormed <- T
+      x$isNormed <- TRUE
     }
     genes.ins <- ins(lst = lapply(object(x),
         function(object) object@rowdata$Symbol
         ))
     x$genes.ins <- genes.ins
     p.reference <- try(e(RISC::InPlot(object(x), var.gene = genes.ins,
-          Std.cut = 0.99, ncore = x$workers, minPC = minPC, nPC = maxPC)), silent = T)
+          Std.cut = 0.99, ncore = x$workers, minPC = minPC, nPC = maxPC)), silent = TRUE)
     if (inherits(p.reference, "try-error")) {
       warning("RISC::InPlot stopped.")
     } else {
@@ -125,11 +125,11 @@ setMethod("step2", signature = c(x = "job_risc"),
       object(x) <- e(RISC::scMultiIntegrate(object(x),
           ncore = x$workers, add.Id = names(object(x)),
           var.gene = x$genes.ins))
-      x$isIntegrate <- T
+      x$isIntegrate <- TRUE
     }
     if (is.null(x$isUmap)) {
       object(x) <- e(RISC::scUMAP(object(x), npc = 20, use = "PLS"))
-      x$isUmap <- T
+      x$isUmap <- TRUE
     }
     p.umap <- vis(x, group.by = x$group.by, colors = colors)
     x$palette <- colors
@@ -157,12 +157,12 @@ setMethod("step4", signature = c(x = "job_risc"),
   function(x, contrasts, group.by = x$group.by, p.adjust = .01, log2fc = 1){
     step_message("Test for DEGs.")
     if (is.data.frame(contrasts)) {
-      contrasts <- apply(contrasts, 1, c, simplify = F)
+      contrasts <- apply(contrasts, 1, c, simplify = FALSE)
     }
     res <- e(lapply(contrasts,
         function(con) {
           fun <- function(pt) {
-            rownames(object(x)@coldata)[grpl(ids(x, group.by, F), pt)]
+            rownames(object(x)@coldata)[grpl(ids(x, group.by, FALSE), pt)]
           }
           cell.ctrl <- fun(con[2])
           cell.sam <- fun(con[1])
@@ -171,7 +171,7 @@ setMethod("step4", signature = c(x = "job_risc"),
         }))
     res <- lapply(res, dplyr::as_tibble)
     names(res) <- vapply(contrasts, function(x) paste0(x[1], "_vs_", x[2]), character(1))
-    res <- dplyr::as_tibble(data.table::rbindlist(res, idcol = T))
+    res <- dplyr::as_tibble(data.table::rbindlist(res, idcol = TRUE))
     res <- dplyr::rename(res, contrast = .id)
     # res <- dplyr::filter(res, p_val_adj < .05)
     x@tables[[ 4 ]] <- list(contrasts = res)
@@ -193,7 +193,7 @@ setMethod("vis", signature = c(x = "job_risc"),
   })
 
 setMethod("ids", signature = c(x = "job_risc"),
-  function(x, id = x@params$group.by, unique = T){
+  function(x, id = x@params$group.by, unique = TRUE){
     ids <- object(x)@coldata[[ id ]]
     if (unique)
       ids <- unique(ids)

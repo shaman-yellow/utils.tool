@@ -30,16 +30,16 @@ setMethod("step0", signature = c(x = "job_tcmsp2"),
   })
 
 setMethod("step1", signature = c(x = "job_tcmsp2"),
-  function(x, forceGetHerbInfo = F, dir = .prefix("tcmsp2", "db"), port = 8888, ...){
+  function(x, forceGetHerbInfo = FALSE, dir = .prefix("tcmsp2", "db"), port = 8888, ...){
     step_message("Check local database.")
-    dir.create(dir, F)
+    dir.create(dir, FALSE)
     x$dir <- dir
     items <- c(
       # "disease" = "Related Diseases",
       "ingredients" = "Ingredients",
       "targets" = "Related Targets"
     )
-    dbs <- sapply(names(items), simplify = F,
+    dbs <- sapply(names(items), simplify = FALSE,
       function(name) {
         db <- new_db(file.path(dir, paste0(name, ".rds")), "herb")
         db <- not(db, x@params$herbs)
@@ -61,7 +61,7 @@ setMethod("step1", signature = c(x = "job_tcmsp2"),
   })
 
 setMethod("step2", signature = c(x = "job_tcmsp2"),
-  function(x, forceGetHerbInfo = F)
+  function(x, forceGetHerbInfo = FALSE)
   {
     step_message("Download data.")
     queries <- x$queries
@@ -72,7 +72,7 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
       }
       link <- x$link
       items <- x$items
-      isLogin <- try(link$findElement("xpath", "//div//div[@id='login-btn']"), T)
+      isLogin <- try(link$findElement("xpath", "//div//div[@id='login-btn']"), TRUE)
       if (!inherits(isLogin, "try-error")) {
         stop("You should login for TCMSP first.")
       } else {
@@ -86,9 +86,9 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
             link$findElement("xpath", "//div//input[@class='el-input__inner']")
           }
           fun_check <- function(info) {
-            ele <- try(link$findElement("xpath", "//div//div[@class='mspTips']//div[@class='left']"), T)
+            ele <- try(link$findElement("xpath", "//div//div[@class='mspTips']//div[@class='left']"), TRUE)
             if (inherits(ele, "try-error")) {
-              return(F)
+              return(FALSE)
             }
             text <- ele$getElementText()
             grpl(text, info$V3)
@@ -116,10 +116,10 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
             ele <- link$findElement("xpath", "//div[@class='el-pagination']//button[@class='btn-next']")
             attr <- ele$getElementAttribute("aria-disabled")[[1]]
             if (attr == "true") {
-              return(F)
+              return(FALSE)
             } else {
               ele$clickElement()
-              return(T)
+              return(TRUE)
             }
           }
           fun_get <- function() {
@@ -127,10 +127,10 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
           }
           # >>>
           message("Try Dowload data of ", herb)
-          ele <- try(fun_input(), T)
+          ele <- try(fun_input(), TRUE)
           if (inherits(ele, "try-error")) {
             link$navigate(x$url_home)
-            ele <- try(fun_input(), T)
+            ele <- try(fun_input(), TRUE)
           }
           ele$clearElement()
           ele$sendKeysToElement(list(paste0(" ", herb, " ")))
@@ -141,10 +141,10 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
           # check search page status
           info <- fun_get()
           n <- 0L
-          empty <- F
-          ele <- try(link$findElement("xpath", "//div//div[@class='el-table__empty-block']"), T)
+          empty <- FALSE
+          ele <- try(link$findElement("xpath", "//div//div[@class='el-table__empty-block']"), TRUE)
           if (!inherits(ele, "try-error")) {
-            empty <- T
+            empty <- TRUE
             warning("No results for matching: ", herb)
             return()
           }
@@ -193,7 +193,7 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
             function(type) {
               message("In collating: ", type)
               # check whether focused
-              active <- F
+              active <- FALSE
               n <- 0L
               while (!active && n < 10L) {
                 n <- n + 1L
@@ -217,7 +217,7 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
                 stop("Can not focused.")
               }
               message("Is focused: ", type)
-              if (F) {
+              if (FALSE) {
                 Sys.sleep(1)
                 fun_pageSize()
                 Sys.sleep(2)
@@ -252,7 +252,7 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
           return(x)
         }
         x$dbHerbs <- upd(x$dbHerbs, herbs_info)
-        x$dbs <- sapply(names(x$items), simplify = F,
+        x$dbs <- sapply(names(x$items), simplify = FALSE,
           function(name) {
             data <- frbind(lapply(lstHerbItems, function(x) x[[ name ]]))
             upd(x$dbs[[ name ]], data)
@@ -285,7 +285,7 @@ setMethod("step2", signature = c(x = "job_tcmsp2"),
   })
 
 setMethod("step3", signature = c(x = "job_tcmsp2"),
-  function(x, filter = T, cutoff.ob = 30, cutoff.dl = 0.18, ...)
+  function(x, filter = TRUE, cutoff.ob = 30, cutoff.dl = 0.18, ...)
   {
     step_message("Call next method.")
     object(x) <- list()

@@ -138,6 +138,11 @@ setReplaceMethod("snap", signature = c(x = "ANY"),
     return(x)
   })
 
+setMethod("snap", signature = c(x = "feature", ref = "missing"),
+  function(x){
+    snap(x, FALSE)
+  })
+
 setMethod("snap", signature = c(x = "feature", ref = "logical"),
   function(x, ref = FALSE, limit = 20){
     if (ref) {
@@ -226,14 +231,17 @@ trace_filter <- function(data, ..., quosures = NULL) {
           ">" = "大于", "<" = "小于"
         )
         glue::glue("筛选 {col} {des} {cutoff}")
-      } else if (is.character(data[[ col ]])) {
+      } else if (is.character(data[[ col ]]) || is.factor(data[[ col ]])) {
         types <- unique(data[[ col ]])
         if (length(types) > 20) {
           stop("`trace_filter`: too many '{col}' ({length(types)}) to display. ")
         }
         glue::glue("筛选 {col} 为 {bind(types, quote = TRUE)}")
       } else {
-        stop("`trace_filter`: Only 'character' or 'numeric' support.")
+        stop(
+          "`trace_filter`: detected: ", 
+          col, "(", class(data[[ col ]]), "), Only 'character' or 'numeric' support."
+        )
       }
     }, character(1))
   if (nrow(data) == nrow(before)) {
@@ -309,6 +317,9 @@ setMethod("meth",
     x@meth
   })
 
+setGeneric("hunt", 
+  function(x, ref, ...) standardGeneric("hunt"))
+
 setGeneric("meth<-", 
   function(x, value) standardGeneric("meth<-"))
 setReplaceMethod("meth", signature = c(x = "ANY"),
@@ -330,7 +341,7 @@ collate_details <- function(tag = "meth", envir = parent.frame(1)) {
   }
 }
 
-get_meth <- function(x, setHeader = T) {
+get_meth <- function(x, setHeader = TRUE) {
   header <- NULL
   if (is(x, "job")) {
     if (length(x@analysis)) {
@@ -360,7 +371,7 @@ setMethod("show",
 #   function(object){
 #     class <- class(object)
 #     options(method_name = class)
-#     if (is(object, "job")) T else F
+#     if (is(object, "job")) TRUE else FALSE
 #   })
 
 setClass("hclust")
@@ -437,7 +448,7 @@ setGeneric("ref",
   prototype = NULL)
 
 setMethod("ref", signature = c(x = "character_ref"),
-  function(x, add_internal_job = T, ...){
+  function(x, add_internal_job = TRUE, ...){
     ref <- strx(x, "[A-Z][A-Za-z]{10,}[0-9]{4}")
     message("Extracted reference: ", ref)
     if (add_internal_job) {
@@ -511,7 +522,7 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
 }
 
 as_chunk_label <- function(x) {
-  Hmisc::capitalize(gs(gs(x, "(?<![a-zA-Z])ids[ \\-]?", "", perl = T), " |_|\\.", "-"))
+  Hmisc::capitalize(gs(gs(x, "(?<![a-zA-Z])ids[ \\-]?", "", perl = TRUE), " |_|\\.", "-"))
 }
 
 .set_lab <- function(x, sig, group = NULL, body = NULL, suffix = NULL) {
@@ -558,7 +569,7 @@ setMethod("pg", signature = c(x = "job"),
   })
 
 setMethod("pg", signature = c(x = "character"),
-  function(x, is.remote = F,
+  function(x, is.remote = FALSE,
     recode.remote = getOption("pg_remote_recode", pg_remote_recode()),
     recode.local = getOption("pg_local_recode", pg_local_recode()))
   {
@@ -695,10 +706,10 @@ jobSlotAdd <- function(x, name, ...) {
   symbol <- paste0(".", name, "_initial")
   isInitial <- x[[ symbol ]]
   if (is.null(isInitial) || isInitial) {
-    x[[ symbol ]] <- F
-    reset <- T
+    x[[ symbol ]] <- FALSE
+    reset <- TRUE
   } else {
-    reset <- F
+    reset <- FALSE
   }
   db <- if (reset) {
     list()
@@ -713,7 +724,7 @@ setGeneric("methodAdd",
   function(x, from, ...) standardGeneric("methodAdd"))
 
 setMethod("methodAdd", signature = c(x = "job", from = "character"),
-  function(x, from, add = F, env = parent.frame(2), step = NULL) {
+  function(x, from, add = FALSE, env = parent.frame(2), step = NULL) {
     if (missing(step)) {
       if (!is.null(x$.map_step) && x$.map_step) {
         step <- "m"
@@ -723,14 +734,14 @@ setMethod("methodAdd", signature = c(x = "job", from = "character"),
     }
     if (missing(add)) {
       if (is.null(x$.meth_initial) || x$.meth_initial) {
-        add <- F
-        x$.meth_initial <- F
+        add <- FALSE
+        x$.meth_initial <- FALSE
       } else {
-        add <- T
+        add <- TRUE
       }
     } else {
       if (!add) {
-        x$.meth_initial <- F
+        x$.meth_initial <- FALSE
       }
     }
     if (add) {
@@ -752,7 +763,7 @@ setGeneric("snapAdd",
   function(x, from, ...) standardGeneric("snapAdd"))
 
 setMethod("snapAdd", signature = c(x = "job", from = "character"),
-  function(x, from, add = F, env = parent.frame(2), step = NULL) {
+  function(x, from, add = FALSE, env = parent.frame(2), step = NULL) {
     if (is.null(x$.snap)) {
       x$.snap <- list()
     }
@@ -765,14 +776,14 @@ setMethod("snapAdd", signature = c(x = "job", from = "character"),
     }
     if (missing(add)) {
       if (is.null(x$.snap_initial) || x$.snap_initial) {
-        add <- F
-        x$.snap_initial <- F
+        add <- FALSE
+        x$.snap_initial <- FALSE
       } else {
-        add <- T
+        add <- TRUE
       }
     } else {
       if (!add) {
-        x$.snap_initial <- F
+        x$.snap_initial <- FALSE
       }
     }
     if (add) {
@@ -791,7 +802,7 @@ setMethod("snapAdd", signature = c(x = "job", from = "job"),
   })
 
 .set_lab_batch <- function(objs, labs, sig) {
-  mapply(objs, labs, SIMPLIFY = F,
+  mapply(objs, labs, SIMPLIFY = FALSE,
     FUN = function(obj, lab) {
       if (is.null(lab(obj))) {
         if (length(obj) > 1 && is(obj, "list")) {
@@ -872,7 +883,7 @@ setGeneric("set_remote",
 
 set_remote.default <- function(x, tmpdir, map_local, remote) {
   if (is.null(x$set_remote))
-    x$set_remote <- T
+    x$set_remote <- TRUE
   if (is.null(x$remote))
     x$remote <- remote
   if (is.null(x$map_local))
@@ -977,8 +988,8 @@ setGeneric("step1", group = list("step_series"),
     x
   })
 
-job_append_heading <- function (x, mutate = T, heading = NULL) {
-  if (getOption("job_appending", F)) {
+job_append_heading <- function (x, mutate = TRUE, heading = NULL) {
+  if (getOption("job_appending", FALSE)) {
     if (is(x, "job")) {
       if (missing(heading)) {
         heading <- x@analysis
@@ -991,7 +1002,7 @@ job_append_heading <- function (x, mutate = T, heading = NULL) {
   }
 }
 
-.append_heading <- function(x, mutate = F) {
+.append_heading <- function(x, mutate = FALSE) {
   args <- paste0("CheckAndAppendHeading('", x, "'", if (mutate) ", 1" else ", 0", ")")
   if (requireNamespace("nvimcom")) {
     if (nchar(x)) {
@@ -1000,7 +1011,7 @@ job_append_heading <- function (x, mutate = T, heading = NULL) {
   }
 }
 
-.append_class <- function(expr, short = T, envir = .GlobalEnv) {
+.append_class <- function(expr, short = TRUE, envir = .GlobalEnv) {
   if (requireNamespace("nvimcom")) {
     class <- class(expr)
     if (length(class) > 1) {
@@ -1095,7 +1106,7 @@ stepPostModify <- function(x, n = NULL) {
   xname <- attr(x@sig, "name")
   news <- c()
   if (!is.null(n)) {
-    if (getOption("auto_convert_plots", F)) {
+    if (getOption("auto_convert_plots", FALSE)) {
       x <- convertPlots(x, n)
     }
     if (length(x@plots) >= n) {
@@ -1150,7 +1161,7 @@ updAlls <- function(names = .get_job_list(extra = NULL), envir = .GlobalEnv) {
     function(x) {
       obj <- get(x, envir = envir)
       if (is(obj, "job")) {
-        if (inherits(try(validObject(obj), T), "try-error")) {
+        if (inherits(try(validObject(obj), TRUE), "try-error")) {
           obj <- upd(obj)
           assign(x, obj, envir = envir)
         }
@@ -1167,8 +1178,8 @@ writeJobSlotsAutoCompletion <- function(x, envir = .GlobalEnv) {
   if (is.null(dir)) {
     return()
   }
-  dir.create(dir, F, recursive = T)
-  obj <- try(get(x, envir = envir), T)
+  dir.create(dir, FALSE, recursive = TRUE)
+  obj <- try(get(x, envir = envir), TRUE)
   if (inherits(obj, "try-error")) {
     message("May not run in .GlobalEnv.")
     return()
@@ -1240,9 +1251,9 @@ rapply2 <- function(x, fun, class, ...) {
   }
 }
 
-checkAddStep <- function(x, n, clear_tables_plots = T) {
+checkAddStep <- function(x, n, clear_tables_plots = TRUE) {
   STEP <- paste0("step", n)
-  if (getOption("step_check", T)) {
+  if (getOption("step_check", TRUE)) {
     if (x@step >= n)
       stop("x@step >= ", n, ". This step has been executed.")
     if (x@step < n - 1)
@@ -1261,10 +1272,10 @@ checkAddStep <- function(x, n, clear_tables_plots = T) {
   message(crayon::green("Running", STEP), ":")
   x@step <- n
   x@others$.oldParams <- names(x@params)
-  x$.snap_initial <- T
-  x$.meth_initial <- T
-  x$.tables_initial <- T
-  x$.plots_initial <- T
+  x$.snap_initial <- TRUE
+  x$.meth_initial <- TRUE
+  x$.tables_initial <- TRUE
+  x$.plots_initial <- TRUE
   x
 }
 
@@ -1274,18 +1285,18 @@ step_message <- function(..., show_end = "Job Status") {
   str <- gs(str, "grey\\{\\{(.*?)\\}\\}", "\033[90m\\1\033[39m")
   str <- gs(str, "yellow\\{\\{(.*?)\\}\\}", "\033[33m\\1\033[39m")
   str <- gs(str, "blue\\{\\{(.*?)\\}\\}", "\033[34m\\1\033[39m")
-  textSh(str, pre_trunc = F)
+  textSh(str, pre_trunc = FALSE)
   if (!is.null(show_end))
     cli::cli_h1(show_end)
 }
 
 .argEnv <- new.env()
 
-E <- function(expr, text = NULL, internal = F) {
+E <- function(expr, text = NULL, internal = FALSE) {
   e(expr, text, internal, n = 1)
 }
 
-e <- function(expr, text = NULL, internal = T, n = NULL) {
+e <- function(expr, text = NULL, internal = TRUE, n = NULL) {
   if (is.null(n)) {
     expr <- substitute(expr)
     n <- 1
@@ -1393,13 +1404,13 @@ match_pair <- function(str, left = "(", right = ")") {
 setMethod("show", 
   signature = c(object = "standardGeneric"),
   function(object){
-    .show_method(object, show_standardGeneric, F)
+    .show_method(object, show_standardGeneric, FALSE)
   })
 
 setMethod("show", 
   signature = c(object = "nonstandardGenericFunction"),
   function(object) {
-    .show_method(object, show_nonstandardGenericFunction, T)
+    .show_method(object, show_nonstandardGenericFunction, TRUE)
   }
 )
 
@@ -1412,7 +1423,7 @@ setGeneric("clear",
   function(x, ...) standardGeneric("clear"))
 
 setMethod("clear", signature = c(x = "job"),
-  function(x, save = T, suffix = NULL, name = substitute(x, parent.frame(1))){
+  function(x, save = TRUE, suffix = NULL, name = substitute(x, parent.frame(1))){
     if (save)
       saveRDS(x, paste0(name, ".", x@step, suffix, ".rds"))
     object(x) <- NULL
@@ -1437,9 +1448,9 @@ setGeneric("anno",
 setGeneric("map", 
   function(x, ref, ...) {
     if (is(x, "job")) {
-      x$.snap_initial <- T
-      x$.meth_initial <- T
-      x$.map_step <- T
+      x$.snap_initial <- TRUE
+      x$.meth_initial <- TRUE
+      x$.map_step <- TRUE
     }
     x <- standardGeneric("map")
     if (is(x, "job")) {
@@ -1448,7 +1459,7 @@ setGeneric("map",
           job_append_heading(x, heading = x$.map_heading)
         }
       }
-      x$.map_step <- F
+      x$.map_step <- FALSE
       stepPostModify(x)
     } else {
       x
@@ -1522,7 +1533,7 @@ setMethod("upd", signature = c(x = "ANY"),
     new@plots <- x@plots
     new@tables <- x@tables
     new@step <- x@step
-    if (!inherits(try(x@sig, T), "try-error")) {
+    if (!inherits(try(x@sig, TRUE), "try-error")) {
       new@sig <- x@sig
     }
     new
@@ -1570,8 +1581,8 @@ setGeneric("is.remote",
 setMethod("is.remote", signature = c(x = "job"),
   function(x){
     if (!is.null(x@params$set_remote)) {
-      if (x$set_remote) T else F
-    } else F
+      if (x$set_remote) TRUE else FALSE
+    } else FALSE
   })
 
 setGeneric("is_workflow_object_exists", 
@@ -1600,7 +1611,7 @@ setMethod("$<-", signature = c(x = "job"),
   })
 
 setMethod("map", signature = c(x = "df"),
-  function(x, ref, y, y.ref, y.get, rename = T, col = NULL)
+  function(x, ref, y, y.ref, y.get, rename = TRUE, col = NULL)
   {
     if (any(!c(y.ref, y.get) %in% colnames(y))) {
       stop("Can not found columns of '", y.ref, "' and '", y.get, "'")
@@ -1630,6 +1641,12 @@ setMethod("map", signature = c(x = "df"),
 
 setMethod("gname", signature = c(x = "character"),
   function(x){
+    if (any(grpl(x, " |/"))) {
+      message(
+        crayon::red("Deal with gene names, multiple gene names covered in One name, use first.")
+      )
+      x <- strx(x, "[^ ^/]+")
+    }
     gs(x, "\\.[0-9]", "")
   })
 
@@ -1706,7 +1723,7 @@ treeObj <- function(obj, stops = c("gg", "wrap"), maxdepth = 10L, envir = parent
   nvimcom:::nvim_viewobj(x, howto = howto)
 }
 
-view_obj_for_vim <- function(x, y, view = T) {
+view_obj_for_vim <- function(x, y, view = TRUE) {
   if (isGeneric(x)) {
     if (nchar(y)) {
       classY <- class(eval(parse(text = y), envir = .GlobalEnv))
@@ -1714,7 +1731,7 @@ view_obj_for_vim <- function(x, y, view = T) {
         classY <- classY[1]
       }
       message("Class of target: ", classY)
-      obj <- try(selectMethod(x, classY), silent = T)
+      obj <- try(selectMethod(x, classY), silent = TRUE)
     } else {
       obj <- NULL
       classY <- NULL
@@ -1745,6 +1762,11 @@ view_obj_for_vim <- function(x, y, view = T) {
     assign(x <- ".tmpfun", obj, envir = .GlobalEnv)
   }
   if (view) {
+    if (as.double(strx(obj.size(eval(parse(text = x))), "[0-9.]+")) > .5) {
+      stop(
+        'as.double(strx(obj.size(eval(parse(text = x))), "[0-9.]+")) > .5, too large object to show.'
+      )
+    }
     .view_obj(x)
   }
 }
@@ -1775,20 +1797,20 @@ get_workflow_news <- function(..., data = get_orders()) {
   later <- dplyr::filter(data, belong <= max(!!lst))
   former <- dplyr::filter(data, belong < min(!!lst))
   fun <- function(x) unique(x$name)
-  x <- fun(plot_workflow_summary(later, T))
-  y <- fun(plot_workflow_summary(former, T))
+  x <- fun(plot_workflow_summary(later, TRUE))
+  y <- fun(plot_workflow_summary(former, TRUE))
   x[ !x %in% y ]
 }
 
-plot_workflow_summary <- function(data, get_jobs_used = F) {
+plot_workflow_summary <- function(data, get_jobs_used = FALSE) {
   fun.co_job <- function() {
     alls <- available_signatures("step1")
     name <- gs(alls, "^job_", "")
     nodes <- data.frame(name = name)
     asjobs <- paste0("asjob_", name)
-    asjobs <- sapply(asjobs, simplify = F,
+    asjobs <- sapply(asjobs, simplify = FALSE,
       function(x) {
-        res <- try(get_fun(x), T)
+        res <- try(get_fun(x), TRUE)
         if (!inherits(res, "try-error")) {
           available_signatures(x)
         } else {
@@ -1799,7 +1821,7 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
     edges <- dplyr::mutate(edges, from = gs(type, "^asjob_", ""), to = gs(name, "^job_", ""))
     edges <- dplyr::relocate(edges, from, to)
     edges <- dplyr::filter(edges, from %in% nodes$name, to %in% nodes$name)
-    graph <- fast_layout(edges, "linear", nodes = nodes, circular = T)
+    graph <- fast_layout(edges, "linear", nodes = nodes, circular = TRUE)
     p <- ggraph(graph) +
       geom_edge_arc(color = "lightblue", alpha = .5) +
       geom_node_point(aes(size = centrality_degree,
@@ -1839,21 +1861,21 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
     used <- dplyr::mutate(used, value = 1,
       order = paste0("Order ", gs(type, "##.*$", "")),
       rank = as.integer(as.Date(type)),
-      name = gs(name, "^job_|^new_|(?<=^pb).*", "", perl = T),
+      name = gs(name, "^job_|^new_|(?<=^pb).*", "", perl = TRUE),
       name = gs(name, "^pb$", "Publication"),
       type = gs(type, ".*##(.*)$", "\\1")
     )
     data <- as_tibble(used)
-    p.ind.pop <- ggplot(data, aes(x = reorder(order, rank, decreasing = T), y = value)) +
+    p.ind.pop <- ggplot(data, aes(x = reorder(order, rank, decreasing = TRUE), y = value)) +
       geom_col(aes(fill = name), position = "stack", width = .6) +
       geom_point(
         data = dplyr::distinct(data, order, type, rank),
-        aes(reorder(order, rank, decreasing = T), y = -3, shape = type, color = type),
+        aes(reorder(order, rank, decreasing = TRUE), y = -3, shape = type, color = type),
         size = 5) +
       coord_flip() +
       labs(y = "Order (Date + N)", x = "Frequence", fill = "Name",
         color = "Type", shape = "Type") +
-      scale_fill_manual(values = color_set(T)) +
+      scale_fill_manual(values = color_set(TRUE)) +
       scale_color_manual(values = rstyle("pal", seed = 6)) +
       theme_minimal()
     p.alls <- new_pie(data$name, fun_text = ggrepel::geom_label_repel)
@@ -1879,7 +1901,7 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
     weight.chi <- list("..." = 1, tables = 3, plots = 3, params = 3, `...` = 1)
     ## draw
     type <- c("class", "slot", "sub.slot", "function", "custom")
-    pal <- MCnebula2:::.as_dic(color_set(), type, na.rm = T)
+    pal <- MCnebula2:::.as_dic(color_set(), type, na.rm = TRUE)
     grobs.chi <- lst_grecti(names(weight.chi), pal, "custom", grecti2)
     grobs.chi$... <- omit
     ## signal grid layout
@@ -1904,13 +1926,13 @@ plot_workflow_summary <- function(data, get_jobs_used = F) {
           just = c("centre", "bottom"))
         ggather(rectGrob(gp = gpar(fill = "lightyellow", col = pal[["sub.slot"]])),
           gtext(paste0("n", rev(seq_along(seq))[n]),
-            gpar(fontface = "plain"), form = F), vp = vp)
+            gpar(fontface = "plain"), form = FALSE), vp = vp)
       })
     vps <- do.call(ggather, c(vps, list(vp = viewport(, .1, .5, .5))))
     grobs.chi$params %<>% into(vps)
     ## signal ggset
     ggsets <- frame_col(c(n = 1, x = 1, mn = 1),
-      list(n = gtext("n", list(cex = 2.5), form = F),
+      list(n = gtext("n", list(cex = 2.5), form = FALSE),
         x = gtext("×", list(cex = 2, font = c(plain = 1))),
         mn = into(glayer(3), layer5_)))
     ggsets <- ggather(ggsets, vp = viewport(, , .7, .7))
@@ -1982,7 +2004,7 @@ new_db <- function(db_file, idcol) {
 }
 
 setMethod("not", signature = c(x = "local_db"),
-  function(x, ids, force = F){
+  function(x, ids, force = FALSE){
     ids <- unique(ids)
     if (nrow(x@db) & !force) {
       stop("The `x` is not an empty data object.")
@@ -2003,7 +2025,7 @@ setMethod("upd", signature = c(x = "local_db"),
   function(x, data, ids = x@query){
     idcol <- x@idcol
     if (!is(data, "df")) {
-      stop('is(data, "df") == F')
+      stop('is(data, "df") == FALSE')
     }
     if (!is.null(ids)) {
       if (nrow(data)) {
@@ -2044,7 +2066,7 @@ setMethod("res", signature = c(x = "local_db"),
   }
 }
 
-saves <- function(file = "workflow.rdata", saveInjobs = T, ...) {
+saves <- function(file = "workflow.rdata", saveInjobs = TRUE, ...) {
   injobs <- getOption("internal_job")
   if (!is.null(injobs) && saveInjobs) {
     rds <- .get_savesInternalRds(file)
@@ -2076,14 +2098,14 @@ loads <- function(file = "workflow.rdata", ...) {
 }
 
 remotejob <- function(wd, remote = "remote") {
-  .job(params = list(set_remote = T, wd = wd, remote = remote))
+  .job(params = list(set_remote = TRUE, wd = wd, remote = remote))
 }
 
 set_prefix <- function(wd, db, op) {
   options(wd_prefix = wd, db_prefix = db, op_prefix = op)
 }
 
-.prefix <- function(path, name = c("wd", "db", "op"), warning = T)
+.prefix <- function(path, name = c("wd", "db", "op"), warning = TRUE)
 {
   name <- match.arg(name)
   pr <- getOption(That <- paste0(name, "_prefix"), NULL)

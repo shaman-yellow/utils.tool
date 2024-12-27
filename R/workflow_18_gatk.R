@@ -28,7 +28,7 @@ setGeneric("asjob_gatk", group = list("asjob_series"),
 setMethod("asjob_gatk", signature = c(x = "job_fastp"),
   function(x, wd){
     if (any(duplicated(x@params$metadata$SampleName)))
-      stop("any(duplicated(x@params$metadata$SampleName)) == T")
+      stop("any(duplicated(x@params$metadata$SampleName)) == TRUE")
     x <- .job_gatk(object = x@params$metadata)
     x@params$wd <- wd
     if (!file.exists(wd))
@@ -75,7 +75,7 @@ setMethod("step1", signature = c(x = "job_gatk"),
   })
 
 setMethod("step2", signature = c(x = "job_gatk"),
-  function(x, workers = 9, only.bwa = T, use.sambamba = T){
+  function(x, workers = 9, only.bwa = TRUE, use.sambamba = TRUE){
     step_message("Alignment to reference gnome.
       Then remote duplicated.
       "
@@ -96,7 +96,7 @@ setMethod("step2", signature = c(x = "job_gatk"),
 setMethod("step3", signature = c(x = "job_gatk"),
   function(x, elprep = "conda run -n base elprep",
     bcftools = "conda run -n base bcftools",
-    batch = F, mem = 28, workers = 9)
+    batch = FALSE, mem = 28, workers = 9)
   {
     step_message("Use elprep for do almost everything.")
     if (!is.null(elprep)) {
@@ -110,7 +110,7 @@ setMethod("step3", signature = c(x = "job_gatk"),
         x <- WorkflowGatk.bcftools_merge(x, workers)
         x <- WorkflowGatk.bcftools_viewFilter(x)
       }
-      x@params$use.elprep <- T
+      x@params$use.elprep <- TRUE
     } else {
       stop("...")
     }
@@ -153,7 +153,7 @@ setMethod("step5", signature = c(x = "job_gatk"),
     vcf <- x@params$vcf_for_anno
     WorkflowGatk.convert2annovar(x)
     WorkflowGatk.table_annovar(x)
-    if (F) {
+    if (FALSE) {
       WorkflowGatk.coding_change(x)
     }
     x@params$vcf <- vcf
@@ -165,7 +165,7 @@ setMethod("step6", signature = c(x = "job_gatk"),
     step_message("Collate annovar results as table.")
     path_multianno <- "annovar_res"
     files <- list.files(paste0(x@params$wd, "/", path_multianno),
-      paste0(x@params$ref, "_multianno\\.txt$"), full.names = T)
+      paste0(x@params$ref, "_multianno\\.txt$"), full.names = TRUE)
     x@params$annovar_mutiannos <- files
     refGene <- lapply(files,
       function(file) {
@@ -206,7 +206,7 @@ setMethod("step7", signature = c(x = "job_gatk"),
     step_message("Use `maftools` to global visualization.")
     data <- e(maftools::annovarToMaf(annovar_data, refBuild = x@params$ref))
     data <- e(maftools::read.maf(data))
-    e(maftools::plotmafSummary(data, addStat = 'median', titvRaw = T))
+    e(maftools::plotmafSummary(data, addStat = 'median', titvRaw = TRUE))
     p.summary <- wrap(recordPlot())
     e(maftools::titv(data))
     p.snp_class <- wrap(recordPlot())
@@ -218,7 +218,7 @@ setMethod("step7", signature = c(x = "job_gatk"),
 setMethod("step8", signature = c(x = "job_gatk"),
   function(x, genes){
     data <- x@params$maf
-    res <- try(e(maftools::somaticInteractions(data, genes = genes)), T)
+    res <- try(e(maftools::somaticInteractions(data, genes = genes)), TRUE)
     if (!inherits(res, "try-error")) {
       p.somatic <- wrap(recordPlot())
       plots <- namel(p.somatic)
@@ -242,15 +242,15 @@ setMethod("is_workflow_object_exists", signature = c(object = "character"),
     }
     file <- paste0(path, "/", object)
     if (file.exists(file)) {
-      T
+      TRUE
     } else {
-      F
+      FALSE
     }
   })
 
 WorkflowGatk.bwa_mem <- function(x) {
   cli::cli_alert_info("bwa mem")
-  use.minimap2 <- F
+  use.minimap2 <- FALSE
   pbapply::pbapply(object(x), 1,
     function(vec) {
       vec <- as.list(vec)

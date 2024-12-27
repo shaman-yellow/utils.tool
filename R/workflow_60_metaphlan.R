@@ -53,7 +53,7 @@ setMethod("step1", signature = c(x = "job_mpa"),
 setMethod("step2", signature = c(x = "job_mpa"),
   function(x) {
     step_message("Mapping... Time consumed.")
-    res <- pbapply::pbapply(x$metadata, 1, simplify = T,
+    res <- pbapply::pbapply(x$metadata, 1, simplify = TRUE,
       function(vec) {
         name <- get_realname(vec[[ "forward-absolute-filepath" ]])
         output <- paste0(name, "_metagenome.txt")
@@ -139,5 +139,5 @@ setMethod("asjob_mp", signature = c(x = "job_mpa"),
       Abundance = round(Abundance * as.double(dplyr::recode(Sample, !!!dic.depth))),
       Abundance = ifelse(Abundance == 0, 1, Abundance)
     )
-    .job_mp(object = obj, params = list(relative = T))
+    .job_mp(object = obj, params = list(relative = TRUE))
   })

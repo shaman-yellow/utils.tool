@@ -29,25 +29,25 @@ setMethod("step1", signature = c(x = "assist_anno"),
   {
     step_message("Obtain document title.", show_end = "Assistant annotation")
     x$target <- target
-    x$dataTarget <- matchMdContent(x$data, target, T)
-    x$dataResult <- matchMdContent(x$data, result, T)
+    x$dataTarget <- matchMdContent(x$data, target, TRUE)
+    x$dataResult <- matchMdContent(x$data, result, TRUE)
     x$query <- c(gptMessages()$heading, "",
       "实际呈现的标题：", "", x$dataResult$lines[-1], "",
       "提示性标题：", "", x$dataTarget$lines)
     if (is.null(get)) {
-      get <- !getOption("assist_anno_hasGet", F)
+      get <- !getOption("assist_anno_hasGet", FALSE)
     }
     if (get) {
       gett(x$query)
       message(crayon::yellow("Query has sent to clipboard."))
-      options(assist_anno_hasGet = T)
+      options(assist_anno_hasGet = TRUE)
     }
     message(crayon::red("Please manually copy results from ChatGpt."))
     return(x)
   })
 
 setMethod("step2", signature = c(x = "assist_anno"),
-  function(x, anno = get_clipboard(), target = T, result = T)
+  function(x, anno = get_clipboard(), target = TRUE, result = TRUE)
   {
     step_message("Embedded AI annotation text.")
     if (!requireNamespace("nvimcom")) {
@@ -104,7 +104,7 @@ setMethod("step2", signature = c(x = "assist_anno"),
   .C("nvimcom_msg_to_nvim", arg, PACKAGE = "nvimcom")
 }
 
-matchMdContent <- function(data, target, only.title = F, mode = c("all", "description")) {
+matchMdContent <- function(data, target, only.title = FALSE, mode = c("all", "description")) {
   mode <- match.arg(mode)
   nTarget <- which(data$lines == target)
   if (length(nTarget)) {
@@ -163,8 +163,8 @@ get_md_titles <- function(file = "index.Rmd", lines = NULL) {
     lines <- readLines(file)
   }
   data <- tibble::tibble(lines = lines, number = seq_along(lines))
-  inchunk <- F
-  data$isInChunk <- vapply(lines, FUN.VALUE = integer(1), USE.NAMES = F,
+  inchunk <- FALSE
+  data$isInChunk <- vapply(lines, FUN.VALUE = integer(1), USE.NAMES = FALSE,
     function(x) {
       if (grpl(x, "^```")) {
         inchunk <<- !inchunk

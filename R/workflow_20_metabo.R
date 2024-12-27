@@ -38,9 +38,9 @@ setMethod("step1", signature = c(x = "job_metabo"),
     mSet <- e(MetaboAnalystR::Setup.MapData(mSet, cpds))
     mSet <- e(MetaboAnalystR::CrossReferencing(mSet, "name"))
     mSet <- e(MetaboAnalystR::CreateMappingResultTable(mSet))
-    mSet <- e(MetaboAnalystR::SetMetabolomeFilter(mSet, F))
+    mSet <- e(MetaboAnalystR::SetMetabolomeFilter(mSet, FALSE))
     mSet <- e(MetaboAnalystR::SetCurrentMsetLib(mSet, libname, 2))
-    if (T) {
+    if (TRUE) {
       mSet <- e(MetaboAnalystR::CalculateHyperScore(mSet))
       mtfig <- .mtb_file("metabolites_ORA_dot_", libname)
       mSet <- e(MetaboAnalystR::PlotEnrichDotPlot(mSet, "ora", mtfig$pn, "pdf", width = NA))
@@ -81,10 +81,10 @@ setMethod("step2", signature = c(x = "job_metabo"),
             function(sub) {
               qr <- extract(names(sub$ORTHOLOGY), "K[0-9]+")
               qr <- unique(unlist(qr))
-              if (F) {
-                res <- lapply(grouping_vec2list(qr, 10, T),
+              if (FALSE) {
+                res <- lapply(grouping_vec2list(qr, 10, TRUE),
                   function(x) KEGGREST::keggGet(x))
-                res <- unlist(res, recursive = F)
+                res <- unlist(res, recursive = FALSE)
                 lapply(res, function(x) {
                   .plist(data = x$symbol)
                   })
@@ -93,7 +93,7 @@ setMethod("step2", signature = c(x = "job_metabo"),
               }
             })
         }), text = "genes")
-    x$db_genes.kegg <- unlist(db_genes.kegg, use.names = F)
+    x$db_genes.kegg <- unlist(db_genes.kegg, use.names = FALSE)
     # extract <- stringr::str_extract
     # pblapply <- pbapply::pblapply
     # db_genes <- e(pblapply(x$db_genes.kegg,
@@ -118,7 +118,7 @@ setMethod("step2", signature = c(x = "job_metabo"),
 
 meta_metabo_pathway <- function(
   export = NA, mz_rt = NA, p_col = NA, extra_entity = NA,
-  only_return = F,
+  only_return = FALSE,
   ## from name involves the character rename into the columns
   key = c("mz", "q_value", "log2.fc", "rt"),
   ## note that both key and as_col must be ordered
@@ -131,7 +131,7 @@ meta_metabo_pathway <- function(
   }else{
     df_mz_rt <- mz_rt %>% 
       dplyr::filter(id %in% export$id) %>% 
-      merge(export[, c("id", p_col)], all.x = T, by = "id") %>% 
+      merge(export[, c("id", p_col)], all.x = TRUE, by = "id") %>% 
       dplyr::as_tibble()
   }
   ## ---------------------------------------------------------------------- 
@@ -151,7 +151,7 @@ meta_metabo_pathway <- function(
   write_tsv(df, file = "tmp.txt")
   ## ------------------------------------- 
   ## get the submit file
-  if(only_return == T)
+  if(only_return == TRUE)
     return(list(id = df_mz_rt, submit = df))
   ## ------------------------------------- 
   cat("## submit to MetaboAnalyst\n")

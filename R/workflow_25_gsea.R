@@ -63,18 +63,18 @@ setMethod("asjob_gsea", signature = c(x = "job_seurat"),
 job_gsea <- function(topTable, annotation, use)
 {
   .check_columns(topTable, c("logFC"))
-  rename <- T
+  rename <- TRUE
   if (missing(use)) {
     if (any(colnames(topTable) == "symbol")) {
       message("Use column `symbol` as gene input.")
-      rename <- F
+      rename <- FALSE
       use <- "symbol"
     } else if (length(whichs <- grp(colnames(topTable), "_symbol")) >= 1) {
       use <- colnames(topTable)[ whichs[1] ]
       message("Use column `", use, "` as gene input.")
     }
   } else if (use == "symbol") {
-    rename <- F
+    rename <- FALSE
   }
   if (rename) {
     topTable <- dplyr::rename(topTable, symbol = !!rlang::sym(use))
@@ -85,8 +85,8 @@ job_gsea <- function(topTable, annotation, use)
   topTable <- dplyr::select(topTable, symbol, logFC)
   topTable <- dplyr::filter(topTable, !is.na(symbol) & symbol != "")
   topTable <- dplyr::arrange(topTable, dplyr::desc(logFC))
-  topTable <- dplyr::distinct(topTable, symbol, .keep_all = T)
-  used.symbol <- nl(topTable$symbol, topTable$logFC, F)
+  topTable <- dplyr::distinct(topTable, symbol, .keep_all = TRUE)
+  used.symbol <- nl(topTable$symbol, topTable$logFC, FALSE)
   if (missing(annotation)) {
     message("Missing `annotation`, use 'hgnc_symbol' to get annotation.")
     mart <- new_biomart()
@@ -95,7 +95,7 @@ job_gsea <- function(topTable, annotation, use)
     annotation <- dplyr::rename(annotation, !!!nl(use, "hgnc_symbol"))
   }
   topTable <- map(topTable, "symbol", annotation, use, "entrezgene_id")
-  used.entrezgene_id <- nl(topTable$entrezgene_id, topTable$logFC, F)
+  used.entrezgene_id <- nl(topTable$entrezgene_id, topTable$logFC, FALSE)
   object <- list(symbol = used.symbol, entrezgene_id = used.entrezgene_id)
   keep <- !is.na(names(object$entrezgene_id)) & !duplicated(names(object$entrezgene_id))
   object <- lapply(object, function(x) x[keep])
@@ -111,7 +111,7 @@ setMethod("step0", signature = c(x = "job_gsea"),
 
 setMethod("step1", signature = c(x = "job_gsea"),
   function(x, OrgDb = org.Hs.eg.db::org.Hs.eg.db, org = "hsa", show = 15,
-    order = c("x", "p.adjust", "p.value"), keep_res_go = F)
+    order = c("x", "p.adjust", "p.value"), keep_res_go = FALSE)
   {
     step_message("GSEA enrichment.")
     order <- match.arg(order)
@@ -133,7 +133,7 @@ setMethod("step1", signature = c(x = "job_gsea"),
         geneName_list = fun(geneID_list),
         GeneRatio = as.double(stringr::str_extract(leading_edge, "[0-9]+")) / 100,
         Count = lengths(geneName_list)
-        ), T)
+        ), TRUE)
     if (!inherits(table_kegg, "try-error")) {
       table_kegg <- dplyr::as_tibble(table_kegg)
       p.kegg <- e(enrichplot::dotplot(
@@ -199,7 +199,7 @@ setMethod("step2", signature = c(x = "job_gsea"),
   {
     step_message("GSEA visualization for specific pathway")
     obj <- x@params[[ use ]]
-    p.code <- wrap(e(enrichplot::gseaplot2(obj, key, pvalue_table = F)), 7.5, 6)
+    p.code <- wrap(e(enrichplot::gseaplot2(obj, key, pvalue_table = FALSE)), 7.5, 6)
     p.code <- .set_lab(p.code, sig(x), "GSEA plot of the pathways")
     if (!is.null(highlight)) {
       p.highlight <- plot_highlight_enrich(
@@ -226,11 +226,11 @@ setMethod("step3", signature = c(x = "job_gsea"),
     } else {
       name <- x$pathview_dir
     }
-    dir.create(name, F)
+    dir.create(name, FALSE)
     setwd(name)
     cli::cli_alert_info("pathview::pathview")
     tryCatch({
-      res.pathviews <- sapply(pathways, simplify = F,
+      res.pathviews <- sapply(pathways, simplify = FALSE,
         function(pathway) {
           data <- dplyr::filter(data, ID == !!pathway)
           pathway <- gs(data$ID, "^[a-zA-Z]*", "")
@@ -240,11 +240,11 @@ setMethod("step3", signature = c(x = "job_gsea"),
           res.pathview <- try(
             pathview::pathview(gene.data = genes,
               pathway.id = pathway, species = species,
-              keys.align = "y", kegg.native = T, same.layer = F,
+              keys.align = "y", kegg.native = TRUE, same.layer = FALSE,
               key.pos = "topright", na.col = "grey90")
           )
           if (inherits(res.pathview, "try-error")) {
-            try(dev.off(), silent = T)
+            try(dev.off(), silent = TRUE)
           }
           return(res.pathview)
         })
@@ -257,9 +257,9 @@ setMethod("step3", signature = c(x = "job_gsea"),
   })
 
 .pathview_search <- function(name, search, x, lst, snap = "") {
-  figs <- list.files(name, search, full.names = T)
+  figs <- list.files(name, search, full.names = TRUE)
   names <- get_realname(figs)
-  p.pathviews <- mapply(figs, names, SIMPLIFY = F,
+  p.pathviews <- mapply(figs, names, SIMPLIFY = FALSE,
     FUN = function(x, name) {
       x <- .file_fig(x)
       genes <- dplyr::filter(lst[[ name ]]$plot.data.gene, all.mapped != "")$labels
@@ -278,7 +278,7 @@ setMethod("step3", signature = c(x = "job_gsea"),
 }
 
 setMethod("step4", signature = c(x = "job_gsea"),
-  function(x, db, cutoff = .05, map = NULL, pvalue = F){
+  function(x, db, cutoff = .05, map = NULL, pvalue = FALSE){
     step_message("Custom database for GSEA enrichment.")
     ## general analysis
     insDb <- lapply(split(db, ~ term),
@@ -426,13 +426,13 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
     nodes$Description, x = 0L - shift * max(data$GeneRatio),
     y = data$path.p[ match(name, data$Description) ]
   )
-  nodes <- data.table::rbindlist(nodes, fill = T)
+  nodes <- data.table::rbindlist(nodes, fill = TRUE)
   nodes <- dplyr::relocate(nodes, name)
   ## custom layout
   graph <- fast_layout(edges, dplyr::select(nodes, x, y), nodes = dplyr::select(nodes, -x, -y))
   p <- ggraph(graph) +
     geom_edge_diagonal(aes(x = x, y = y, width = abs(log2fc), edge_color = node2.name),
-      strength = 1, flipped = T, alpha = .25) +
+      strength = 1, flipped = TRUE, alpha = .25) +
     geom_node_label(
       data = filter(nodes, type == "Symbol"),
       aes(label = name, x = x, y = y, fill = log2fc),

@@ -40,7 +40,7 @@ setMethod("step0", signature = c(x = "job_herb"),
   })
 
 setMethod("step1", signature = c(x = "job_herb"),
-  function(x, filter.hob = T, filter.dl = T, ...,
+  function(x, filter.hob = TRUE, filter.dl = TRUE, ...,
     tempdir = "download", db = .prefix("herb/herbs_ingredient.rds", "db"))
   {
     step_message("Dowload compounds of herbs.")
@@ -57,14 +57,14 @@ setMethod("step1", signature = c(x = "job_herb"),
       )
       fun_clear <- function() {
         if (file.exists("herbs_ingredient")) {
-          unlink("herbs_ingredient", T, T)
+          unlink("herbs_ingredient", TRUE, TRUE)
         }
       }
       fun_clear()
       herbs_compounds <- collateFiles_herbs(db@query, from = x$tempdir, to = "herbs_ingredient")
       db <- upd(db, herbs_compounds, db@query)
       fun_clear()
-      unlink(tempdir, T, T)
+      unlink(tempdir, TRUE, TRUE)
     }
     herbs_compounds <- dplyr::filter(db@db, herb_id %in% ids)
     herbs_compounds <- .set_lab(herbs_compounds, sig(x), "Components of Herbs")
@@ -73,7 +73,7 @@ setMethod("step1", signature = c(x = "job_herb"),
         Ingredient_id %in% !!unique(herbs_compounds$Ingredient.id),
         Ingredient_Smile != "Not Available")
       smiles <- dplyr::select(smiles, Ingredient_id, Ingredient_Smile)
-      smiles <- nl(smiles$Ingredient_id, smiles$Ingredient_Smile, F)
+      smiles <- nl(smiles$Ingredient_id, smiles$Ingredient_Smile, FALSE)
       ## Check smiles available
       message("Use rcdk to check smiles validity.")
       notValide <- vapply(rcdk::parse.smiles(unname(smiles)), is.null, logical(1))
@@ -81,7 +81,7 @@ setMethod("step1", signature = c(x = "job_herb"),
         message("Some smiles was not valid: ", length(which(notValide)))
       }
       smiles <- smiles[ !notValide ]
-      lst <- filter_hob_dl(smiles, filter.hob, filter.dl, use.cids = F, ...)
+      lst <- filter_hob_dl(smiles, filter.hob, filter.dl, use.cids = FALSE, ...)
       if (length(lst)) {
         p.upset <- .set_lab(lst$p.upset, sig(x), "Prediction of HOB and Drug-Likeness")
         x@plots[[ 1 ]] <- namel(p.upset)
@@ -95,7 +95,7 @@ setMethod("step1", signature = c(x = "job_herb"),
 setMethod("step2", signature = c(x = "job_herb"),
   function(x, group_number = 50, group_sleep = 3,
     searchDir = .prefix(), db = .prefix("herb/compounds_target.rds", "db"),
-    removeExistsTemp = F)
+    removeExistsTemp = FALSE)
   {
     step_message("Dowload targets of compounds")
     all_ids <- unique(x@tables$step1$herbs_compounds$Ingredient.id)
@@ -103,10 +103,10 @@ setMethod("step2", signature = c(x = "job_herb"),
     db <- not(db, all_ids)
     if (length(db@query)) {
       queries <- db@query
-      merge_data <- F
+      merge_data <- FALSE
       if (!is.null(searchDir)) {
         message("The feature of `searchDir` was deprecated.")
-        dbfile <- list.files(searchDir, "^HBIN.*.xlsx$", full.names = T, recursive = T)
+        dbfile <- list.files(searchDir, "^HBIN.*.xlsx$", full.names = TRUE, recursive = TRUE)
         names(dbfile) <- get_realname(dbfile)
         dbfile <- dbfile[ !duplicated(dbfile) ]
         has_ids <- queries[ queries %in% names(dbfile) ]
@@ -114,11 +114,11 @@ setMethod("step2", signature = c(x = "job_herb"),
           files <- dbfile[ names(dbfile) %in% has_ids ]
           data <- collateFiles_herbs(readFrom = files, .id = "Ingredient_id", from = x$tempdir)
           queries <- queries[ !queries %in% has_ids ]
-          merge_data <- T
+          merge_data <- TRUE
         }
       }
       if (length(queries)) {
-        queries <- grouping_vec2list(queries, group_number, T)
+        queries <- grouping_vec2list(queries, group_number, TRUE)
         link <- start_drive(browser = "firefox")
         Sys.sleep(3)
         lst <- pbapply::pblapply(queries,
@@ -135,7 +135,7 @@ setMethod("step2", signature = c(x = "job_herb"),
             Sys.sleep(group_sleep)
             data
           })
-        lst <- data.table::rbindlist(lst, fill = T)
+        lst <- data.table::rbindlist(lst, fill = TRUE)
         end_drive()
       } else {
         lst <- data.frame()
@@ -151,7 +151,7 @@ setMethod("step2", signature = c(x = "job_herb"),
         }
       }
       if (is(lst, "list")) {
-        data <- data.table::rbindlist(lst, fill = T)
+        data <- data.table::rbindlist(lst, fill = TRUE)
       } else {
         data <- lst
       }
@@ -185,8 +185,8 @@ setMethod("step3", signature = c(x = "job_herb"),
     x@params$targets_annotation <- targets_annotation
     compounds_targets_annotation <- tbmerge(
       compounds_targets, targets_annotation,
-      by.x = "Target.name", by.y = "hgnc_symbol", all.x = T,
-      allow.cartesian = T
+      by.x = "Target.name", by.y = "hgnc_symbol", all.x = TRUE,
+      allow.cartesian = TRUE
     )
     ## create data: herbs_target
     message("Create data: herbs_target")
@@ -198,8 +198,8 @@ setMethod("step3", signature = c(x = "job_herb"),
     }
     herbs_targets <- tbmerge(
       herbs_compounds, compounds_targets,
-      by.x = "Ingredient.id", by.y = "Ingredient_id", all.x = T,
-      allow.cartesian = T
+      by.x = "Ingredient.id", by.y = "Ingredient_id", all.x = TRUE,
+      allow.cartesian = TRUE
     )
     x@params$herbs_targets <- herbs_targets
     easyRead <- map(x@params$herbs_targets, "herb_id", object(x)$herb, "Herb_", "Herb_pinyin_name")
@@ -318,7 +318,7 @@ download_herbCompounds <- function(link, ids,
   urls = paste0("http://herb.ac.cn/Detail/?v=", ids, "&label=Herb"),
   heading = "Related Ingredients", tempdir = "download")
 {
-  get_all <- function() list.files(tempdir, "\\.xlsx$", full.names = T)
+  get_all <- function() list.files(tempdir, "\\.xlsx$", full.names = TRUE)
   checks <- get_all()
   if (length(checks) > 0)
     file.remove(checks)
@@ -333,7 +333,7 @@ download_herbCompounds <- function(link, ids,
       }
       Sys.sleep(.5)
       ## check whether all the web page is all loaded
-      isOK <- F
+      isOK <- FALSE
       if (grpl(url, "Herb$")) {
         checkWhat <- "Herb id"
       } else if (grpl(url, "Ingredient$")) {
@@ -343,15 +343,15 @@ download_herbCompounds <- function(link, ids,
         status <- try(link$findElement(
             using = "xpath",
             value = paste0("//main//div//ul//span//b[text()='", checkWhat, "']")
-            ), T)
+            ), TRUE)
         if (!inherits(status, "try-error")) {
-          isOK <- T
+          isOK <- TRUE
         } else {
           message("Guess the page is loading...")
           Sys.sleep(1)
         }
       }
-      res <- try(silent = T, {
+      res <- try(silent = TRUE, {
         ele <- link$findElement(
           using = "xpath",
           value = paste0("//main//div//h4[text()='", heading, "']/../div//button")
@@ -379,13 +379,13 @@ download_herbCompounds <- function(link, ids,
 start_drive <- function(command = paste0("java -jar ", .prefix("/selenium.jar", "op")),
   port = 4444, extra = NULL, browser = c("firefox", "chrome"), download.dir = "download", ...)
 {
-  system(paste(command, "-port", port, extra), wait = F)
+  system(paste(command, "-port", port, extra), wait = FALSE)
   new_link(port = port, browser = match.arg(browser), download.dir = download.dir, ...)
 }
 
 end_drive <- function(pattern = "[0-9]\\s*java.*-jar") {
   if (.Platform$OS.type == "unix") {
-    if (getOption("end_drive", F)) {
+    if (getOption("end_drive", FALSE)) {
       tmp <- tempfile(fileext = ".txt")
       system(paste0("ps aux > ", tmp))
       text <- readLines(tmp)
@@ -415,18 +415,18 @@ collateFiles_herbs <- function(ids,
       args <- as.list(environment())
       args$readFrom <- NULL
       files <- do.call(collateFiles, args)
-      isOrdered <- T
+      isOrdered <- TRUE
     } else {
-      files <- list.files(to, file.pattern, full.names = T)
-      isOrdered <- F
+      files <- list.files(to, file.pattern, full.names = TRUE)
+      isOrdered <- FALSE
     }
   } else {
     files <- readFrom
-    isOrdered <- F
+    isOrdered <- FALSE
   }
   data <- lapply(files,
     function(file) {
-      res <- try(openxlsx::read.xlsx(file), T)
+      res <- try(openxlsx::read.xlsx(file), TRUE)
       if (inherits(res, "try-error")) {
         tibble::tibble()
       } else res
@@ -436,7 +436,7 @@ collateFiles_herbs <- function(ids,
   } else {
     names(data) <- get_realname(files)
   }
-  data <- frbind(data, idcol = .id, fill = T)
+  data <- frbind(data, idcol = .id, fill = TRUE)
   if (nrow(data)) {
     data <- dplyr::relocate(data, !!rlang::sym(.id))
   }
@@ -447,14 +447,14 @@ collateFiles <- function(ids,
   file.pattern, index.pfun = file_seq.by_time,
   from, to, suffix, ...)
 {
-  files <- list.files(from, file.pattern, full.names = T)
+  files <- list.files(from, file.pattern, full.names = TRUE)
   index <- index.pfun(files)
   files <- files[order(index)][seq_along(ids)]
   files <- rev(files)
-  dir.create(to, F, T)
+  dir.create(to, FALSE, TRUE)
   files <- lapply(seq_along(ids),
     function(n) {
-      file.copy(files[ n ], file <- paste0(to, "/", ids[n], suffix), T)
+      file.copy(files[ n ], file <- paste0(to, "/", ids[n], suffix), TRUE)
       file
     })
   files
@@ -490,7 +490,7 @@ new_link <- function(port = 4444L, browser = c("firefox", "chrome"), addr = "loc
       prof <- RSelenium::makeFirefoxProfile(
         list('permissions.default.image' = 2L,
           'browser.download.folderList' = 2L,
-          'browser.download.manager.showWhenStarting' = F,
+          'browser.download.manager.showWhenStarting' = FALSE,
           'browser.download.lastDir' = download.dir,
           'browser.download.dir' = download.dir
         )
@@ -546,7 +546,7 @@ extract_id <- function(ch) {
   data.frame(links = links, ids = ids)
 }
 
-get_tcm.componentToGenes <- function(ids, key = "Candidate Target Genes", dep = T) 
+get_tcm.componentToGenes <- function(ids, key = "Candidate Target Genes", dep = TRUE) 
 {
   link_prefix <- "http://www.tcmip.cn/ETCM/index.php/Home/Index/cf_details.html?id="
   lst <- pbapply::pblapply(ids,

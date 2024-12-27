@@ -25,7 +25,7 @@ job_cluspro <- function(symbols, .layout = NULL)
     message("Use columns of `.layout` as 'from' and 'to'.")
     .layout <- .layout[, 1:2]
     colnames(.layout) <- c("from", "to")
-    symbols <- unlist(.layout, use.names = F)
+    symbols <- unlist(.layout, use.names = FALSE)
   }
   .job_cluspro(object = rm.no(symbols), params = list(.layout = .layout))
 }
@@ -54,8 +54,8 @@ setMethod("step3", signature = c(x = "job_cluspro"),
   function(x, n = 10){
     step_message("Prepare groups for upload.")
     layout <- x$layouts
-    groups <- grouping_vec2list(names(layout), n, T)
-    groups_status <- rep(F, length(groups))
+    groups <- grouping_vec2list(names(layout), n, TRUE)
+    groups_status <- rep(FALSE, length(groups))
     x$groups <- groups
     x$groups_status <- groups_status
     message("Use `upload` to start the first jobs.")
@@ -68,7 +68,7 @@ setMethod("step4", signature = c(x = "job_cluspro"),
     step_message("Plot scores and visualize models.")
     if (!is.null(x$tmp_scores)) {
       data <- dplyr::filter(x$tmp_scores, Cluster == 0)
-      data <- tidyr::separate(data, "Name", c("pro1", "pro2"), "_", remove = F)
+      data <- tidyr::separate(data, "Name", c("pro1", "pro2"), "_", remove = FALSE)
       recodes <- as.list(x$pdb_from)
       data <- dplyr::mutate(data, value = Lowest.Energy,
         pdb1 = dplyr::recode(pro1, !!!recodes),
@@ -90,7 +90,7 @@ setMethod("step4", signature = c(x = "job_cluspro"),
       if (!is.null(top)) {
         data <- head(data, top)
         n <- 0L
-        figs <- pbapply::pbapply(data, 1, simplify = F,
+        figs <- pbapply::pbapply(data, 1, simplify = FALSE,
           function(v) {
             n <<- n + 1L
             name <- v[[ "Name" ]]
@@ -103,7 +103,7 @@ setMethod("step4", signature = c(x = "job_cluspro"),
             lab(fig[[1]]) <- paste0("protein docking of ", name)
             return(fig)
           })
-        figs <- unlist(figs, recursive = F)
+        figs <- unlist(figs, recursive = FALSE)
         plots <- c(plots, list(top = figs))
       }
       x@plots[[ 4 ]] <- plots
@@ -169,19 +169,19 @@ setMethod("pull", signature = c(x = "job_cluspro"),
       finishedNotGet <- finished
     }
     if (nrow(finishedNotGet)) {
-      dir.create(dir, F)
+      dir.create(dir, FALSE)
       fun_format <- function(x) {
         cluster <- 0L
         members <- 0L
         names <- colnames(x)
-        x <- apply(x, 1, simplify = T,
+        x <- apply(x, 1, simplify = TRUE,
           function(v) {
             if (grpl(v[[ "Cluster" ]], "^[0-9]+$")) {
               cluster <<- v[[ "Cluster" ]]
               members <<- v[[ "Members" ]]
-              type <- T
+              type <- TRUE
             } else {
-              type <- F
+              type <- FALSE
             }
             if (type) {
               c(cluster, members, v[3:4])
@@ -198,7 +198,7 @@ setMethod("pull", signature = c(x = "job_cluspro"),
       if (!dir.exists(dir_download)) {
         stop("dir.exists(dir_download)")
       }
-      res <- pbapply::pbapply(finishedNotGet, 1, simplify = F,
+      res <- pbapply::pbapply(finishedNotGet, 1, simplify = FALSE,
         function(v) {
           id <- v[[ "Id" ]]
           message("\nPull results: \n\t", v[[ "Name" ]])
@@ -215,8 +215,8 @@ setMethod("pull", signature = c(x = "job_cluspro"),
           Sys.sleep(1)
           # R.utils::withTimeout(link$navigate(url), timeout = 1, onTimeout = "silent")
           subdir <- paste0(dir, "/", v[[ "Name" ]])
-          dir.create(subdir, F)
-          exist <- F
+          dir.create(subdir, FALSE)
+          exist <- FALSE
           file_model <- paste0(subdir, "/model.000.00.pdb")
           n <- 0L
           while (!exist && n < 10L) {
@@ -271,14 +271,14 @@ setMethod("upload", signature = c(x = "job_cluspro"),
     if (is.null(x$link)) {
       stop("is.null(x$link)")
     }
-    check <- try(x@params$link$getCurrentUrl(), T)
+    check <- try(x@params$link$getCurrentUrl(), TRUE)
     url <- "https://cluspro.bu.edu/home.php"
     if (inherits(check, "try-error")) {
       stop("Please check the web server is login.")
     } else if (check[[1]] != url) {
       x$link$navigate(url)
       Sys.sleep(1)
-      check <- try(x@params$link$getCurrentUrl(), T)
+      check <- try(x@params$link$getCurrentUrl(), TRUE)
       if (check[[1]] != url) {
         stop("Maybe not login.")
       }
@@ -354,7 +354,7 @@ setMethod("upload", signature = c(x = "job_cluspro"),
         })
       x$excludes <- unique(c(x$excludes, unlist(excludes)))
     }
-    x$groups_status[ whichGroup ] <- T
+    x$groups_status[ whichGroup ] <- TRUE
     return(x)
   })
 
@@ -365,12 +365,12 @@ vis_pdb.cluspro <- function(pdb, label.a, label.b,
 {
   # label.a, rec
   # label.b, lig
-  data <- ftibble(pdb, fill = T)
+  data <- ftibble(pdb, fill = TRUE)
   sig <- which(data$V1 == "HEADER")
   coa <- dplyr::slice(data, sig[1]:(sig[2] - 1))
   cob <- dplyr::slice(data, sig[2]:nrow(data))
   fun_pos <- function(x) {
-    c(max(x$V7, na.rm = T), median(x$V8, na.rm = T), median(x$V9, na.rm = T))
+    c(max(x$V7, na.rm = TRUE), median(x$V8, na.rm = TRUE), median(x$V9, na.rm = TRUE))
   }
   pos.a <- fun_pos(coa)
   pos.b <- fun_pos(cob)
@@ -386,15 +386,15 @@ vis_pdb.cluspro <- function(pdb, label.a, label.b,
     colnames(x) <- unlist(x[1, ])
     x[-1, ]
   }
-  canGet <- T
+  canGet <- TRUE
   res <- list()
   n <- 0L
   while (canGet) {
     n <- n + 1L
     res[[ n ]] <- fun_format(get_table.html(link$getPageSource()[[1]])[[1]])
-    ele <- try(link$findElement("xpath", "//a[text()='next ->']"), T)
+    ele <- try(link$findElement("xpath", "//a[text()='next ->']"), TRUE)
     if (inherits(ele, "try-error")) {
-      canGet <- F
+      canGet <- FALSE
     } else {
       ele$clickElement()
       Sys.sleep(1)

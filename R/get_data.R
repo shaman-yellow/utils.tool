@@ -99,7 +99,7 @@ get_data.rot2016 <- function(file = .prefix("published_data/RefinementOfTLehman2
   return(x)
 }
 
-get_data.nmt2015 <- function(file = .prefix("published_data/NovelMarkersTJablon2015.rds"), update = F)
+get_data.nmt2015 <- function(file = .prefix("published_data/NovelMarkersTJablon2015.rds"), update = FALSE)
 {
   # scRNA-seq, mouse Macrophage, M0, M1, M2 signature
   if (file.exists(file) && !update) {

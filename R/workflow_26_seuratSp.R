@@ -65,12 +65,12 @@ setMethod("step3", signature = c(x = "job_seuratSp"),
 setMethod("vis", signature = c(x = "job_seuratSp"),
   function(x, group.by = x@params$group.by, pt.size = .7){
     p.umap <- e(Seurat::DimPlot(
-        object(x), reduction = "umap", label = F, pt.size = pt.size,
+        object(x), reduction = "umap", label = FALSE, pt.size = pt.size,
         group.by = group.by, cols = color_set()
         ))
     palette <- .setPaletteForSpatialJob(x, group.by)
     p.spatial <- e(Seurat::SpatialDimPlot(object(x),
-        group.by = group.by, label = F, label.size = 3, cols = palette))
+        group.by = group.by, label = FALSE, label.size = 3, cols = palette))
     p.spatial <- p.spatial + guides(fill = guide_legend(override.aes = list(size = 3)))
     plots <- p.umap + p.spatial
     p <- wrap(as_grob(plots), 13, 5.5)
@@ -94,12 +94,12 @@ setMethod("step4", signature = c(x = "job_seuratSp"),
   })
 
 setMethod("step5", signature = c(x = "job_seuratSp"),
-  function(x, workers = NULL, spatial = F){
+  function(x, workers = NULL, spatial = FALSE){
     x <- callNextMethod(x, workers)
     if (spatial) {
       object(x) <- e(Seurat::FindSpatiallyVariableFeatures(object(x),
           assay = "SCT", selection.method = "moransi",
-          features = Seurat::VariableFeatures(object(x)), verbose = T))
+          features = Seurat::VariableFeatures(object(x)), verbose = TRUE))
       moI.top_features <- SpatiallyVariableFeatures_workaround(object(x))
       x@params$moI.top_features <- moI.top_features
     }
@@ -113,7 +113,7 @@ setMethod("step5", signature = c(x = "job_seuratSp"),
   } else {
     levels <- sort(unique(groups))
   }
-  nl(levels, color_set()[seq_along(levels)], F)
+  nl(levels, color_set()[seq_along(levels)], FALSE)
 }
 
 SpatiallyVariableFeatures_workaround <- function(object, assay = "SCT", selection.method = "moransi") {

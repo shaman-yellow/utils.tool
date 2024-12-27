@@ -46,29 +46,29 @@ setMethod("step1", signature = c(x = "job_mp"),
       "
     )
     x@params$group <- group
-    error <- F
+    error <- FALSE
     plots <- list()
     if (relative(x)) {
       x$use <- "mpa_relativeAbundance"
-      x$force <- T
+      x$force <- TRUE
     } else {
       x$use <- "RareAbundance"
-      x$force <- F
+      x$force <- FALSE
       if (is.null(x@params$mp_cal_rarecurve)) {
         object(x) <- e(MicrobiotaProcess::mp_rrarefy(object(x)))
-        res <- try(e(MicrobiotaProcess::mp_cal_rarecurve(object(x), .abundance = RareAbundance)), F)
+        res <- try(e(MicrobiotaProcess::mp_cal_rarecurve(object(x), .abundance = RareAbundance)), FALSE)
         if (inherits(res, "try-error")) {
-          error <- T
+          error <- TRUE
         } else {
           object(x) <- res
         }
-        x@params$mp_cal_rarecurve <- T
+        x@params$mp_cal_rarecurve <- TRUE
       }
       if (!error) {
         p1 <- e(MicrobiotaProcess::mp_plot_rarecurve(object(x), .rare = RareAbundanceRarecurve)) +
           theme(legend.position = "none")
         p2 <- e(MicrobiotaProcess::mp_plot_rarecurve(object(x), .rare = RareAbundanceRarecurve,
-            .group = !!rlang::sym(x@params$group), plot.group = T))
+            .group = !!rlang::sym(x@params$group), plot.group = TRUE))
         p.rarefaction <- wrap(p1 + p2, 15, 5)
         p.rarefaction <- .set_lab(p.rarefaction, sig(x), "alpha rarefaction")
       } else {
@@ -79,7 +79,7 @@ setMethod("step1", signature = c(x = "job_mp"),
     if (is.null(x@params$mp_cal_alpha)) {
       object(x) <- e(MicrobiotaProcess::mp_cal_alpha(object(x),
           .abundance = !!rlang::sym(x$use), force = x$force))
-      x@params$mp_cal_alpha <- T
+      x@params$mp_cal_alpha <- TRUE
     }
     if (relative(x)) {
       use.alpha <- c("Observe", "Shannon", "Simpson", "Pielou")
@@ -111,14 +111,14 @@ setMethod("step2", signature = c(x = "job_mp"),
           .abundance = !!rlang::sym(x$use), force = x$force,
           .group = !!rlang::sym(x@params$group)),
         text = "For groups")
-      x@params$mp_cal_abundance <- T
+      x@params$mp_cal_abundance <- TRUE
     }
-    p.rel_abundance <- e(sapply(x@params$ontology, simplify = F,
+    p.rel_abundance <- e(sapply(x@params$ontology, simplify = FALSE,
         function(class) {
           p <- MicrobiotaProcess::mp_plot_abundance(
             object(x), .abundance = !!rlang::sym(x$use), force = x$force,
             .group = !!rlang::sym(x@params$group),
-            taxa.class = !!rlang::sym(class), topn = 19, plot.group = T
+            taxa.class = !!rlang::sym(class), topn = 19, plot.group = TRUE
           )
           if (class == "Species") width <- 16
           else width <- 14
@@ -126,7 +126,7 @@ setMethod("step2", signature = c(x = "job_mp"),
         }), text = "For alluvium")
     p.rel_abundance <- .set_lab(p.rel_abundance, sig(x), names(p.rel_abundance), "abundance")
     if (FALSE) {
-      p.heatmap_abundance <- e(sapply(x@params$ontology, simplify = F,
+      p.heatmap_abundance <- e(sapply(x@params$ontology, simplify = FALSE,
           function(class) {
             p <- MicrobiotaProcess::mp_plot_abundance(
               object(x), .abundance = !!rlang::sym(x$use), force = x$force,
@@ -160,7 +160,7 @@ setMethod("step3", signature = c(x = "job_mp"),
       object(x) <- e(MicrobiotaProcess::mp_decostand(object(x), .abundance = !!rlang::sym(use)))
       object(x) <- e(MicrobiotaProcess::mp_cal_dist(object(x), .abundance = hellinger,
           distmethod = "bray"))
-      x@params$mp_decostand <- T
+      x@params$mp_decostand <- TRUE
     }
     if (is.null(x@params$mp_cal_pcoa)) {
       object(x) <- e(MicrobiotaProcess::mp_cal_pcoa(object(x), .abundance = hellinger,
@@ -168,18 +168,18 @@ setMethod("step3", signature = c(x = "job_mp"),
       object(x) <- e(MicrobiotaProcess::mp_adonis(object(x),
           .abundance = hellinger, .formula = as.formula(paste0("~ ", x@params$group)),
           distmethod = "bray", action = "add"))
-      x@params$mp_cal_pcoa <- T
+      x@params$mp_cal_pcoa <- TRUE
     }
     if (is.null(x@params$mp_cal_clust)) {
       object(x) <- e(MicrobiotaProcess::mp_cal_clust(
           object(x), .abundance = hellinger, distmethod = "bray",
           hclustmethod = "average", action = "add"
           ))
-      x@params$mp_cal_clust <- T
+      x@params$mp_cal_clust <- TRUE
     }
     p.sample_dist <- try(wrap(e(MicrobiotaProcess::mp_plot_dist(object(x),
         .distmethod = bray, .group = !!rlang::sym(x@params$group)),
-      text = "Heatmap")), T)
+      text = "Heatmap")), TRUE)
     p.sample_dist <- .set_lab(p.sample_dist, sig(x), "Sampe distance")
     p.group_test <- e(MicrobiotaProcess::mp_plot_dist(object(x), .distmethod = bray,
         .group = !!rlang::sym(x@params$group),
@@ -204,7 +204,7 @@ setMethod("step3", signature = c(x = "job_mp"),
       scale_x_continuous(expand = c(0, 0.01))
     p.hier <- set_palette(p.hier)
     ## class
-    p.hier <- e(sapply(x@params$ontology, simplify = F,
+    p.hier <- e(sapply(x@params$ontology, simplify = FALSE,
         function(class) {
           data <- e(MicrobiotaProcess::mp_extract_abundance(object(x),
               taxa.class = !!rlang::sym(class), topn = 30))
@@ -225,37 +225,37 @@ setMethod("step3", signature = c(x = "job_mp"),
   })
 
 setMethod("step4", signature = c(x = "job_mp"),
-  function(x, legend.color = F)
+  function(x, legend.color = FALSE)
   {
     step_message("Biomarker discovery.")
     if (is.null(x@params$mp_diff_analysis)) {
       object(x) <- e(MicrobiotaProcess::mp_diff_analysis(
           object(x), .abundance = !!rlang::sym(x$use),
           .group = !!rlang::sym(x@params$group), force = x$force, filter.p = "fdr"))
-      x@params$mp_diff_analysis <- T
+      x@params$mp_diff_analysis <- TRUE
     }
     ## plot radical tree
     p.tree <- try(e(MicrobiotaProcess::mp_plot_diff_cladogram(object(x),
         .group = !!rlang::sym(x@params$group),
         label.size = 2.5, hilight.alpha = .3, bg.tree.size = .5,
         bg.point.size = 2, bg.point.stroke = .25
-        )), T)
+        )), TRUE)
     if (!inherits(p.tree, "try-error")) {
       p.tree <- p.tree + 
         MicrobiotaProcess::scale_fill_diff_cladogram(values = ggsci::pal_npg()(10)) +
         scale_size_continuous(range = c(1, 4))
-      get_tree <- T 
+      get_tree <- TRUE 
     } else {
-      get_tree <- F
+      get_tree <- FALSE
     }
     ## extract results
     tree <- e(MicrobiotaProcess::mp_extract_tree(object(x), type = "taxatree"))
     sign <- paste0("Sign_", x@params$group)
-    tryPvalue <- try(MicrobiotaProcess::select(tree, pvalue), T)
+    tryPvalue <- try(MicrobiotaProcess::select(tree, pvalue), TRUE)
     if (inherits(tryPvalue, "try-error")) {
       message("\n\tNo significant features found.")
       Sys.sleep(3)
-      tryPvalue <- F
+      tryPvalue <- FALSE
     } else {
       top_table <- e(MicrobiotaProcess::select(tree, label, nodeClass,
           pvalue, fdr, LDAupper, LDAmean, LDAlower, !!rlang::sym(sign)))
@@ -283,7 +283,7 @@ setMethod("step4", signature = c(x = "job_mp"),
         }
         p.tree <- .set_lab(p.tree, sig(x), "The cladogram of differential species")
       }
-      tryPvalue <- T
+      tryPvalue <- TRUE
     }
     ## plot boxplot
     if (tryPvalue) {
@@ -335,7 +335,7 @@ setMethod("step5", signature = c(x = "job_mp"),
     axes <- c("Gut.Microbiota", "Substrate", "Metabolite")
     data <- dplyr::select(db_data_matched, dplyr::all_of(axes))
     data <- dplyr::mutate(data,
-      match = ifelse(Substrate %in% !!match | Metabolite %in% !!match, T, F),
+      match = ifelse(Substrate %in% !!match | Metabolite %in% !!match, TRUE, FALSE),
       Match = ifelse(match, "Sig.", "unSig."),
     )
     data <- to_lodes_form(data, key = "Types", axes = 1:3)
@@ -391,7 +391,7 @@ setMethod("pattern", signature = c(x = "job_mp"),
   mt.pattern
 }
 
-matchThats <- function(x, patterns, ignore.case = T) {
+matchThats <- function(x, patterns, ignore.case = TRUE) {
   patterns <- patterns[ !is.na(patterns) ]
   if (length(patterns)) {
     matched <- .find_and_sort_strings(unique(x), patterns, ignore.case = ignore.case)
@@ -406,6 +406,6 @@ matchThats <- function(x, patterns, ignore.case = T) {
 setMethod("relative", signature = c(x = "job_mp"),
   function(x){
     if (is.null(x$relative)) {
-      F
-    } else T
+      FALSE
+    } else TRUE
   })

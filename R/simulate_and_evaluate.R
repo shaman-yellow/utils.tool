@@ -8,10 +8,10 @@ msp_to_mgf <- function(
   path = "~/Downloads/msp/MoNA/",
   write_meta_data = paste0(path, "/", name, ".meta.tsv"),
   fun = "mutate_deal_with_msp_record",
-  pre_modify = T,
+  pre_modify = TRUE,
   ...)
 {
-  if(pre_modify == T){
+  if(pre_modify == TRUE){
     system(paste0("sed -i 's/\r//g' ", path, "/", name))
   }
   msp <- read_msp(paste0(path, "/", name))
@@ -30,8 +30,8 @@ msp_to_mgf <- function(
   set <- ls(envir = store)
   meta_data <- lapply(set, get_envir_df,
     envir = store)
-  meta_data <- data.table::rbindlist(meta_data, fill = T)
-  if(is.null(write_meta_data) == F){
+  meta_data <- data.table::rbindlist(meta_data, fill = TRUE)
+  if(is.null(write_meta_data) == FALSE){
     write_tsv(meta_data, write_meta_data)
   }
   return(meta_data)
@@ -39,39 +39,34 @@ msp_to_mgf <- function(
 
 read_msp <- function(filepath)
 {
-  msp <- data.table::fread(filepath, sep = NULL, header = F)
+  msp <- data.table::fread(filepath, sep = NULL, header = FALSE)
 }
-get_envir_df <-
-  function(
-    var,
-    envir
-    ){
-    df <- get(var, envir = envir)
-    return(df)
-  }
+get_envir_df <- function(var, envir)
+{
+  df <- get(var, envir = envir)
+  return(df)
+}
 
 ## deal with each line
-mutate_deal_with_msp_record <- 
-  function(
-    ...
-    ){
-    args <- list(...,
-      mass_sep = " ",
-      input = c(
-        name = "Name",
-        mass = "PrecursorMZ", 
-        adduct = "Precursor_type",
-        formula = "Formula",
-        rt = "NA"),
-      other = c(
-        "Name", "Synon", "DB#", "InChIKey",
-        "Precursor_type", "Spectrum_type", "PrecursorMZ",
-        "Instrument_type", "Instrument", "Ion_mode",
-        "Collision_energy", "Formula",
-        "MW", "ExactMass", "Comments")
-    )
-    do.call(deal_with_msp_record, args)
-  }
+mutate_deal_with_msp_record <- function(...)
+{
+  args <- list(...,
+    mass_sep = " ",
+    input = c(
+      name = "Name",
+      mass = "PrecursorMZ", 
+      adduct = "Precursor_type",
+      formula = "Formula",
+      rt = "NA"),
+    other = c(
+      "Name", "Synon", "DB#", "InChIKey",
+      "Precursor_type", "Spectrum_type", "PrecursorMZ",
+      "Instrument_type", "Instrument", "Ion_mode",
+      "Collision_energy", "Formula",
+      "MW", "ExactMass", "Comments")
+  )
+  do.call(deal_with_msp_record, args)
+}
 deal_with_msp_record <-
   function(
     string,
@@ -99,12 +94,12 @@ deal_with_msp_record <-
       rt = "RTINSECONDS=",
       level = "MSLEVEL=",
       end = "END IONS"),
-    add_scans = F
-    ){
+    add_scans = FALSE)
+  {
     ## get name and value
     name = get_name(string)
-    name = ifelse(is.na(name) == T, "", name)
-    if(grepl("^[A-Z]", name) == T){
+    name = ifelse(is.na(name) == TRUE, "", name)
+    if(grepl("^[A-Z]", name) == TRUE){
       value = get_value(string)
     }
     cat = 0
@@ -128,7 +123,7 @@ deal_with_msp_record <-
     }else if(name == input[["adduct"]]){
       cat = 1
       p = output[["charge"]]
-      s = ifelse(grepl("]-|]+", value) == F, "0",
+      s = ifelse(grepl("]-|]+", value) == FALSE, "0",
         ifelse(grepl("]-", value), "1-", "1+"))
       id <- get("id", envir = cache)
       info = get(paste0(id), envir = store)
@@ -195,7 +190,7 @@ deal_with_msp_record <-
     }
     if(cat == 1){
       catapp(p, s, "\n")
-      if(add_scans == T){
+      if(add_scans == TRUE){
         if(p == output[["mass"]]){
           id <- get("id", envir = cache)
           catapp("SCANS=", id, "\n")
@@ -205,7 +200,7 @@ deal_with_msp_record <-
       catapp(p, s, "\n", sep = " ")
     }
     ## data store
-    if(name %in% other == T){
+    if(name %in% other == TRUE){
       id <- get("id", envir = cache)
       info = get(paste0(id), envir = store)
       info[[name]] = value
@@ -214,14 +209,11 @@ deal_with_msp_record <-
     return()
     ## output
   }
-catapp <-
-  function(
-    ...,
-    sep = "",
-    mgf = get("mgf", envir = get("envir_meta"))
-    ){
-    cat(paste(..., sep = sep), file = mgf, append = T)
-  }
+catapp <- function( ..., sep = "", mgf = get("mgf", envir = get("envir_meta")))
+{
+  cat(paste(..., sep = sep), file = mgf, append = TRUE)
+}
+
 cat_isotope <- 
   function(
     vector
@@ -253,7 +245,7 @@ formula_adduct_mass <-
   function(
     formula = NA,
     compound_weight = NA,
-    get_formula_weight = F,
+    get_formula_weight = FALSE,
     iontype = "neg",
     db_adduct = "[M+H]+,[M+K]+,[M+Na]+,[M+H-H2O]+,[M+H-H4O2]+,[M+NH4]+,[M-H]-,[M+Cl]-,[M-H2O-H]-,
     [M+Br]-,[M+FA-H]-,[M+ACN-H]-"
@@ -262,7 +254,7 @@ formula_adduct_mass <-
       C = 12.0,
       N = 14.003074,
       O = 15.994915,
-      F = 18.998403,
+      'F' = 18.998403,
       P = 30.973762,
       S = 31.972071,
       Cl = 34.968853,
@@ -271,9 +263,9 @@ formula_adduct_mass <-
       K = 38.963708)
     db_adduct <- unlist(strsplit(db_adduct, split = ","))
     if(iontype == "neg"){
-      db_adduct <- db_adduct[grepl("(?<=\\])-$", db_adduct, perl = T)]
+      db_adduct <- db_adduct[grepl("(?<=\\])-$", db_adduct, perl = TRUE)]
     }else{
-      db_adduct <- db_adduct[grepl("(?<=\\])\\+$", db_adduct, perl = T)]
+      db_adduct <- db_adduct[grepl("(?<=\\])\\+$", db_adduct, perl = TRUE)]
     }
     db_adduct <- gsub("FA", "CO2H2", db_adduct)
     db_adduct <- gsub("ACN", "C2H3N", db_adduct)
@@ -303,7 +295,7 @@ get_adduct_mass <-
       C = 12.0,
       N = 14.003074,
       O = 15.994915,
-      F = 18.998403,
+      'F' = 18.998403,
       P = 30.973762,
       S = 31.972071,
       Cl = 34.968853,
@@ -344,7 +336,7 @@ element_extract <-
     df <- data.table::data.table(element = element, number = number)
     ## if is NA, set as 1
     df <- dplyr::mutate(df, number = ifelse(number == "", 1, as.numeric(number)))
-    if(T %in% duplicated(df$element))
+    if(TRUE %in% duplicated(df$element))
       error
     return(df)
   }
@@ -366,21 +358,22 @@ get_adduct_df <-
     ufunc <- stringr::str_extract_all(adduct, "(?<=[0-9|a-z|A-Z])\\+|-(?=[0-9|a-z|A-Z])")
     ufunc <- unlist(ufunc)
     names(com) <- ufunc
-    com <- data.table::rbindlist(com, idcol = T)
+    com <- data.table::rbindlist(com, idcol = TRUE)
     return(com)
   }
+
 formula_reshape_with_adduct <- 
   function(
     formula,
     adduct,
-    order = F
+    order = FALSE
     ){
     adduct <- get_adduct_df(adduct)
     if(nrow(adduct) == 0)
       return(formula)
     df <- element_extract(formula)
     meta <- environment()
-    df <- merge(df, adduct, by = "element", all = T)
+    df <- merge(df, adduct, by = "element", all = TRUE)
     df <- dplyr::mutate(df, number = ifelse(is.na(.id), number.x,
         ifelse(.id == "-", number.x - number.y,
           ifelse(is.na(number.x), number.y, number.x + number.y))))
@@ -409,13 +402,13 @@ collate_as_noise_pool <-
     valid_list
     ){
     ## filter origin_list
-    args <- list(list = origin_list, discard_level1 = T, only_peak_info = T, mass_shift = F)
+    args <- list(list = origin_list, discard_level1 = TRUE, only_peak_info = TRUE, mass_shift = FALSE)
     ## get mz and intensity
     cat("## Catch main peak information\n")
     origin_list <- do.call(spectrum_add_noise, args)
     ## discard the NULL data
     cat("## Discard empty dataset\n")
-    order_list <- origin_list[vapply(origin_list, is.data.frame, logical(1), USE.NAMES = F)]
+    order_list <- origin_list[vapply(origin_list, is.data.frame, logical(1), USE.NAMES = FALSE)]
     ## order the origin_list and valid_list according to .id
     ## first, filter the origin_list, only the .id in valid_list is reserved.
     origin_list <- origin_list[names(origin_list) %in% names(valid_list)]
@@ -441,7 +434,7 @@ collate_as_noise_pool <-
         df$rel.int. <- df$inte / max(origin_list[[ name ]]$inte)
         df
       })
-    noise_df <- data.table::rbindlist(noise_list, fill = T)
+    noise_df <- data.table::rbindlist(noise_list, fill = TRUE)
     dplyr::mutate(noise_df, mass = as.numeric(mass), inte = as.numeric(inte))
   }
 
@@ -458,10 +451,10 @@ filter_mgf <-
     list <- pbapply::pbmapply(
       function(start, end, mgf) {
         dplyr::slice(mgf, start:end)
-      }, start, end, MoreArgs = list(mgf = mgf), SIMPLIFY = F
+      }, start, end, MoreArgs = list(mgf = mgf), SIMPLIFY = FALSE
     )
     names(list) <- id
-    if(is.null(filter_id) == F){
+    if(is.null(filter_id) == FALSE){
       list <- list[names(list) %in% filter_id]
     }
     return(list)
@@ -492,7 +485,7 @@ tol_mergeEx <-
     sub.y$...id <- sub.x$...id + ( 1 * 10^-bin_size )
     sub <- rbind(sub.x, sub.y)
     ## expand merge
-    df <- merge(main, sub, by = "...id", all.x = T, allow.cartesian = T)
+    df <- merge(main, sub, by = "...id", all.x = TRUE, allow.cartesian = TRUE)
     df$...diff <- abs(df[[ main_col ]] - df[[ sub_col ]])
     df <- dplyr::filter(df, ...diff <= !!tol)
     ## get the non-merged
@@ -504,7 +497,7 @@ tol_mergeEx <-
 mass_shift <- 
   function(
     df,
-    merge = T,
+    merge = TRUE,
     sep = " ",
     int.sigma = 1,
     re.ppm = 1e-6,
@@ -552,11 +545,11 @@ mass_shift <-
 
 ## for .mgf data
 spectrum_add_noise <- 
-  function(list, cl = NULL, filter_empty = T, ...)
+  function(list, cl = NULL, filter_empty = TRUE, ...)
   {
     list <- pbapply::pblapply(list,
-      function(df, discard_level1 = F, mass_process_level_1 = F,
-        mass_process_level_2 = T, ...)
+      function(df, discard_level1 = FALSE, mass_process_level_1 = FALSE,
+        mass_process_level_2 = TRUE, ...)
       {
         mass_level <- df$V1[grepl("MSLEVEL", df$V1)]
         ## process level 1
@@ -575,7 +568,7 @@ spectrum_add_noise <-
       }, cl = cl, ...)
     ## filter the empty spectrum
     if(filter_empty){
-      list <- list[!vapply(list, is.null, logical(1), USE.NAMES = F)]
+      list <- list[!vapply(list, is.null, logical(1), USE.NAMES = FALSE)]
     }
     return(list)
   }
@@ -583,7 +576,7 @@ spectrum_add_noise <-
 discard_level1 <- 
   function(list) {
     spectrum_add_noise(
-      list = list, mass_process_level_2 = F, discard_level1 = T
+      list = list, mass_process_level_2 = FALSE, discard_level1 = TRUE
     )
   }
 
@@ -591,11 +584,11 @@ mass_process_level_1 <-
   function(df, ...){}
 
 mass_process_level_2 <- 
-  function(df, mass_shift = T, ...){
+  function(df, mass_shift = TRUE, ...){
     list <- separate_peak_info(df, ...)
     if(!mass_shift)
       return(list)
-    list[[2]] <- mass_shift(list[[2]], merge = T, ...)
+    list[[2]] <- mass_shift(list[[2]], merge = TRUE, ...)
     if(length(list) == 2)
       return()
     df <- rbindlist(list)
@@ -603,12 +596,12 @@ mass_process_level_2 <-
   }
 
 separate_peak_info <- 
-  function(df, sep = " ", only_peak_info = F, ...)
+  function(df, sep = " ", only_peak_info = FALSE, ...)
   {
     peak_row <- grep("^[0-9]", df$V1)
     peak_info <- dplyr::slice(df, peak_row)
     peak_info <- tidyr::separate(peak_info, col = "V1", into = c("mass", "inte"), sep = sep)
-    if(only_peak_info == T)
+    if(only_peak_info == TRUE)
       return(peak_info)
     list <- list(dplyr::slice(df, 1:(min(peak_row) - 1)),
       peak_info,
@@ -653,7 +646,7 @@ simulate_gnps_quant <-
     simu_mz = "row m/z",
     simu_rt = "row retention time",
     simu_quant = "sample.mzML Peak area",
-    return_df = F
+    return_df = FALSE
     ){
     meta <- dplyr::select(meta, all_of(c(id, mz)))
     meta <- dplyr::mutate(meta, rt = rt, sample = area)
@@ -665,7 +658,7 @@ simulate_gnps_quant <-
       )
     if(return_df)
       return(meta)
-    write.table(meta, file = file, sep = ",", row.names = F, col.names = T, quote = F)
+    write.table(meta, file = file, sep = ",", row.names = FALSE, col.names = TRUE, quote = FALSE)
   }
 
 # ==========================================================================
@@ -689,7 +682,7 @@ stat_classify <-
           stat <- data.frame(id = id, evaluate = "true")
         } else {
           if (class[3,]$Classification %in% set){
-            ## at least the cluster is T in "class" level
+            ## at least the cluster is TRUE in "class" level
             evaluate <- "latent"
           } else {
             evaluate <- "false"
@@ -704,7 +697,7 @@ stat_classify <-
   }
 
 table_app <- 
-  function(df, col = "evaluate", prop = T){
+  function(df, col = "evaluate", prop = TRUE){
     if (!is.data.frame(df))
       return()
     stat <- table(df[[col]])
@@ -720,12 +713,12 @@ table_app <-
 stat_identification <- 
   function(id_lst, id_key2d, ref)
   {
-    id_stat <- lapply(id_lst, merge, y = id_key2d, by = ".features_id", all.x = T)
-    id_stat <- lapply(id_stat, merge, y = ref, by = ".features_id", all.x = T)
+    id_stat <- lapply(id_lst, merge, y = id_key2d, by = ".features_id", all.x = TRUE)
+    id_stat <- lapply(id_stat, merge, y = ref, by = ".features_id", all.x = TRUE)
     id_stat <- lapply(id_stat, dplyr::mutate,
       evaluate = ifelse(inchikey2d.x == inchikey2d.y, "true", "false"))
     lst <- lapply(id_stat, table_app)
-    df <- data.table::rbindlist(lst, idcol = T, fill = T)
+    df <- data.table::rbindlist(lst, idcol = TRUE, fill = TRUE)
     dplyr::rename(df, class.name = .id)
   }
 
@@ -747,7 +740,7 @@ visualize_stat <-
     parent_class <- unlist(
       lapply(get_parent_classes(df$class.name, mcn),
         function(vec) if (length(vec) == 0) NA else tail(vec, n = 1)),
-      use.names = F
+      use.names = FALSE
     )
     df.back <- df
     df <- dplyr::mutate(
@@ -838,7 +831,7 @@ visualize_statComplex <-
         parent_class <- unlist(
           lapply(get_parent_classes(df$class.name, mcn),
             function(vec) if (length(vec) == 0) NA else tail(vec, n = 1)),
-          use.names = F
+          use.names = FALSE
         )
         df <- dplyr::mutate(
           df, parent_class = ifelse(is.na(parent_class), class.name, !!parent_class),
@@ -878,14 +871,14 @@ visualize_statComplex <-
     ## medium noise dirft
     mergeMutate <-
       function(v1, v2, df_list){
-        df <- merge(df_list[[v1]], df_list[[v2]], by = "class.name", all.x = T)
+        df <- merge(df_list[[v1]], df_list[[v2]], by = "class.name", all.x = TRUE)
         df <- dplyr::mutate(df, flow1 = "true", flow2 = "latent")
         df <- tidyr::gather(df, "type", "value", flow1, flow2)
         ## calculate segment from y to yend
         dplyr::mutate(
           df, y = as.numeric(apply(df, 1, function(v) v[[paste0("en.", v[["value"]], ".x")]] )),
           yend = as.numeric(apply(df, 1, function(v) v[[paste0("en.", v[["value"]], ".y")]] )),
-          exclude = ifelse(is.na(yend), T, F), y = ifelse(is.na(yend), 0, y),
+          exclude = ifelse(is.na(yend), TRUE, FALSE), y = ifelse(is.na(yend), 0, y),
           yend = ifelse(is.na(yend), 1, yend)
         )
       }
@@ -951,10 +944,10 @@ visualize_statComplex <-
     extra_list <- lapply(df_list.back, dplyr::select, class.name, sum)
     extra.noise_df <- merge(
       extra_list[[ "medium_noise" ]], extra_list[[ "high_noise" ]],
-      by = "class.name", all.x = T
+      by = "class.name", all.x = TRUE
     )
     extra.noise_df <- merge(
-      extra.noise_df, extra_list[[ "origin" ]], by = "class.name", all.y = T
+      extra.noise_df, extra_list[[ "origin" ]], by = "class.name", all.y = TRUE
     )
     pr <- ggplot() +
       ## origin sum
@@ -970,7 +963,7 @@ visualize_statComplex <-
       ## high_noise drift
       geom_segment(
         data = dplyr::mutate(
-          dplyr::filter(extra.noise_df, is.na(sum.x) == F),
+          dplyr::filter(extra.noise_df, is.na(sum.x) == FALSE),
           sum.x = ifelse(is.na(sum.y), 0, sum.x),
           sum.y = ifelse(is.na(sum.y), sum.x, sum.y)),
         aes(x = class.name, xend = class.name, y = sum.x, yend = sum.y, color = "high_noise"),
@@ -1032,12 +1025,12 @@ visualize_comparison <-
     list <- list(list1, list2)
     list <- lapply(list, function(lst){
       lst <- lapply(lst, dplyr::select, class.name, sum)
-      lst <- lapply(lst, merge, y = common.class, by = "class.name", all.y = T)
+      lst <- lapply(lst, merge, y = common.class, by = "class.name", all.y = TRUE)
       lst <- lapply(lst, dplyr::mutate, sum = ifelse(is.na(sum), 0, sum))
-      df <- data.table::rbindlist(lst, idcol = T)
+      df <- data.table::rbindlist(lst, idcol = TRUE)
       dplyr::rename(df, group = .id)
   })
-    list <- mapply(list, from, SIMPLIFY = F,
+    list <- mapply(list, from, SIMPLIFY = FALSE,
       FUN = function(df, VALUE) {
         dplyr::mutate(df, from = !!VALUE)
       })
@@ -1189,7 +1182,7 @@ visualize_idRes <-
       class.name = stringr::str_wrap(class.name, width = 25),
       type = as.character(type),
       type = Hmisc::capitalize(type))
-    df <- data.table::rbindlist(list, idcol = T)
+    df <- data.table::rbindlist(list, idcol = TRUE)
     df <- dplyr::filter(df, type == "True")
     line_df <- tidyr::spread(df, .id, value)
     p <- ggplot(data = df, aes(x = class.name, y = value, color = .id)) +

@@ -39,7 +39,7 @@ setMethod("step1", signature = c(x = "job_catr"),
     } else {
       mart <- x$mart
     }
-    dir.create(wd, F)
+    dir.create(wd, FALSE)
     x$wd <- wd
     protein_seq <- get_seq.pro(object(x)$protein, mart)
     rna_seq <- get_seq.rna(object(x)$rna, mart, to = rna_type)
@@ -54,14 +54,14 @@ setMethod("step2", signature = c(x = "job_catr"),
   function(x, num = 1, dir = "~/Downloads/", pattern = "output_full.*\\.zip"){
     step_message("Deparse the results files. red{{Make sure the results files exists in the `dir`.}}")
     collateFiles(paste0("candidate_", num), pattern, from = dir, to = x$wd, suffix = ".zip")
-    res <- lapply(list.files(x$wd, "\\.zip$", full.names = T),
+    res <- lapply(list.files(x$wd, "\\.zip$", full.names = TRUE),
       function(file) {
         ftibble(unzip(file, exdir = x$wd))
       })
     res <- do.call(dplyr::bind_rows, res)
     ## filter
     top <- dplyr::arrange(res, Protein_ID, RNA_ID, dplyr::desc(Ranking))
-    top <- dplyr::distinct(top, Protein_ID, RNA_ID, .keep_all = T)
+    top <- dplyr::distinct(top, Protein_ID, RNA_ID, .keep_all = TRUE)
     data <- dplyr::mutate(top, .id = seq_len(nrow(top)))
     args <- list(
       rlang::quo(RBP_Propensity == 1),
@@ -88,7 +88,7 @@ setMethod("step2", signature = c(x = "job_catr"),
   })
 
 setMethod("step3", signature = c(x = "job_catr"),
-  function(x, ref = NULL, top = NULL, group = NULL, group.use = 1, label.auto = T, label.freq = NULL)
+  function(x, ref = NULL, top = NULL, group = NULL, group.use = 1, label.auto = TRUE, label.freq = NULL)
   {
     step_message("Select data for Sankey plot.")
     if (!is.null(ref)) {
@@ -104,7 +104,7 @@ setMethod("step3", signature = c(x = "job_catr"),
     data <- dplyr::select(dat.ref, 1:2)
     if (!is.null(group)) {
       names <- rep(names(group), lengths(group))
-      values <- unlist(group, use.names = F)
+      values <- unlist(group, use.names = FALSE)
       data$group <- names[match(data[[ group.use ]], values)]
     } else {
       data$group <- "group1"

@@ -21,7 +21,7 @@ NULL
 #' @rdname query_classification
 query_classification <- function(query, dir, 
   inchikey.rdata = paste0(dir, "/inchikey.rdata"), rdata.name = "classification.rdata",
-  classyfire_cl = NULL, gather_as_rdata = T, ...)
+  classyfire_cl = NULL, gather_as_rdata = TRUE, ...)
 {
   rdata <- paste0(dir, "/", rdata.name)
   db_classes <- extract_rdata_list(rdata)
@@ -73,7 +73,7 @@ classyfire_get_classification <- function( sets, dir, classyfire_cl = NULL,
     log_df <- data.table::fread(log_file)
     sets <- dplyr::filter(sets, !InChIKey %in% log_df$log)
     if(nrow(sets) == 0)
-      return(F)
+      return(FALSE)
   }
   sets <- split(data.frame(sets), ~ inchikey2d)
   log <- pbapply::pblapply(names(sets), cl = classyfire_cl,
@@ -81,9 +81,9 @@ classyfire_get_classification <- function( sets, dir, classyfire_cl = NULL,
       set <- sets[[ inchikey2d ]]
       unlist(lapply(set[["InChIKey"]], .get_classification,
           file = paste0(dir, "/", inchikey2d)),
-        use.names = F)
+        use.names = FALSE)
     })
-  log <- unlist(log, use.names = F)
+  log <- unlist(log, use.names = FALSE)
   log <- data.frame(log = log)
   if (exists("log_df"))
     log <- dplyr::bind_rows(log_df, log)

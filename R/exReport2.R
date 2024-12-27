@@ -53,7 +53,7 @@ parse_chunk_location <- function(lines) {
   allHeaders <- stringr::str_extract(lines, "^[#]+(?=\\s)")
   headerLevels <- nchar(allHeaders)
   headerLevels <- ifelse(isInChunk, NA, headerLevels)
-  lowestLevel <- max(headerLevels, na.rm = T)
+  lowestLevel <- max(headerLevels, na.rm = TRUE)
   nowFields <- rep(0L, lowestLevel)
   lineFields <- rep(list(nowFields), length(lines))
   isHeaders <- !is.na(headerLevels)
@@ -70,7 +70,7 @@ parse_chunk_location <- function(lines) {
   }
   allChunks <- ifelse(isInChunk, lines, NA)
   chunkFields <- lineFields[ grpl(allChunks, "^```") ]
-  allChunks <- sep_list(allChunks[ !is.na(allChunks) ], "^```", T)
+  allChunks <- sep_list(allChunks[ !is.na(allChunks) ], "^```", TRUE)
   if (length(chunkFields) != length(allChunks)) {
     stop("length(chunkFields) != length(allChunks)")
   }

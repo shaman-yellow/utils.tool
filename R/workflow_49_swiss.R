@@ -33,7 +33,7 @@ setMethod("asjob_swiss", signature = c(x = "job_tcmsp"),
   function(x){
     data <- x@tables$step2$ingredients
     .check_columns(data, c("Mol ID", "smiles"))
-    job_swiss(nl(data$`Mol ID`, data$smiles, F))
+    job_swiss(nl(data$`Mol ID`, data$smiles, FALSE))
   })
 
 setMethod("asjob_swiss", signature = c(x = "job_pubchemr"),
@@ -71,12 +71,12 @@ setMethod("step1", signature = c(x = "job_swiss"),
           ele$clickElement()
           Sys.sleep(3)
           Sys.sleep(sleep)
-          ele <- F
+          ele <- FALSE
           n <- 0L
           while ((is.logical(ele) | inherits(ele, "try-error")) & n < 20L) {
             Sys.sleep(1)
             n <- n + 1L
-            ele <- try(link$findElement("xpath", "//div//button[@class='dt-button buttons-csv buttons-html5']"), T)
+            ele <- try(link$findElement("xpath", "//div//button[@class='dt-button buttons-csv buttons-html5']"), TRUE)
           }
           if (!inherits(ele, "try-error")) {
             ele$clickElement()
@@ -92,17 +92,17 @@ setMethod("step1", signature = c(x = "job_swiss"),
         suffix = ".csv")
       data <- ftibble(files)
       names(data) <- db@query
-      data <- frbind(data, idcol = T, fill = T)
+      data <- frbind(data, idcol = TRUE, fill = TRUE)
       db <- upd(db, data)
     }
     targets <- dplyr::filter(as_tibble(db@db), .id %in% object(x))
     targets <- dplyr::rename(targets, smiles = .id, symbols = `Common name`)
-    targets <- split_lapply_rbind(targets, seq_len(nrow(targets)), args = list(fill = T),
+    targets <- split_lapply_rbind(targets, seq_len(nrow(targets)), args = list(fill = TRUE),
       function(x) {
         if (grpl(x$symbols, " ")) {
           symbols <- strsplit(x$symbols, " ")[[1]]
           x$symbols <- NULL
-          data.frame(x, symbols = symbols, check.names = F)
+          data.frame(x, symbols = symbols, check.names = FALSE)
         } else x
       })
     x@tables[[ 1 ]] <- namel(targets)
@@ -114,7 +114,7 @@ setMethod("map", signature = c(x = "job_tcmsp", ref = "job_swiss"),
     refTargets <- ref@tables$step1$targets
     meta <- x@tables$step2$ingredients
     meta <- dplyr::select(meta, smiles, `Mol ID`, `Molecule Name`)
-    refTargets <- tbmerge(refTargets, meta, by = "smiles", all.x = T)
+    refTargets <- tbmerge(refTargets, meta, by = "smiles", all.x = TRUE)
     refTargets <- dplyr::select(refTargets, `Mol ID`, `Molecule Name`,
       `Target name` = Target, symbols, probability = `Probability*`)
     refTargets <- dplyr::filter(refTargets, `Mol ID` %in% x@tables$step2$ingredients$`Mol ID`)

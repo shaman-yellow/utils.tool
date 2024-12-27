@@ -35,7 +35,7 @@ setMethod("step0", signature = c(x = "job_sirius"),
   })
 
 setMethod("step1", signature = c(x = "job_sirius"),
-  function(x, tryLog = T, account = getOption("sirius_account", NULL),
+  function(x, tryLog = TRUE, account = getOption("sirius_account", NULL),
     password = getOption("sirius_password", NULL))
   {
     step_message("Login, if not.")
@@ -50,7 +50,7 @@ setMethod("step2", signature = c(x = "job_sirius"),
   {
     step_message("Run sirius 5 and output.")
     if (!is.null(savepath)) {
-      rem_dir.create(savepath, F)
+      rem_dir.create(savepath, FALSE)
       x$output <- paste0(savepath, "/", dir)
     } else {
       x$output <- dir
@@ -131,7 +131,7 @@ setMethod("login", signature = c(x = "job_sirius"),
   })
 
 setMethod("ping", signature = c(x = "job_sirius"),
-  function(x, logout = F){
+  function(x, logout = FALSE){
     if (logout) {
       rem_run(pg(x), " login --logout")
     } else {

@@ -11,7 +11,7 @@ setMethod("slice", signature = c(x = "JOB_herb"),
   })
 
 setMethod("vis", signature = c(x = "JOB_herb"),
-  function(x, col.fill = 2, axes = 1:4, label.auto = F, label.freq = NULL, label.factor = 1)
+  function(x, col.fill = 2, axes = 1:4, label.auto = FALSE, label.freq = NULL, label.factor = 1)
   {
     symDisease <- x@tables$step3$disease_targets_annotation$hgnc_symbol
     data <- x@params$data.allu
@@ -64,7 +64,7 @@ setMethod("feature", signature = c(x = "JOB_herb"),
 
 setMethod("map", signature = c(x = "JOB_herb", ref = "feature"),
   function(x, ref, HLs = NULL, levels = NULL, lab.level = "Level", name = "dis", compounds = NULL,
-    compounds.keep.intersection = F,
+    compounds.keep.intersection = FALSE,
     syns = NULL, enrichment = NULL, en.top = 10, use.enrich = c("kegg", "go"), ...)
   {
     message("Filter compounds targets with disease targets.")
@@ -78,11 +78,11 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "feature"),
       }
     }
     if (!is.null(syns)) {
-      data <- map(data, colnames(data)[2], syns, colnames(syns)[1], colnames(syns)[2], rename = F)
+      data <- map(data, colnames(data)[2], syns, colnames(syns)[1], colnames(syns)[2], rename = FALSE)
     }
     if (length(ref)) {
-      data <- dplyr::filter(data, Target.name %in% !!unlist(ref, use.names = F))
-      p.venn2dis <- new_venn(Diseases = unlist(ref, use.names = F), Targets = rm.no(x$data.allu$Target.name))
+      data <- dplyr::filter(data, Target.name %in% !!unlist(ref, use.names = FALSE))
+      p.venn2dis <- new_venn(Diseases = unlist(ref, use.names = FALSE), Targets = rm.no(x$data.allu$Target.name))
       p.venn2dis <- setLegend(p.venn2dis, "展示了中药的靶点与{ref@type}靶点{snap(ref)}的交集数目。
         两者共含有 {length(p.venn2dis$ins)} 个交集靶点。")
       x[[ paste0("p.venn2", name) ]] <- .set_lab(p.venn2dis, sig(x),
@@ -142,14 +142,14 @@ plot_network.enrich <- function(data, enrichment, use.enrich = c("kegg", "go"), 
   en <- dplyr::select(en, Description, geneName_list)
   en <- reframe_col(en, "geneName_list", unlist)
   ax.names <- colnames(data)
-  data <- tbmerge(data, en, by.x = ax.names[3], by.y = "geneName_list", all.x = T, allow.cartesian = T)
+  data <- tbmerge(data, en, by.x = ax.names[3], by.y = "geneName_list", all.x = TRUE, allow.cartesian = TRUE)
   data <- dplyr::relocate(data, !!!rlang::syms(ax.names))
   en.sig <- dplyr::select(en.sig, Description, p.adjust)
   ## plot
   p.pharm <- plot_network.pharm(
     data, lab.fill = "P.adjust",
     ax4 = "Pathway", ax4.level = en.sig,
-    decImport.ax4Level = T, ...
+    decImport.ax4Level = TRUE, ...
   )
   dataPath <- reframe_col(data, "Description",
     function(x) paste0(length(x), "###", paste0(x, collapse = "; ")))
@@ -159,7 +159,7 @@ plot_network.enrich <- function(data, enrichment, use.enrich = c("kegg", "go"), 
   namel(p.pharm, dataPath)
 }
 
-filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T,
+filter_hob_dl <- function(ids, filter.hob, filter.dl, test = FALSE, use.cids = TRUE,
   symbol = "filter")
 {
   if (filter.hob || filter.dl) {
@@ -168,12 +168,12 @@ filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T,
     }
     if (use.cids) {
       if (!is.numeric(ids)) {
-        stop("is.numeric(ids) == F")
+        stop("is.numeric(ids) == FALSE")
       }
       smiles <- get_smiles_batch(ids, n = 50)
       smiles <- dplyr::select(smiles, ID = CID, SMILES = IsomericSMILES)
     } else {
-      message("use.cids == F, so `ids` should be SMILES with names.")
+      message("use.cids == FALSE, so `ids` should be SMILES with names.")
       smiles <- ids
       message("De duplicated smiles.")
       smiles <- smiles[ !duplicated(smiles) ]
@@ -189,7 +189,7 @@ filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T,
     hob <- job_hob(smiles)
     hob <- step1(hob, wd = paste0("hob_", symbol))
     hobSmiles <- dplyr::filter(res(hob), isOK)$smiles
-    .add_internal_job(hob, T)
+    .add_internal_job(hob, TRUE)
     setSmiles <- c(setSmiles, list(HOB_is_OK = hobSmiles))
   } else {
     hob <- NULL
@@ -199,7 +199,7 @@ filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T,
     dl <- step1(dl)
     dl <- step2(dl)
     dlSmiles <- dplyr::filter(res(dl), isOK)$smiles
-    .add_internal_job(dl, T)
+    .add_internal_job(dl, TRUE)
     setSmiles <- c(setSmiles, list(DL_is_OK = dlSmiles))
   } else {
     dl <- NULL
@@ -216,17 +216,17 @@ filter_hob_dl <- function(ids, filter.hob, filter.dl, test = F, use.cids = T,
 
 plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax4 = 2,
   seed = sample(1:10, 1), HLs = NULL,
-  ax1 = "Herb", ax2 = "Compound", ax3 = "Target", ax4 = NULL, less.label = T,
-  ax2.level = NULL, ax4.level = NULL, decImport.ax4Level = F, lab.fill = "",
+  ax1 = "Herb", ax2 = "Compound", ax3 = "Target", ax4 = NULL, less.label = TRUE,
+  ax2.level = NULL, ax4.level = NULL, decImport.ax4Level = FALSE, lab.fill = "",
   edge_width = .1, force.ax1 = NULL, ax3.layout = c("spiral", "grid"), ax4.layout = c("circle", "linear"),
-  HLs.label = T, ...)
+  HLs.label = TRUE, ...)
 {
   if (length(unique(data[[1]])) == 1) {
     sherb <- 1L
   } else {
     sherb <- 0L
   }
-  spiral <- F
+  spiral <- FALSE
   spiral_order <- NULL
   if (!is.null(ax2.level)) {
     if (ncol(ax2.level) > 2) {
@@ -292,7 +292,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
         colnames(ax4.level) <- c("name", "level")
         if (any(duplicated(ax4.level))) {
           message("`ax4.level` is duplicated, de duplicated herein.")
-          ax4.level <- dplyr::distinct(ax4.level, name, .keep_all = T)
+          ax4.level <- dplyr::distinct(ax4.level, name, .keep_all = TRUE)
         }
         ## change for parent.frame
         ax4.level <<- ax4.level
@@ -322,7 +322,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
       crds.Hrb <- resize(crds.Hrb, f.rsz)
       lst <- split(ed.12sin, ed.12sin[[ ax1 ]])
       # coords for compounds from separate herb
-      crds.ComSin <- mapply(lst, names(lst), SIMPLIFY = F,
+      crds.ComSin <- mapply(lst, names(lst), SIMPLIFY = FALSE,
         FUN = function(ed, nm) {
           lay <- resize(get_layout(ed, "star"), f.rsz * f.f.sin)
           crd.hrb <- dplyr::filter(crds.Hrb, name == !!nm)
@@ -349,7 +349,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
         crds.ComMul <- crds.ComMul[ match(ax2.level$name, crds.ComMul$name), ]
       }
       crds.ComMul[, c("x", "y")] <- get_coords.spiral(nrow(crds.ComMul))
-      spiral <<- T
+      spiral <<- TRUE
       spiral_order <<- crds.ComMul$name
     }
     crds.ComMul <- resize(crds.ComMul, f.rsz * f.f.mul)
@@ -359,7 +359,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
       crds <- lst_clear0(list(crds.Hrb, crds.ComSin, crds.ComMul, crds.Tgt))
     }
     crds <- do.call(dplyr::bind_rows, crds)
-    crds <- dplyr::distinct(crds, name, .keep_all = T)
+    crds <- dplyr::distinct(crds, name, .keep_all = TRUE)
     if (!is.null(ax4)) {
       if (sherb) {
         use.cols <- 2:3
@@ -402,7 +402,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
   data <- as_tibble(data.frame(x))
   data <- dplyr::mutate(
     data, cent = ifelse(type == !!ax1, cent * 1000 + 2000,
-      ifelse(grpl(type, !!ax2, ignore.case = T), cent * 20, cent)))
+      ifelse(grpl(type, !!ax2, ignore.case = TRUE), cent * 20, cent)))
   data.tgt <- dplyr::filter(data, type == !!ax3)
   set.seed(seed)
   minSize <- .5
@@ -456,7 +456,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
       data = dplyr::filter(dataAx123, cent > if (sherb) 100 else 1000),
       aes(x = x, y = y, label = name, color = type))
     geom_label_2 <- ggrepel::geom_label_repel(
-      data = dplyr::filter(data.tgt, cent >= sort(cent, T)[10]),
+      data = dplyr::filter(data.tgt, cent >= sort(cent, TRUE)[10]),
       aes(x = x, y = y, label = name, color = type))
   } else {
     geom_label_1 <- ggrepel::geom_label_repel(
@@ -535,7 +535,7 @@ plot_network.pharm <- function(data, f.f = 2.5, f.f.mul = .7, f.f.sin = .2, f.ax
 
 get_smiles_batch <- function(cids, n = 100, sleep = .5, db_dir = .prefix("smiles", "db")) {
   # IDs: your query, col: the ID column, res: results table
-  dir.create(db_dir, F)
+  dir.create(db_dir, FALSE)
   db <- new_db(file.path(db_dir, "smiles.rdata"), "CID")
   db <- not(db, cids)
   query <- db@query
@@ -548,13 +548,13 @@ get_smiles_batch <- function(cids, n = 100, sleep = .5, db_dir = .prefix("smiles
 }
 
 .get_properties_batch <- function(ids, ..., n = 100, sleep = .5) {
-  groups <- grouping_vec2list(unique(ids), n, T)
+  groups <- grouping_vec2list(unique(ids), n, TRUE)
   pbapply::pblapply(groups,
     function(ids) {
       Sys.sleep(sleep)
       PubChemR::retrieve(
         PubChemR::get_properties(identifier = ids, ...),
-        .combine.all = T
+        .combine.all = TRUE
       )
     })
 }

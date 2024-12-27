@@ -44,7 +44,7 @@ setMethod("step1", signature = c(x = "job_miranda"),
     } else {
       mart <- x$mart
     }
-    dir.create(wd, F)
+    dir.create(wd, FALSE)
     x$wd <- wd
     # miRNA seq
     x$mirna_seq <- x$mi$mirdb[ object(x)$mirna ]
@@ -73,7 +73,7 @@ setMethod("step2", signature = c(x = "job_miranda"),
         data.table::rbindlist(x)
       })
     names(t.overs) <- object(x)$rna
-    t.overs <- as_tibble(data.table::rbindlist(t.overs, idcol = T))
+    t.overs <- as_tibble(data.table::rbindlist(t.overs, idcol = TRUE))
     t.overs <- dplyr::relocate(t.overs, ref = .id)
     p.tops <- lapply(x$alls$cans,
       function(lst) {
@@ -93,7 +93,7 @@ setMethod("step2", signature = c(x = "job_miranda"),
     message("Use `hsa` as default species.")
     mirna <- paste0("hsa-", mirna)
   }
-  foundThat <- grpf(names(mirdb), mirna, ignore.case = T)
+  foundThat <- grpf(names(mirdb), mirna, ignore.case = TRUE)
   message("All found miRNA:\n\n", stringr::str_trunc(paste0(foundThat, collapse = "\n"), 100), "\n")
   if (length(foundThat) > 1) {
     message("Use the first.")
@@ -107,7 +107,7 @@ setMethod("step2", signature = c(x = "job_miranda"),
   sep.h <- grp(lines, "^Read Sequence")[1]
   head <- lines[1:sep.h]
   body <- lines[(sep.h + 1):length(lines)]
-  lst <- sep_list(body, "^Performing Scan", T)
+  lst <- sep_list(body, "^Performing Scan", TRUE)
   cans <- lapply(lst,
     function(x) {
       it <- sep_list(x, "^>")

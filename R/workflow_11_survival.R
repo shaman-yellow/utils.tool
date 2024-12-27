@@ -22,7 +22,7 @@ setGeneric("asjob_survival", group = list("asjob_series"),
 
 setMethod("asjob_survival", signature = c(x = "job_lasso"),
   function(x, use.group = c("mul_cox", "uni_cox"), lambda = c("min", "1se"),
-    base_method = c("surv_cutpoint", "median"), fea_coefs = NULL, force = F,
+    base_method = c("surv_cutpoint", "median"), fea_coefs = NULL, force = FALSE,
     use_data = c("all", "train", "valid"))
   {
     y <- .job_survival()
@@ -43,8 +43,7 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
       }
       if (use.group == "uni_cox") {
         fea_coefs <- x$sig.uni_cox
-        y <- snapAdd(y, "选择 Univariate COX 回归得到的显著特征集，包含 {nrow{fea_coefs}} 个基因，
-          分别为: {bind(fea_coefs$feature)}。")
+        y <- snapAdd(y, "选择 Univariate COX 回归得到的显著特征集，包含 {nrow{fea_coefs}} 个基因。")
       }
       y <- snapAdd(y, "以回归系数构建风险评分模型。\n\n$$ Score = \\sum(expr(Gene) \\times coef) $$\n\n")
     } else {
@@ -68,7 +67,7 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
       stop("Gene names not match.")
     }
     data <- dplyr::mutate(data,
-      risk_score = apply(data[, -1, drop = F], 1,
+      risk_score = apply(data[, -1, drop = FALSE], 1,
         function(exprs) {
           sum(fea_coefs$coef * exprs)
         })
@@ -120,6 +119,7 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     time = "days_to_last_follow_up", 
     status = "vital_status", base_method = c("surv_cutpoint", "median"))
   {
+    project <- x$project
     if (x@step < 1)
       stop("x@step < 1")
     if (x@step > 1) {
@@ -128,8 +128,13 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     if (is(object(x), "DGEList")) {
       object(x) <- as_EList.DGEList(object(x))
     }
-    i.pos <- object(x)$genes[[ use ]] %in% genes_surv
-    j.pos <- !is.na(object(x)$targets[[ status ]]) & !grpl(object(x)$targets[[ status ]], "not reported", T)
+    snap <- ""
+    if (is(genes_surv, "feature")) {
+      snap <- glue::glue("以基因集 {snap(genes_surv)} 进行生存分析。")
+      genes_surv <- genes_surv@.Data
+    }
+    i.pos <- gname(object(x)$genes[[ use ]]) %in% genes_surv
+    j.pos <- !is.na(object(x)$targets[[ status ]]) & !grpl(object(x)$targets[[ status ]], "not reported", TRUE)
     object(x) <- e(limma::`[.EList`(object(x), i.pos, j.pos))
     object <- object(x)
     counts <- object$E
@@ -143,14 +148,7 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     rownames(counts) <- names
     data <- as_tibble(t(counts))
     data <- dplyr::bind_cols(data, select(as_tibble(object$targets), -1))
-    if (any(is.na(data[[time]]))) {
-      message(glue::glue("NA in {time} found, as max"))
-      fun_time_mutate <- function(x) {
-        max <- max(x, na.rm = T)
-        ifelse(is.na(x), max, x)
-      }
-      data <- dplyr::mutate(data, dplyr::across(!!rlang::sym(time), fun_time_mutate))
-    }
+    data[[ time ]] <- .mutate_last_follow_up_time(data[[ time ]])
     data <- relocate(data, 1, !!rlang::sym(time), !!rlang::sym(status))
     base_method <- match.arg(base_method)
     if (base_method == "surv_cutpoint") {
@@ -162,7 +160,9 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
         attr(group, "cutoff") <- cutoff
         group
       }
-      snap <- "按 `survminer::surv_cutpoint` 计算的 cutoff，将样本分为 Low 和 High 风险组，随后进行生存分析。"
+      snap <- paste0(
+        snap, "按 `survminer::surv_cutpoint` 计算的 cutoff，将样本分为 Low 和 High 风险组。"
+      )
     } else if (base_method == "median") {
       fun_group <- function(x, ...) {
         cutoff <- median(x)
@@ -170,13 +170,15 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
         attr(group, "cutoff") <- cutoff
         group
       }
-      snap <- "按中位风险评分，将样本分为 Low 和 High 风险组，随后进行生存分析。"
+      snap <- paste0(
+        snap, "按中位风险评分，将样本分为 Low 和 High 风险组。"
+      )
     }
     meth <- x@meth[[1]]
     x <- .job_survival(object = data)
     x <- methodAdd(x, meth)
-    x <- methodAdd(x, "使用标准化过的基因表达数据生存分析。")
-    x <- snapAdd(x, "使用标准化过的基因表达数据生存分析。")
+    x <- methodAdd(x, "使用标准化过的基因表达数据。")
+    x <- snapAdd(x, "生存数据为{project}，使用标准化过的基因表达数据。")
     x <- snapAdd(x, "根据元数据信息 (即临床数据) ，去除了生存状态未知的样例。")
     x <- snapAdd(x, snap)
     x$time <- time
@@ -203,7 +205,7 @@ setMethod("step0", signature = c(x = "job_survival"),
 
 setMethod("step1", signature = c(x = "job_survival"),
   function(x, genes_surv = x$genes_surv, fun_group = x$fun_group,
-    fun_status = x$fun_status, time = x$time, status = x$status, only_keep_sig = T,
+    fun_status = x$fun_status, time = x$time, status = x$status, only_keep_sig = TRUE,
     roc_time = c(1, 3, 5))
   {
     step_message("Survival test.")
@@ -213,7 +215,7 @@ setMethod("step1", signature = c(x = "job_survival"),
       data <- dplyr::mutate(data, time = time / 30)
     }
     cli::cli_alert_info("survival::survfit")
-    lst <- pbapply::pbsapply(genes_surv, simplify = F,
+    lst <- pbapply::pbsapply(genes_surv, simplify = FALSE,
       function(genes) {
         data <- dplyr::select(data, time, o_status, !!!rlang::syms(genes))
         data <- dplyr::mutate(
@@ -224,7 +226,7 @@ setMethod("step1", signature = c(x = "job_survival"),
         diff <- survival::survdiff(survival::Surv(time, status) ~ group, data = data)
         title <- paste0(genes, collapse = " & ")
         p.surv <- survminer::ggsurvplot(fit, data = data,
-          pval = T, conf.int = T, risk.table = T, title = title,
+          pval = TRUE, conf.int = TRUE, risk.table = TRUE, title = title,
           ggtheme = theme_bw()
         )
         p.surv$table <- p.surv$table + labs(x = "time (month)")
@@ -256,7 +258,7 @@ setMethod("step1", signature = c(x = "job_survival"),
               ifelse(time / 12 <= 3, "year 3", "year 5")),
             group = as.factor(o_status), value = !!rlang::sym(genes)
           )
-          p.boxplot <- try(wrap(.map_boxplot2(data, T, ylab = genes), 6, 6), T)
+          p.boxplot <- try(wrap(.map_boxplot2(data, TRUE, ylab = genes), 6, 6), TRUE)
           if (!inherits(p.boxplot, "try-error")) {
             p.boxplot <- .set_lab(p.boxplot, sig(x), glue::glue("boxplot of {genes}"))
           } else {
@@ -269,7 +271,7 @@ setMethod("step1", signature = c(x = "job_survival"),
         }
         namel(p.surv, fit, p.roc, roc, p.boxplot, diff)
       })
-    plots <- sapply(c("p.surv", "p.roc", "p.boxplot"), simplify = F,
+    plots <- sapply(c("p.surv", "p.roc", "p.boxplot"), simplify = FALSE,
       function(name) {
         lapply(lst, function(x) x[[ name ]])
       })

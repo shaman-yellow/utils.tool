@@ -36,7 +36,7 @@ setMethod("step1", signature = c(x = "job_epifactor"),
   function(x, dir = .prefix("epifactor", "db")){
     step_message("Obtain epigenetic regulators.")
     file <- switch(x$use, protein = "EpiGenes_main.csv")
-    dir.create(dir, F)
+    dir.create(dir, FALSE)
     db_file <- file.path(dir, paste0(file, "_", x$version, ".rds"))
     if (file.exists(db_file)) {
       data <- readRDS(db_file)

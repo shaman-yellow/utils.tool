@@ -68,7 +68,7 @@ setMethod("step2", signature = c(x = "job_kall"),
     pbapply::pbapply(x$metadata, 1,
       function(info) {
         path <- dirname(info[[ "forward-absolute-filepath" ]])
-        dir.create(normed_output <- paste0(path, "/", output), F)
+        dir.create(normed_output <- paste0(path, "/", output), FALSE)
         i1 <- basename(info[[ "forward-absolute-filepath" ]])
         i2 <- basename(info[[ "reverse-absolute-filepath" ]])
         dir <- paste0(output, "/", get_realname(info[[ "forward-absolute-filepath" ]]))
@@ -80,7 +80,7 @@ setMethod("step2", signature = c(x = "job_kall"),
             path = path
           )
         }
-        file.copy(normed_output, ".", recursive = T)
+        file.copy(normed_output, ".", recursive = TRUE)
       })
     x$output <- output
     return(x)

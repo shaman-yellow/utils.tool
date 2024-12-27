@@ -13,8 +13,8 @@ bibnetwork <- function(db, save, topic = "keywords", n = 30,
   set.seed(seed)
   net <- bibliometrix::networkPlot(
     NetMatrix, normalize = "association",
-    weighted = T, n = n, Title = title,
-    type = "fruchterman", size = T, edgesize = 5, labelsize = labelsize,
+    weighted = TRUE, n = n, Title = title,
+    type = "fruchterman", size = TRUE, edgesize = 5, labelsize = labelsize,
     cluster = cluster, ...
   )
   dev.off()

@@ -32,7 +32,7 @@ setMethod("asjob_scfea", signature = c(x = "job_seurat"),
     } else if (org == "human") {
       moduleGene_file <- "module_gene_m168.csv"
     }
-    if (T) {
+    if (TRUE) {
       file <- paste0(pg("scfea_db"), "/", moduleGene_file)
       fun_test <- function(file) {
         x <- readLines(file)[-1]
@@ -61,14 +61,14 @@ setMethod("asjob_scfea", signature = c(x = "job_seurat"),
     message("Max: ", max(apply(data, 2, max)))
     if (dir.exists(dir)) {
       if (usethis::ui_yeah("Directory of `dir` exists, remove that?")) {
-        unlink(dir, recursive = T)
+        unlink(dir, recursive = TRUE)
       }
     }
-    dir.create(dir, F)
+    dir.create(dir, FALSE)
     expr_file <- file.path(dir, "data.csv")
-    data.table::fwrite(data.frame(data, check.names = F), expr_file, row.names = T)
+    data.table::fwrite(data.frame(data, check.names = FALSE), expr_file, row.names = TRUE)
     x <- job_scfea(expr_file, org = org)
-    x@params <- c(x@params, list(metadata = metadata, from_seurat = T))
+    x@params <- c(x@params, list(metadata = metadata, from_seurat = TRUE))
     meth(x)$step0 <- glue::glue("将 Seurat 的 `{assay}` Assay 作为输入数据，以 `scFEA` 预测细胞的代谢通量 {cite_show('AGraphNeuralAlgham2021')}。")
     return(x)
   })
@@ -77,13 +77,13 @@ isMultiAssays <- function(assay) {
   if (is(assay, "Assay5")) {
     return(length(assay@layers) > 1)
   } else {
-    F
+    FALSE
   }
 }
 
 integrateLayers <- function(assay) {
   names <- names(assay@layers)
-  objs <- sapply(names, simplify = F,
+  objs <- sapply(names, simplify = FALSE,
     function(name) {
       do.call(`$`, list(assay, name))
     })
@@ -94,7 +94,7 @@ integrateLayers <- function(assay) {
   return(obj)
 }
 
-job_scfea <- function(expr_file, org = c("mouse", "human"), test = F)
+job_scfea <- function(expr_file, org = c("mouse", "human"), test = FALSE)
 {
   org <- match.arg(org)
   x <- .job_scfea()
@@ -173,7 +173,7 @@ setMethod("step2", signature = c(x = "job_scfea"),
     }
     dir_db <- pg("scfea_db")
     t.moduleGenes <- fun(paste0(dir_db, "/", x$moduleGene_file))
-    maybePlot <- list.files(dir, "loss_[0-9]+-[0-9]+\\.png", full.names = T)
+    maybePlot <- list.files(dir, "loss_[0-9]+-[0-9]+\\.png", full.names = TRUE)
     if (length(maybePlot)) {
       p.loss <- .file_fig(maybePlot)
       p.loss <- .set_lab(p.loss, sig(x), "Convergency of the loss terms during training")
@@ -207,7 +207,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_seurat"),
   })
 
 setMethod("asjob_limma", signature = c(x = "job_scfea"),
-  function(x, metadata, group, scale_sample = T, scale_var = F, ...)
+  function(x, metadata, group, scale_sample = TRUE, scale_var = FALSE, ...)
   {
     if (missing(metadata) && !is.null(x$from_seurat)) {
       message("Use metadata from `x$metadata`")
@@ -243,7 +243,7 @@ setMethod("asjob_limma", signature = c(x = "job_scfea"),
     compounds_annotation <- x@tables$step2$t.compounds
     x <- job_limma_normed(counts, metadata, genes = genes)
     x@analysis <- "Limma 代谢通量差异分析"
-    x$from_scfea <- T
+    x$from_scfea <- TRUE
     x$compounds_annotation <- compounds_annotation
     return(x)
   })

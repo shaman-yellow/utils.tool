@@ -38,11 +38,11 @@ setMethod("asjob_infercnv", signature = c(x = "job_seurat"),
     metadata <- dplyr::select(as_tibble(object(x)@meta.data), rownames, !!rlang::sym(use))
     # x$infercnv_used <- namel(metadata, counts, genes)
     tmp.metadata <- tempfile("cnv_metadata", fileext = ".tsv")
-    write_tsv(metadata, tmp.metadata, col.names = F)
+    write_tsv(metadata, tmp.metadata, col.names = FALSE)
     tmp.genes <- tempfile("cnv_metadata", fileext = ".tsv")
-    write_tsv(genes, tmp.genes, col.names = F)
+    write_tsv(genes, tmp.genes, col.names = FALSE)
     cells <- metadata[[ use ]]
-    ref <- cells[ grepl(ref.pattern, cells, ignore.case = T) ]
+    ref <- cells[ grepl(ref.pattern, cells, ignore.case = TRUE) ]
     obj.cnv <- e(infercnv::CreateInfercnvObject(as.matrix(counts),
         tmp.genes, tmp.metadata, ref, chr_exclude = c("X", "Y", "M")))
     x <- .job_infercnv(object = obj.cnv)
@@ -60,16 +60,16 @@ setMethod("step0", signature = c(x = "job_infercnv"),
   })
 
 setMethod("step1", signature = c(x = "job_infercnv"),
-  function(x, hmm = F, cutoff = .1){
+  function(x, hmm = FALSE, cutoff = .1){
     step_message("Run inferCNV.")
-    unlink(x$outdir, T, T)
+    unlink(x$outdir, TRUE, TRUE)
     object(x) <- e(infercnv::run(
         object(x),
         # cutoff = 1 works well for Smart-seq2
         # and cutoff = 0.1 works well for 10x Genomics
-        cutoff = cutoff, denoise = T, HMM = hmm, plot_steps = F,
+        cutoff = cutoff, denoise = TRUE, HMM = hmm, plot_steps = FALSE,
         no_prelim_plot = TRUE, out_dir = x$outdir, output_format = "pdf",
-        save_rds = F, save_final_rds = F
+        save_rds = FALSE, save_final_rds = FALSE
         ))
     return(x)
   })

@@ -107,7 +107,7 @@ update_registers <- function(orders = get_orders(),
   data <- dplyr::select(data,
     date, seq, info, id, score, member, receive_date, status, title, note
   )
-  wb <- openxlsx2::wb_add_data(wb, 1, data, col_names = F,
+  wb <- openxlsx2::wb_add_data(wb, 1, data, col_names = FALSE,
     dims = do.call(openxlsx2::wb_dims, pos))
   ## extra
   data <- dplyr::filter(orders, type == "备单业务")
@@ -115,7 +115,7 @@ update_registers <- function(orders = get_orders(),
   data <- dplyr::select(data,
     date, seq, info, id, score, member, receive_date, status, title, note
   )
-  wb <- openxlsx2::wb_add_data(wb, 2, data, col_names = F,
+  wb <- openxlsx2::wb_add_data(wb, 2, data, col_names = FALSE,
     dims = do.call(openxlsx2::wb_dims, pos))
   openxlsx2::wb_save(wb, register)
   browseURL(normalizePath(register))
@@ -128,12 +128,12 @@ summary_month <- function(
   year = lubridate::year(time),
   path = .prefix(),
   templ_dir = .prefix("performance_templ/"),
-  rm = F)
+  rm = FALSE)
 {
   dir <- paste0(path, "/", "summary_", paste0(year, "-", month))
   targets <- c(ass = "assess_绩效+软性考核表.xlsx", prin = "2023年行为准则考核表.xlsx")
   if (rm) {
-    unlink(list.files(dir, full.names = T, all.files = T, recursive = T), T, T)
+    unlink(list.files(dir, full.names = TRUE, all.files = TRUE, recursive = TRUE), TRUE, TRUE)
     dir.create(dir)
     file.copy(paste0(templ_dir, "/", targets), dir)
   }
@@ -152,7 +152,7 @@ summary_month <- function(
     year, "年 ", month, "月 ", lubridate::days_in_month(time), "日")
   wb <- openxlsx2::wb_add_data(wb, 1, date,
     dims = do.call(openxlsx2::wb_dims, pos.date))
-  if (T) {
+  if (TRUE) {
     pos.data_ass <- list(7, 1)
     data_ass <- dplyr::mutate(orders,
       seq = seq_len(nrow(orders)), num = 1, title.en = "",
@@ -161,22 +161,22 @@ summary_month <- function(
     )
     data_ass <- dplyr::select(data_ass,
       member, seq, id, type, class, score, num, title, title.en, status, note, coef,
-      remuneration, I, C, D, `T`, M
+      remuneration, I, C, D, `TRUE`, M
     )
     fun <- function(wb, data) {
-      openxlsx2::wb_add_data(wb, 1, data, col_names = F,
+      openxlsx2::wb_add_data(wb, 1, data, col_names = FALSE,
         dims = do.call(openxlsx2::wb_dims, pos.data_ass), na.strings = "")
     }
-    CopyNeedEval <- F
+    CopyNeedEval <- FALSE
     if (any(is.na(data_ass$coef))) {
       wb_eval <- fun(wb, dplyr::filter(data_ass, is.na(coef)))
       openxlsx2::wb_save(wb_eval, paste0(dir, "/need_eval.xlsx"))
     } else {
-      CopyNeedEval <- T
+      CopyNeedEval <- TRUE
     }
     wb <- fun(wb, data_ass)
   }
-  if (T) {
+  if (TRUE) {
     pos.data_sum <- list(29, 6)
     data_ass <- dplyr::mutate(data_ass,
       type = ifelse(type %in% c("固定业务", "备单业务"), "base", "other"))
@@ -198,10 +198,10 @@ summary_month <- function(
           coef_fomu = paste0(paste0(data$coef, collapse = "+"), "=", coef)
         )
       })
-    wb <- openxlsx2::wb_add_data(wb, 1, data_sum, col_names = F,
+    wb <- openxlsx2::wb_add_data(wb, 1, data_sum, col_names = FALSE,
       dims = do.call(openxlsx2::wb_dims, pos.data_sum))
   }
-  if (T) {
+  if (TRUE) {
     pos.sum <- list(29, 10)
     sum <- sum(data_sum$coef)
     wb <- openxlsx2::wb_add_data(wb, 1, sum,
@@ -220,7 +220,7 @@ summary_month <- function(
     x3 = "", name = "姓名：黄礼闯", x4 = "",
     month = paste0("月度：", year, "年", month, "月"))
   pos.info <- list(2, 1)
-  wb <- openxlsx2::wb_add_data(wb, 1, info, col_names = F,
+  wb <- openxlsx2::wb_add_data(wb, 1, info, col_names = FALSE,
     dims = do.call(openxlsx2::wb_dims, pos.info))
   pos.sign <- list(22, 1)
   sign <- paste0("本人确认：            日 期 ：", year, "年 ", month, "月  日")
@@ -243,7 +243,7 @@ summary_month <- function(
   if (!dir.exists(to)) {
     dir.create(to)
   }
-  file.copy(from, to, T, T)
+  file.copy(from, to, TRUE, TRUE)
 }
 
 backup_jobs <- function(alls, time = Sys.time(),
@@ -256,10 +256,10 @@ backup_jobs <- function(alls, time = Sys.time(),
   )
   thedir <- .thedir_job(month, year)
   num <- 0L
-  dir.create(thedir, F)
+  dir.create(thedir, FALSE)
   res <- lapply(data$.dir,
     function(dir) {
-      files <- list.files(dir, ".*\\.zip", full.names = T)
+      files <- list.files(dir, ".*\\.zip", full.names = TRUE)
       if (length(files) > 1) {
         n <- menu(basename(files), title = "Select a zip file to backup.")
         files <- files[n]
@@ -268,7 +268,7 @@ backup_jobs <- function(alls, time = Sys.time(),
         message("No zip files found in dir: ", dir)
         isThat <- usethis::ui_yeah("Select other files?")
         if (isThat) {
-          files <- list.files(dir, full.names = T)
+          files <- list.files(dir, full.names = TRUE)
           files <- files[ menu(files, title = "All available files") ]
         }
       }
@@ -289,7 +289,7 @@ move_rds_all <- function(alls, time, to = "~/disk_sdb1")
   lapply(data$.dir, function(x) move_rds(x, to))
 }
 
-move_raw_all <- function(alls, time, before = F, to = "~/disk_sdb1",
+move_raw_all <- function(alls, time, before = FALSE, to = "~/disk_sdb1",
   prefix = c("GDC", "GSE", "qiime", "sra"))
 {
   if (before)
@@ -305,9 +305,9 @@ move_raw_all <- function(alls, time, before = F, to = "~/disk_sdb1",
         if (!dir.exists(target)) {
           dir.create(target)
         }
-        res <- file.copy(path, target, T, T)
+        res <- file.copy(path, target, TRUE, TRUE)
         if (all(unlist(res)))
-          unlink(path, recursive = T, force = T)
+          unlink(path, recursive = TRUE, force = TRUE)
       }
     })
 }
@@ -317,8 +317,8 @@ move_rds <- function(from, to, exclude = c(".items.rds", ".injobs.rds")) {
     function(path) {
       dirname <- basename(gs(path, "/$", ""))
       target <- paste0(to, "/", dirname)
-      dir.create(target, F)
-      files <- list.files(path, pattern = ".rds$|.RData$|.Rdata$|.rdata$", full.names = T, all.files = T)
+      dir.create(target, FALSE)
+      files <- list.files(path, pattern = ".rds$|.RData$|.Rdata$|.rdata$", full.names = TRUE, all.files = TRUE)
       thefilenames <- basename(files)
       files <- files[ !thefilenames %in% exclude ]
       lapply(files,
@@ -371,7 +371,7 @@ get_orders <- function(
   base_wage = list("2023-07-01" = 3000, "2023-08-01" = 4500, "2023-09-01" = 6000),
   setFill = .setFill.orders())
 {
-  files <- list.files(dir, pattern, T, T, T)
+  files <- list.files(dir, pattern, TRUE, TRUE, TRUE)
   lst <- lapply(files,
     function(file) {
       lst <- readRDS(file)
@@ -395,14 +395,14 @@ get_orders <- function(
       )
       data
     })
-  data <- as_tibble(data.table::rbindlist(lst, fill = T))
+  data <- as_tibble(data.table::rbindlist(lst, fill = TRUE))
   data <- dplyr::arrange(data, belong, receive_date)
   data <- dplyr::mutate_if(data, is.character,
     function(x) ifelse(is.na(x), "", x))
   if (!is.null(setFill)) {
     for (i in seq_along(setFill)) {
       i.month <- names(setFill)[i]
-      if (is.na(as.Date(i.month, optional = T))) {
+      if (is.na(as.Date(i.month, optional = TRUE))) {
         i.month <- paste0(i.month, "-01")
       }
       theWhich <- which(grpl(data$belong, paste0("^", i.month)) & is.na(data$coef))
@@ -598,7 +598,7 @@ plot_report_summary <- function(cover_file = .prefix("cover_page.pdf"))
   txt.t2 <- stext("Tables")
   txt.t3 <- stext("Figures")
   wei.lst <- nl(c("txt.t1", names(ans), "txt.t2", names(ts), 'txt.t3', names(fs)),
-    1, F, default = 1)
+    1, FALSE, default = 1)
   lst.cont <- frame_row(wei.lst, c(ans, ts, fs, namel(txt.t1, txt.t2, txt.t3, null)))
   lst.cont <- ggather(lst.cont, vp = viewport(, , .8, .8))
   lst <- outline("Table of contents")
@@ -616,8 +616,8 @@ generate_tiffs <- function(pattern = "^MAIN-Fig.*\\.pdf",
   dir = get_savedir("figs"), output = "TIFF")
 {
   output <- file.path(dir, output)
-  dir.create(output, F)
-  files <- list.files(dir, pattern, full.names = T)
+  dir.create(output, FALSE)
+  files <- list.files(dir, pattern, full.names = TRUE)
   lapply(files,
     function(x) {
       newfile <- file.path(output, paste0(tools::file_path_sans_ext(basename(x)), ".tiff"))
@@ -631,21 +631,21 @@ order_packaging <- function(target = "output.pdf",
 {
   report <- paste0(idname, ".", tools::file_ext(target))
   if (!file.exists(report)) {
-    file.copy(target, report, T)
+    file.copy(target, report, TRUE)
   }
   if (!is.null(relocate <- getOption("autoRegisters_relocate"))) {
     if (!identical(names(register), names(relocate))) {
-      message('identical(names(register), names(relocate)) == F, not match in names.')
+      message('identical(names(register), names(relocate)) == FALSE, not match in names.')
       register <- register[ names(register) %in% names(relocate) ]
     }
     lapply(names(register), function(name) {
       dir <- dirname(relocate[[ name ]])
-      dir.create(dir, F, recursive = T)
-      file.copy(register[[name]], relocate[[name]], T, T)
+      dir.create(dir, FALSE, recursive = TRUE)
+      file.copy(register[[name]], relocate[[name]], TRUE, TRUE)
     })
     tempfiles <- unlist(as.list(relocate))
     package_results(main = tempfiles, head = NULL, masterZip = NULL, report = report, ...)
-    unlink(tempfiles, T, T)
+    unlink(tempfiles, TRUE, TRUE)
   } else {
     package_results(main = register, head = NULL, masterZip = NULL, report = report, ...)
   }
@@ -672,17 +672,17 @@ package_results <- function(
   masterSource = c("output.Rmd", "install.R", "read_me.txt", head),
   prefix = "results_", zip = paste0(prefix, head),
   clientZip = "client.zip", masterZip = "master.zip",
-  clear = T, external_file = "order_material", extras = NULL)
+  clear = TRUE, external_file = "order_material", extras = NULL)
 {
   if (!is.null(external_file)) {
     if (!file.exists(external_file)) {
       stop("file.exists(external_file)")
     } else {
-      if (length(exters <- list.files(external_file, full.names = T)) == 0) {
+      if (length(exters <- list.files(external_file, full.names = TRUE)) == 0) {
         stop("Guess you have forget to save the order material file to `external_file`.")
       } else {
-        dir.create(extern0 <- "报单相关资料", F)
-        file.copy(exters, extern0, T, T)
+        dir.create(extern0 <- "报单相关资料", FALSE)
+        file.copy(exters, extern0, TRUE, TRUE)
       }
     }
   } else {
@@ -704,7 +704,7 @@ package_results <- function(
   if (file.exists(file <- ".items.rds")) {
     info <- readRDS(file)
     info$date <- Sys.Date()
-    info$isLatest <- T
+    info$isLatest <- TRUE
     saveRDS(info, file)
   }
 }
@@ -758,7 +758,7 @@ get_all_tags <- function(rm = NULL, jobs = .get_job_list()) {
               return("")
             }
           }
-          if (inherits(try(validObject(x), T), "try-error")) {
+          if (inherits(try(validObject(x), TRUE), "try-error")) {
             x <- upd(x)
           }
           tags <- x@tag
@@ -793,8 +793,8 @@ items <- function(
   tags = get_all_tags(),
   note = character(1),
   class = "生信分析",
-  isLatest = F,
-  lock = F)
+  isLatest = FALSE,
+  lock = FALSE)
 {
   if (length(class) > 1) {
     if (is.null(getOption("orderClass"))) {
@@ -831,11 +831,11 @@ items <- function(
     stop("is.null(title)")
   }
   items <- as.list(environment())
-  if (T) {
+  if (TRUE) {
     # new feature
     eval <- items$eval
     items <- items[ names(items) != "eval" ]
-    items$icEval <- T
+    items$icEval <- TRUE
     if (is(eval, "ic")) {
       items <- c(items, as.list(eval))
     } else if (is(eval, "list")) {
@@ -951,7 +951,7 @@ gidn <- gid <- function(theme = NULL, items = info, member = 3) {
   idn
 }
 
-od_get_id <- function(reload = F, ...) {
+od_get_id <- function(reload = FALSE, ...) {
   if (reload)
     ID <- NULL
   else
@@ -976,7 +976,7 @@ od_get_score <- function(...) {
     lines <- od_get(..., key = "info", pattern = NULL)
     ext <- function(key) {
       res <- unlist(stringr::str_extract_all(lines, paste0("(?<=", key, "：)", ".+")),
-        use.names = F)
+        use.names = FALSE)
       res <- res[!is.na(res)]
       res[ nchar(res) == max(nchar(res)) ][1]
     }
@@ -1011,13 +1011,13 @@ odb <- function(..., collapse = "") {
   n <- 0L
   res <- lapply(list(...),
     function(key) {
-      res <- odk(key, if (!n) T else F)
+      res <- odk(key, if (!n) TRUE else FALSE)
       res
     })
   paste0(unlist(res), collapse = collapse)
 }
 
-odk <- function(key, fresh = F, file = "./mailparsed/part_1.md")
+odk <- function(key, fresh = FALSE, file = "./mailparsed/part_1.md")
 {
   if (file.exists(file)) {
     kds <- getOption("od_keywords")
@@ -1050,7 +1050,7 @@ revise_items <- function(data, records = NULL) {
         setwd(dir)
         browseURL("output.pdf")
         item <- readRDS(".items.rds")
-        item$lock <- T
+        item$lock <- TRUE
         if (is.null(item$tags)) {
           item$tags <- ""
         }
@@ -1064,7 +1064,7 @@ revise_items <- function(data, records = NULL) {
 # get_tags <- function(data) {
 #   tags <- unlist(lapply(data$.dir,
 #       function(dir) {
-#         obj <- try(readRDS(paste0(dir, "/.items.rds")), T)
+#         obj <- try(readRDS(paste0(dir, "/.items.rds")), TRUE)
 #         if (!inherits(obj, "try-error")) {
 #           gs(strsplit(obj$tags, ",")[[1]], "\\s", "")
 #         } else NULL
@@ -1186,7 +1186,7 @@ od_get <- function(file = "./mailparsed/part_1.md", key = "id",
 
 deparse_mail <- function(dir = "mail",
   savedir = "mailparsed", attsdir = "order_material",
-  force = F)
+  force = FALSE)
 {
   if (!dir.exists(dir)) {
     message("No mail directory found.")
@@ -1198,7 +1198,7 @@ deparse_mail <- function(dir = "mail",
   if (!force & file.exists(sig <- paste0(savedir, "/", ".parsed.md"))) {
     return()
   }
-  testfile <- list.files(dir, full.names = T, recursive = T)[1]
+  testfile <- list.files(dir, full.names = TRUE, recursive = TRUE)[1]
   fewLines <- readLines(testfile, n = 100)
   if (!any(grpl(fewLines, "Content-Transfer-Encoding"))) {
     message("Maybe this mail is not the raw file.")
@@ -1224,7 +1224,7 @@ deparse_mail <- function(dir = "mail",
     n <- 0L
     lapply(atts,
       function(att) {
-        bins <- att$get_payload(decode = T)
+        bins <- att$get_payload(decode = TRUE)
         filename <- att$get_filename()
         if (length(filename) == 0) {
           return()
@@ -1263,7 +1263,7 @@ deparse_mail <- function(dir = "mail",
       if (part$get_content_type() == "multipart/alternative") {
         part <- part$get_payload()[[1]]
       }
-      bin <- part$get_payload(decode = T)
+      bin <- part$get_payload(decode = TRUE)
       if (part$get_content_type() == "text/plain") {
         filename <- paste0("part_", n, ".md")
       } else if (part$get_content_type() == "text/html") {

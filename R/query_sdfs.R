@@ -20,8 +20,8 @@ NULL
 #' @rdname query_sdfs
 query_sdfs <- function(cid, dir = "SDFs", curl_cl = NULL, group_number = 50, ...)
 {
-  dir.create(dir, F)
-  group <- grouping_vec2list(cid, group_number = group_number, T)
+  dir.create(dir, FALSE)
+  group <- grouping_vec2list(cid, group_number = group_number, TRUE)
   files <- pbapply::pbvapply(group, pubchem_get_sdf,
     dir = dir, ..., cl = curl_cl, FUN.VALUE = character(1))
   lines <- lapply(files, readLines)
@@ -46,7 +46,7 @@ pubchem_get_sdf <- function(cid, dir, ...)
   url <- paste0(url_start, cid, url_end)
   check <- 0
   while(check == 0 | inherits(check, "try-error")){
-    check <- try(text <- RCurl::getURL(url), silent = T)
+    check <- try(text <- RCurl::getURL(url), silent = TRUE)
   }
   while(grepl("Status:	503", text)){
     text <- RCurl::getURL(url)

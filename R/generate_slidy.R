@@ -68,7 +68,7 @@ cite_active <- function(key) {
   bib
 }
 
-cite_show <- function(keys, as.character = T,
+cite_show <- function(keys, as.character = TRUE,
   bibentry = getOption("bibentrys"),
   ifsets = getOption("IF_sets"),
   prefix = function(x) gs(tolower(x), "[^a-z]|^[Tt][Hh][Ee] ", ""))
@@ -107,7 +107,7 @@ cite_show <- function(keys, as.character = T,
   } else eles
 }
 
-citethis <- function(..., trunc = T, trunc.author = 1, trunc.title = F,
+citethis <- function(..., trunc = TRUE, trunc.author = 1, trunc.title = FALSE,
   prefix = "\\tiny ", sep = "\\vspace{0.5em} \\newline\n",
   pkgs = NULL, pkgs.fix = fix_bib, exbibentry = NULL, postFun = NULL)
 {
@@ -236,13 +236,13 @@ getyml <- function(lines) {
   yml
 }
 
-arrange_figsPath <- function(file, pattern = "^!\\[.*\\]", to = NULL, overwrite = F)
+arrange_figsPath <- function(file, pattern = "^!\\[.*\\]", to = NULL, overwrite = FALSE)
 {
   path <- dirname(file)
   filename <- basename(file)
   if (!is.null(to)) {
     if (!dir.exists(to)) {
-      stop("dir.exists(to) == F")
+      stop("dir.exists(to) == FALSE")
     } else {
       dir <- to
     }

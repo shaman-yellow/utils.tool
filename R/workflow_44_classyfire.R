@@ -98,7 +98,7 @@ setMethod("step2", signature = c(x = "job_classyfire"),
           data
         })
       graph <- tidygraph::tbl_graph(nodes, edges)
-      graph <- ggraph::create_layout(graph, 'partition', circular = T, weight = freq)
+      graph <- ggraph::create_layout(graph, 'partition', circular = TRUE, weight = freq)
       p <- ggraph(graph) +
         geom_node_arc_bar(aes(fill = freq)) +
         scale_fill_gradientn(colors = color_set()[1:3]) +
@@ -116,7 +116,7 @@ setMethod("step2", signature = c(x = "job_classyfire"),
         geom_blank()
       if (!is.null(pattern_match)) {
         data <- dplyr::as_tibble(graph)
-        data <- dplyr::filter(data, grpl(name, pattern_match, T))
+        data <- dplyr::filter(data, grpl(name, pattern_match, TRUE))
         if (nrow(data)) {
           p <- p + ggrepel::geom_label_repel(data = data,
             aes(x = x, y = y, label = name), color = "red")
@@ -137,7 +137,7 @@ setMethod("step2", signature = c(x = "job_classyfire"),
       fun_text = ggrepel::geom_label_repel)
     p.isClassified <- .set_lab(p.isClassified, sig(x), "Compounds classify")
     if (!is.null(pattern_match)) {
-      t.match <- dplyr::filter(db_class, grpl(Classification, pattern_match, T))
+      t.match <- dplyr::filter(db_class, grpl(Classification, pattern_match, TRUE))
       match <- unique(t.match$inchikey2d)
       if (x$type == "cid") {
         x$match <- list(cids = object(x)[inchikey2d %in% match],

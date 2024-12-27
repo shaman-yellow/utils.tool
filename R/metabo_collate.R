@@ -4,9 +4,9 @@ metabo_collate <- function(path = "~/Desktop")
 {
   ## ----------------------------------------------------------------------
   ## read file
-  compound <- list.files(path, pattern = "compound_all.{0,5}.csv$", full.names = T) %>% 
+  compound <- list.files(path, pattern = "compound_all.{0,5}.csv$", full.names = TRUE) %>% 
     data.table::fread()
-  pathway <- list.files(path, pattern = "pathway_enrichment.{0,5}.csv$", full.names = T) %>% 
+  pathway <- list.files(path, pattern = "pathway_enrichment.{0,5}.csv$", full.names = TRUE) %>% 
     data.table::fread()
   ## ------------------------------------- 
   pathway <- metabo_collate_pathway(pathway)
@@ -15,7 +15,7 @@ metabo_collate <- function(path = "~/Desktop")
   ## ----------------------------------------------------------------------
   ## gather pathway and compound
   list <- lapply(pathway, merge, y = compound,
-    by.x = "compound", by.y = "Empirical.Compound", all.x = T) %>% 
+    by.x = "compound", by.y = "Empirical.Compound", all.x = TRUE) %>% 
   lapply(dplyr::as_tibble)
 return(list)
 }
@@ -24,18 +24,18 @@ metabo_collate_pathway <- function(pathway)
 {
   db <- dplyr::rename(pathway, pathway = V1) %>% 
     by_group_as_list("pathway") %>% 
-    lapply(add_row_via_separate_col, only_split = F)
+    lapply(add_row_via_separate_col, only_split = FALSE)
   return(db)
 }
 
-add_row_via_separate_col <- function( df_row, col = "EC.Hits", only_split = F)
+add_row_via_separate_col <- function( df_row, col = "EC.Hits", only_split = FALSE)
 {
     vector <- df_row[[col]] %>% 
-      unlist(use.names = F) %>% 
+      unlist(use.names = FALSE) %>% 
       strsplit(split = ";") %>% 
-      unlist(use.names = F)
+      unlist(use.names = FALSE)
     ## ------------------ 
-    if(only_split == T)
+    if(only_split == TRUE)
       return(vector)
     ## ------------------ 
     df <- vector %>% 
@@ -53,16 +53,16 @@ add_row_via_separate_col <- function( df_row, col = "EC.Hits", only_split = F)
 metabo_collate_compound <- function(compound)
 {
   ## BiGG database download
-  if(file.exists("bigg_compound.tsv") == F){
+  if(file.exists("bigg_compound.tsv") == FALSE){
     system("curl http://bigg.ucsd.edu/static/namespace/bigg_models_metabolites.txt > bigg_compound.tsv")
   }
-  bigg <- read_tsv("bigg_compound.tsv", fill = T) %>% 
+  bigg <- read_tsv("bigg_compound.tsv", fill = TRUE) %>% 
     dplyr::select(universal_bigg_id, name)
   ## ---------------------------------------------------------------------- 
   part_bigg <- compound[["Matched.Compound"]] %>% 
     data.table::data.table(bigg = .) %>% 
     merge(bigg, by.x = "bigg", by.y = "universal_bigg_id") %>% 
-    distinct(bigg, .keep_all = T)
+    distinct(bigg, .keep_all = TRUE)
   ## ---------------------------------------------------------------------- 
   ## main header: universal_bigg_id name
   ## API: KEGGREST::keggGet(vector) ## return a list
@@ -74,10 +74,10 @@ metabo_collate_compound <- function(compound)
   ## ---------------------------------------------------------------------- 
   compound <- compound %>% 
     ## merge bigg compound name
-    merge(part_bigg, by.x = "Matched.Compound", by.y = "bigg", all.x = T, sort = F) %>% 
+    merge(part_bigg, by.x = "Matched.Compound", by.y = "bigg", all.x = TRUE, sort = FALSE) %>% 
     ## merge kegg compound name
-    merge(part_kegg, by.x = "Matched.Compound", by.y = "kegg", all.x = T, sort = F) %>% 
-    dplyr::distinct(Query.Mass, Retention.Time, Matched.Compound, .keep_all = T) %>% 
+    merge(part_kegg, by.x = "Matched.Compound", by.y = "kegg", all.x = TRUE, sort = FALSE) %>% 
+    dplyr::distinct(Query.Mass, Retention.Time, Matched.Compound, .keep_all = TRUE) %>% 
     dplyr::mutate(name = ifelse(is.na(name.y), name.x, name.y)) %>% 
     dplyr::select(-name.x, -name.y) %>% 
     dplyr::as_tibble()
@@ -105,7 +105,7 @@ batch_kegg_get <- function(kegg)
     unlist() %>% 
     data.table::data.table(kegg = names(.), compound = unname(.))
   df <- data.table::data.table(kegg = id_set) %>% 
-    merge(db, by = "kegg", all.x = T, sort = F)
+    merge(db, by = "kegg", all.x = TRUE, sort = FALSE)
   return(df$compound)
 }
 

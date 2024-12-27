@@ -11,10 +11,11 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("|log~2~(FC)| &gt; 0.03, P-value or adjusted P-value &lt; 0.05"),
+    info = c(
+      "https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html"),
     cite = "[@LimmaPowersDiRitchi2015; @EdgerDifferenChen]",
     method = "R package `Limma` and `edgeR` used for differential expression analysis",
-    params = list(isTcga = F, normed = F, rna = FALSE),
+    params = list(isTcga = FALSE, normed = FALSE, rna = FALSE),
     tag = "rna:diff",
     analysis = "Limma 差异分析"
     ))
@@ -26,7 +27,7 @@ job_limma_normed <- function(data, metadata, genes = NULL) {
     if (is.character(data[[1]])) {
       message("Convert as data.frame, and use the first column set as rownames.")
       rownames <- data[[1]]
-      data <- data.frame(data, check.names = F)
+      data <- data.frame(data, check.names = FALSE)
       rownames(data) <- rownames
     } else {
       stop("The first column not seems be 'ID' (character).")
@@ -43,7 +44,7 @@ job_limma_normed <- function(data, metadata, genes = NULL) {
     }
     genes <- dplyr::slice(genes, match(rownames(data), genes[[1]]))
   }
-  .job_limma(object = data, params = list(metadata = metadata, isTcga = F, normed = T, genes = genes))
+  .job_limma(object = data, params = list(metadata = metadata, isTcga = FALSE, normed = TRUE, genes = genes))
 }
 
 setMethod("regroup", signature = c(x = "job_limma"),
@@ -83,6 +84,15 @@ setMethod("filter", signature = c(x = "job_limma"),
       metadata <- if (x$normed) x$metadata else x@object$samples
       snap <- snap(trace_filter(metadata, ...))
       x <- modify_job_limma_meta(x, ..., fun = dplyr::filter)
+      if (x@step < 1L) {
+        message(
+          glue::glue("before filter, dim of object(x)$counts: {bind(dim(object(x)$counts))}")
+        )
+        object(x)$counts <- object(x)$counts[ , colnames(object(x)$counts) %in% object(x)$samples$sample ]
+        message(
+          glue::glue("after filter, dim of object(x)$counts: {bind(dim(object(x)$counts))}")
+        )
+      }
       x <- snapAdd(x, "{snap}")
       return(x)
     }
@@ -91,7 +101,7 @@ setMethod("filter", signature = c(x = "job_limma"),
 job_limma <- function(DGEList, rna = TRUE)
 {
   if (!is(DGEList, 'DGEList'))
-    stop("is(DGEList, 'DGEList') == F")
+    stop("is(DGEList, 'DGEList') == FALSE")
   x <- .job_limma(object = DGEList)
   x$.metadata <- tibble::as_tibble(dplyr::relocate(DGEList$samples, sample, group))
   x$rna <- rna
@@ -139,7 +149,9 @@ setMethod("step1", signature = c(x = "job_limma"),
     no.rna_filter = if (x$normed) TRUE else FALSE,
     no.rna_norm = no.rna_filter,
     no.array_norm = "guess",
-    norm_vis = F, pca = F, data_type = c("count", "cpm"))
+    norm_vis = FALSE, pca = FALSE, data_type = c(
+      "count", "cpm", "tpm"
+    ))
   {
     step_message("Preprocess expression data.")
     if (x$rna) {
@@ -150,12 +162,12 @@ setMethod("step1", signature = c(x = "job_limma"),
     data_type <- match.arg(data_type)
     plots <- list()
     s.com <- try_snap(if (x$normed) x$metadata else object(x)$sample, "group", "sample")
-    x <- snapAdd(x, "样本分组：{s.com}。", F)
+    x <- snapAdd(x, "样本分组：{s.com}。", FALSE)
     if (x$rna || x$isTcga) {
       message("Data from RNA-seq.")
       if (!no.rna_filter && data_type == "count") {
         object(x) <- filter_low.dge(object(x), group, min.count = min.count)
-        x <- methodAdd(x, "以 `edgeR::filterByExpr` 过滤 count 数量小于 {min.count} 的基因。", T)
+        x <- methodAdd(x, "以 `edgeR::filterByExpr` 过滤 count 数量小于 {min.count} 的基因。", TRUE)
         p.filter <- wrap(attr(object(x), "p"), 8, 3)
         p.filter <- .set_lab(p.filter, sig(x), "Filter low counts")
         plots <- c(plots, namel(p.filter))
@@ -164,7 +176,11 @@ setMethod("step1", signature = c(x = "job_limma"),
       }
       if (!no.rna_norm) {
         object(x) <- norm_genes.dge(object(x), design, vis = norm_vis, data_type = data_type)
-        x <- methodAdd(x, "以 `edgeR::calcNormFactors`，`limma::voom` 转化 count 数据为 log2 counts-per-million (logCPM)。", T)
+        if (data_type == "count") {
+          x <- methodAdd(x, "以 `edgeR::calcNormFactors`，`limma::voom` 转化 {data_type} 数据为 log2 counts-per-million (logCPM)。")
+        } else if (data_type == "tpm") {
+          x$tpm_use_trend <- TRUE
+        }
         if (norm_vis && data_type == "count") {
           if (length(x@object$targets$sample) < 50) {
             p.norm <- wrap(attr(object(x), "p"), 6, max(c(length(x@object$targets$sample) * .6, 10)))
@@ -192,8 +208,13 @@ setMethod("step1", signature = c(x = "job_limma"),
     } else {
       message("Data from Microarray.")
       if (no.array_norm == "guess") {
-        if (all(range(object(x)$counts) > 0)) {
-          message("All expression value larger than 0, may be raw expression dataset.")
+        range <- range(object(x)$counts)
+        if (all(range > 0) && range[2] > 100) {
+          message("May be raw expression dataset.")
+          no.array_norm <- FALSE
+        } else if (range[1] == 0 && range[2] > 100) {
+          message("Min expression equal to 0, add prior value: 1.")
+          object(x)$counts <- object(x)$counts + 1
           no.array_norm <- FALSE
         } else {
           no.array_norm <- TRUE
@@ -230,7 +251,7 @@ setMethod("step1", signature = c(x = "job_limma"),
 setMethod("step2", signature = c(x = "job_limma"),
   function(x, ..., contrasts = NULL, block = NULL, use = c("adj.P.Val", "P.Value"),
     use.cut = .05, cut.fc = 1,
-    label = .guess_symbol(x), batch = F, HLs = NULL)
+    label = .guess_symbol(x), batch = FALSE, HLs = NULL)
   {
     step_message("Difference test.")
     use <- match.arg(use)
@@ -245,7 +266,9 @@ setMethod("step2", signature = c(x = "job_limma"),
     }
     s.contr <- paste0(gsub('-', 'vs', colnames(contr)), collapse = ', ')
     x <- methodAdd(x, "以 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} 差异分析。")
-    x <- methodAdd(x, "分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。")
+    if (x$rna) {
+      x <- methodAdd(x, "分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。")
+    }
     x <- methodAdd(x, "创建设计矩阵，对比矩阵，差异分析：{s.contr}。")
     x <- snapAdd(x, "差异分析：{s.contr}。(若 A vs B，则为前者比后者，LogFC 大于 0 时，A 表达量高于 B)。")
     ## here, remove batch effect
@@ -256,7 +279,14 @@ setMethod("step2", signature = c(x = "job_limma"),
           batch = object(x)$targets$batch, design = x@params$design, group = x$targets$group
           ))
     }
-    object(x) <- diff_test(object(x), x@params$design, contr, block)
+    if (!is.null(x$tpm_use_trend) && x$tpm_use_trend) {
+      # see: https://support.bioconductor.org/p/98820/
+      message("As data_type == 'tpm', limma::eBayes will use params: trend = TRUE.")
+      trend <- TRUE
+    } else {
+      trend <- FALSE
+    }
+    object(x) <- diff_test(object(x), x@params$design, contr, block, trend = trend)
     x <- methodAdd(x, "使用 `limma::lmFit`, `limma::contrasts.fit`, `limma::eBayes` 拟合线形模型。")
     plots <- list()
     if (!is.null(contr)) {
@@ -274,7 +304,7 @@ setMethod("step2", signature = c(x = "job_limma"),
               if (!is.null(x$from_scfea)) {
                 ## the genes belong to the module
                 obj <- map(obj, colnames(obj)[1], x$genes, colnames(x$genes)[1], "gene", col = "gene")
-                dic <- nl(x$compounds_annotation$name, x$compounds_annotation$kegg, T)
+                dic <- nl(x$compounds_annotation$name, x$compounds_annotation$kegg, TRUE)
                 obj <- dplyr::mutate(obj, compounds = strsplit(name, " -> "),
                   kegg = lapply(compounds,
                     function(x) {
@@ -363,8 +393,10 @@ setMethod("step3", signature = c(x = "job_limma"),
         lst <- list(up = up, down = down)
         lapply(lst, fun_filter)
       })
+    tops <- lapply(tops, function(x) lapply(x, gname))
     if (length(tops) == 1) {
       x <- snapAdd(x, "上调或下调 DEGs 统计：{try_snap(tops[[1]])}")
+      x$.feature <- tops
     } else {
       names(tops) <- gs(names(tops), "-", "vs")
       s.com <- vapply(tops, try_snap, character(1))
@@ -374,8 +406,8 @@ setMethod("step3", signature = c(x = "job_limma"),
       sfun <- function(which) length(unique(unlist(lapply(tops, function(x) x[[ which ]]))))
       x <- snapAdd(x, "所有上调 DEGs 共 {sfun('up')} 个，所有下调 DEGs 共 {sfun('down')} 个。")
       x <- snapAdd(x, "所有非重复基因共 {length(unique(unlist(tops)))} 个。")
-      tops <- unlist(tops, recursive = F)
-      x$sets_intersection <- tops
+      tops <- unlist(tops, recursive = FALSE)
+      x$.feature <- x$sets_intersection <- tops
       message("The guess use dataset combination of:\n",
         "\t ", names(tops)[1], " %in% ", names(tops)[4], "\n",
         "\t ", names(tops)[2], " %in% ", names(tops)[3])
@@ -404,11 +436,11 @@ plot_genes_heatmap.elist <- function(normed_data, degs, use = "hgnc_symbol") {
 plot_genes_heatmap <- function(data, metadata) {
   data <- dplyr::rename(as_tibble(data), genes = rownames)
   data <- tidyr::pivot_longer(data, !genes, names_to = "sample", values_to = "expression")
-  data <- tbmerge(data, metadata, by = "sample", all.x = T)
+  data <- tbmerge(data, metadata, by = "sample", all.x = TRUE)
   maxBreak <- max(ceiling(abs(range(data$expression))))
   # ComplexHeatmap::Heatmap
   tidyHeatmap::heatmap(dplyr::group_by(data, group), genes, sample, expression,
-    palette_value = fun_color(-maxBreak, maxBreak), show_column_names = F)
+    palette_value = fun_color(-maxBreak, maxBreak), show_column_names = FALSE)
 }
 
 .guess_intersect <- function(tops) {
@@ -419,7 +451,7 @@ plot_genes_heatmap <- function(data, metadata) {
 }
 
 setMethod("clear", signature = c(x = "job_limma"),
-  function(x, save = T, suffix = NULL){
+  function(x, save = TRUE, suffix = NULL){
     if (save)
       saveRDS(x, paste0(substitute(x, parent.frame(1)), x@step, suffix, ".rds"))
     object(x) <- NULL
@@ -429,7 +461,7 @@ setMethod("clear", signature = c(x = "job_limma"),
 
 setMethod("map", signature = c(x = "job_limma"),
   function(x, ref, ref.use = .guess_symbol(x),
-    group = NULL, group.use = "group", pvalue = T){
+    group = NULL, group.use = "group", pvalue = TRUE){
     object <- x@params$normed_data
     if (identical(class(object), "list")) {
       object <- new("EList", object)
@@ -534,7 +566,7 @@ setMethod("tops", signature = c(x = "job_limma"),
   function(x, key = 1L, col = "hgnc_symbol"){
     features <- x@tables$step2$tops[[key]][[col]]
     features <- features[!is.na(features) & features != ""]
-    features <- unlist(strsplit(features, " /// "), use.names = F)
+    features <- unlist(strsplit(features, " /// "), use.names = FALSE)
     gs(features, "\\.[0-9]*$", "")
   })
 
@@ -592,13 +624,13 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
       }
     }
     if (mode == "heatmap") {
-      lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = T)
+      lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = TRUE)
       if (length(unique(from)) > 1 && length(unique(to)) > 1) {
         lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
         lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), theme, "significant correlation")
       }
     } else if (mode == "linear") {
-      lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = F)
+      lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = FALSE)
     }
     x <- .job(params = lst)
     fun <- function(x) length(unique(x))
@@ -611,7 +643,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
     return(x)
   })
 
-.cal_corp.elist <- function(data, anno, use, from, to, names, HLs = NULL, fast = T)
+.cal_corp.elist <- function(data, anno, use, from, to, names, HLs = NULL, fast = TRUE)
 {
   if (is.null(data$rownames)) {
     data <- as_tibble(data)
@@ -627,13 +659,13 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
     function(set) {
       set <- gname(set)
       data <- dplyr::filter(data, symbol %in% dplyr::all_of(set))
-      dplyr::distinct(data, symbol, .keep_all = T)
+      dplyr::distinct(data, symbol, .keep_all = TRUE)
     })
   # heatmap
   if (is.null(names)) {
-    corp <- cal_corp(lst[[1]], lst[[2]], "From", "To", trans = T, fast = fast)
+    corp <- cal_corp(lst[[1]], lst[[2]], "From", "To", trans = TRUE, fast = fast)
   } else {
-    corp <- cal_corp(lst[[1]], lst[[2]], names[[1]], names[[2]], trans = T, fast = fast)
+    corp <- cal_corp(lst[[1]], lst[[2]], names[[1]], names[[2]], trans = TRUE, fast = fast)
   }
   if (fast) {
     sig.corp <- dplyr::filter(tibble::as_tibble(corp), sign != "-")
@@ -666,8 +698,8 @@ setMethod("vis", signature = c(x = "corp"),
       }
       anno <- dplyr::mutate(x, model = lapply(model,
           function(x) {
-            c(j = max(zoRange(x[[ "j" ]], 1.3), na.rm = T),
-              i = min(x[[ "i" ]], na.rm = T))
+            c(j = max(zoRange(x[[ "j" ]], 1.3), na.rm = TRUE),
+              i = min(x[[ "i" ]], na.rm = TRUE))
           }),
         y = vapply(model, function(x) x[[ "j" ]], numeric(1)),
         x = vapply(model, function(x) x[[ "i" ]], numeric(1))
@@ -697,7 +729,7 @@ setMethod("vis", signature = c(x = "corp"),
   })
 
 setMethod("getsub", signature = c(x = "job_limma"),
-  function(x, tnbc = F){
+  function(x, tnbc = FALSE){
     if (tnbc) {
       if (x$isTcga && identical(x$project, "TCGA-BRCA")) {
         cli::cli_alert_info("get_data.rot2016")
@@ -720,7 +752,7 @@ setMethod("getsub", signature = c(x = "job_limma"),
 
 
 expand.cons <- function(...) {
-  apply(expand.grid(...), 1, simplify = T,
+  apply(expand.grid(...), 1, simplify = TRUE,
     function(x){
       paste0(x[1], "-", x[2])
     })
@@ -733,14 +765,14 @@ filter_low.dge <- function(dge, group., min.count = 10, prior.count = 2) {
   cutoff <- log2(min.count / median + 2 / mean)
   ## raw
   raw_dge <- dge
-  raw_dge$counts <- edgeR::cpm(raw_dge, log = T, prior.count = prior.count)
+  raw_dge$counts <- edgeR::cpm(raw_dge, log = TRUE, prior.count = prior.count)
   ## filter
   keep.exprs <- e(edgeR::filterByExpr(dge, group = group., min.count = min.count))
-  pro_dge <- dge <- e(edgeR::`[.DGEList`(dge, keep.exprs, , keep.lib.sizes = F))
-  pro_dge$counts <- e(edgeR::cpm(pro_dge, log = T))
+  pro_dge <- dge <- e(edgeR::`[.DGEList`(dge, keep.exprs, , keep.lib.sizes = FALSE))
+  pro_dge$counts <- e(edgeR::cpm(pro_dge, log = TRUE))
   ## plot
   data <- list(Raw = as_data_long(raw_dge), Filtered = as_data_long(pro_dge))
-  data <- data.table::rbindlist(data, idcol = T)
+  data <- data.table::rbindlist(data, idcol = TRUE)
   data <- dplyr::select(data, .id, sample, value)
   p <- ggplot(data) +
     geom_density(aes(x = value, color = sample), alpha = .7) +
@@ -755,25 +787,25 @@ filter_low.dge <- function(dge, group., min.count = 10, prior.count = 2) {
   dge
 }
 
-norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ..., vis = T,
-  data_type = c("count", "cpm"))
+norm_genes.dge <- function(dge, design, prior.count = 2, ..., vis = TRUE,
+  data_type = c("count", "cpm", "tpm"))
 {
   ## raw
   data_type <- match.arg(data_type)
-  raw_dge <- dge
   if (data_type == "count") {
-    raw_dge$counts <- edgeR::cpm(raw_dge, log = T, prior.count = prior.count)
-  } else if (data_type == "cpm") {
-    raw_dge$counts <- log2(raw_dge$counts)
+    raw_dge <- dge
+    raw_dge$counts <- edgeR::cpm(raw_dge, log = TRUE, prior.count = prior.count)
+    ## pro
+    dge <- e(edgeR::calcNormFactors(dge, method = "TMM"))
+    pro_dge <- dge <- e(limma::voom(dge, design, ...))
+  } else {
+    dge$counts <- log2(dge$counts)
   }
-  ## pro
-  dge <- e(edgeR::calcNormFactors(dge, method = "TMM"))
-  pro_dge <- dge <- fun(dge, design, ...)
   ## data long
-  if (vis) {
+  if (data_type == "count" && vis) {
     cli::cli_alert_info("as_data_long")
     data <- list(Raw = as_data_long(raw_dge), Normalized = as_data_long(pro_dge))
-    data <- data.table::rbindlist(data, idcol = T, fill = T)
+    data <- data.table::rbindlist(data, idcol = TRUE, fill = TRUE)
     data <- dplyr::select(data, .id, sample, value)
     if (length(unique(data$sample)) < 50) {
       p <- ggplot(data) +
@@ -793,7 +825,8 @@ norm_genes.dge <- function(dge, design, prior.count = 2, fun = limma::voom, ...,
   dge
 }
 
-diff_test <- function(x, design, contr = NULL, block = NULL){
+diff_test <- function(x, design, contr = NULL, block = NULL, trend = FALSE)
+{
   if (!is.null(block)){
     dupcor <- e(limma::duplicateCorrelation(x, design, block = block))
     cor <- dupcor$consensus.correlation
@@ -811,7 +844,7 @@ diff_test <- function(x, design, contr = NULL, block = NULL){
     fit <- e(limma::contrasts.fit(fit, contrasts = contr))
   }
   # https://liuyujie0136.gitbook.io/sci-tech-notes/bioinformatics/p-value
-  fit <- e(limma::eBayes(fit))
+  fit <- e(limma::eBayes(fit, trend = trend))
   fit
 }
 
@@ -828,7 +861,7 @@ extract_tops <- function(x, use = "adj.P.Val", use.cut = 0.05, cut.fc = 0.3){
   res
 }
 
-prepare_expr_data <- function(metadata, counts, genes, message = T) 
+prepare_expr_data <- function(metadata, counts, genes, message = TRUE) 
 {
   ## sort and make name for metadata and counts
   checkDup <- function(x) {
@@ -853,11 +886,11 @@ prepare_expr_data <- function(metadata, counts, genes, message = T)
   colnames(counts) %<>% make.names()
   ## sort genes
   data_id <- do.call(data.frame, nl(colnames(genes)[1], list(counts[[1]])))
-  genes <- dplyr::distinct(genes, !!rlang::sym(colnames(genes)[1]), .keep_all = T)
+  genes <- dplyr::distinct(genes, !!rlang::sym(colnames(genes)[1]), .keep_all = TRUE)
   genes <- tbmerge(
     data_id, genes,
     by.x = colnames(data_id)[1], by.y = colnames(genes)[1],
-    sort = F, all.x = T
+    sort = FALSE, all.x = TRUE
   )
   if (ncol(genes) > 1) {
     if (message) {
@@ -876,13 +909,21 @@ prepare_expr_data <- function(metadata, counts, genes, message = T)
   namel(counts, metadata, genes)
 }
 
-new_dge <- function(metadata, counts, genes, message = T)
+new_dge <- function(metadata, counts, genes, message = TRUE)
 {
   lst <- do.call(prepare_expr_data, as.list(environment()))
-  e(edgeR::DGEList(lst$counts, samples = lst$metadata, genes = lst$genes))
+  data <- lst$counts
+  if (any(is.na(data))) {
+    message("NA value detected in maybe 'counts' data, mutate as zero.")
+    data <- dplyr::mutate(data, dplyr::across(dplyr::where(is.numeric), 
+      function(x) {
+        ifelse(is.na(x), 0, x)
+      }))
+  }
+  e(edgeR::DGEList(data, samples = lst$metadata, genes = lst$genes))
 }
 
-new_elist <- function(metadata, counts, genes, message = T)
+new_elist <- function(metadata, counts, genes, message = TRUE)
 {
   lst <- do.call(prepare_expr_data, as.list(environment()))
   elist(list(E = tibble::as_tibble(lst$counts), targets = lst$metadata, genes = lst$genes))

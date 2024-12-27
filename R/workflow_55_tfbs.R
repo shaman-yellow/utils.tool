@@ -36,11 +36,11 @@ setMethod("step1", signature = c(x = "job_tfbs"),
     db <- new_db(db, ".id")
     db <- not(db, object(x))
     if (length(db@query)) {
-      res <- pbapply::pbsapply(db@query, simplify = F,
+      res <- pbapply::pbsapply(db@query, simplify = FALSE,
         function(gene) {
           url <- paste0("https://tfbsdb.systemsbiology.net/searchgene?searchterm=", gene)
           res <- RCurl::getURL(url)
-          res <- try(get_table.html(res), T)
+          res <- try(get_table.html(res), TRUE)
           if (inherits(res, "try-error")) {
             message("\nCan not get results of ", gene, ", continue to next.")
             return()
@@ -52,11 +52,11 @@ setMethod("step1", signature = c(x = "job_tfbs"),
             })
           res$tfbs
         })
-      res <- frbind(res, idcol = T, fill = T)
+      res <- frbind(res, idcol = TRUE, fill = TRUE)
       db <- upd(db, res)
     }
     res <- dplyr::filter(db@db, .id %in% object(x))
-    if (T) {
+    if (TRUE) {
       if (!file.exists(file_anno)) {
         cont <- e(RCurl::getURLContent(
             "https://tfbsdb.systemsbiology.net/static/downloads/humanTFMotifEntrezMappings.xlsx"
@@ -71,11 +71,11 @@ setMethod("step1", signature = c(x = "job_tfbs"),
         db <- not(db, ids)
         if (length(db@query)) {
           message("Need query: ", length(db@query), " (total: ", length(unique(res$Motif)), ")")
-          anno <- pbapply::pbsapply(db@query, simplify = F, cl = cl,
+          anno <- pbapply::pbsapply(db@query, simplify = FALSE, cl = cl,
             function(id) {
               url <- paste0("https://tfbsdb.systemsbiology.net/searchtf?searchterm=", id)
               res <- RCurl::getURL(url)
-              lst <- suppressMessages(try(get_table.html(res, which = 1:2), T))
+              lst <- suppressMessages(try(get_table.html(res, which = 1:2), TRUE))
               if (inherits(lst, "try-error")) {
                 message("Skip: ", id, " as error occurred.")
                 return(data.frame(Symbol = NA_character_))
@@ -89,13 +89,13 @@ setMethod("step1", signature = c(x = "job_tfbs"),
               Sys.sleep(1)
               data.frame(Symbol = strx(des, "^[^ ]+"), des = des)
             })
-          anno <- frbind(anno, idcol = T, fill = T)
+          anno <- frbind(anno, idcol = TRUE, fill = TRUE)
           db <- upd(db, anno)
         }
         anno <- dplyr::filter(db@db, .id %in% ids)
         res$Symbol[ is.na(res$Symbol) ] <- anno$Symbol[match(res$Motif[ is.na(res$Symbol) ], anno$.id)]
       }
-      if (T) {
+      if (TRUE) {
         res$Symbol[ is.na(res$Symbol) ] <- toupper(strx(res$Motif[is.na(res$Symbol)], "[^_]{2,}"))
       }
     }
@@ -110,7 +110,7 @@ setMethod("map", signature = c(x = "job_tfbs", ref = "character"),
   {
     data <- dplyr::select(x@tables$step1$res, target, TF_symbol, Motif, PValue)
     data <- dplyr::mutate(data, PValue = as.double(PValue))
-    data <- split_lapply_rbind(data, seq_len(nrow(data)), args = list(fill = T),
+    data <- split_lapply_rbind(data, seq_len(nrow(data)), args = list(fill = TRUE),
       function(x) {
         if (grpl(x$TF_symbol, "/")) {
           symbols <- strsplit(x$TF_symbol, "/")[[1]]

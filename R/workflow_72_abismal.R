@@ -37,7 +37,7 @@
 #   function(x, wd, postfix = NULL, run_after_cd = NULL, tmpdir = NULL, remote = "remote")
 #   {
 #     x$wd <- wd
-#     x$set_remote <- T
+#     x$set_remote <- TRUE
 #     x$remote <- "remote"
 #     x$map_local <- "abismal_local"
 #     return(x)

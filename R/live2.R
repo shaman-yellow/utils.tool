@@ -11,7 +11,7 @@ kall_index <- function(file, index = .prefix("hg38_mrna.idx", "db")) {
 kall_quant <- function(path, pattern = "[1-2]\\.QC\\.fastq\\.gz$",
   names = unique(gs(list.files(path, pattern), pattern, "")), workers = 7,
   index = .prefix("hg38_mrna.idx", "db"), output_dir = paste0("quant_", get_realname(index)),
-  copy_report = T)
+  copy_report = TRUE)
 {
   if (!file.exists(index)) {
     stop("Please download the cDNA reference file, and use `kall_index` to build the index file.")
@@ -19,7 +19,7 @@ kall_quant <- function(path, pattern = "[1-2]\\.QC\\.fastq\\.gz$",
   if (!length(names)) {
     stop("length(names) == 0")
   }
-  dir.create(paste0(path, "/", output_dir), F)
+  dir.create(paste0(path, "/", output_dir), FALSE)
   pbapply::pblapply(names,
     function(name) {
       i1 <- paste0(name, "1.QC.fastq.gz")
@@ -33,13 +33,13 @@ kall_quant <- function(path, pattern = "[1-2]\\.QC\\.fastq\\.gz$",
       )
     })
   if (copy_report) {
-    file.copy(paste0(path, "/", output_dir), ".", recursive = T)
+    file.copy(paste0(path, "/", output_dir), ".", recursive = TRUE)
   }
   message("Job finished.")
 }
 
 read_kall_quant <- function(path) {
-  files <- list.files(path, "abundance.tsv$", full.names = T, recursive = T)
+  files <- list.files(path, "abundance.tsv$", full.names = TRUE, recursive = TRUE)
   metadata <- data.frame(file = files)
   metadata <- dplyr::mutate(metadata, directory = dirname(file),
     sample = get_realname(directory)
@@ -57,7 +57,7 @@ read_kall_quant <- function(path) {
     })
   counts <- suppressMessages(do.call(dplyr::bind_cols, counts))
   counts <- dplyr::mutate(counts, target_id = gs(target_id, "\\.[0-9]{1,}$", ""))
-  counts <- dplyr::distinct(counts, target_id, .keep_all = T)
+  counts <- dplyr::distinct(counts, target_id, .keep_all = TRUE)
   colnames(counts)[-1] <- metadata$sample
   namel(counts, metadata)
 }
@@ -86,7 +86,7 @@ setMethod("group", signature = c(x = "fasta"),
         n %/% 2
       })
     x <- unname(split(x, group))
-    x <- grouping_vec2list(x, each, T)
+    x <- grouping_vec2list(x, each, TRUE)
     x <- lapply(x,
       function(x) {
         .fasta(unlist(x))
@@ -102,7 +102,7 @@ setGeneric("Read",
 
 setMethod("write", signature = c(x = "fasta"),
   function(x, name, max = 500, dir = "fasta") {
-    dir.create(dir, F)
+    dir.create(dir, FALSE)
     if (is.null(max)) {
       file <- paste0(dir, "/", name, ".fasta")
       writeLines(gs(as.character(x), "\\*$", ""), file)
@@ -129,20 +129,20 @@ setMethod("write", signature = c(x = "grob.obj"),
 
 setMethod("Read", signature = c(x = "fasta"),
   function(x){
-    lst <- sep_list(as.character(x), "^>", T)
+    lst <- sep_list(as.character(x), "^>", TRUE)
     res <- lapply(lst, function(x) x[-1])
     names(res) <- gs(vapply(lst, function(x) x[1], character(1)), "^>", "")
     return(res)
   })
 
-get_seq.pro <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol", to = "peptide") {
+get_seq.pro <- function(ids, mart, unique = TRUE, fasta = TRUE, from = "hgnc_symbol", to = "peptide") {
   ids <- unique(ids)
   data <- e(biomaRt::getSequence(id = ids, type = from, seqType = to, mart = mart))
   data <- filter(data, !grepl("unavailable", !!rlang::sym(to)))
   if (unique) {
     data <- dplyr::mutate(data, long = nchar(!!rlang::sym(to)))
     data <- dplyr::arrange(data, dplyr::desc(long))
-    data <- dplyr::distinct(data, hgnc_symbol, .keep_all = T)
+    data <- dplyr::distinct(data, hgnc_symbol, .keep_all = TRUE)
   }
   if (fasta) {
     fasta <- apply(data, 1,
@@ -156,7 +156,7 @@ get_seq.pro <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol", 
   }
 }
 
-get_seq.rna <- function(ids, mart, unique = T, fasta = T, from = "hgnc_symbol",
+get_seq.rna <- function(ids, mart, unique = TRUE, fasta = TRUE, from = "hgnc_symbol",
   to = c("gene_exon_intron", "coding"))
 {
   # mrefseq <- biomaRt::getSequence(id = "NM_001621", type = "refseq_mrna", seqType = "coding", mart = mart)
@@ -201,7 +201,7 @@ gtitle <- function(grob, title, fill = "#E18727FF") {
 setValidity("column", 
   function(object){
     allif <- vapply(object, function(x) is(x, "fig_frame"), logical(1))
-    if (all(allif)) T else stop("Object must be 'fig_frame'.")
+    if (all(allif)) TRUE else stop("Object must be 'fig_frame'.")
   })
 
 .columns <- setClass("columns", 
@@ -214,7 +214,7 @@ setValidity("column",
 setValidity("columns", 
   function(object){
     allif <- vapply(object, function(x) is(x, "column"), logical(1))
-    if (all(allif)) T else stop("Object must be 'column'.")
+    if (all(allif)) TRUE else stop("Object must be 'column'.")
   })
 
 setMethod("show", signature = c(object = "column"),
@@ -253,7 +253,7 @@ setMethod("show", signature = c(object = "figs_frame"),
 
 new_fig_frame <- function(file) {
   if (!file.exists(file))
-    stop("file.exists(file) == F")
+    stop("file.exists(file) == FALSE")
   if (grepl("pdf$", file))
     info <- pdftools::pdf_pagesize(file)
   else if (grepl("png$", file)) {
@@ -319,7 +319,7 @@ setMethod("render", signature = c(x = "columns"),
     system(paste0(engine, " ", name))
     path <- get_savedir("figs")
     files <- list.files(".", tools::file_path_sans_ext(name))
-    file.copy(files, path, T)
+    file.copy(files, path, TRUE)
     file.remove(files)
     res <- paste0(path, "/", gs(name, ".tex$", ".pdf"))
     res <- .file_fig(res)
@@ -355,7 +355,7 @@ setGeneric("astex",
 setMethod("astex", signature = c(x = "columns"),
   function(x, width = 20, fun_head = pictureMergeHead){
     head <- fun_head(width, width * x@rel.height)
-    contents <- unlist(mapply(astex, x, x@rel.cl.widths, SIMPLIFY = F))
+    contents <- unlist(mapply(astex, x, x@rel.cl.widths, SIMPLIFY = FALSE))
     c(head, "", "\\begin{document}", "",
       "\\begin{figure}[htb]\\centering", "",
       contents, "",
@@ -447,7 +447,7 @@ setMethod("re", signature = c(x = "character"),
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 extract_info_from_mail <- function(path = "mail/cur",
-  file = list.files(path, full.names = T)[1])
+  file = list.files(path, full.names = TRUE)[1])
 {
   lines <- readLines(file)
   head <- head(lines, head.pos <- grep("^\\s*$", lines)[1])

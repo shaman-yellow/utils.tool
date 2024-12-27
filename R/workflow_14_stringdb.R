@@ -52,9 +52,9 @@ setMethod("step0", signature = c(x = "job_stringdb"),
 setMethod("step1", signature = c(x = "job_stringdb"),
   function(x, tops = 30, layout = "kk", species = 9606,
     network_type = "phy", input_directory = .prefix("stringdb_physical_v12.0", name = "db"),
-    version = "12.0", label = F, HLs = NULL, use.anno = T,
+    version = "12.0", label = FALSE, HLs = NULL, use.anno = TRUE,
     file_anno = .prefix("stringdb_physical_v12.0/9606.protein.physical.links.full.v12.0.txt.gz", name = "db"),
-    filter.exp = 0, filter.text = 0, MCC = F)
+    filter.exp = 0, filter.text = 0, MCC = FALSE)
   {
     step_message("Create PPI network.")
     x$network_type <- network_type <- match.arg(network_type, c("physical", "full"))
@@ -83,22 +83,22 @@ setMethod("step1", signature = c(x = "job_stringdb"),
       graph <- x@params$graph 
     }
     edges <- as_tibble(igraph::as_data_frame(res.str$graph))
-    edges <- dplyr::distinct(edges, from, to, .keep_all = T)
+    edges <- dplyr::distinct(edges, from, to, .keep_all = TRUE)
     if (species == 9606) {
       message("`use.anno` not available for non hsa.")
-      use.anno <- F
+      use.anno <- FALSE
     }
     if (use.anno) {
       message("Get PPI annotation from:\n\t", file_anno)
       anno <- ftibble(file_anno)
       edges <- tbmerge(edges[, 1:2], anno, by.x = c("from", "to"), by.y = paste0("protein", 1:2),
-        all.x = T, sort = F)
+        all.x = TRUE, sort = FALSE)
       if (filter.exp || filter.text) {
         edges <- dplyr::filter(edges, experiments >= !!filter.exp, textmining >= !!filter.text)
       }
     }
-    edges <- map(edges, "from", res.str$mapped, "STRING_id", "Symbol", rename = F)
-    edges <- map(edges, "to", res.str$mapped, "STRING_id", "Symbol", rename = F)
+    edges <- map(edges, "from", res.str$mapped, "STRING_id", "Symbol", rename = FALSE)
+    edges <- map(edges, "to", res.str$mapped, "STRING_id", "Symbol", rename = FALSE)
     des_edges <- list("STRINGdb network type:" = match.arg(network_type, c("physical", "full")))
     if (use.anno) {
       des_edges <- c(des_edges,
@@ -117,9 +117,9 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     }
     ## hub genes
     message("Calculate MCC score.")
-    hub_genes <- cal_mcc.str(res.str, "Symbol", F, MCC = MCC)
+    hub_genes <- cal_mcc.str(res.str, "Symbol", FALSE, MCC = MCC)
     graph_mcc <- get_subgraph.mcc(res.str$graph, hub_genes, top = tops)
-    x$graph_mcc <- graph_mcc <- fast_layout(graph_mcc, layout = "linear", circular = T)
+    x$graph_mcc <- graph_mcc <- fast_layout(graph_mcc, layout = "linear", circular = TRUE)
     p.mcc <- plot_networkFill.str(graph_mcc, label = "Symbol", HLs = HLs)
     p.mcc <- .set_lab(wrap(p.mcc), sig(x), paste0("Top", tops, " MCC score"))
     x@plots[[1]] <- namel(p.ppi, p.mcc)
@@ -137,9 +137,9 @@ setMethod("filter", signature = c(x = "job_stringdb"),
     lab.fill = "log2FC",
     ## this top is used for 'from' or 'to'
     top = 10, use.top = c("from", "to"),
-    top_in = NULL, keep.ref = if (is.null(top)) T else F,
-    keep_extra_link = T, show.mcc = F,
-    arrow = T, ...)
+    top_in = NULL, keep.ref = if (is.null(top)) TRUE else FALSE,
+    keep_extra_link = TRUE, show.mcc = FALSE,
+    arrow = TRUE, ...)
   {
     message("Search and filter: ref.x in from, ref.y in to; or, reverse.")
     use.top <- match.arg(use.top)
@@ -153,7 +153,7 @@ setMethod("filter", signature = c(x = "job_stringdb"),
         (from %in% ref.x & to %in% ref.y) | (from %in% ref.y & to %in% ref.x)
       )  
     }
-    data <- dplyr::mutate(data, needRev = ifelse(from %in% ref.x, F, T))
+    data <- dplyr::mutate(data, needRev = ifelse(from %in% ref.x, FALSE, TRUE))
     data <- apply(data, 1,
       function(x) {
         if (x[[ "needRev" ]]) {
@@ -204,15 +204,15 @@ setMethod("filter", signature = c(x = "job_stringdb"),
         edges <- dplyr::filter(edges, !!rlang::sym(use.top) %in% tops$name)
       }
       nodes <- dplyr::slice(nodes, c(which(name %in% ref.x), which(name %in% ref.y)))
-      nodes <- dplyr::distinct(nodes, name, .keep_all = T)
+      nodes <- dplyr::distinct(nodes, name, .keep_all = TRUE)
       if (keep_extra_link) {
         extras <- dplyr::filter(all_edges, from %in% nodes$name & to %in% nodes$name)
         edges <- dplyr::bind_rows(edges, extras)
       }
       graph <- igraph::graph_from_data_frame(edges, vertices = nodes)
-      graph <- fast_layout(graph, layout = "linear", circular = T)
+      graph <- fast_layout(graph, layout = "linear", circular = TRUE)
       p.mcc <- plot_networkFill.str(graph, label = "name",
-        arrow = arrow, shape = T,
+        arrow = arrow, shape = TRUE,
         levels = level.x,
         lab.fill = if (is.null(level.x)) "MCC score" else "Log2(FC)",
         netType = x$network_type, ...
@@ -271,7 +271,7 @@ new_stringdb <- function(
   ))
 }
 
-create_interGraph <- function(sdb, data, col = "name", rm.na = T) {
+create_interGraph <- function(sdb, data, col = "name", rm.na = TRUE) {
   cli::cli_alert_info("sdb$map")
   mapped <- sdb$map(data.frame(data), col, removeUnmappedRows = rm.na)
   message()
@@ -284,7 +284,7 @@ fast_layout.str <- function(res.str, sdb, layout = "fr", seed = runif(1, max = 1
   ## get annotation
   target <- paste0(sdb$input_directory, "/", sdb$species, ".protein.info.v",
     sdb$version, ".txt")
-  dir.create(dir <- paste0(sdb$input_directory, "/temp"), F)
+  dir.create(dir <- paste0(sdb$input_directory, "/temp"), FALSE)
   if (!file.exists(file <- paste0(dir, "/", basename(target)))) {
     file.copy(gfile <- paste0(target, ".gz"), dir)
     R.utils::gunzip(paste0(file, ".gz"))
@@ -313,11 +313,11 @@ dedup.edges <- function(igraph){
   add_attr.igraph(igraph)
 }
 
-add_attr.igraph <- function(igraph, data, by.x = "name", by.y, dedup.edges = T)
+add_attr.igraph <- function(igraph, data, by.x = "name", by.y, dedup.edges = TRUE)
 {
   comps <- igraph::as_data_frame(igraph, "both")
   if (!missing(data)) {
-    nodes <- merge(comps$vertices, data, by.x = by.x, by.y = by.y, all.x = T)
+    nodes <- merge(comps$vertices, data, by.x = by.x, by.y = by.y, all.x = TRUE)
   } else {
     nodes <- comps$vertices
   }
@@ -330,13 +330,13 @@ add_attr.igraph <- function(igraph, data, by.x = "name", by.y, dedup.edges = T)
   igraph
 }
 
-output_graph <- function(igraph, file, format = "graphml", toCyDir = T) {
+output_graph <- function(igraph, file, format = "graphml", toCyDir = TRUE) {
   igraph::write_graph(igraph, file, format = format)
 }
 
 plot_network.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   label.size = 4, sc = 5, ec = 5, 
-  arr.len = 2, edge.color = 'grey70', edge.width = .4, label = F)
+  arr.len = 2, edge.color = 'grey70', edge.width = .4, label = FALSE)
 {
   if (label) {
     layer.nodes <- geom_node_label(aes(label = preferred_name), size = label.size)
@@ -358,7 +358,7 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   label.size = 4, node.size = 12, sc = 5, ec = 5, 
   arr.len = 2, edge.color = NULL, edge.width = 1,
   lab.fill = if (is.null(levels)) "MCC score" else "Levels",
-  label = "genes", HLs = NULL, arrow = F, shape = F, levels = NULL,
+  label = "genes", HLs = NULL, arrow = FALSE, shape = FALSE, levels = NULL,
   label.shape = c(from = "from", to = "to"), netType = c("physical", "full"), ...)
 {
   dataNodes <- ggraph::get_nodes()(graph)
@@ -370,7 +370,7 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   } else {
     fill <- "Levels"
     if (!is.data.frame(levels)) {
-      stop("!is.data.frame(levels) == F")
+      stop("!is.data.frame(levels) == FALSE")
     }
     message("The first and second columns of `levels` were used as name and levels.")
     dataNodes <- map(tibble::tibble(dataNodes), "name",
@@ -420,9 +420,9 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   p
 } 
 
-cal_mcc.str <- function(res.str, name = "name", rename = T, ...){
+cal_mcc.str <- function(res.str, name = "name", rename = TRUE, ...){
   hubs_score <- cal_mcc(res.str$graph, ...)
-  hubs_score <- tbmerge(res.str$mapped, hubs_score, by.x = "STRING_id", by.y = "name", all.x = T)
+  hubs_score <- tbmerge(res.str$mapped, hubs_score, by.x = "STRING_id", by.y = "name", all.x = TRUE)
   hubs_score <- dplyr::relocate(hubs_score, !!rlang::sym(name), MCC_score)
   hubs_score <- dplyr::arrange(hubs_score, dplyr::desc(MCC_score))
   if (rename)
@@ -430,23 +430,23 @@ cal_mcc.str <- function(res.str, name = "name", rename = T, ...){
   hubs_score
 }
 
-cal_mcc <- function(edges, MCC = T)
+cal_mcc <- function(edges, MCC = TRUE)
 {
   if (is(edges, "igraph")) {
     igraph <- edges
     edges <- igraph::as_data_frame(edges, "edges")
   } else if (is(edges, "data.frame")) {
-    igraph <- igraph::graph_from_data_frame(edges, F)
+    igraph <- igraph::graph_from_data_frame(edges, FALSE)
   }
   nodes <- unique(unlist(c(edges[, 1], edges[ , 2])))
   if (MCC) {
     maxCliques <- igraph::max_cliques(igraph)
-    scores <- vapply(nodes, FUN.VALUE = double(1), USE.NAMES = F,
+    scores <- vapply(nodes, FUN.VALUE = double(1), USE.NAMES = FALSE,
       function(node) {
-        if.contains <- vapply(maxCliques, FUN.VALUE = logical(1), USE.NAMES = F,
+        if.contains <- vapply(maxCliques, FUN.VALUE = logical(1), USE.NAMES = FALSE,
           function(clique) {
             members <- attributes(clique)$names
-            if (any(members == node)) T else F
+            if (any(members == node)) TRUE else FALSE
           })
         in.cliques <- maxCliques[ if.contains ]
         scores <- vapply(in.cliques, FUN.VALUE = double(1),
@@ -476,10 +476,10 @@ get_subgraph.mcc <- function(igraph, resMcc, top = 10)
   tops <- head(tops$STRING_id, n = top)
   data <- igraph::as_data_frame(igraph, "both")
   nodes <- dplyr::filter(data$vertices, name %in% !!tops)
-  nodes <- merge(nodes, resMcc, by.x = "name", by.y = "STRING_id", all.x = T)
+  nodes <- merge(nodes, resMcc, by.x = "name", by.y = "STRING_id", all.x = TRUE)
   edges <- dplyr::filter(data$edges, (from %in% !!tops) & (to %in% !!tops))
-  nodes <- dplyr::distinct(nodes, name, .keep_all = T)
-  igraph <- igraph::graph_from_data_frame(edges, F, nodes)
+  nodes <- dplyr::distinct(nodes, name, .keep_all = TRUE)
+  igraph <- igraph::graph_from_data_frame(edges, FALSE, nodes)
   igraph <- dedup.edges(igraph)
   igraph
 }
@@ -501,6 +501,6 @@ getBelong_edges <- function(edges) {
   links.db <- rbind(edges, edges.rev)
   lst.belong <- split(links.db, unlist(links.db[, 1]))
   lst.belong <- lapply(lst.belong,
-    function(data) unlist(data[, 2], use.names = F))
+    function(data) unlist(data[, 2], use.names = FALSE))
   lst.belong
 }

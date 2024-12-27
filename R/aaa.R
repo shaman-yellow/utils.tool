@@ -5,7 +5,7 @@
 setFakeClasses <- function(classes) {
   lapply(classes,
     function(name) {
-      if (inherits(try(getClass(name, where = .GlobalEnv), silent = T), "try-error")) {
+      if (inherits(try(getClass(name, where = .GlobalEnv), silent = TRUE), "try-error")) {
         suppressWarnings(setClass(name, where = topenv()))
       }
     })
@@ -61,7 +61,7 @@ reCallMethod <- function(funName, args, ...){
     args.missing <- !arg.order %in% names(args)
     if (any(args.missing)) {
       args.missing <- arg.order[args.missing]
-      args.missing <- sapply(args.missing, simplify = F,
+      args.missing <- sapply(args.missing, simplify = FALSE,
                              function(x) structure(0L, class = "missing"))
       args <- c(args, args.missing)
     }
@@ -70,7 +70,7 @@ reCallMethod <- function(funName, args, ...){
     method <- selectMethod(funName, sig)
     last_fun <- sys.function(sys.parent())
     n <- 0
-    while (identical(last_fun, method@.Data, ignore.environment = T)) {
+    while (identical(last_fun, method@.Data, ignore.environment = TRUE)) {
       if (n == 0) {
         mlist <- getMethodsForDispatch(getGeneric(funName))
       }
@@ -93,9 +93,9 @@ get_signature <- function(args){
 .fresh_param <- function(default, args){
     if (missing(args))
       args <- as.list(parent.frame())
-    args <- args[ !vapply(args, is.name, T) ]
+    args <- args[ !vapply(args, is.name, TRUE) ]
     sapply(unique(c(names(default), names(args))),
-           simplify = F,
+           simplify = FALSE,
            function(name){
              if (any(name == names(args)))
                args[[ name ]]
@@ -135,7 +135,7 @@ get_signature <- function(args){
   }
 
 .suggest_bio_package <- function(pkg){
-    if (!requireNamespace(pkg, quietly = T))
+    if (!requireNamespace(pkg, quietly = TRUE))
       stop("package '", pkg, "' not installed. use folloing to install:\n",
            '\nif (!require("BiocManager", quietly = TRUE))',
            '\n\tinstall.packages("BiocManager")',
@@ -172,7 +172,7 @@ op <- function(file) {
 #' @description \code{fill_list}: ...
 #' @rdname utilites
 fill_list <- function(names, vec, default = vec[1]) {
-  .as_dic(vec, names, default, fill = T, as.list = F, na.rm = F)
+  .as_dic(vec, names, default, fill = TRUE, as.list = FALSE, na.rm = FALSE)
 }
 
 #' @export n
@@ -250,7 +250,7 @@ repSuffix <-
 .onLoad <- function(libname, pkgname) {
   .expath()
   .expathsvg()
-  if (requireNamespace("rsvg", quietly = T)) {
+  if (requireNamespace("rsvg", quietly = TRUE)) {
     .check_external_svg()
   }
 }
@@ -263,7 +263,7 @@ agroup <- function(group, value, FUN.VALUE = character(1)) {
   ug <- unique(group)
   if (length(ug) > length(value))
     stop( "the length of 'value' not enough to assign" )
-  dic <- .as_dic(value, ug, fill = F, na.rm = F)
+  dic <- .as_dic(value, ug, fill = FALSE, na.rm = FALSE)
   vapply(group, function(g) dic[[g]], FUN.VALUE)
 }
 
@@ -272,9 +272,9 @@ agroup <- function(group, value, FUN.VALUE = character(1)) {
 #' @description \code{write_tsv}: ...
 #' @rdname utilites
 write_tsv <-
-  function(x, filename, col.names = T, row.names = F){
+  function(x, filename, col.names = TRUE, row.names = FALSE){
     write.table(x, file = filename, sep = "\t",
-                col.names = col.names, row.names = row.names, quote = F)
+                col.names = col.names, row.names = row.names, quote = FALSE)
   }
 
 #' @export read_tsv
@@ -283,7 +283,7 @@ write_tsv <-
 #' @rdname utilites
 read_tsv <- function(path){
   file <- data.table::fread(input = path, sep = "\t",
-                            header = T, quote = "", check.names = F)
+                            header = TRUE, quote = "", check.names = FALSE)
   return(file)
 }
 
@@ -296,14 +296,14 @@ mapply_rename_col <-
            mutate_set,
            replace_set,
            names,
-           fixed = F
+           fixed = FALSE
            ){
     envir <- environment()
     mapply(mutate_set, replace_set,
            MoreArgs = list(envir = envir, fixed = fixed),
            FUN = function(mutate, replace, envir,
-                          fixed = F, names = get("names", envir = envir)){
-             names <- gsub(mutate, replace, names, perl = ifelse(fixed, F, T), fixed = fixed)
+                          fixed = FALSE, names = get("names", envir = envir)){
+             names <- gsub(mutate, replace, names, perl = ifelse(fixed, FALSE, TRUE), fixed = fixed)
              assign("names", names, envir = envir)
            })
     return(names)
@@ -326,7 +326,7 @@ turn_vector <- function(vec) {
 #' @rdname utilites
 group_switch <- function(data, meta.lst, by) {
   if (!is.character(data[[ by ]]))
-    stop( "is.character(data[[ by ]]) == F" )
+    stop( "is.character(data[[ by ]]) == FALSE" )
   meta <- unlist(meta.lst)
   names(meta) <- rep(names(meta.lst), lengths(meta.lst))
   meta <- as.list(turn_vector(meta))
@@ -364,7 +364,7 @@ group_strings <- function(strings, patterns, target = NA){
 #' @rdname utilites
 .find_and_sort_strings <- function(strings, patterns, ...)
 {
-  sapply(patterns, simplify = F,
+  sapply(patterns, simplify = FALSE,
     function(pattern){
       strings[grepl(pattern, strings, ...)]
     })
@@ -425,9 +425,9 @@ eg <- data.frame(x = sample(1:10, 10), y = sample(1:10, 10), z = sample(1:10, 10
 eg2 <- data.frame(a = sample(1:10, 10), b = sample(1:10, 10), c = sample(1:10, 10))
 
 textSh <- function(..., sep = "", exdent = 4, ending = "\n",
-           pre_collapse = F, collapse = "\n",
-           pre_trunc = T, trunc_width = 200,
-           pre_wrap = T, wrap_width = 60){
+           pre_collapse = FALSE, collapse = "\n",
+           pre_trunc = TRUE, trunc_width = 200,
+           pre_wrap = TRUE, wrap_width = 60){
     text <- list(...)
     if (pre_collapse) {
       text <- vapply(text, paste, "ch", collapse = collapse)
@@ -440,7 +440,7 @@ textSh <- function(..., sep = "", exdent = 4, ending = "\n",
       text <- paste0(strwrap(text, width = wrap_width), collapse = "\n")
     }
     exdent <- paste0(rep(" ", exdent), collapse = "")
-    writeLines(gsub("(?<=\n)|(?<=^)", exdent, text, perl = T))
+    writeLines(gsub("(?<=\n)|(?<=^)", exdent, text, perl = TRUE))
     if (!is.null(ending))
       cat(ending)
   }
@@ -464,11 +464,11 @@ prefix <- c()
 
 #' @export .check_external_svg
 .check_external_svg <- function(){
-  files <- list.files(.expathsvg, "\\.svg$", full.names = T)
+  files <- list.files(.expathsvg, "\\.svg$", full.names = TRUE)
   log.path <- file.path(.expathsvg, "log")
   if (file.exists(log.path)) {
     log <- readLines(log.path)
-    log <- log[vapply(log, file.exists, T)]
+    log <- log[vapply(log, file.exists, TRUE)]
   } else {
     log <- c()
   }
@@ -494,7 +494,7 @@ ex_grob <- function(name, fun = .cairosvg_to_grob){
   if (file.exists(file)) {
     fun(file)
   } else {
-    stop("file.exsits(file) == F")
+    stop("file.exsits(file) == FALSE")
   }
 }
 
@@ -520,7 +520,7 @@ slots_mapply <- function(x, fun, ...){
     return(res)
   }
 
-spacing <- space <- function(env = .GlobalEnv, all.names = T) {
+spacing <- space <- function(env = .GlobalEnv, all.names = TRUE) {
   names <- ls(envir = env, all.names = all.names)
   info <- vapply(names, FUN.VALUE = character(1),
     function(name) {
@@ -626,7 +626,7 @@ wgcna_colors <- function() {
     "gold1")
 }
 
-color_set <- function(more = F) {
+color_set <- function(more = FALSE) {
   shiny <- c("#9EDAE5FF", "#DBDB8DFF", "#F7B6D2FF", "#C49C94FF", "#C5B0D5FF", "#FF9896FF",
     "#98DF8AFF", "#FFBB78FF", "#AEC7E8FF", "#17BECFFF", "#BCBD22FF", "#7F7F7FFF",
     "#E377C2FF", "#8C564BFF", "#9467BDFF", "#D62728FF", "#2CA02CFF", "#FF7F0EFF",
@@ -651,7 +651,7 @@ color_gradient <- function() {
     "#2166ACFF", "#053061FF")
 }
 
-fun_color <- function(from = -1, to = 1, sample = T, category = c("div", "seq"),
+fun_color <- function(from = -1, to = 1, sample = TRUE, category = c("div", "seq"),
   values = NULL)
 {
   if (!is.null(values)) {
@@ -672,14 +672,14 @@ fun_color <- function(from = -1, to = 1, sample = T, category = c("div", "seq"),
   circlize::colorRamp2(seq(from, to, length.out = max), colors)
 }
 
-draw_smile <- function(smile, file, pdf = T) {
+draw_smile <- function(smile, file, pdf = TRUE) {
   file <- .smiles_to_cairosvg(smile, file, pdf)
   .file_fig(file)
 }
 
 #' @importFrom ChemmineOB convertToImage
 #' @importFrom rsvg rsvg_svg
-.smiles_to_cairosvg <- function(smile, path, pdf = F){
+.smiles_to_cairosvg <- function(smile, path, pdf = FALSE){
   ChemmineOB::convertToImage("SMI", "SVG", source = smile, toFile = path)
   if (pdf) {
     rsvg::rsvg_pdf(path, file <- gs(path, "\\.svg$", ".pdf"))
@@ -692,7 +692,7 @@ draw_smile <- function(smile, file, pdf = T) {
 
 
 .get_legend <- function(p){
-  obj <- cowplot::get_plot_component(p, "guide-box", T)
+  obj <- cowplot::get_plot_component(p, "guide-box", TRUE)
   obj[ vapply(obj, function(x) is(x, "gtable"), logical(1)) ][[ 1 ]]
   # p <- ggplot2:::ggplot_build.ggplot(p)$plot
   # theme <- ggplot2:::plot_theme(p)
@@ -740,7 +740,7 @@ bind <- function(..., co = ", ", quote = FALSE) {
 }
 
 collate_common_function <- function(package, freq = 10) {
-  codes <- lapply(list.files(package, "\\.R$", full.names = T), readLines)
+  codes <- lapply(list.files(package, "\\.R$", full.names = TRUE), readLines)
   codes <- stringr::str_extract_all(unlist(codes), "(?<!=::)[a-zA-Z0-9_.]*(?=\\()")
   codes <- table(unlist(codes))
   codes <- names(codes[ codes > freq ])

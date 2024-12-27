@@ -57,8 +57,8 @@ plot_EIC_stack <-
       )
       feature <- dplyr::group_by(feature, .features_id, mz, rt, sub.type)
       feature <- dplyr::summarize(
-        feature, sub.type.min = min(time, na.rm = T),
-        sub.type.max = max(time, na.rm = T),
+        feature, sub.type.min = min(time, na.rm = TRUE),
+        sub.type.max = max(time, na.rm = TRUE),
         .groups = "drop_last"
       )
       feature <- dplyr::mutate(
@@ -97,18 +97,18 @@ plot_EIC_stack <-
               data.frame(real.time = rt, int = int)
             })
           names(data.list) <- metadata$sample
-          df <- data.table::rbindlist(data.list, idcol = T)
+          df <- data.table::rbindlist(data.list, idcol = TRUE)
           df <- dplyr::rename(df, sample = .id)
           dplyr::mutate(df, .features_id = vec[[".features_id"]])
         })
       ## define whether the peak belong to the feature
       eic.df <- data.table::rbindlist(eic.list)
       eic.df <- merge(
-        eic.df, feature.rt.during, by = c(".features_id", "sample"), allow.cartesian = T
+        eic.df, feature.rt.during, by = c(".features_id", "sample"), allow.cartesian = TRUE
       )
       eic.df <- dplyr::select(eic.df, -type)
       eic.df <- tidyr::spread(eic.df, key = sub.type, value = time)
-      eic.df <- merge(eic.df, metadata, by = "sample", all.x = T)
+      eic.df <- merge(eic.df, metadata, by = "sample", all.x = TRUE)
       eic.df <- dplyr::mutate(
         eic.df, real.time.min = real.time / 60,
         feature = ifelse(real.time.min >= start & real.time.min <= end,
@@ -123,8 +123,8 @@ plot_EIC_stack <-
       anno <- dplyr::select(eic.df, .features_id, int, real.time.min, contains("anno"))
       anno <- dplyr::group_by(anno, .features_id)
       anno <- dplyr::summarize(
-        anno, anno.x = min(real.time.min, na.rm = T),
-        anno.y = max(int, na.rm = T) * 3 / 4,
+        anno, anno.x = min(real.time.min, na.rm = TRUE),
+        anno.y = max(int, na.rm = TRUE) * 3 / 4,
         anno = unique(anno)
       )
       data <- list(eic.df = eic.df, anno = anno)

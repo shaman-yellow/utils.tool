@@ -39,7 +39,7 @@ setMethod("step1", signature = c(x = "job_pubchemr"),
     synonyms <- e(PubChemR::get_synonyms(object(x)))
     synonyms <- e(PubChemR::synonyms(synonyms))
     props <- e(PubChemR::get_properties(c("IsomericSMILES", "InChIKey"), object(x)))
-    props <- e(PubChemR::retrieve(props, .combine.all = T, .to.data.frame = F))
+    props <- e(PubChemR::retrieve(props, .combine.all = TRUE, .to.data.frame = FALSE))
     fun_format <- function(x, get) {
       names <- vapply(x, function(x) x[[ "CID" ]], numeric(1))
       x <- lapply(x,
@@ -71,7 +71,7 @@ setMethod("filter", signature = c(x = "job_pubchemr"),
   })
 
 setMethod("map", signature = c(x = "job_pubchemr", ref = "character"),
-  function(x, ref, extra = NULL, only = T){
+  function(x, ref, extra = NULL, only = TRUE){
     names <- c(unique(ref), extra)
     names <- tolower(names)
     finds <- lapply(x$synonyms,
@@ -92,7 +92,7 @@ setMethod("map", signature = c(x = "job_pubchemr", ref = "character"),
   })
 
 setMethod("map", signature = c(x = "job_tcmsp", ref = "job_pubchemr"),
-  function(x, ref, name_recode = NULL, filter = T, merge = T)
+  function(x, ref, name_recode = NULL, filter = TRUE, merge = TRUE)
   {
     if (x@step < 2L) {
       stop("x@step < 2L")
@@ -128,7 +128,7 @@ batch_get_cids.sids <- function(x, cl = NULL, sleep = .1) {
     message("Invalid SID detected, remove that.")
     querys <- querys[ !is.na(as.integer(querys)) ]
   }
-  groups <- grouping_vec2list(querys, 100, T)
+  groups <- grouping_vec2list(querys, 100, TRUE)
   url_base <- "https://pubchem.ncbi.nlm.nih.gov/rest/pug/substance/sid/"
   getType <- "/cids/JSON"
   res <- pbapply::pblapply(groups, cl = cl,
@@ -148,7 +148,7 @@ batch_get_cids.sids <- function(x, cl = NULL, sleep = .1) {
 try_get_cids.name <- function(name) {
   db <- PubChemR::get_cids(name)
   db <- PubChemR::CIDs(db)
-  db <- dplyr::distinct(db, Identifier, .keep_all = T)
+  db <- dplyr::distinct(db, Identifier, .keep_all = TRUE)
   db <- dplyr::mutate(db, CID = ifelse(grpl(CID, "^No"), NA_integer_, as.integer(CID)))
   db
 }
@@ -187,5 +187,5 @@ try_get_cids <- function(querys, ..., max = 20L)
         PubChemR::CIDs(data)
       }
     })
-  frbind(res, fill = T)
+  frbind(res, fill = TRUE)
 }

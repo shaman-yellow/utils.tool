@@ -21,7 +21,7 @@
 job_bindingdb <- function(file_db = .prefix("BindingDB_All_202401.tsv", "db"))
 {
   if (!file.exists(file_db)) {
-    stop("file.exists(file_db) == F")
+    stop("file.exists(file_db) == FALSE")
   }
   index <- ld_cutRead(file_db, c("PubChem CID", "UniProt (SwissProt) Primary ID of Target Chain"))
   colnames(index) %<>% strx("[^ ]+")

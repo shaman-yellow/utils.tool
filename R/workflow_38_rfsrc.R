@@ -28,7 +28,7 @@ setGeneric("asjob_rfsrc", group = list("asjob_series"),
 
 setMethod("asjob_rfsrc", signature = c(x = "job_maf"),
   function(x){
-    data <- e(maftools::genesToBarcodes(object(x), object(x)@gene.summary[[1]], justNames = T))
+    data <- e(maftools::genesToBarcodes(object(x), object(x)@gene.summary[[1]], justNames = TRUE))
     data <- as_tibble(as_df.lst(data))
     data <- dplyr::mutate(data, value = 1L)
     data <- e(tidyr::spread(data, type, value))

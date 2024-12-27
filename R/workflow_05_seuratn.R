@@ -63,18 +63,18 @@ setMethod("step1", signature = c(x = "job_seuratn"),
           }
           return(obj)
         }))
-    fakeRNAassayFromSpatial <- F
+    fakeRNAassayFromSpatial <- FALSE
     object(x) <- e(lapply(object(x),
         function(x) {
           if (any(names(x@assays) == "Spatial")) {
             # https://github.com/satijalab/seurat/issues/8216
             message("Due to issue, copy 'Spatial' to 'RNA'.")
             x[["RNA"]] <- x[["Spatial"]]
-            fakeRNAassayFromSpatial <<- T
+            fakeRNAassayFromSpatial <<- TRUE
           }
           if (!any(names(x@assays) == "SCT")) {
             Seurat::SCTransform(x,
-              method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = T,
+              method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = TRUE,
               assay = x@active.assay
             )
           } else x

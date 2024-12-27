@@ -27,7 +27,7 @@ query_inchikey <- function(
   dir,
   rdata.name = "inchikey.rdata",
   curl_cl = NULL,
-  gather_as_rdata = T,
+  gather_as_rdata = TRUE,
   ...)
 {
   rdata <- paste0(dir, "/", rdata.name)
@@ -74,7 +74,7 @@ pubchem_get_inchikey <- function(
   url = paste0(url_start, "/", inchikey2d, "/", url_end)
   check <- 0
   while(check == 0 | inherits(check, "try-error")){
-    check <- try(csv <- RCurl::getURL(url), silent = T)
+    check <- try(csv <- RCurl::getURL(url), silent = TRUE)
   }
   if(grepl("Status: 404", csv)){
     write_tsv(csv, file = file)

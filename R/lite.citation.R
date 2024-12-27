@@ -6,11 +6,11 @@ pandoc.docx <- function(
     file.md,
     format = ".docx",
     output = sub("\\.[a-z]*$", format, file.md),
-    deal_with = T,
+    deal_with = TRUE,
     script = "pandoc.sh",
     script_path = system.file("extdata", script, package = "utils.tool"),
     template = "template.tex",
-    hasLink = T
+    hasLink = TRUE
   )
   {
     ## read md
@@ -80,7 +80,7 @@ asTex.rmd <- function(file.md, yaml = paste0(.expath, "/", "article.yml"),
 {
   dir.create(export)
   file.copy(file.md, nfile.md <- paste0(export, "/",
-      sub("\\.[a-z]*$", ".Rmd", basename(file.md))), T)
+      sub("\\.[a-z]*$", ".Rmd", basename(file.md))), TRUE)
   md <- readLines(nfile.md)
   fig.pos <- grep("^!\\[.*\\]\\(.*\\)", md)
   fig.num <- 1
@@ -94,18 +94,18 @@ asTex.rmd <- function(file.md, yaml = paste0(.expath, "/", "article.yml"),
         prefix <- character(1)
       }
       nfile <- gsub("fig[0-9]\\.", prefix, basename(file))
-      whether <- file.copy(file, paste0(export, "/", nfile), T)
+      whether <- file.copy(file, paste0(export, "/", nfile), TRUE)
       if (!whether) stop("The file of figure not found")
-      gsub(file, nfile, ch, fixed = T)
+      gsub(file, nfile, ch, fixed = TRUE)
     })
   yml <- c("---", readLines(yaml), "---\n")
   writeLines(c(yml, md), nfile.md)
   shunt_bib(bib, extract_ref(nfile.md), paste0(export, "/", "library.bib"))
-  file.copy(style, paste0(export, "/", basename(style)), T)
+  file.copy(style, paste0(export, "/", basename(style)), TRUE)
   writeLines("Done")
 }
 
-sep_list <- function(lines, sep = "^\\s*$", before = F)
+sep_list <- function(lines, sep = "^\\s*$", before = FALSE)
 {
   if (is.logical(before)) {
     before <- if (before) 0L else 1L
@@ -160,7 +160,7 @@ fts_copy <- function(ft, seq.lst, path, prefix = "fig", sub_target = "fts") {
   lapply(ft, function(x){
     name <- gsub("\\..*$", "", x[2])
     file.copy(paste0(path, "/", x[1]),
-      paste0(path, "/", sub_target, "/", prefix, seq.lst[[ name ]], ".", x[2]), T)
+      paste0(path, "/", sub_target, "/", prefix, seq.lst[[ name ]], ".", x[2]), TRUE)
   })
 }
 
@@ -220,8 +220,8 @@ revise_pan2md.vanco <- function(file, output = "tmp.md"){
   md <- gsub("\\[\\^", "^[", md)
   md <- gsub("\\^\\]\\(\\\\l\\)", "](\\\\l)^", md)
   md <- gsub("\\^\\]", "]^", md)
-  md <- gsub("\\(\\\\l\\)(?!,\\[|\\-\\-|\\^)", "(\\\\l)^", md, perl = T)
-  md <- gsub("(?<!\\^|l\\),|\\-\\-)\\[(?=[0-9])", "^[", md, perl = T)
+  md <- gsub("\\(\\\\l\\)(?!,\\[|\\-\\-|\\^)", "(\\\\l)^", md, perl = TRUE)
+  md <- gsub("(?<!\\^|l\\),|\\-\\-)\\[(?=[0-9])", "^[", md, perl = TRUE)
   return(md)
 }
 
@@ -292,7 +292,7 @@ comb_ref <- function(n, ref) {
 
 # dirname <- function(path_str){
   # vapply(path_str, FUN.VALUE = character(1),
-  #   USE.NAMES = F,
+  #   USE.NAMES = FALSE,
   #   function(str){
   #     if (!grepl("/", str))
   #       return(".")
@@ -309,7 +309,7 @@ comb_ref <- function(n, ref) {
 # modify figure citation
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-rm.instFig <- function(md, getID = T) {
+rm.instFig <- function(md, getID = TRUE) {
   pos <- grepl("^!\\[", md)
   target <- md[pos]
   md[pos] <- ""

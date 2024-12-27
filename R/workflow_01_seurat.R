@@ -86,7 +86,7 @@ setMethod("step2", signature = c(x = "job_seurat"),
           !!rlang::sym(use) < max.features & percent.mt < max.percent.mt
         ))
     object(x) <- e(Seurat::SCTransform(
-        object(x), method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = T,
+        object(x), method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = TRUE,
         assay = SeuratObject::DefaultAssay(object(x))
         ))
     object(x) <- e(Seurat::RunPCA(
@@ -101,7 +101,7 @@ setMethod("step2", signature = c(x = "job_seurat"),
   })
 
 setMethod("step3", signature = c(x = "job_seurat"),
-  function(x, dims = 1:15, resolution = 1.2, reduction = "pca", force = F){
+  function(x, dims = 1:15, resolution = 1.2, reduction = "pca", force = FALSE){
     step_message("This contains several execution: Cluster the cells, UMAP
       reduction, Cluster biomarker (Differential analysis). Object were
       performed with:
@@ -129,7 +129,7 @@ setMethod("step3", signature = c(x = "job_seurat"),
     object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims, reduction = reduction))
     object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution))
     object(x) <- e(Seurat::RunUMAP(object(x), dims = dims, reduction = reduction))
-    p.umap <- e(Seurat::DimPlot(object(x), cols = color_set(T)))
+    p.umap <- e(Seurat::DimPlot(object(x), cols = color_set(TRUE)))
     p.umap <- wrap(p.umap, 6, 5)
     p.umap <- .set_lab(p.umap, sig(x), "UMAP", "Clustering")
     x@plots[[ 3 ]] <- namel(p.umap)
@@ -174,7 +174,7 @@ setMethod("step4", signature = c(x = "job_seurat"),
         anno_SingleR$SingleR_cell[match(clusters,
           anno_SingleR$seurat_clusters)]
       p.map_SingleR <- e(Seurat::DimPlot(
-          object(x), reduction = "umap", label = F, pt.size = .7,
+          object(x), reduction = "umap", label = FALSE, pt.size = .7,
           group.by = "SingleR_cell", cols = color_set()
           ))
       p.map_SingleR <- p.map_SingleR
@@ -193,7 +193,7 @@ setMethod("step5", signature = c(x = "job_seurat"),
     fun <- function(x) {
       markers <- as_tibble(
         e(Seurat::FindAllMarkers(object(x), min.pct = min.pct,
-            logfc.threshold = logfc.threshold, only.pos = T))
+            logfc.threshold = logfc.threshold, only.pos = TRUE))
       )
     }
     if (!is.null(workers)) {
@@ -204,8 +204,8 @@ setMethod("step5", signature = c(x = "job_seurat"),
     all_markers_no_filter <- markers
     markers <- dplyr::filter(markers, p_val_adj < .05)
     tops <- dplyr::slice_max(dplyr::group_by(markers, cluster), avg_log2FC, n = 10)
-    if (F) {
-      p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = T))
+    if (FALSE) {
+      p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = TRUE))
       p.toph <- wrap(p.toph, 14, 12)
       x@plots[[ 5 ]] <- namel(p.toph)
     }
@@ -238,12 +238,12 @@ setMethod("step6", signature = c(x = "job_seurat"),
         object(x)@meta.data[[ "ChatGPT_cell"]] <- res$cells[ seqs ]
         ## heatmap
         p.markers <- e(Seurat::DoHeatmap(object(x), features = res$markers,
-            group.by = "ChatGPT_cell", raster = T, group.colors = color_set(), label = F))
+            group.by = "ChatGPT_cell", raster = TRUE, group.colors = color_set(), label = FALSE))
         p.markers <- .set_lab(p.markers, sig(x), "Markers in cell types")
         attr(p.markers, "lich") <- new_lich(namel(ChatGPT_Query = query$query, feedback), sep = "\n")
         ## dim plot
         p.map_gpt <- e(Seurat::DimPlot(
-            object(x), reduction = "umap", label = F, pt.size = .7,
+            object(x), reduction = "umap", label = FALSE, pt.size = .7,
             group.by = "ChatGPT_cell", cols = color_set()
             ))
         p.map_gpt <- wrap(as_grob(p.map_gpt), 7, 4)
@@ -281,10 +281,10 @@ setMethod("step7", signature = c(x = "job_seurat"),
   })
 
 setMethod("diff", signature = c(x = "job_seurat"),
-  function(x, group.by, contrasts, name = "contrasts", force = T)
+  function(x, group.by, contrasts, name = "contrasts", force = TRUE)
   {
     if (is.data.frame(contrasts)) {
-      contrasts <- apply(contrasts, 1, c, simplify = F)
+      contrasts <- apply(contrasts, 1, c, simplify = FALSE)
     }
     if (is.null(x@params[[ name ]]) || force) {
       res <- e(lapply(contrasts,
@@ -297,7 +297,7 @@ setMethod("diff", signature = c(x = "job_seurat"),
             data
           }))
       names(res) <- vapply(contrasts, function(x) paste0(x[1], "_vs_", x[2]), character(1))
-      res <- dplyr::as_tibble(data.table::rbindlist(res, idcol = T))
+      res <- dplyr::as_tibble(data.table::rbindlist(res, idcol = TRUE))
       res <- dplyr::rename(res, contrast = .id)
       res <- dplyr::filter(res, p_val_adj < .05)
       res <- .set_lab(res, sig(x), "DEGs of the contrasts")
@@ -316,7 +316,7 @@ setMethod("diff", signature = c(x = "job_seurat"),
         lst <- list(up = up, down = down)
         lapply(lst, fun_filter)
       })
-    tops <- unlist(tops, recursive = F)
+    tops <- unlist(tops, recursive = FALSE)
     x[[ paste0(name, "_intersection") ]] <- tops
     p.sets_intersection <- new_upset(lst = tops, trunc = NULL)
     p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "contrasts-DEGs-intersection")
@@ -325,7 +325,7 @@ setMethod("diff", signature = c(x = "job_seurat"),
   })
 
 diff_group <- function(x, group.by, patterns) {
-  group <- combn(as.character(ids(x, group.by)), 2, simplify = F)
+  group <- combn(as.character(ids(x, group.by)), 2, simplify = FALSE)
   try_contrast(group, patterns)
 }
 
@@ -344,7 +344,7 @@ try_contrast <- function(combn, patterns) {
 }
 
 setMethod("map", signature = c(x = "job_seurat", ref = "marker_list"),
-  function(x, ref, p.adjust = .05, log2fc = 1, use_all = T, prop = .6, print = T){
+  function(x, ref, p.adjust = .05, log2fc = 1, use_all = TRUE, prop = .6, print = TRUE){
     if (x@step < 5L)
       stop("x@step < 5L")
     all_markers <- tables(x, 5)$all_markers
@@ -366,21 +366,21 @@ setMethod("map", signature = c(x = "job_seurat", ref = "marker_list"),
             tibble::tibble(cell_type = names(all), prop = unname(all))
           })
         names(alls) <- ref@level
-        alls <- data.table::rbindlist(alls, fill = T, idcol = T)
+        alls <- data.table::rbindlist(alls, fill = TRUE, idcol = TRUE)
         rename(alls, unique_level = .id)
       })
-    map_prop <- data.table::rbindlist(stats, fill = T, idcol = T)
+    map_prop <- data.table::rbindlist(stats, fill = TRUE, idcol = TRUE)
     map_prop <- rename(map_prop, cluster = .id)
     x@tables$map_prop <- map_prop
     map_prop <- mutate(map_prop, unique_level = as.integer(unique_level))
     map_prop <- arrange(map_prop, dplyr::desc(prop))
     if (use_all) {
-      mapu <- distinct(map_prop, cell_type, .keep_all = T)
+      mapu <- distinct(map_prop, cell_type, .keep_all = TRUE)
       mapu <- rbind(mapu, map_prop)
-      map_res <- distinct(mapu, cluster, .keep_all = T)
+      map_res <- distinct(mapu, cluster, .keep_all = TRUE)
     } else {
       map_res <- filter(map_prop, prop > !!prop)
-      map_res <- distinct(map_res, cluster, .keep_all = T)
+      map_res <- distinct(map_res, cluster, .keep_all = TRUE)
     }
     if (print)
       print(map_res, n = 100)
@@ -402,7 +402,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "marker_list"),
   })
 
 setMethod("ids", signature = c(x = "job_seurat"),
-  function(x, id = x@params$group.by, unique = T){
+  function(x, id = x@params$group.by, unique = TRUE){
     ids <- object(x)@meta.data[[ id ]]
     if (unique)
       ids <- unique(ids)
@@ -420,7 +420,7 @@ plot_var2000 <- function(x) {
 plot_pca.seurat <- function(x) {
   p.pca_pcComponents <- e(Seurat::VizDimLoadings(
       x, dims = 1:2, reduction = "pca",
-      col = ggsci::pal_npg()(2)[2], combine = F
+      col = ggsci::pal_npg()(2)[2], combine = FALSE
       ))
   p.pca_pcComponents <- lapply(p.pca_pcComponents,
     function(p) {
@@ -433,7 +433,7 @@ plot_pca.seurat <- function(x) {
   p.pca_1v2 <- wrap(p.pca_1v2, 6, 5)
   p.pca_heatmap <- e(Seurat::DimHeatmap(
       x, dims = 1:10, cells = 500,
-      balanced = TRUE, fast = F, combine = F
+      balanced = TRUE, fast = FALSE, combine = FALSE
       ))
   n <- 0
   p.pca_heatmap <- lapply(p.pca_heatmap,
@@ -504,14 +504,14 @@ setMethod("vis", signature = c(x = "job_seurat"),
       palette <- color_set()
     }
     p <- wrap(as_grob(e(Seurat::DimPlot(
-          object(x), reduction = "umap", label = F, pt.size = pt.size,
+          object(x), reduction = "umap", label = FALSE, pt.size = pt.size,
           group.by = group.by, cols = palette
           ))), 7, 4)
     .set_lab(p, sig(x), "The", gs(group.by, "_", "-"))
   })
 
 setMethod("focus", signature = c(x = "job_seurat"),
-  function(x, features, group.by = x@params$group.by, sp = F, ...){
+  function(x, features, group.by = x@params$group.by, sp = FALSE, ...){
     if (sp) {
       return(focus(.job_seuratSp(object = object(x)), features, ...))
     }
@@ -530,14 +530,14 @@ setMethod("focus", signature = c(x = "job_seurat"),
 setMethod("map", signature = c(x = "job_seurat", ref = "character"),
   function(x, ref, slot = "scale.data", ...){
     p.heatmap <- wrap(as_grob(e(Seurat::DoHeatmap(
-          object(x), features = ref, raster = T, size = 3, slot = slot, ...
+          object(x), features = ref, raster = TRUE, size = 3, slot = slot, ...
           ))))
     p.heatmap <- .set_lab(p.heatmap, sig(x), "heatmap show the reference genes")
     p.heatmap
   })
 
 setMethod("map", signature = c(x = "job_seurat", ref = "job_seurat"),
-  function(x, ref, use.x, use.ref, name = "cell_mapped", asIdents = T){
+  function(x, ref, use.x, use.ref, name = "cell_mapped", asIdents = TRUE){
     matched <- match(rownames(object(x)@meta.data), rownames(object(ref)@meta.data))
     object(x)@meta.data[[name]] <- as.character(object(ref)@meta.data[[use.ref]])[matched]
     object(x)@meta.data[[name]] <- ifelse(
@@ -550,26 +550,26 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_seurat"),
     )
     if (asIdents) {
       if (identical(names(object(x)@active.ident), rownames(object(x)@meta.data))) {
-        SeuratObject::Idents(object(x)) <- nl(rownames(object(x)@meta.data), object(x)@meta.data[[name]], F)
+        SeuratObject::Idents(object(x)) <- nl(rownames(object(x)@meta.data), object(x)@meta.data[[name]], FALSE)
       } else {
-        stop("identical(names(object(x)@active.ident), rownames(object(x)@meta.data)) == F")
+        stop("identical(names(object(x)@active.ident), rownames(object(x)@meta.data)) == FALSE")
       }
     }
     return(x)
   })
 
-prepare_10x <- function(target, pattern, single = F, col.gene = 1, check = T) {
+prepare_10x <- function(target, pattern, single = FALSE, col.gene = 1, check = TRUE) {
   if (!single) {
-    files <- list.files(target, "\\.gz$", full.names = T)
+    files <- list.files(target, "\\.gz$", full.names = TRUE)
     files <- files[ grepl(pattern, files) ]
     dir <- paste0(target, "/", get_realname(files)[1])
-    dir.create(dir, F)
+    dir.create(dir, FALSE)
     lapply(files,
       function(x)
         file.rename(x, paste0(dir, "/", gs(basename(x), ".*_", "")))
     )
     expected <- c("barcodes.tsv.gz", "features.tsv.gz", "matrix.mtx.gz")
-    alls <- list.files(dir, full.names = T)
+    alls <- list.files(dir, full.names = TRUE)
     allnames <- basename(alls)
     if (!all(expected %in% allnames)) {
       message("Got all files: ", paste0(allnames, collapse = ", "))
@@ -586,13 +586,13 @@ prepare_10x <- function(target, pattern, single = F, col.gene = 1, check = T) {
     dir
   } else {
     if (!missing(pattern)) {
-      stop("`pattern` not supported while single == T")
+      stop("`pattern` not supported while single == TRUE")
     }
     path <- dirname(target)
     name <- get_realname(target)
     dir <- paste0(path, "/", name)
     if (file.exists(dir)) {
-      unlink(dir, T, T)
+      unlink(dir, TRUE, TRUE)
     }
     data <- ftibble(target)
     if (length(col.gene) > 1) {
@@ -608,7 +608,7 @@ prepare_10x <- function(target, pattern, single = F, col.gene = 1, check = T) {
       }  
     }
     data[[ 1 ]] <- gs(data[[ 1 ]], "\\.[0-9]*$", "")
-    data <- dplyr::distinct(data, !!rlang::sym(colnames(data)[1]), .keep_all = T)
+    data <- dplyr::distinct(data, !!rlang::sym(colnames(data)[1]), .keep_all = TRUE)
     ## as Matrix
     features <- data[[ 1 ]]
     data <- as.matrix(data[, -1])
@@ -700,7 +700,7 @@ applyGptcelltype <- function(input, tissuename, model = c("gpt-3.5-turbo", "gpt-
     } else {
       cid <- rep(1, length(input))
     }
-    allres <- sapply(1:cutnum, simplify = F,
+    allres <- sapply(1:cutnum, simplify = FALSE,
       function(i) {
         id <- which(cid == i)
         content <- paste0(
@@ -746,7 +746,7 @@ identify.mouseMacroPhe <- function(x, use = "scsa_cell",
   }
   ref.markers <- as_df.lst(ref.markers, "cell", "markers")
   lst <- scsa_annotation(x, "All", ref.markers, org = "M", res.col = "macrophage_phenotypes",
-    onlyUseRefMarkers = T, ...)
+    onlyUseRefMarkers = TRUE, ...)
   x <- lst$x
   ref.markers <- .set_lab(as_tibble(ref.markers), sig(x), "the markers for Macrophage phenotypes annotation")
   x$p.macrophage <- lst$p.map_scsa
@@ -761,9 +761,9 @@ scsa_annotation <- function(
   x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = .5,
   org = c("Human", "Mouse"),
   cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_annotation",
-  onlyUseRefMarkers = F)
+  onlyUseRefMarkers = FALSE)
 {
-  if (grpl(tissue, "(?<!\\\\)\\s", perl = T)) {
+  if (grpl(tissue, "(?<!\\\\)\\s", perl = TRUE)) {
     tissue <- gs(tissue, "\\s", "\\\\ ")
   }
   org <- match.arg(org)
@@ -780,7 +780,7 @@ scsa_annotation <- function(
     .check_columns(ref.markers, c("cell", "markers"))
     ref.markers <- dplyr::relocate(ref.markers, cell, markers)
     ref.markers_file <- tempfile("ref.markers_file", fileext = ".tsv")
-    write_tsv(ref.markers, ref.markers_file, col.names = F)
+    write_tsv(ref.markers, ref.markers_file, col.names = FALSE)
     x@params$ref.markers_file <- ref.markers_file
     ref.markers.cmd <- paste0(" -M ", ref.markers_file)
   } else {
@@ -804,7 +804,7 @@ scsa_annotation <- function(
   scsa_res <- dplyr::rename_all(ftibble(result_file), make.names)
   scsa_res <- scsa_res_all <- dplyr::arrange(scsa_res, Cluster, dplyr::desc(Z.score))
   ## add into seurat object
-  scsa_res <- dplyr::distinct(scsa_res, Cluster, .keep_all = T)
+  scsa_res <- dplyr::distinct(scsa_res, Cluster, .keep_all = TRUE)
   clusters <- object(x)@meta.data$seurat_clusters
   cell_types <- scsa_res$Cell.Type[match(clusters, scsa_res$Cluster)]
   cell_types <- ifelse(is.na(cell_types), "Unknown", cell_types)
@@ -812,7 +812,7 @@ scsa_annotation <- function(
     levels = c(unique(scsa_res$Cell.Type), "Unknown"))
   ## plot
   p.map_scsa <- e(Seurat::DimPlot(
-      object(x), reduction = "umap", label = F, pt.size = .7,
+      object(x), reduction = "umap", label = FALSE, pt.size = .7,
       group.by = res.col, cols = color_set()
       ))
   p.map_scsa <- wrap(as_grob(p.map_scsa), 7, 4)
@@ -842,7 +842,7 @@ parse_GPTfeedback <- function(feedback) {
   namel(markers, cells)
 }
 
-prepare_GPTmessage_for_celltypes <- function(tissue, marker_list, n = 10, toClipboard = T)
+prepare_GPTmessage_for_celltypes <- function(tissue, marker_list, n = 10, toClipboard = TRUE)
 {
   message <- glue::glue("Identify cell types of {tissue} cells using the following markers separately for each row. Only provide the cell type name (for each row). Show numbers before the name. Some can be a mixture of multiple cell types (separated by '; ', end with '. '). Then, provide at least 1 and at most 3 classical markers that distinguish the cell type from other cells (separated by '; ').  (e.g., 1. X Cell; Y Cell. Marker1; Marker2; Marker3)")
   message("`marker_list` should be table output from seurat (column: cluster, gene)")

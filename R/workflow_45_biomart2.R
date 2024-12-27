@@ -57,7 +57,7 @@ setMethod("step1", signature = c(x = "job_biomart2"),
     rdata <- paste0(savepath, "/", "mapping.rdata")
     db <- extract_rdata_list(rdata)
     if (!is.null(db)) {
-      db <- frbind(db, fill = T)
+      db <- frbind(db, fill = TRUE)
       values <- object(x) %>% .[!. %in% db[[1]]]
     } else {
       values <- object(x)
@@ -72,9 +72,9 @@ setMethod("step1", signature = c(x = "job_biomart2"),
             "'", urls[[ gn ]], "'")
         })
       db <- list(extra = db)
-      packing_as_rdata_list(savepath, "^G.*\\.tsv$", basename(rdata), dedup = F, extra = db)
+      packing_as_rdata_list(savepath, "^G.*\\.tsv$", basename(rdata), dedup = FALSE, extra = db)
       db <- extract_rdata_list(rdata)
-      db <- frbind(db, fill = T)
+      db <- frbind(db, fill = TRUE)
       # values <- object(x) %>% .[ !. %in% db[[1]] ]
       message("Check integrity...")
       notGet <- lapply(groups$theValues,
@@ -83,7 +83,7 @@ setMethod("step1", signature = c(x = "job_biomart2"),
             values
           }
         })
-      values <- unlist(notGet, use.names = F)
+      values <- unlist(notGet, use.names = FALSE)
       if (length(values)) {
         message("Target of length ", length(values), " can retry.")
         isThat <- usethis::ui_yeah("Re-try?")
@@ -111,7 +111,7 @@ setMethod("step2", signature = c(x = "job_biomart2"),
       tops <- dplyr::select(tops, -!!rlang::sym(to))
     }
     data <- tbmerge(tops, x$mapped, by = by)
-    data <- dplyr::distinct(data, !!rlang::sym(to), .keep_all = T)
+    data <- dplyr::distinct(data, !!rlang::sym(to), .keep_all = TRUE)
     use <- match.arg(use)
     data <- dplyr::arrange(data, !!rlang::sym(use))
     data <- dplyr::relocate(data, !!rlang::sym(to), !!rlang::sym(by))
@@ -134,7 +134,7 @@ setMethod("map", signature = c(x = "job_biomart2", ref = "character"),
   })
 
 .multi_tasks_urls.biomart2 <- function(values, group_number, args) {
-  theValues <- grouping_vec2list(values, group_number, T)
+  theValues <- grouping_vec2list(values, group_number, TRUE)
   urls <- lapply(theValues,
     function(values) {
       theValue <- paste0(values, collapse = ",")
@@ -155,7 +155,7 @@ setMethod("map", signature = c(x = "job_biomart2", ref = "character"),
 
 new_biomart <- function(
   dataset = c("hsapiens_gene_ensembl", "sscrofa_gene_ensembl", "mmusculus_gene_ensembl", "rnorvegicus_gene_ensembl"),
-  set_global = T,
+  set_global = TRUE,
   ...)
 {
   if (missing(dataset)) {
@@ -184,12 +184,12 @@ list_datasets <- function() {
   e(biomaRt::listDatasets(ensembl))
 }
 
-filter_biomart <- function(mart, attrs, filters = "", values = "", distinct = T) {
+filter_biomart <- function(mart, attrs, filters = "", values = "", distinct = TRUE) {
   anno <- e(biomaRt::getBM(attributes = attrs, filters = filters,
     values = values, mart = mart))
   anno <- relocate(anno, !!rlang::sym(filters))
   if (distinct)
-    anno <- distinct(anno, !!rlang::sym(filters), .keep_all = T)
+    anno <- distinct(anno, !!rlang::sym(filters), .keep_all = TRUE)
   tibble::as_tibble(anno)
 }
 
@@ -197,7 +197,7 @@ list_attrs <- function(mart) {
   tibble::as_tibble(biomaRt::listAttributes(mart))
 }
 
-general_attrs <- function(pdb = F, ensembl_transcript_id = F) {
+general_attrs <- function(pdb = FALSE, ensembl_transcript_id = FALSE) {
   attrs <- c("ensembl_gene_id",
     "entrezgene_id",
     "hgnc_symbol",

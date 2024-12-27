@@ -28,7 +28,7 @@ setMethod("asjob_biobakery", signature = c(x = "job_fastp"),
     y <- .job_biobakery()
     y$wd <- object(x)
     y$metadata <- x$metadata
-    y$from_job_fastp <- T
+    y$from_job_fastp <- TRUE
     return(y)
   })
 

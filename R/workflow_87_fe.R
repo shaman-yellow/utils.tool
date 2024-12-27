@@ -76,9 +76,9 @@ setMethod("map", signature = c(x = "job_fe", ref = "feature"),
     return(x)
   })
 
-get_fe_data <- function(use.symbol = T, for_gsea = F,
+get_fe_data <- function(use.symbol = TRUE, for_gsea = FALSE,
   path = .prefix("../data/ferroptosis_2024-12-05_small.rds"),
-  add_internal_job = F, collate = F)
+  add_internal_job = FALSE, collate = FALSE)
 {
   if (collate) {
     # <http://www.zhounan.org/ferrdb/current/>
@@ -104,7 +104,7 @@ get_fe_data <- function(use.symbol = T, for_gsea = F,
     data <- lst_clear0(data)
   }
   if (for_gsea) {
-    gsea <- data.table::rbindlist(data, idcol = T, fill = T)
+    gsea <- data.table::rbindlist(data, idcol = TRUE, fill = TRUE)
     gsea <- dplyr::mutate(gsea, term = paste0("Ferroptosis_", .id))
     gsea <- as_tibble(dplyr::relocate(gsea, term, symbol))
     return(gsea)

@@ -37,11 +37,11 @@ setMethod("step1", signature = c(x = "job_ocr"),
       e(reticulate::use_python(python))
     }
     # e(reticulate::import_builtins())
-    np <- e(reticulate::import("numpy", convert = F))
+    np <- e(reticulate::import("numpy", convert = FALSE))
     doctr.io <- e(reticulate::import("doctr.io"))
     ocr <- e(reticulate::import("doctr.models"))
     cli::cli_alert_info("ocr$ocr_predictor")
-    model <- ocr$ocr_predictor(det_arch = "db_resnet50", reco_arch = "crnn_vgg16_bn", pretrained = T)
+    model <- ocr$ocr_predictor(det_arch = "db_resnet50", reco_arch = "crnn_vgg16_bn", pretrained = TRUE)
     ## get the function
     x$model <- model
     x$np <- np
@@ -59,7 +59,7 @@ setMethod("map", signature = c(x = "job_ocr", ref = "character"),
   function(x, ref)
   {
     if (!all(file.exists(ref))) {
-      stop("all(file.exists(`ref`)) == F")
+      stop("all(file.exists(`ref`)) == FALSE")
     }
     ref <- normalizePath(ref)
     res <- pbapply::pblapply(ref,

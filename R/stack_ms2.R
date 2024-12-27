@@ -9,10 +9,10 @@ stack_ms2 <- function(idset,
   struc.y = 0.3,
   filename = ifelse(file.exists("mcnebula_results"),
     paste0("mcnebula_results", "/", "mirror.ms2.svg"), "mirror.ms2.svg"),
-  merge_via_int = T
+  merge_via_int = TRUE
   )
 {
-  if(!require("MCnebula", quietly = T)){
+  if(!require("MCnebula", quietly = TRUE)){
     cat("MCnebula not loaded\n")
     return()
   }
@@ -20,7 +20,7 @@ stack_ms2 <- function(idset,
   meta_dir <- method_formula_based_spec_compare(
     target_ids = idset,
     filter_only_max = Inf,
-    get_meta_dir = T) %>% 
+    get_meta_dir = TRUE) %>% 
   dplyr::mutate(ms.spec = gsub("spectra/[^/]{1,}$", "spectrum.ms", full.name))
 ## ---------------------------------------------------------------------- 
 spec.list <- pbapply::pbapply(
@@ -48,13 +48,13 @@ spec.list <- pbapply::pbapply(
     if(merge_via_int)
       ms2.merge <- dplyr::filter(ms2.merge, abs(rel.int - rel.intensity) < 1)
     ms2.merge <- dplyr::bind_rows(ms2.merge, ms2)
-    ms2.merge <- dplyr::distinct(ms2.merge, mass, int, .keep_all = T)
+    ms2.merge <- dplyr::distinct(ms2.merge, mass, int, .keep_all = TRUE)
     return(list(mz = mz, rt = rt, ms2 = ms2.merge))
   })
 ## ---------------------------------------------------------------------- 
 ms2.set <- lapply(spec.list, `[[`, 3)
 names(ms2.set) <- meta_dir$.id
-ms2.set <- data.table::rbindlist(ms2.set, idcol = T)
+ms2.set <- data.table::rbindlist(ms2.set, idcol = TRUE)
 sig.ms2.set <- dplyr::filter(ms2.set, !is.na(mz))
 ## -------------------------------------
 anno <- lapply(spec.list,
@@ -70,7 +70,7 @@ dplyr::mutate(.id = meta_dir$.id,
 ## ------------------------------------- 
 ## add tanimotoSimilarity
 anno <- merge(anno, .MCn.structure_set[, c(".id", "tanimotoSimilarity")],
-  by = ".id", all.x = T) %>%
+  by = ".id", all.x = TRUE) %>%
 dplyr::mutate(ts = round(tanimotoSimilarity, 2),
   anno.ts = paste("TS:", ifelse(is.na(ts), "-", ts)),
   anno = paste0(anno, "\n", anno.ts))
@@ -124,13 +124,13 @@ p <- ggplot() +
 ## visualize structure
 struc.dir <- "mcnebula_results/tmp/structure"
 if(!file.exists(struc.dir)){
-  struc.vis <- T
+  struc.vis <- TRUE
 }else{
   check <- sapply(paste0(struc.dir, "/", meta_dir$.id, ".svg"), file.exists)
-  if(T %in% check){
-    struc.vis <- F
+  if(TRUE %in% check){
+    struc.vis <- FALSE
   }else{
-    struc.vis <- T
+    struc.vis <- TRUE
   }
 }
 struc.set <- dplyr::filter(.MCn.structure_set, .id %in% meta_dir$.id)
@@ -168,13 +168,13 @@ dev.off()
 get_facet.wrap.vp <-
   function(
     strip,
-    grid.force = T
+    grid.force = TRUE
     ){
     if(grid.force){
       grid::grid.force()
     }
     ## grep vp of panel
-    panel <- grid::grid.grep("panel", grep = T, global= T, viewports = T, grobs = F)
+    panel <- grid::grid.grep("panel", grep = TRUE, global= TRUE, viewports = TRUE, grobs = FALSE)
     ## vp name
     panel <- sapply(panel, paste)
     ## the specific seq number of vp
@@ -188,7 +188,7 @@ get_facet.wrap.vp <-
     if(na == len.p)
       na <- 0
     ## as matrix
-    mat <- matrix(c(sort(strip), rep(NA, na)), ncol = panel.seq, byrow = T)
+    mat <- matrix(c(sort(strip), rep(NA, na)), ncol = panel.seq, byrow = TRUE)
     vec <- as.vector(mat)
     ## as data.frame
     df <- data.table::data.table(vp = panel, strip = vec)

@@ -50,11 +50,11 @@ setMethod("step1", signature = c(x = "job_tcmsp"),
       "targets" = "Related Targets",
       "disease" = "Related Diseases"
     )
-    isDriveStarted <- F
-    link <- F
+    isDriveStarted <- FALSE
+    link <- FALSE
     db_file <- as.list(.list_allfiles(savedir, "^herb_"))
     n <- 0L
-    lst <- sapply(x$herbs_info$Herb_pinyin_name, simplify = F,
+    lst <- sapply(x$herbs_info$Herb_pinyin_name, simplify = FALSE,
       function(name) {
         n <<- n + 1L
         fileid <- paste0("herb_", name, "_", names(items))
@@ -63,10 +63,10 @@ setMethod("step1", signature = c(x = "job_tcmsp"),
         if (fun(1) | fun(2) | fun(3)) {
           link <<- start_drive(browser = "firefox")
           Sys.sleep(3)
-          isDriveStarted <<- T
+          isDriveStarted <<- TRUE
           link$open()
           url <- x$herbs_info$`Latin name.link`[n]
-          status <- try(link$navigate(url), T)
+          status <- try(link$navigate(url), TRUE)
           if (inherits(status, "try-error")) {
             res <- usethis::ui_yeah("Do you want to continue?")
             if (!res) {
@@ -76,7 +76,7 @@ setMethod("step1", signature = c(x = "job_tcmsp"),
           sets <- lapply(seq_along(items),
             function(i) {
               path <- paste0("//div//ul//li//a[text()='", items[i], "']")
-              ele <- try(link$findElement(using = "xpath", value = path), T)
+              ele <- try(link$findElement(using = "xpath", value = path), TRUE)
               if (inherits(ele, "try-error")) {
                 stop("In URL: ", url, "\n\tCan not find the element of path: ", path)
               }
@@ -107,9 +107,9 @@ setMethod("step1", signature = c(x = "job_tcmsp"),
       link$close()
       end_drive()
     }
-    tables <- sapply(names(items), simplify = F,
+    tables <- sapply(names(items), simplify = FALSE,
       function(name) {
-        data <- frbind(lapply(lst, function(x) x[[name]]), idcol = T, fill = T)
+        data <- frbind(lapply(lst, function(x) x[[name]]), idcol = TRUE, fill = TRUE)
         dplyr::relocate(data, Herb_pinyin_name = .id)
       })
     x@tables[[ 1 ]] <- tables
@@ -153,7 +153,7 @@ setMethod("step3", signature = c(x = "job_tcmsp"),
       .add_internal_job(kb)
       res <- kb@tables$step1$format_results
       compounds_targets <- tbmerge(compounds_targets, res, by.x = "Target name", by.y = "query",
-        all.x = T, allow.cartesian = T)
+        all.x = TRUE, allow.cartesian = TRUE)
       x@tables$step2$compounds_targets <- compounds_targets
     }
     ########################
@@ -179,7 +179,7 @@ setMethod("step3", signature = c(x = "job_tcmsp"),
     easyRead <- tbmerge(
       dplyr::select(x@tables$step2$ingredients, `Mol ID`, Herb_pinyin_name),
       compounds_targets, by = "Mol ID",
-      allow.cartesian = T
+      allow.cartesian = TRUE
     )
     x$easyRead <- dplyr::select(easyRead, - `Mol ID`)
     x@tables[[ 3 ]] <- namel(disease_targets_annotation = hb@tables$step3$disease_targets_annotation)
@@ -243,7 +243,7 @@ setMethod("asjob_classyfire", signature = c(x = "job_tcmsp"),
     link$open()
     res <- pbapply::pblapply(fun(),
       function(url) {
-        res <- try(link$navigate(url), T)
+        res <- try(link$navigate(url), TRUE)
         if (inherits(res, "try-error")) {
           usethis::ui_yeah("Continue?")
         }
@@ -253,7 +253,7 @@ setMethod("asjob_classyfire", signature = c(x = "job_tcmsp"),
       })
     link$close()
     end_drive()
-    res <- frbind(res, idcol = T)
+    res <- frbind(res, idcol = TRUE)
     res <- tidyr::spread(res, V1, V2)
     db <- upd(db, res)
   }
@@ -261,41 +261,41 @@ setMethod("asjob_classyfire", signature = c(x = "job_tcmsp"),
 }
 
 .list_allfiles <- function(dir, pattern = ".") {
-  locals <- list.files(dir, pattern, full.names = T, recursive = T)
+  locals <- list.files(dir, pattern, full.names = TRUE, recursive = TRUE)
   names(locals) <- get_realname(locals)
   locals
 }
 # UniProt.ws::mapUniProt
 
-get_tcmsp_data <- function(update = F, savedir = .prefix("tcmsp", "db")) {
+get_tcmsp_data <- function(update = FALSE, savedir = .prefix("tcmsp", "db")) {
   if (!dir.exists(savedir)) {
     dir.create(savedir)
   }
   url_base <- "https://tcmsp-e.com/browse.php?qc="
   used <- c("herbs", "ingredients", "targets", "diseases")
-  isDriveStarted <- F
-  link <- F
+  isDriveStarted <- FALSE
+  link <- FALSE
   token <- NULL
-  db <- sapply(used, simplify = F,
+  db <- sapply(used, simplify = FALSE,
     function(name) {
       file <- paste0(savedir, "/", name, ".tsv")
       if (!isDriveStarted) {
         link <<- start_drive(browser = "firefox")
         Sys.sleep(3)
-        isDriveStarted <<- T
+        isDriveStarted <<- TRUE
         link$open()
         # link$setTimeout(type = "page load", milliseconds = 3000000)
       }
       url <- paste0(url_base, name)
       if (name == "herbs") {
-        res <- try(link$navigate(url), T)
+        res <- try(link$navigate(url), TRUE)
         if (inherits(res, "try-error")) {
           res <- usethis::ui_yeah("The loading time out. Continue?")
           if (!res) {
             stop("Stop.")
           }
         }
-        isUrlNavigated <- T
+        isUrlNavigated <- TRUE
         fun_tryGetToken <- function(link) {
           table <- tibble::as_tibble(.get_current_tables.tcmsp(link)[[2]])
           table <- trySepCols.tcmsp(table)
@@ -313,11 +313,11 @@ get_tcmsp_data <- function(update = F, savedir = .prefix("tcmsp", "db")) {
           token <<- token
         }
       } else {
-        isUrlNavigated <- F
+        isUrlNavigated <- FALSE
       }
       if (!file.exists(file) || update) {
         if (!isUrlNavigated) {
-          res <- try(link$navigate(url), T)
+          res <- try(link$navigate(url), TRUE)
         }
         nextFun <- function() {
           obj <- .get_folded_tables.tcmsp(link)
@@ -354,7 +354,7 @@ get_tcmsp_data <- function(update = F, savedir = .prefix("tcmsp", "db")) {
 
 trySepCols.tcmsp <- function(obj, sep = " ### ") {
   testCols <- function(obj) {
-    vals <- unlist(obj[1, ], use.names = F)
+    vals <- unlist(obj[1, ], use.names = FALSE)
     grp(vals, sep)
   }
   colsLink <- testCols(obj)
@@ -391,7 +391,7 @@ tryGetLink.tcmsp <- function(x, sep = " ### ", ...) {
 .try_format_folded_tables.tcmsp <- function(obj) {
   colnames <- colnames(obj[[1]][[1]])
   obj <- lapply(obj, function(x) x[[2]])
-  obj <- frbind(obj, fill = T)
+  obj <- frbind(obj, fill = TRUE)
   colnames(obj) <- colnames
   obj <- trySepCols.tcmsp(obj)
   obj <- dplyr::mutate(obj,
@@ -413,7 +413,7 @@ tryGetLink.tcmsp <- function(x, sep = " ### ", ...) {
 .get_folded_tables.tcmsp <- function(link, div = NULL, which = NULL)
 {
   ## div is paramater for `xpath` find the specific div, e.g., '[@id="test"]'
-  end <- F
+  end <- FALSE
   lst <- list()
   n <- 0L
   while (!end) {
@@ -424,13 +424,13 @@ tryGetLink.tcmsp <- function(x, sep = " ### ", ...) {
     n <- n + 1L
     lst[[ n ]] <- table
     path <- paste0("//div", div, "//a[@title='Go to the next page']")
-    ele <- try(link$findElement(using = "xpath", value = path), T)
+    ele <- try(link$findElement(using = "xpath", value = path), TRUE)
     if (inherits(ele, "try-error")) {
       stop("Can not find the element of path: ", path)
     }
     class <- ele$getElementAttribute("class")
     if (class[[1]] == "k-link k-state-disabled") {
-      end <- T
+      end <- TRUE
     } else {
       ele$sendKeysToElement(list("Go to the next page", key = "enter"))
       Sys.sleep(.1)

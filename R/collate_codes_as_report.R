@@ -15,22 +15,22 @@ rough_records <- function(dir, rdname, title, files= NULL,
 
 get_codes.dir <- function(dir, files = NULL, pattern = "\\.R$") {
   if (is.null(files)) {
-    files <- list.files(dir, full.names = T, recursive = T)
+    files <- list.files(dir, full.names = TRUE, recursive = TRUE)
   }
   files <- files[grepl(pattern, files)]
-  codes <- sapply(files, readLines, simplify = F)
+  codes <- sapply(files, readLines, simplify = FALSE)
   names(codes) <- vapply(names(codes), basename, character(1))
   codes
 }
 
-as_chunk.codes <- function(lst, as_lines = T, sep = "^# =*\\s*$") {
+as_chunk.codes <- function(lst, as_lines = TRUE, sep = "^# =*\\s*$") {
   name <- names(lst)
   lines <- lst
   fun <- function(lines) {
-    lst <- sep_list(lines, sep, before = T)
+    lst <- sep_list(lines, sep, before = TRUE)
     lst <- lapply(lst,
       function(ch) {
-        c('```{r eval = F, echo = T}', ch, '```', "")
+        c('```{r eval = FALSE, echo = TRUE}', ch, '```', "")
       })
     unlist(lst)
   }
