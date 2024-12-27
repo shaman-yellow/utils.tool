@@ -600,9 +600,9 @@ setMethod("cal_corp",
     x$genes <- rbind(x$genes, y$genes)
     newjob <- .job_limma(params = list(normed_data = x))
     x <- cal_corp(newjob, NULL, from, to, names, use, theme, HLs, mode)
-    x$.snap <- c(
+    snap(x) <- c(
       list(step0 = glue::glue("将两组相同样品来源的数据集 (dataset: {bind(sigs)})) 关联分析。")),
-      step1 = x$.snap[[1]])
+      step1 = snap(x)[[1]])
     x
   })
 

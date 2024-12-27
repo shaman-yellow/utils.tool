@@ -117,7 +117,7 @@ setMethod("step2", signature = c(x = "job_seuratn"),
       object(x) <- res
     }
     object(x) <- e(Seurat::RunPCA(object(x), verbose = FALSE))
-    x <- .job_seurat(object = object(x), step = 2L, meth = x@meth, sig = x@sig)
+    x <- .job_seurat(object = object(x), step = 2L, meth = meth(x), sig = x@sig)
     x@plots[[ 2 ]] <- plot_pca.seurat(object(x))
     meth(x)$step2 <- glue::glue("以 Seurat::FindIntegrationAnchors，和 Seurat::IntegrateData 整合多个数据集，并 PCA 降维。")
     x

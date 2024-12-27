@@ -4,13 +4,83 @@
 
 setClass("virtual_job", "VIRTUAL")
 
-.meth <- setClass("meth", 
-  contains = c("list"),
-  representation = representation(params = "list"),
-  prototype = NULL)
+.meth <- setClass("meth",
+  contains = c("environment"),
+  representation = representation(init = "logical"),
+  prototype = prototype(TRUE, init = TRUE))
+
+setMethod("$", signature = c(x = "meth"),
+  function(x, name){
+    x@.xData[[ name ]]
+  })
+
+setMethod("$<-", signature = c(x = "meth"),
+  function(x, name, value){
+    x@.xData[[ name ]] <- value
+    return(x)
+  })
+
+setMethod("[[", signature = c(x = "meth"),
+  function(x, i, ...){
+    x@.xData[[ i ]]
+  })
+
+setMethod("[[<-", signature = c(x = "meth"),
+  function(x, i, ..., value){
+    x@.xData[[ i ]] <- value
+    return(x)
+  })
+
+setMethod("initialize", "meth",
+  function(.Object, ...) {
+    .Object <- callNextMethod()
+    if (is.null(.Object@.xData)) {
+      .Object@.xData <- new.env()
+    }
+    .Object
+  })
+
+.snap <- setClass("snap",
+  contains = c("environment"),
+  representation = representation(init = "logical"),
+  prototype = prototype(TRUE, init = TRUE))
+
+setMethod("$", signature = c(x = "snap"),
+  function(x, name){
+    x@.xData[[ name ]]
+  })
+
+setMethod("$<-", signature = c(x = "snap"),
+  function(x, name, value){
+    x@.xData[[ name ]] <- value
+    return(x)
+  })
+
+setMethod("[[", signature = c(x = "snap"),
+  function(x, i, ...){
+    x@.xData[[ i ]]
+  })
+
+setMethod("[[<-", signature = c(x = "snap"),
+  function(x, i, ..., value){
+    x@.xData[[ i ]] <- value
+    return(x)
+  })
+
+setMethod("initialize", "snap",
+  function(.Object, ...) {
+    .Object <- callNextMethod()
+    if (is.null(.Object@.xData)) {
+      .Object@.xData <- new.env()
+    }
+    .Object
+  })
+
+setClassUnion("snap_or_NULL", c("snap", "NULL"))
+setClassUnion("meth_or_NULL", c("meth", "NULL"))
 
 #' @exportClass job
-.job <- setClass("job", 
+.job <- setClass("job",
   contains = c("virtual_job"),
   representation = representation(
     object = "ANY",
@@ -23,7 +93,8 @@ setClass("virtual_job", "VIRTUAL")
     pg = "character",
     cite = "character",
     method = "character",
-    meth = "list",
+    meth = "meth_or_NULL",
+    snap = "snap_or_NULL",
     sig = "character",
     tag = "character",
     analysis = "character"
@@ -31,14 +102,28 @@ setClass("virtual_job", "VIRTUAL")
   prototype = prototype(step = 0L,
     tag = character(1),
     analysis = character(1),
-    meth = .meth(),
+    meth = NULL,
+    snap = NULL,
     params = list(wd = ".", remote = "remote"),
     others = list()
     ))
 
+setMethod("initialize", "job",
+  function(.Object, ...) {
+    .Object <- callNextMethod()
+    if (is.null(.Object@meth)) {
+      .Object@meth <- .meth()
+    }
+    if (is.null(.Object@snap)) {
+      .Object@snap <- .snap()
+    }
+    .Object
+  })
+
+
 setClassUnion("numeric_or_character", c("numeric", "character"))
 
-.feature <- setClass("feature", 
+.feature <- setClass("feature",
   contains = c("vector"),
   representation = representation(
     object = "ANY", sig = "character",
@@ -48,20 +133,20 @@ setClassUnion("numeric_or_character", c("numeric", "character"))
 .feature_list <- setClass("feature_list", contains = c("feature"))
 .feature_char <- setClass("feature_char", contains = c("feature"))
 
-setValidity("feature_list", 
+setValidity("feature_list",
   function(object){
     is(object@.Data, "list")
   })
 
-setValidity("feature_char", 
+setValidity("feature_char",
   function(object){
     is(object@.Data, "character")
   })
 
-setGeneric("feature", 
+setGeneric("feature",
   function(x, ...) standardGeneric("feature"))
 
-setGeneric("feature<-", 
+setGeneric("feature<-",
   function(x, value) standardGeneric("feature<-"))
 
 setMethod("feature", signature = c(x = "job"),
@@ -90,7 +175,7 @@ setMethod("feature", signature = c(x = "wrap"),
     x$.feature
   })
 
-setGeneric("as_feature", 
+setGeneric("as_feature",
   function(x, ref, ...) standardGeneric("as_feature"))
 
 setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
@@ -127,10 +212,10 @@ setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
     return(x)
   })
 
-setGeneric("snap", 
+setGeneric("snap",
   function(x, ref, ...) standardGeneric("snap"))
 
-setGeneric("snap<-", 
+setGeneric("snap<-",
   function(x, value, ...) standardGeneric("snap<-"))
 
 setMethod("snap", signature = c(x = "ANY", ref = "missing"),
@@ -141,6 +226,17 @@ setMethod("snap", signature = c(x = "ANY", ref = "missing"),
 setReplaceMethod("snap", signature = c(x = "ANY"),
   function(x, value, ...){
     attr(x, ".SNAP") <- glue::glue(value, ..., .envir = parent.frame(2))
+    return(x)
+  })
+
+setMethod("snap", signature = c(x = "job", ref = "missing"),
+  function(x){
+    x@snap
+  })
+
+setReplaceMethod("snap", signature = c(x = "job"),
+  function(x, value){
+    x@snap <- value
     return(x)
   })
 
@@ -182,13 +278,14 @@ setMethod("snap", signature = c(x = "feature", ref = "logical"),
 
 setReplaceMethod("snap", signature = c(x = "feature"),
   function(x, value){
-    initialize(x, snap = value)
+    x@snap <- value
+    return(x)
   })
 
 setMethod("snap", signature = c(x = "job", ref = "numeric_or_character"),
   function(x, ref){
     fun <- function(ref) {
-      if (!is.null(snap <- x$.snap[[ paste0("step", ref) ]])) {
+      if (!is.null(snap <- snap(x)[[ paste0("step", ref) ]])) {
         snap
       } else {
         ""
@@ -261,7 +358,7 @@ trace_filter <- function(data, ..., quosures = NULL) {
         glue::glue("筛选 {col} 为 {bind(types, quote = TRUE)}")
       } else {
         stop(
-          "`trace_filter`: detected: ", 
+          "`trace_filter`: detected: ",
           col, "(", class(data[[ col ]]), "), Only 'character' or 'numeric' support."
         )
       }
@@ -277,7 +374,7 @@ trace_filter <- function(data, ..., quosures = NULL) {
   return(data)
 }
 
-setGeneric("try_snap", 
+setGeneric("try_snap",
   function(x, ...) standardGeneric("try_snap"))
 
 setMethod("try_snap", signature = c(x = "data.frame"),
@@ -287,7 +384,7 @@ setMethod("try_snap", signature = c(x = "data.frame"),
     bind(paste0(names(items), " (n=", len, ") "))
   })
 
-setGeneric("try_summary", 
+setGeneric("try_summary",
   function(x, ...) standardGeneric("try_summary"))
 
 setMethod("try_summary", signature = c(x = "list"),
@@ -331,19 +428,52 @@ setMethod("try_snap", signature = c(x = "list"),
     bind(paste0(names(x), " (n=", len, ") "))
   })
 
-setGeneric("meth", 
+setGeneric("init",
+  function(x, ...) standardGeneric("init"))
+
+setGeneric("init<-",
+  function(x, value) standardGeneric("init<-"))
+
+setMethod("init", signature = c(x = "meth"),
+  function(x){
+    x@init
+  })
+
+setMethod("init", signature = c(x = "snap"),
+  function(x){
+    x@init
+  })
+
+setMethod("init", signature = c(x = "NULL"),
+  function(x){
+    TRUE
+  })
+
+setReplaceMethod("init", signature = c(x = "meth"),
+  function(x, value){
+    x@init <- value
+    return(x)
+  })
+
+setReplaceMethod("init", signature = c(x = "snap"),
+  function(x, value){
+    x@init <- value
+    return(x)
+  })
+
+setGeneric("meth",
   function(x, ref, ...) standardGeneric("meth"))
 setMethod("meth", signature = c(x = "ANY", ref = "missing"),
   function(x){
     x@meth
   })
 
-setGeneric("hunt", 
+setGeneric("hunt",
   function(x, ref, ...) standardGeneric("hunt"))
 setMethod("meth", signature = c(x = "job", ref = "numeric_or_character"),
   function(x, ref){
     fun <- function(ref) {
-      if (!is.null(meth <- x@meth[[ paste0("step", ref) ]])) {
+      if (!is.null(meth <- meth(x)[[ paste0("step", ref) ]])) {
         meth
       } else {
         ""
@@ -358,11 +488,12 @@ setMethod("meth", signature = c(x = "job", ref = "numeric_or_character"),
   })
 
 
-setGeneric("meth<-", 
+setGeneric("meth<-",
   function(x, value) standardGeneric("meth<-"))
 setReplaceMethod("meth", signature = c(x = "ANY"),
   function(x, value){
-    initialize(x, meth = value)
+    x@meth <- value
+    return(x)
   })
 
 collate_details <- function(tag = "meth", envir = parent.frame(1)) {
@@ -398,14 +529,19 @@ get_meth <- function(x, setHeader = TRUE) {
   }
 }
 
-setMethod("show", 
-  signature = c(object = "meth"),
+setMethod("show", signature = c(object = "snap"),
   function(object){
-    lapply(object, writeLines)
+    eapply(object@.xData, writeLines)
     writeLines("\n")
   })
 
-# setValidity("job", 
+setMethod("show", signature = c(object = "meth"),
+  function(object){
+    eapply(object@.xData, writeLines)
+    writeLines("\n")
+  })
+
+# setValidity("job",
 #   function(object){
 #     class <- class(object)
 #     options(method_name = class)
@@ -415,20 +551,18 @@ setMethod("show",
 setClass("hclust")
 ## cutree, the tree higher, the sort number lower
 
-.marker_list <- setClass("marker_list", 
+.marker_list <- setClass("marker_list",
   contains = c(),
   representation = representation(level = "numeric", marker = "list"),
   prototype = NULL)
 
-setMethod("show", 
-  signature = c(object = "marker_list"),
+setMethod("show", signature = c(object = "marker_list"),
   function(object){
     .show(object)
   })
 
 #' @exportMethod show
-setMethod("show", 
-  signature = c(object = "job"),
+setMethod("show", signature = c(object = "job"),
   function(object){
     message("A workflow of '", class(object), "' in step (done): ", object@step)
     message("Object size: ", obj.size(object))
@@ -436,69 +570,71 @@ setMethod("show",
       message("Remote: ", object@params$remote)
   })
 
-setGeneric("params", 
+setGeneric("params",
   function(x, ...) standardGeneric("params"))
-setGeneric("plots", 
+setGeneric("plots",
   function(x, step, ...) standardGeneric("plots"))
-setGeneric("tables", 
+setGeneric("tables",
   function(x, step, ...) standardGeneric("tables"))
-setGeneric("others", 
+setGeneric("others",
   function(x, ...) standardGeneric("others"))
-setGeneric("object", 
+setGeneric("object",
   function(x, ...) standardGeneric("object"))
 
-setGeneric("pg", 
+setGeneric("pg",
   function(x, ...) standardGeneric("pg"))
-setGeneric("relative", 
+setGeneric("relative",
   function(x, ...) standardGeneric("relative"))
-setGeneric("object<-", 
+setGeneric("object<-",
   function(x, value) standardGeneric("object<-"))
-setGeneric("plots<-", 
+setGeneric("plots<-",
   function(x, value) standardGeneric("plots<-"))
-setGeneric("tables<-", 
+setGeneric("tables<-",
   function(x, value) standardGeneric("tables<-"))
-setGeneric("params<-", 
+setGeneric("params<-",
   function(x, value) standardGeneric("params<-"))
-setGeneric("others<-", 
+setGeneric("others<-",
   function(x, value) standardGeneric("others<-"))
-setGeneric("ids", 
+setGeneric("ids",
   function(x, ...) standardGeneric("ids"))
-setGeneric("sig", 
+setGeneric("sig",
   function(x, ...) standardGeneric("sig"))
-setGeneric("sig<-", 
+setGeneric("sig<-",
   function(x, value) standardGeneric("sig<-"))
-setGeneric("lab", 
+setGeneric("lab",
   function(x, ...) standardGeneric("lab"))
-setGeneric("lab<-", 
+setGeneric("lab<-",
   function(x, value) standardGeneric("lab<-"))
-setGeneric("pattern", 
+setGeneric("pattern",
   function(x, ...) standardGeneric("pattern"))
-setGeneric("ping", 
+setGeneric("ping",
   function(x, ...) standardGeneric("ping"))
-setGeneric("login", 
+setGeneric("login",
   function(x, ...) standardGeneric("login"))
-setGeneric("ref", 
+setGeneric("ref",
   function(x, ...) standardGeneric("ref"))
-setGeneric("transmute", 
+setGeneric("transmute",
   function(x, ref, ...) standardGeneric("transmute"))
 
 setMethod("transmute", signature = c(x = "feature", ref = "missing"),
   function(x){
-    if (!isS4(method <- sys.function(2))) {
-      stop(
-        '!isS4(sys.function(2)), "transmute" with `ref` missing, ',
-        'but was not in S4 generic call.'
-      )
-    }
-    convertTo <- sub("^[^_]*(_.*)", ".job\\1", method@generic)
-    if (!is(generator <- get_fun(convertTo), "classGeneratorFunction")) {
-      stop(
-        '!is(generator <- get_fun(convertTo), "classGeneratorFunction"), the matched `',
-        convertTo, '` is not a "classGeneratorFunction".'
-      )
-    }
+    generator <- .test_job_generator(sys.function(2))
     transmute(x, generator())
   })
+
+.test_job_generator <- function(method) {
+  if (!isS4(method)) {
+    stop('!isS4(method), was not in S4 generic call.')
+  }
+  convertTo <- sub("^[^_]*(_.*)", ".job\\1", method@generic)
+  if (!is(generator <- get_fun(convertTo), "classGeneratorFunction")) {
+    stop(
+      '!is(generator <- get_fun(convertTo), "classGeneratorFunction"), the matched `',
+      convertTo, '` is not a "classGeneratorFunction".'
+    )
+  }
+  return(generator)
+}
 
 setMethod("transmute", signature = c(x = "feature", ref = "job"),
   function(x, ref){
@@ -510,7 +646,7 @@ setMethod("transmute", signature = c(x = "feature", ref = "character"),
     glue::glue("对{snap(x)}进行{ref}。")
   })
 
-.character_ref <- setClass("character_ref", 
+.character_ref <- setClass("character_ref",
   contains = c("character"),
   representation = representation(),
   prototype = NULL)
@@ -533,7 +669,7 @@ setMethod("ref", signature = c(x = "character"),
       message("Not in rendering circumstance.")
       return("")
     }
-    codes <- codes_list[[x]] 
+    codes <- codes_list[[x]]
     if (is.null(codes)) {
       if (try) {
         return("")
@@ -624,7 +760,8 @@ setMethod("sig", signature = c(x = "virtual_job"),
   })
 setReplaceMethod("sig", signature = c(x = "virtual_job"),
   function(x, value){
-    initialize(x, sig = value)
+    x@sig <- value
+    return(x)
   })
 
 #' @exportMethod pg
@@ -716,7 +853,8 @@ setMethod("object", signature = c(x = "job"),
   })
 setReplaceMethod("object", signature = c(x = "job"),
   function(x, value){
-    initialize(x, object = value)
+    x@object <- value
+    return(x)
   })
 
 #' @exportMethod plots
@@ -733,13 +871,14 @@ setMethod("plots", signature = c(x = "job", step = "numeric"),
 
 setReplaceMethod("plots", signature = c(x = "job"),
   function(x, value){
-    initialize(x, object = value)
+    x@object <- value
+    return(x)
   })
 
-setGeneric("Legend", 
+setGeneric("Legend",
   function(x, ...) standardGeneric("Legend"))
 
-setGeneric("Legend<-", 
+setGeneric("Legend<-",
   function(x, value) standardGeneric("Legend<-"))
 
 setMethod("Legend", signature = c(x = "ANY"),
@@ -754,7 +893,11 @@ setReplaceMethod("Legend", signature = c(x = "ANY"),
   })
 
 setLegend <- function(x, from, ..., env = parent.frame(1)) {
-  Legend(x) <- glue::glue(from, .envir = env, ...)
+  if (is.null(env)) {
+    Legend(x) <- from
+  } else {
+    Legend(x) <- glue::glue(from, .envir = env, ...)
+  }
   return(x)
 }
 
@@ -788,7 +931,7 @@ jobSlotAdd <- function(x, name, ...) {
   return(x)
 }
 
-setGeneric("methodAdd", 
+setGeneric("methodAdd",
   function(x, from, ...) standardGeneric("methodAdd"))
 
 setMethod("methodAdd", signature = c(x = "job", from = "character"),
@@ -801,23 +944,29 @@ setMethod("methodAdd", signature = c(x = "job", from = "character"),
       }
     }
     if (missing(add)) {
-      if (is.null(x$.meth_initial) || x$.meth_initial) {
+      if (init(meth(x))) {
         add <- FALSE
-        x$.meth_initial <- FALSE
+        init(meth(x)) <- FALSE
       } else {
         add <- TRUE
       }
     } else {
       if (!add) {
-        x$.meth_initial <- FALSE
+        init(meth(x)) <- FALSE
       }
     }
     if (add) {
-      former <- meth(x)[[ paste0("step", x@step) ]]   
+      former <- meth(x)[[ paste0("step", x@step) ]]  
     } else {
       former <- ""
     }
-    meth(x)[[ paste0("step", x@step) ]] <- paste0(former, glue::glue(from, .envir = env))
+    if (is.null(env)) {
+      meth(x)[[ paste0("step", x@step) ]] <- paste0(former, from)
+    } else {
+      meth(x)[[ paste0("step", x@step) ]] <- paste0(
+        former, glue::glue(from, .envir = env)
+      )
+    }
     return(x)
   })
 
@@ -827,14 +976,19 @@ setMethod("methodAdd", signature = c(x = "job", from = "job"),
     methodAdd(x, from, ...)
   })
 
-setGeneric("snapAdd", 
+setMethod("methodAdd", signature = c(x = "job", from = "environment"),
+  function(x, from, ...){
+    for (name in names(from)) {
+      x <- methodAdd(x, from[[ name ]], ...)
+    }
+    return(x)
+  })
+
+setGeneric("snapAdd",
   function(x, from, ...) standardGeneric("snapAdd"))
 
 setMethod("snapAdd", signature = c(x = "job", from = "character"),
   function(x, from, add = FALSE, env = parent.frame(2), step = NULL) {
-    if (is.null(x$.snap)) {
-      x$.snap <- list()
-    }
     if (missing(step)) {
       if (!is.null(x$.map_step) && x$.map_step) {
         step <- "m"
@@ -843,31 +997,92 @@ setMethod("snapAdd", signature = c(x = "job", from = "character"),
       }
     }
     if (missing(add)) {
-      if (is.null(x$.snap_initial) || x$.snap_initial) {
+      if (init(snap(x))) {
         add <- FALSE
-        x$.snap_initial <- FALSE
+        init(snap(x)) <- FALSE
       } else {
         add <- TRUE
       }
     } else {
       if (!add) {
-        x$.snap_initial <- FALSE
+        init(snap(x)) <- FALSE
       }
     }
     if (add) {
-      former <- x$.snap[[ paste0("step", step) ]]
+      former <- snap(x)[[ paste0("step", step) ]]
     } else {
       former <- ""
     }
-    x$.snap[[ paste0("step", step) ]] <- paste0(former, glue::glue(from, .envir = env))
+    if (is.null(env)) {
+      snap(x)[[ paste0("step", step) ]] <- paste0(former, from)
+    } else {
+      snap(x)[[ paste0("step", step) ]] <- paste0(former, glue::glue(from, .envir = env))
+    }
     return(x)
   })
 
 setMethod("snapAdd", signature = c(x = "job", from = "job"),
   function(x, from, ...){
-    from <- paste0(unlist(from$.snap, use.names = FALSE), collapse = "")
+    from <- paste0(unlist(snap(from), use.names = FALSE), collapse = "")
     snapAdd(x, from, ...)
   })
+
+setMethod("snapAdd", signature = c(x = "job", from = "environment"),
+  function(x, from, ...){
+    for (name in names(from)) {
+      x <- snapAdd(x, from[[ name ]], ...)
+    }
+    return(x)
+  })
+
+# static_call_on_exit <- function(static, dynamic, funName, args = "",
+#   expr = "{dynamic} <- {funName}({dynamic}, {static}, {args})",
+#   add = TRUE, after = TRUE,
+#   env = parent.frame(1), saveStatic = ".__TEMP__")
+# {
+#   expr <- glue::glue("on.exit({expr}, add = {add}, after = {after})")
+#   eval(parse(text = glue::glue(expr)), envir = env)
+# }
+
+resolve_feature_snapAdd_onExit <- function(x, feature, funName = "snapAdd",
+  saveStatic = ".__SNAP__", env = parent.frame(1),
+  fun_generator = sys.function(2))
+{
+  generator <- .test_job_generator(fun_generator)
+  snap <- transmute(feature, generator())
+  snapAdd_onExit(x, snap, funName, saveStatic, env)
+  return(feature@.Data)
+}
+
+snapAdd_onExit <- function(x, static, funName = "snapAdd",
+  saveStatic = ".__SNAP__", env = parent.frame(1))
+{
+  methodAdd_onExit(x, static, funName, saveStatic, env)
+}
+
+methodAdd_onExit <- function(x, static, funName = "methodAdd",
+  saveStatic = ".__METH__", env = parent.frame(1))
+{
+  if (!is(x, "character") || !is(static, "character")) {
+    stop('!is(x, "character") || !is(static, "character"), should all be character.')
+  }
+  saveEnv <- try(get(saveStatic, envir = env), TRUE)
+  if (inherits(saveEnv, "try-error")) {
+    saveEnv <- new.env()
+    assign(saveStatic, saveEnv, envir = env)
+    hasSetUp <- FALSE
+  } else {
+    hasSetUp <- TRUE
+  }
+  name <- paste0("value", length(saveEnv) + 1L)
+  saveEnv[[ name ]] <- glue::glue(static, .envir = env)
+  if (!hasSetUp) {
+    expr <- glue::glue(
+      "{funName}(get({x}, env = env), saveEnv, env = NULL)"
+    )
+    withr::defer(eval(parse(text = expr)), envir = env)
+  }
+}
 
 .set_lab_batch <- function(objs, labs, sig) {
   mapply(objs, labs, SIMPLIFY = FALSE,
@@ -911,7 +1126,8 @@ setMethod("tables", signature = c(x = "job", step = "double"),
   })
 setReplaceMethod("tables", signature = c(x = "job"),
   function(x, value){
-    initialize(x, object = value)
+    x@object <- value
+    return(x)
   })
 
 
@@ -922,7 +1138,8 @@ setMethod("params", signature = c(x = "job"),
   })
 setReplaceMethod("params", signature = c(x = "job"),
   function(x, value){
-    initialize(x, object = value)
+    x@object <- value
+    return(x)
   })
 
 
@@ -933,14 +1150,15 @@ setMethod("others", signature = c(x = "job"),
   })
 setReplaceMethod("others", signature = c(x = "job"),
   function(x, value){
-    initialize(x, object = value)
+    x@object <- value
+    return(x)
   })
 
 # ==========================================================================
-# remote or local 
+# remote or local
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-setGeneric("set_remote", 
+setGeneric("set_remote",
   function(x, ...) {
     x <- set_remote.default(x, tmpdir = getOption("remote_tmpdir", NULL),
       map_local = paste0(gs(class(x), "^job_", ""), "_local"),
@@ -1039,7 +1257,7 @@ setGeneric("step1", group = list("step_series"),
       name <- substitute(x)
       sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
       attr(sig, "name") <- as.character(name)
-      sig(x) <- sig  
+      sig(x) <- sig 
     }
     # }
     if (is.null(seed <- getOption("step_seed"))) {
@@ -1351,8 +1569,8 @@ checkAddStep <- function(x, n, clear_tables_plots = TRUE) {
   message(crayon::green("Running", STEP), ":")
   x@step <- n
   x@others$.oldParams <- names(x@params)
-  x$.snap_initial <- TRUE
-  x$.meth_initial <- TRUE
+  init(snap(x)) <- TRUE
+  init(meth(x)) <- TRUE
   x$.tables_initial <- TRUE
   x$.plots_initial <- TRUE
   x
@@ -1480,14 +1698,12 @@ match_pair <- function(str, left = "(", right = ")") {
   paste0(char, collapse = "")
 }
 
-setMethod("show", 
-  signature = c(object = "standardGeneric"),
+setMethod("show", signature = c(object = "standardGeneric"),
   function(object){
     .show_method(object, show_standardGeneric, FALSE)
   })
 
-setMethod("show", 
-  signature = c(object = "nonstandardGenericFunction"),
+setMethod("show", signature = c(object = "nonstandardGenericFunction"),
   function(object) {
     .show_method(object, show_nonstandardGenericFunction, TRUE)
   }
@@ -1498,7 +1714,7 @@ setMethod("print", signature = c(x = "nonstandardGenericFunction"),
     show(x)
   })
 
-setGeneric("clear", 
+setGeneric("clear",
   function(x, ...) standardGeneric("clear"))
 
 setMethod("clear", signature = c(x = "job"),
@@ -1509,26 +1725,26 @@ setMethod("clear", signature = c(x = "job"),
     return(x)
   })
 
-setGeneric("via_symbol", 
+setGeneric("via_symbol",
   function(x, ...) standardGeneric("via_symbol"))
 
 setGeneric("vis",
   function(x, ...) standardGeneric("vis"))
 
-setGeneric("focus", 
+setGeneric("focus",
   function(x, ...) standardGeneric("focus"))
 
-setGeneric("meta", 
+setGeneric("meta",
   function(x, ...) standardGeneric("meta"))
 
-setGeneric("anno", 
+setGeneric("anno",
   function(x, ...) standardGeneric("anno"))
 
-setGeneric("map", 
+setGeneric("map",
   function(x, ref, ...) {
     if (is(x, "job")) {
-      x$.snap_initial <- TRUE
-      x$.meth_initial <- TRUE
+      init(snap(x)) <- TRUE
+      init(meth(x)) <- TRUE
       x$.map_step <- TRUE
     }
     x <- standardGeneric("map")
@@ -1545,49 +1761,49 @@ setGeneric("map",
     }
   })
 
-setGeneric("gname", 
+setGeneric("gname",
   function(x, ...) standardGeneric("gname"))
 
-setGeneric("tops", 
+setGeneric("tops",
   function(x, ...) standardGeneric("tops"))
 
-setGeneric("regroup", 
+setGeneric("regroup",
   function(x, ref, ...) standardGeneric("regroup"))
 
-setGeneric("diff", 
+setGeneric("diff",
   function(x, ...) standardGeneric("diff"))
 
-setGeneric("infer", 
+setGeneric("infer",
   function(x, ...) standardGeneric("infer"))
 
-setGeneric("getsub", 
+setGeneric("getsub",
   function(x, ...) standardGeneric("getsub"))
 
-setGeneric("active", 
+setGeneric("active",
   function(x, ...) standardGeneric("active"))
 
-setGeneric("skel", 
+setGeneric("skel",
   function(x, ...) standardGeneric("skel"))
 
-setGeneric("res", 
+setGeneric("res",
   function(x, ref, ...) standardGeneric("res"))
 
-setGeneric("intersect", 
+setGeneric("intersect",
   function(x, y, ...) standardGeneric("intersect"))
 
-setGeneric("fill", 
+setGeneric("fill",
   function(x, ...) standardGeneric("fill"))
 
-setGeneric("upd", 
+setGeneric("upd",
   function(x, ...) standardGeneric("upd"))
 
-setGeneric("upload", 
+setGeneric("upload",
   function(x, ...) standardGeneric("upload"))
 
-setGeneric("pull", 
+setGeneric("pull",
   function(x, ...) standardGeneric("pull"))
 
-setGeneric("not", 
+setGeneric("not",
   function(x, ...) standardGeneric("not"))
 
 setMethod("intersect", signature = c(x = "ANY", y = "ANY"),
@@ -1601,7 +1817,7 @@ setMethod("not", signature = c(x = "job"),
     invisible(x)
   })
 
-setGeneric("merge", 
+setGeneric("merge",
   function(x, y, ...) standardGeneric("merge"))
 
 setMethod("upd", signature = c(x = "ANY"),
@@ -1609,9 +1825,16 @@ setMethod("upd", signature = c(x = "ANY"),
     new <- new(class(x))
     new@object <- x@object
     new@params <- x@params
+    if (!is.null(x@params$.snap)) {
+      new@snap <- .snap(as.environment(x@params$.snap))
+      new@params$.snap <- NULL
+    }
     new@plots <- x@plots
     new@tables <- x@tables
     new@step <- x@step
+    if (is(x@meth@.Data, "list")) {
+      new@meth <- .meth(as.environment(x@meth@.Data))
+    }
     if (!inherits(try(x@sig, TRUE), "try-error")) {
       new@sig <- x@sig
     }
@@ -1654,7 +1877,7 @@ set_palette <- function(x, values = color_set()) {
     scale_fill_manual(values = values)
 }
 
-setGeneric("is.remote", 
+setGeneric("is.remote",
   function(x, ...) standardGeneric("is.remote"))
 
 setMethod("is.remote", signature = c(x = "job"),
@@ -1664,7 +1887,7 @@ setMethod("is.remote", signature = c(x = "job"),
     } else FALSE
   })
 
-setGeneric("is_workflow_object_exists", 
+setGeneric("is_workflow_object_exists",
   function(object, ...) standardGeneric("is_workflow_object_exists"))
 
 setMethod("[[", signature = c(x = "job"),
@@ -1905,8 +2128,8 @@ plot_workflow_summary <- function(data, get_jobs_used = FALSE) {
       geom_edge_arc(color = "lightblue", alpha = .5) +
       geom_node_point(aes(size = centrality_degree,
           fill = centrality_degree), alpha = .7, shape = 21) +
-      geom_node_text(aes(x = x * 1.1,  y = y * 1.1, 
-          label = Hmisc::capitalize(name), angle = -((-node_angle(x,  y) + 90) %% 180) + 90), 
+      geom_node_text(aes(x = x * 1.1,  y = y * 1.1,
+          label = Hmisc::capitalize(name), angle = -((-node_angle(x,  y) + 90) %% 180) + 90),
         size = 3, hjust = 'outward', family = "Times") +
       scale_size(range = c(2, 12)) +
       scale_fill_gradientn(colors = color_set()[1:3]) +
@@ -1971,7 +2194,7 @@ plot_workflow_summary <- function(data, get_jobs_used = FALSE) {
     theme <- theme_void() + theme(legend.position = "none")
     layer0 <- ggraph::ggraph(graph)
     scale_size <- scale_size(range = c(1, 3))
-    layer5 <- layer0 + 
+    layer5 <- layer0 +
       ggraph::geom_edge_fan(aes(edge_width = width), color = "lightblue") +
       ggraph::geom_node_point(aes(size = size, fill = name), shape = 21) +
       scale_size + ggsci::scale_fill_npg() + theme
@@ -2062,10 +2285,10 @@ plot_workflow_summary <- function(data, get_jobs_used = FALSE) {
 }
 
 # ==========================================================================
-# 
+#
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-.local_db <- setClass("local_db", 
+.local_db <- setClass("local_db",
   contains = c(),
   representation = representation(
     db = "df",

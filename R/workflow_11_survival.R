@@ -174,7 +174,7 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
         snap, "按中位风险评分，将样本分为 Low 和 High 风险组。"
       )
     }
-    meth <- x@meth[[1]]
+    meth <- meth(x)[[1]]
     x <- .job_survival(object = data)
     x <- methodAdd(x, meth)
     x <- methodAdd(x, "使用标准化过的基因表达数据。")
