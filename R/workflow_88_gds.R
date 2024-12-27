@@ -75,7 +75,7 @@ job_gds <- function(keys,
 }
 
 setMethod("step1", signature = c(x = "job_gds"),
-  function(x, ...){
+  function(x, single_cell = FALSE, ...){
     step_message("Statistic.")
     args <- rlang::enquos(...)
     if (length(args)) {
@@ -100,6 +100,9 @@ setMethod("step2", signature = c(x = "job_gds"),
       stop('length(gse) > 50 && !force, too many items for query.')
     }
     x$res <- batch_geo(gses, ...)
+    if (TRUE) {
+      x$res$res <- NULL
+    }
     x$querys <- gses
     x <- snapAdd(x, "以 `GEOquery` 获取 GSE 数据集，检查元数据。")
     return(x)
