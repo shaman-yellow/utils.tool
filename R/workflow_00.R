@@ -310,15 +310,31 @@ setMethod("try_snap", signature = c(x = "list"),
   })
 
 setGeneric("meth", 
-  function(x, ...) standardGeneric("meth"))
-setMethod("meth", 
-  signature = c(x = "ANY"),
+  function(x, ref, ...) standardGeneric("meth"))
+setMethod("meth", signature = c(x = "ANY", ref = "missing"),
   function(x){
     x@meth
   })
 
 setGeneric("hunt", 
   function(x, ref, ...) standardGeneric("hunt"))
+setMethod("meth", signature = c(x = "job", ref = "numeric_or_character"),
+  function(x, ref){
+    fun <- function(ref) {
+      if (!is.null(meth <- x@meth[[ paste0("step", ref) ]])) {
+        meth
+      } else {
+        ""
+      }
+    }
+    if (length(ref) > 1) {
+      res <- unlist(lapply(ref, fun))
+      paste0(res[ res != "" ], collapse = "")
+    } else {
+      fun(ref)
+    }
+  })
+
 
 setGeneric("meth<-", 
   function(x, value) standardGeneric("meth<-"))
@@ -441,6 +457,31 @@ setGeneric("login",
   function(x, ...) standardGeneric("login"))
 setGeneric("ref", 
   function(x, ...) standardGeneric("ref"))
+setGeneric("transform", 
+  function(x, ref, ...) standardGeneric("transform"))
+
+setMethod("transform", signature = c(x = "feature", ref = "missing"),
+  function(x){
+    if (!isS4(method <- sys.function(2))) {
+      stop(
+        '!isS4(sys.function(2)), "transform" with `ref` missing, ',
+        'but was not in S4 generic call.'
+      )
+    }
+    convertTo <- sub("^[^_]*(_.*)", ".job\\1", method@generic)
+    if (!is(generator <- get_fun(convertTo), "classGeneratorFunction")) {
+      stop(
+        '!is(generator <- get_fun(convertTo), "classGeneratorFunction"), the matched `',
+        convertTo, '` is not a "classGeneratorFunction".'
+      )
+    }
+    transform(x, generator())
+  })
+
+setMethod("transform", signature = c(x = "feature", ref = "job"),
+  function(x, ref){
+    glue::glue("对{x@nature}{snap(x)}进行")
+  })
 
 .character_ref <- setClass("character_ref", 
   contains = c("character"),
@@ -1114,7 +1155,7 @@ stepPostModify <- function(x, n = NULL) {
         names(x@plots)[ n ] <- paste0("step", n)
       new_plots <- paste0(xname, "@plots$step", x@step, "$", names(x@plots[[ x@step ]]))
       cli::cli_alert_info("Plot news:")
-      lapply(new_plots, cli::cli_alert_success)
+      lapply(new_plots, cli::cli_code)
       news <- c(news, new_plots)
     }
     if (length(x@tables) >= n) {
@@ -1122,7 +1163,7 @@ stepPostModify <- function(x, n = NULL) {
         names(x@tables)[ n ] <- paste0("step", n)
       new_tables <- paste0(xname, "@tables$step", x@step, "$", names(x@tables[[ x@step ]]))
       cli::cli_alert_info("Table news:")
-      lapply(new_tables, cli::cli_alert_success)
+      lapply(new_tables, cli::cli_code)
       news <- c(news, new_tables)
     }
   }
@@ -1130,21 +1171,32 @@ stepPostModify <- function(x, n = NULL) {
   if (any(isNewParams)) {
     cli::cli_alert_info("Params news:")
     new_params <- paste0(xname, "@params$", names(x@params)[ isNewParams ])
-    lapply(new_params, cli::cli_alert_success)
+    lapply(new_params, cli::cli_code)
     news <- c(news, new_params)
   }
   if (!is.null(xname) && length(xname)) {
     assign(xname, x)
     writeJobSlotsAutoCompletion(xname, environment())
   }
+  meth <- meth(x, x@step)
+  if (any(nchar(meth))) {
+    if (length(meth) > 1) {
+      meth <- paste0(meth, collapse = "")
+    }
+    message("METH:\n", .strwrapCh(meth))
+  }
   snap <- snap(x, x@step)
   if (any(nchar(snap))) {
-    if (length(snap)) {
+    if (length(snap) > 1) {
       snap <- paste0(snap, collapse = "")
     }
-    message("SNAP:\n", paste0(strwrap(split_text_by_width(snap, 70), , 4), collapse = "\n"))
+    message("SNAP:\n", .strwrapCh(snap))
   }
   x
+}
+
+.strwrapCh <- function(x) {
+  paste0(strwrap(split_text_by_width(x, 70), , 4), collapse = "\n")
 }
 
 writeAllCompletion <- function(jobs = .get_job_list(extra = NULL)) {

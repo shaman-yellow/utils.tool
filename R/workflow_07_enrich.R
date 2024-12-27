@@ -39,7 +39,9 @@ job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_i
   }
   if (missing(annotation)) {
     mart <- new_biomart()
-    annotation <- filter_biomart(mart, general_attrs(), from, unique(unlist(ids)))
+    annotation <- filter_biomart(
+      mart, general_attrs(), from, unique(unlist(ids))
+    )
   }
   maps <- lapply(ids,
     function(id) {

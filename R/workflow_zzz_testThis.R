@@ -29,6 +29,14 @@ setMethod("step0", signature = c(x = "job_testThis"),
     step_message("Prepare your data with function `job_testThis`.")
   })
 
+setGeneric("asjob_testThis", 
+  function(x, ...) standardGeneric("asjob_testThis"))
+
+setMethod("asjob_testThis", signature = c(x = "feature"),
+  function(x){
+    transform(.feature())
+  })
+
 setMethod("step1", signature = c(x = "job_testThis"),
   function(x){
     step_message("Quality control (QC).")
@@ -37,8 +45,7 @@ setMethod("step1", signature = c(x = "job_testThis"),
     x <- plotsAdd(x, p.ggplotTest)
     x <- tablesAdd(x, t.eg = eg)
     text <- "__test__"
-    x <- methodAdd(x, "for {text}")
-    x$test <- 1:10
+    transform(.feature())
     message("Run hereing")
     return(x)
   })
