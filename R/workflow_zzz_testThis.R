@@ -48,16 +48,8 @@ setMethod("step1", signature = c(x = "job_testThis"),
     x <- plotsAdd(x, p.ggplotTest)
     y <- x <- tablesAdd(x, t.eg = eg)
     x <- 1:10
-    print("------------")
-    methodAdd_onExit("x", "这是第二次测试。")
-    methodAdd_onExit("x", "这是第三次测试。")
-    methodAdd_onExit("x", "这是第四次测试。")
     snapAdd_onExit("x", "这是第二个说明。")
-    snapAdd_onExit("x", "这是第三个说明。")
-    snapAdd_onExit("x", "这是第四个说明。")
-    print("------------")
     x <- y
-    x <- methodAdd(x, "这是一次测试。")
     x <- snapAdd(x, "这是一个说明。")
     text <- "__test__"
     fea <- as_feature("test", .job_enrich())
