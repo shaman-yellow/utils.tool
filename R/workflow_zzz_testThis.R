@@ -16,7 +16,7 @@
     cite = "",
     method = "",
     tag = "",
-    analysis = ""
+    analysis = "测试分析"
     ))
 
 job_testThis <- function(x)
@@ -34,7 +34,10 @@ setGeneric("asjob_testThis",
 
 setMethod("asjob_testThis", signature = c(x = "feature"),
   function(x){
-    transform(.feature())
+    snap <- transmute(x)
+    x <- .job_testThis()
+    x <- snapAdd(x, snap)
+    return(x)
   })
 
 setMethod("step1", signature = c(x = "job_testThis"),
@@ -45,8 +48,7 @@ setMethod("step1", signature = c(x = "job_testThis"),
     x <- plotsAdd(x, p.ggplotTest)
     x <- tablesAdd(x, t.eg = eg)
     text <- "__test__"
-    transform(.feature())
-    message("Run hereing")
+    fea <- as_feature("test", .job_enrich())
     return(x)
   })
 

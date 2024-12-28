@@ -111,13 +111,19 @@ setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
       stop("Now, only 'character' or 'list' types of 'feature' support.")
       x <- .feature(x, type = type, nature = nature)
     }
-    if (is.null(analysis)) {
+    if (missing(analysis)) {
       analysis <- ref@analysis
     } else {
       ## upper the generic environment.
       analysis <- glue::glue(analysis, .envir = parent.frame(2))
     }
-    snap(x) <- glue::glue(" ({nature}来自于{analysis}(Section: {sig(ref)})) ")
+    sig <- sig(ref)
+    if (length(sig)) {
+      sig <- "(Section: {sig})"
+    } else {
+      sig <- ""
+    }
+    snap(x) <- glue::glue("来自于{analysis}{sig}")
     return(x)
   })
 
@@ -127,7 +133,7 @@ setGeneric("snap",
 setGeneric("snap<-", 
   function(x, value, ...) standardGeneric("snap<-"))
 
-setMethod("snap", signature = c(x = "ANY"),
+setMethod("snap", signature = c(x = "ANY", ref = "missing"),
   function(x){
     attr(x, ".SNAP")
   })
@@ -152,9 +158,25 @@ setMethod("snap", signature = c(x = "feature", ref = "logical"),
       if (length(x) > limit) {
         stop('length(x) > limit, too many features to show.')
       }
-      paste0(bind(x), x@snap)
+      glue::glue("{bind(x)} ({x@snap}) ")
     } else {
-      x@snap
+      if (is(x, "feature_list")) {
+        str <- names(x)
+        if (is.null(str)) {
+          str <- ""
+        }
+      } else if (is(x, "feature_char")) {
+        str <- x@.Data
+      }
+      if (length(str) > 2) {
+        str <- bind(head(str, n = 2))
+        if (nchar(str) > 25) {
+          str <- stringr::str_trunc(str, 25)
+        }
+        str <- bind(str, ", etc.")
+      }
+      sep <- if (nchar(str)) ", " else ""
+      glue::glue("{x@nature} ({str}{sep}{x@snap}) ")
     }
   })
 
@@ -457,14 +479,14 @@ setGeneric("login",
   function(x, ...) standardGeneric("login"))
 setGeneric("ref", 
   function(x, ...) standardGeneric("ref"))
-setGeneric("transform", 
-  function(x, ref, ...) standardGeneric("transform"))
+setGeneric("transmute", 
+  function(x, ref, ...) standardGeneric("transmute"))
 
-setMethod("transform", signature = c(x = "feature", ref = "missing"),
+setMethod("transmute", signature = c(x = "feature", ref = "missing"),
   function(x){
     if (!isS4(method <- sys.function(2))) {
       stop(
-        '!isS4(sys.function(2)), "transform" with `ref` missing, ',
+        '!isS4(sys.function(2)), "transmute" with `ref` missing, ',
         'but was not in S4 generic call.'
       )
     }
@@ -475,12 +497,17 @@ setMethod("transform", signature = c(x = "feature", ref = "missing"),
         convertTo, '` is not a "classGeneratorFunction".'
       )
     }
-    transform(x, generator())
+    transmute(x, generator())
   })
 
-setMethod("transform", signature = c(x = "feature", ref = "job"),
+setMethod("transmute", signature = c(x = "feature", ref = "job"),
   function(x, ref){
-    glue::glue("对{x@nature}{snap(x)}进行")
+    glue::glue("对{snap(x)}进行{ref@analysis}。")
+  })
+
+setMethod("transmute", signature = c(x = "feature", ref = "character"),
+  function(x, ref){
+    glue::glue("对{snap(x)}进行{ref}。")
   })
 
 .character_ref <- setClass("character_ref", 

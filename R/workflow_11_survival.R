@@ -130,7 +130,7 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     }
     snap <- ""
     if (is(genes_surv, "feature")) {
-      snap <- glue::glue("以基因集 {snap(genes_surv)} 进行生存分析。")
+      snap <- glue::glue("以 {snap(genes_surv)} 进行生存分析。")
       genes_surv <- genes_surv@.Data
     }
     i.pos <- gname(object(x)$genes[[ use ]]) %in% genes_surv

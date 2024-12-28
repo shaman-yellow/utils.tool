@@ -25,7 +25,7 @@ setMethod("asjob_enrich", signature = c(x = "feature"),
   function(x, ...){
     snap <- snap(x)
     x <- job_enrich(x@.Data)
-    x <- snapAdd(x, "对基因集{snap}进行 KEGG 和 GO 富集分析。")
+    x <- snapAdd(x, "对{snap}进行 KEGG 和 GO 富集分析。")
     x
   })
 

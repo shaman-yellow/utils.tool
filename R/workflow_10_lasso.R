@@ -40,7 +40,7 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
       if (!is.null(use.filter)) {
         if (is(use.filter, "feature")) {
           message("Detected feature input.")
-          snap <- glue::glue("将基因集{snap(use.filter)}用于 COX 回归分析。")
+          snap <- glue::glue("将{snap(use.filter)}用于 COX 回归分析。")
           use.filter <- unlist(use.filter@.Data, use.names = FALSE)
         }
         pos <- gname(x@params$normed_data$genes[[use]]) %in% use.filter

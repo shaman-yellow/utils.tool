@@ -69,7 +69,7 @@ setMethod("map", signature = c(x = "job_fe", ref = "feature"),
     x$upset <- new_venn(lst = lst)
     x$upset <- setLegend(x$upset, "展示了与铁死亡相关调控因子的交集。{try_summary(lst)}")
     feature <- x$upset$ins
-    x <- snapAdd(x, "将基因集 {snap(ref)} 与 FerrDb 数据库中铁死亡调控因子取交集。")
+    x <- snapAdd(x, "将 {snap(ref)} 与 FerrDb 数据库中铁死亡调控因子取交集。")
     x <- snapAdd(x, "得到共 {length(feature)} 个交集基因。")
     x$.feature <- as_feature(feature, x, analysis = "铁死亡交集基因")
     x$.map_heading <- "FerrDb 与铁死亡相关基因的交集"
