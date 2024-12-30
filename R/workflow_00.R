@@ -16,17 +16,36 @@ setMethod("$", signature = c(x = "meth"),
 
 setMethod("$<-", signature = c(x = "meth"),
   function(x, name, value){
+    if (!is(value, "character")) {
+      stop('!is(value, "character"), must be character.')
+    }
     x@.xData[[ name ]] <- value
+    if (!any(x@.xData$.order == name)) {
+      x@.xData$.order <- append(x@.xData$.order, name)
+    }
     return(x)
   })
 
 setMethod("[[", signature = c(x = "meth"),
   function(x, i, ...){
-    x@.xData[[ i ]]
+    if (is(i, "numeric")) {
+      x@.xData[[ x@.xData$.order[i] ]]
+    } else {
+      x@.xData[[ i ]]
+    }
   })
 
 setMethod("[[<-", signature = c(x = "meth"),
   function(x, i, ..., value){
+    if (!is(i, "character")) {
+      stop('!is(i, "character"), `i` must be "character".')
+    }
+    if (!is(value, "character")) {
+      stop('!is(value, "character"), must be character.')
+    }
+    if (!any(x@.xData$.order == i)) {
+      x@.xData$.order <- append(x@.xData$.order, i)
+    }
     x@.xData[[ i ]] <- value
     return(x)
   })
@@ -36,47 +55,18 @@ setMethod("initialize", "meth",
     .Object <- callNextMethod()
     if (is.null(.Object@.xData)) {
       .Object@.xData <- new.env()
+      .Object@.xData$.order <- character(0)
     }
     .Object
   })
 
-.snap <- setClass("snap",
-  contains = c("environment"),
-  representation = representation(init = "logical"),
-  prototype = prototype(TRUE, init = TRUE))
-
-setMethod("$", signature = c(x = "snap"),
-  function(x, name){
-    x@.xData[[ name ]]
+setMethod("length", signature = c(x = "meth"),
+  function(x){
+    length(x@.xData$.order)
   })
 
-setMethod("$<-", signature = c(x = "snap"),
-  function(x, name, value){
-    x@.xData[[ name ]] <- value
-    return(x)
-  })
+.snap <- setClass("snap", contains = c("meth"))
 
-setMethod("[[", signature = c(x = "snap"),
-  function(x, i, ...){
-    x@.xData[[ i ]]
-  })
-
-setMethod("[[<-", signature = c(x = "snap"),
-  function(x, i, ..., value){
-    x@.xData[[ i ]] <- value
-    return(x)
-  })
-
-setMethod("initialize", "snap",
-  function(.Object, ...) {
-    .Object <- callNextMethod()
-    if (is.null(.Object@.xData)) {
-      .Object@.xData <- new.env()
-    }
-    .Object
-  })
-
-setClassUnion("snap_or_NULL", c("snap", "NULL"))
 setClassUnion("meth_or_NULL", c("meth", "NULL"))
 
 #' @exportClass job
@@ -94,7 +84,7 @@ setClassUnion("meth_or_NULL", c("meth", "NULL"))
     cite = "character",
     method = "character",
     meth = "meth_or_NULL",
-    snap = "snap_or_NULL",
+    snap = "meth_or_NULL",
     sig = "character",
     tag = "character",
     analysis = "character"
@@ -137,6 +127,19 @@ setValidity("feature_list",
   function(object){
     is(object@.Data, "list")
   })
+
+setMethod("[[", signature = c(x = "feature"),
+  function(x, i, ...){
+    x@.Data <- x@.Data[[ i ]]
+    return(x)
+  })
+
+setMethod("[", signature = c(x = "feature"),
+  function(x, i, ...){
+    x@.Data <- x@.Data[ i ]
+    return(x)
+  })
+
 
 setValidity("feature_char",
   function(object){
@@ -204,7 +207,7 @@ setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
     }
     sig <- sig(ref)
     if (length(sig)) {
-      sig <- "(Section: {sig})"
+      sig <- glue::glue("(Section: {sig})")
     } else {
       sig <- ""
     }
@@ -264,12 +267,19 @@ setMethod("snap", signature = c(x = "feature", ref = "logical"),
       } else if (is(x, "feature_char")) {
         str <- x@.Data
       }
-      if (length(str) > 2) {
+      if (length(str) >= 2) {
+        if (length(str) == 2) {
+          add <- FALSE
+        } else {
+          add <- TRUE
+        }
         str <- bind(head(str, n = 2))
         if (nchar(str) > 25) {
           str <- stringr::str_trunc(str, 25)
         }
-        str <- bind(str, ", etc.")
+        if (add) {
+          str <- paste0(str, ", etc.")
+        }
       }
       sep <- if (nchar(str)) ", " else ""
       glue::glue("{x@nature} ({str}{sep}{x@snap}) ")
@@ -351,11 +361,24 @@ trace_filter <- function(data, ..., quosures = NULL) {
         )
         glue::glue("筛选 {col} {des} {cutoff}")
       } else if (is.character(data[[ col ]]) || is.factor(data[[ col ]])) {
-        types <- unique(data[[ col ]])
-        if (length(types) > 20) {
-          stop("`trace_filter`: too many '{col}' ({length(types)}) to display. ")
+        if (grpl(label, "gr[e]?pl")) {
+          if (grpl(label, "!gr[e]?pl")) {
+            neg <- "不"
+          } else neg <- ""
+          match <- strx(label, '".*"|\'.*\'')
+          if (is.na(match)) {
+            stop(
+              'is.na(match), detected "grepl" or "grpl", but not matched the pattern.'
+            )
+          }
+          glue::glue("匹配 {col} 中{neg}包含 {match} 字符的数据")
+        } else {
+          types <- unique(data[[ col ]])
+          if (length(types) > 20) {
+            stop("`trace_filter`: too many '{col}' ({length(types)}) to display. ")
+          }
+          glue::glue("筛选 {col} 为 {bind(types, quote = TRUE)}")
         }
-        glue::glue("筛选 {col} 为 {bind(types, quote = TRUE)}")
       } else {
         stop(
           "`trace_filter`: detected: ",
@@ -439,11 +462,6 @@ setMethod("init", signature = c(x = "meth"),
     x@init
   })
 
-setMethod("init", signature = c(x = "snap"),
-  function(x){
-    x@init
-  })
-
 setMethod("init", signature = c(x = "NULL"),
   function(x){
     TRUE
@@ -455,17 +473,21 @@ setReplaceMethod("init", signature = c(x = "meth"),
     return(x)
   })
 
-setReplaceMethod("init", signature = c(x = "snap"),
-  function(x, value){
-    x@init <- value
-    return(x)
-  })
-
 setGeneric("meth",
   function(x, ref, ...) standardGeneric("meth"))
 setMethod("meth", signature = c(x = "ANY", ref = "missing"),
   function(x){
     x@meth
+  })
+
+setMethod("meth", signature = c(x = "job", ref = "logical"),
+  function(x, ref){
+    x <- meth(x)
+    if (ref) {
+      lapply(x@.xData$.order, function(name) x@.xData[[ name ]])
+    } else {
+      vapply(x@.xData$.order, function(name) x@.xData[[ name ]], character(1))
+    }
   })
 
 setGeneric("hunt",
@@ -523,21 +545,20 @@ get_meth <- function(x, setHeader = TRUE) {
     }
   }
   if (setHeader) {
-    c("", header, "", meth(x))
+    c("", header, "", meth(x, TRUE))
   } else {
-    c("", meth(x), "")
+    c("", meth(x, TRUE), "")
   }
 }
 
-setMethod("show", signature = c(object = "snap"),
-  function(object){
-    eapply(object@.xData, writeLines)
-    writeLines("\n")
-  })
-
 setMethod("show", signature = c(object = "meth"),
   function(object){
-    eapply(object@.xData, writeLines)
+    lapply(object@.xData$.order,
+      function(name) {
+        writeLines(
+          paste(crayon::silver(paste0(name, ":")), object@.xData[[ name ]])
+        )
+      })
     writeLines("\n")
   })
 
@@ -976,9 +997,9 @@ setMethod("methodAdd", signature = c(x = "job", from = "job"),
     methodAdd(x, from, ...)
   })
 
-setMethod("methodAdd", signature = c(x = "job", from = "environment"),
+setMethod("methodAdd", signature = c(x = "job", from = "meth"),
   function(x, from, ...){
-    for (name in names(from)) {
+    for (name in from@.xData$.order) {
       x <- methodAdd(x, from[[ name ]], ...)
     }
     return(x)
@@ -1027,9 +1048,9 @@ setMethod("snapAdd", signature = c(x = "job", from = "job"),
     snapAdd(x, from, ...)
   })
 
-setMethod("snapAdd", signature = c(x = "job", from = "environment"),
+setMethod("snapAdd", signature = c(x = "job", from = "meth"),
   function(x, from, ...){
-    for (name in names(from)) {
+    for (name in from@.xData$.order) {
       x <- snapAdd(x, from[[ name ]], ...)
     }
     return(x)
@@ -1048,10 +1069,14 @@ resolve_feature_snapAdd_onExit <- function(x, feature, funName = "snapAdd",
   saveStatic = ".__SNAP__", env = parent.frame(1),
   fun_generator = sys.function(2))
 {
-  generator <- .test_job_generator(fun_generator)
-  snap <- transmute(feature, generator())
-  snapAdd_onExit(x, snap, funName, saveStatic, env)
-  return(feature@.Data)
+  if (is(feature, "feature")) {
+    generator <- .test_job_generator(fun_generator)
+    snap <- transmute(feature, generator())
+    snapAdd_onExit(x, snap, funName, saveStatic, env)
+    return(feature@.Data)  
+  } else {
+    feature
+  }
 }
 
 snapAdd_onExit <- function(x, static, funName = "snapAdd",
@@ -1068,7 +1093,7 @@ methodAdd_onExit <- function(x, static, funName = "methodAdd",
   }
   saveEnv <- try(get(saveStatic, envir = env), TRUE)
   if (inherits(saveEnv, "try-error")) {
-    saveEnv <- new.env()
+    saveEnv <- .meth()
     assign(saveStatic, saveEnv, envir = env)
     hasSetUp <- FALSE
   } else {
@@ -1080,7 +1105,7 @@ methodAdd_onExit <- function(x, static, funName = "methodAdd",
     expr <- glue::glue(
       "{funName}(get({x}, env = env), saveEnv, env = NULL)"
     )
-    withr::defer(eval(parse(text = expr)), envir = env)
+    withr::defer(eval(parse(text = expr)), envir = env, "last")
   }
 }
 
@@ -1459,6 +1484,7 @@ updAlls <- function(names = .get_job_list(extra = NULL), envir = .GlobalEnv) {
       obj <- get(x, envir = envir)
       if (is(obj, "job")) {
         if (inherits(try(validObject(obj), TRUE), "try-error")) {
+          message(glue::glue("Object invalid, update that: {x}"))
           obj <- upd(obj)
           assign(x, obj, envir = envir)
         }
@@ -1820,20 +1846,25 @@ setMethod("not", signature = c(x = "job"),
 setGeneric("merge",
   function(x, y, ...) standardGeneric("merge"))
 
-setMethod("upd", signature = c(x = "ANY"),
+setMethod("upd", signature = c(x = "job"),
   function(x){
     new <- new(class(x))
     new@object <- x@object
     new@params <- x@params
-    if (!is.null(x@params$.snap)) {
-      new@snap <- .snap(as.environment(x@params$.snap))
+    if (inherits(try(x@snap@.xData, TRUE), "try-error")) {
+      new@snap <- .snap()
+      new@snap@.xData <- as.environment(x@params$.snap)
+      new@snap@.xData$.order <- names(x@params$.snap)
       new@params$.snap <- NULL
     }
     new@plots <- x@plots
     new@tables <- x@tables
     new@step <- x@step
-    if (is(x@meth@.Data, "list")) {
-      new@meth <- .meth(as.environment(x@meth@.Data))
+    if (inherits(try(x@meth@.xData, TRUE), "try-error")) {
+      new@meth <- .meth()
+      lst <- as.list(unlist(x@meth))
+      new@meth@.xData <- as.environment(lst)
+      new@meth@.xData$.order <- names(lst)
     }
     if (!inherits(try(x@sig, TRUE), "try-error")) {
       new@sig <- x@sig

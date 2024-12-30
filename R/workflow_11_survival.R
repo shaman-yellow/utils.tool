@@ -122,17 +122,13 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     project <- x$project
     if (x@step < 1)
       stop("x@step < 1")
-    if (x@step > 1) {
+    if (x@step >= 1) {
       object(x) <- x@params$normed_data
     }
     if (is(object(x), "DGEList")) {
       object(x) <- as_EList.DGEList(object(x))
     }
-    snap <- ""
-    if (is(genes_surv, "feature")) {
-      snap <- glue::glue("以 {snap(genes_surv)} 进行生存分析。")
-      genes_surv <- genes_surv@.Data
-    }
+    genes_surv <- resolve_feature_snapAdd_onExit("x", genes_surv)
     i.pos <- gname(object(x)$genes[[ use ]]) %in% genes_surv
     j.pos <- !is.na(object(x)$targets[[ status ]]) & !grpl(object(x)$targets[[ status ]], "not reported", TRUE)
     object(x) <- e(limma::`[.EList`(object(x), i.pos, j.pos))
@@ -160,9 +156,7 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
         attr(group, "cutoff") <- cutoff
         group
       }
-      snap <- paste0(
-        snap, "按 `survminer::surv_cutpoint` 计算的 cutoff，将样本分为 Low 和 High 风险组。"
-      )
+      snapAdd_onExit("x", "按 `survminer::surv_cutpoint` 计算的 cutoff，将样本分为 Low 和 High 风险组。")
     } else if (base_method == "median") {
       fun_group <- function(x, ...) {
         cutoff <- median(x)
@@ -170,17 +164,13 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
         attr(group, "cutoff") <- cutoff
         group
       }
-      snap <- paste0(
-        snap, "按中位风险评分，将样本分为 Low 和 High 风险组。"
-      )
+      snapAdd_onExit("x", "按中位风险评分，将样本分为 Low 和 High 风险组。")
     }
-    meth <- meth(x)[[1]]
+    methodAdd_onExit("x", meth(x)[[1]])
     x <- .job_survival(object = data)
-    x <- methodAdd(x, meth)
-    x <- methodAdd(x, "使用标准化过的基因表达数据。")
-    x <- snapAdd(x, "生存数据为{project}，使用标准化过的基因表达数据。")
-    x <- snapAdd(x, "根据元数据信息 (即临床数据) ，去除了生存状态未知的样例。")
-    x <- snapAdd(x, snap)
+    methodAdd_onExit("x", "使用标准化过的基因表达数据。")
+    snapAdd_onExit("x", "生存数据为{project}，使用标准化过的基因表达数据。")
+    snapAdd_onExit("x", "根据元数据信息 (即临床数据) ，去除了生存状态未知的样例。")
     x$time <- time
     x$status <- status
     x$genes_surv <- genes_surv
@@ -298,6 +288,7 @@ setMethod("step1", signature = c(x = "job_survival"),
     if (length(plots)) {
       x@plots[[1]] <- plots
     }
+    feature(x) <- t.SignificantSurvivalPValue$name
     x <- tablesAdd(x, t.SurvivalPValue, t.SignificantSurvivalPValue)
     x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。以 R 包 `timeROC` ({packageVersion('timeROC')}) 绘制 1, 3, 5 年生存曲线。")
     return(x)

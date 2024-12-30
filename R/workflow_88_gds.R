@@ -53,7 +53,9 @@ setMethod("focus", signature = c(x = "job_gds"),
   })
 
 job_gds <- function(keys,
-  n = "6:1000", org = "Homo Sapiens",
+  n = "6:1000",
+  # Mus musculus, Rattus norvegicus
+  org = "Homo Sapiens",
   elements = c("GSE", "title", "summary", "taxon", "gdsType",
     "n_samples", "PubMedIds", "BioProject"),
   ...)
@@ -63,8 +65,11 @@ job_gds <- function(keys,
     n <- paste0(min(n), ":", max(n))
   }
   extra <- glue::glue(
-    "({n}[Number of Samples]) AND ({org}[Organism]) AND (GSE[Entry Type])"
+    "({n}[Number of Samples]) AND (GSE[Entry Type])"
   )
+  if (!is.null(org)) {
+    extra <- paste(extra, "AND ({org}[Organism])")
+  }
   object <- edirect_db("gds", c(query, extra), elements, ...)
   object <- dplyr::mutate(object, GSE = paste0("GSE", GSE))
   object <- .set_lab(object, keys[1], "EDirect query")
@@ -75,7 +80,7 @@ job_gds <- function(keys,
 }
 
 setMethod("step1", signature = c(x = "job_gds"),
-  function(x, single_cell = FALSE, clinical = TRUE, rna_or_array = TRUE, ...)
+  function(x, ..., single_cell = FALSE, clinical = TRUE, rna_or_array = TRUE)
   {
     step_message("Statistic.")
     args <- rlang::enquos(...)
@@ -87,7 +92,7 @@ setMethod("step1", signature = c(x = "job_gds"),
         object(x) <- dplyr::filter(object(x), !grpl(summary, "single[ -]cell|scRNA"))
       }
       snap <- if (single_cell) "仅保留" else "滤除"
-      x <- methodAdd(x, "以正则匹配，{snap} 包含 'single cell' 或 'scRNA' 的数据例。")
+      x <- methodAdd(x, "以正则匹配，{snap}包含 'single cell' 或 'scRNA' 的数据例。")
     }
     if (!is.null(clinical)) {
       message(glue::glue("dim: {bind(dim(object(x)))}, clinical == {clinical}"))
@@ -103,13 +108,15 @@ setMethod("step1", signature = c(x = "job_gds"),
       if (rna_or_array) {
         object(x) <- dplyr::filter(object(x), 
           grpl(gdsType, "Expression profiling by high throughput sequencing|Expression profiling by array"))
-        x <- methodAdd(x, "仅获取类型包含 'Expression profiling by high throughput sequencing' 或 'Expression profiling by array' 的数据例。")
+        methodAdd_onExit("x", "仅获取类型包含 'Expression profiling by high throughput sequencing' 或 'Expression profiling by array' 的数据例。")
       }
     }
     message(glue::glue("dim: {bind(dim(object(x)))}, args ..."))
     if (length(args)) {
       object(x) <- trace_filter(object(x), quosures = args)
       x <- snapAdd(x, "{snap(object(x))}")
+      gses <- bind(head(object(x)$GSE, n = 30))
+      x <- snapAdd(x, "这些数据为：{gses}等。")
     }
     p.AllGdsType <- wrap(new_pie(object(x)$gdsType), 7, 7)
     x <- plotsAdd(x, p.AllGdsType)

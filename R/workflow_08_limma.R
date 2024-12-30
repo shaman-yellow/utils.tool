@@ -632,7 +632,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
     } else if (mode == "linear") {
       lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = FALSE)
     }
-    x <- .job(params = lst)
+    x <- .job(params = list(res = lst))
     fun <- function(x) length(unique(x))
     if (identical(from, to)) {
       x <- snapAdd(x, "将基因集 ({fun(from)}) 关联分析，")
@@ -853,7 +853,9 @@ extract_tops <- function(x, use = "adj.P.Val", use.cut = 0.05, cut.fc = 0.3){
     function(coef){
       res <- limma::topTable(x, coef = coef, number = Inf)
       if (!is.null(use.cut) & !is.null(cut.fc)) {
+        all <- res
         res <- dplyr::filter(res, !!rlang::sym(use) < use.cut, abs(logFC) > cut.fc)
+        attr(res, "all") <- all
       }
       as_tibble(res) 
     }))

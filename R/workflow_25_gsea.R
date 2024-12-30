@@ -22,18 +22,18 @@ setGeneric("asjob_gsea", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_gsea"))
 
 setMethod("asjob_gsea", signature = c(x = "job_limma"),
-  function(x, key = 1L, annotation = x@params$normed_data$genes,
-    filter = NULL, from = colnames(annotation)[ grp(colnames(annotation), "_symbol")[1] ],
+  function(x, key = 1L, annotation = NULL,
+    filter = NULL, from = colnames(data)[ grp(colnames(data), "_symbol")[1] ],
     data = NULL)
   {
     if (is.null(data)) {
-      data <- x@tables$step2$tops[[ key ]]
-    }
-    if (x$isTcga && missing(annotation)) {
-      annotation <- NULL
-      from <- "gene_name"
-    } else {
-      annotation <- dplyr::rename(annotation, symbol = !!rlang::sym(from))
+      data <- attr(x@tables$step2$tops[[ key ]], "all")
+      if (is.null(data)) {
+        stop(
+          'is.null(attr(x@tables$step2$tops[[ key ]], "all")), can not found all gene set.'
+        )
+      }
+      resolve_feature_snapAdd_onExit("x", feature(x)[ key ])
     }
     if (!is.null(filter)) {
       data <- dplyr::filter(data, !!rlang::sym(from) %in% dplyr::all_of(filter))
@@ -41,10 +41,11 @@ setMethod("asjob_gsea", signature = c(x = "job_limma"),
     data <- dplyr::rename(data, symbol = !!rlang::sym(from))
     x$from <- from
     if (is.null(annotation)) {
-      job_gsea(data, use = "symbol")
+      x <- job_gsea(data, use = "symbol")
     } else {
-      job_gsea(data, annotation, use = "symbol")
+      x <- job_gsea(data, annotation, use = "symbol")
     }
+    return(x)
   })
 
 setMethod("asjob_gsea", signature = c(x = "job_seurat"),

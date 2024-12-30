@@ -23,10 +23,9 @@ setGeneric("asjob_enrich", group = list("asjob_series"),
 
 setMethod("asjob_enrich", signature = c(x = "feature"),
   function(x, ...){
-    snap <- snap(x)
-    x <- job_enrich(x@.Data)
-    x <- snapAdd(x, "对{snap}进行 KEGG 和 GO 富集分析。")
-    x
+    x <- resolve_feature_snapAdd_onExit("x", x)
+    x <- job_enrich(x)
+    return(x)
   })
 
 job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_id")
@@ -106,7 +105,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
     x@plots[[ 1 ]] <- namel(p.kegg, p.go)
     x@params$check_go <- check_enrichGO(res.go)
     x$organism <- organism
-    x <- methodAdd(x, "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')}进行 KEGG 和 GO 富集分析。以 {use} 表示显著水平。")
+    methodAdd_onExit("x", "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')}进行 KEGG 和 GO 富集分析。以 {use} 表示显著水平。")
     return(x)
   })
 
@@ -183,8 +182,8 @@ setMethod("step2", signature = c(x = "job_enrich"),
     )
     feature(x) <- lapply(p.pathviews, function(x) x$genes)
     x@plots[[ 2 ]] <- namel(p.pathviews)
-    x <- methodAdd(x, "以 `pathview` R 包 ({packageVersion('pathview')}) 对选择的 KEGG 通路可视化。")
-    x <- snapAdd(x, "以 `pathview` 探究基因集在通路 {bind(pathways)} 中的上下游关系。")
+    methodAdd_onExit("x", "以 `pathview` R 包 ({packageVersion('pathview')}) 对选择的 KEGG 通路可视化。")
+    snapAdd_onExit("x", "以 `pathview` 探究基因集在通路 {bind(pathways)} 中的上下游关系。")
     .add_internal_job(.job(method = "R package `pathview` used for KEGG pathways visualization", cite = "[@PathviewAnRLuoW2013]"))
     return(x)
   })
