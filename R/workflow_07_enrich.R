@@ -15,7 +15,7 @@
     cite = "[@ClusterprofilerWuTi2021]",
     method = "R package `ClusterProfiler` used for gene enrichment analysis",
     tag = "enrich:clusterProfiler",
-    analysis = "富集分析"
+    analysis = "ClusterProfiler 富集分析"
     ))
 
 setGeneric("asjob_enrich", group = list("asjob_series"),
@@ -24,14 +24,16 @@ setGeneric("asjob_enrich", group = list("asjob_series"),
 setMethod("asjob_enrich", signature = c(x = "feature"),
   function(x, ...){
     x <- resolve_feature_snapAdd_onExit("x", x)
-    x <- job_enrich(x)
+    x <- job_enrich(unlist(x))
     return(x)
   })
 
 job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_id")
 {
   if (!is(ids, "list")) {
-    ids <- list(ids = rm.no(ids))
+    ids <- list(ids = gname(rm.no(ids)))
+  } else {
+    ids <- lapply(ids, function(x) gname(rm.no(x)))
   }
   if (is.null(names(ids))) {
     stop("is.null(names(ids))")
@@ -39,7 +41,7 @@ job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_i
   if (missing(annotation)) {
     mart <- new_biomart()
     annotation <- filter_biomart(
-      mart, general_attrs(), from, unique(unlist(ids))
+      mart, c(from, "entrezgene_id"), from, unique(unlist(ids))
     )
   }
   maps <- lapply(ids,
@@ -115,99 +117,19 @@ setMethod("step2", signature = c(x = "job_enrich"),
     search = "pathview",
     external = FALSE, gene.level = NULL, gene.level.name = "hgnc_symbol")
   {
-    step_message("Use pathview to visualize reults pathway.")
-    require(pathview)
-    data <- x@tables$step1$res.kegg[[ which.lst ]]
-    if (is.null(x$pathview_dir)) {
-      x$pathview_dir <- name
-    } else {
-      name <- x$pathview_dir
-    }
-    if (!is.null(gene.level)) {
-      if (is(gene.level, "data.frame")) {
-        message("Use first (symbol) and second (logFC) columns of `gene.level`.")
-        gene.level <- nl(gene.level[[1]], gene.level[[2]], FALSE)
-      } else if (is.numeric(gene.level)) (
-        if (is.null(names(gene.level))) {
-          stop("is.null(names(gene.level))")
-        }
-      )
-      message("Note that only hgnc_symbol support for this feature: `gene.level`")
-      names(gene.level) <- x$annotation$entrezgene_id[ match(names(gene.level),
-        x$annotation[[ gene.level.name ]]) ]
-      snap <- "通路图中的基因的映射颜色表示基因显著富集，并在数据集中有上调或下调变化趋势。"
-    } else {
-      snap <- "通路图中的基因的映射颜色表示是否显著富集。"
-    }
-    dir.create(name, FALSE)
-    setwd(name)
-    cli::cli_alert_info("pathview::pathview")
-    tryCatch({
-      res.pathviews <- sapply(pathways, simplify = FALSE,
-        function(pathway) {
-          if (!external) {
-            data <- dplyr::filter(data, ID == !!pathway)
-            pathway <- gs(data$ID, "^[a-zA-Z]*", "")
-            genes <- as.character(unlist(data$geneID_list))
-          } else {
-            pathway <- gs(pathway, "^[a-zA-Z]*", "")
-            genes <- x@object$ids
-          }
-          if (!is.null(gene.level)) {
-            genes <- gene.level[ match(genes, names(gene.level)) ]
-            discrete <- FALSE
-            bins <- 10
-          } else {
-            discrete <- TRUE
-            bins <- 1
-          }
-          res.pathview <- try(
-            pathview::pathview(
-              gene.data = genes,
-              pathway.id = pathway, species = species,
-              keys.align = "y", kegg.native = TRUE, same.layer = FALSE,
-              key.pos = "topright", bins = list(gene = bins),
-              na.col = "grey90", discrete = list(gene = discrete)
-            )
-          )
-          if (inherits(res.pathview, "try-error")) {
-            try(dev.off(), silent = TRUE)
-          }
-          return(res.pathview)
-        })
-    }, finally = {setwd("../")})
-    x@tables[[ 2 ]] <- namel(res.pathviews)
-    p.pathviews <- .pathview_search(
-      name, search, x, res.pathviews, snap = snap
-    )
-    feature(x) <- lapply(p.pathviews, function(x) x$genes)
-    x@plots[[ 2 ]] <- namel(p.pathviews)
-    methodAdd_onExit("x", "以 `pathview` R 包 ({packageVersion('pathview')}) 对选择的 KEGG 通路可视化。")
-    snapAdd_onExit("x", "以 `pathview` 探究基因集在通路 {bind(pathways)} 中的上下游关系。")
-    .add_internal_job(.job(method = "R package `pathview` used for KEGG pathways visualization", cite = "[@PathviewAnRLuoW2013]"))
+    stop("deprecated, use 'asjob_pathview' instead.")
     return(x)
   })
 
-setMethod("feature", signature = c(x = "job_enrich"),
-  function(x, ref = 1L){
-    if (identical(ref, "all")) {
-      feas <- x$.feature
-      as_feature(
-        feas, x, analysis = "通路 ({bind(names(x$.feature))}) 中的富集基因"
-      )
-    } else {
-      feas <- x$.feature[[ ref ]]
-      as_feature(
-        feas, x, analysis = "通路 ({names(x$.feature)[ref]}) 中的富集基因"
-      )
-    }
-  })
-
 setMethod("res", signature = c(x = "job_enrich", ref = "character"),
-  function(x, ref = c("id", "des", "cate", "sub"), which = 1, key = 1, from = c("kegg", "go"))
+  function(x, ref = c("id", "des", "cate", "sub", "p", "adj"),
+    which = 1, key = 1, from = c("kegg", "go"))
   {
     type <- match.arg(ref)
-    type <- switch(type, id = "ID", des = "Description", cate = "category", sub = "subcategory")
+    type <- switch(
+      type, id = "ID", des = "Description", cate = "category", 
+      sub = "subcategory", p = "pvalue", adj = "p.adjust"
+    )
     from <- match.arg(from)
     data <- x@tables$step1[[ paste0("res.", from) ]][[ key ]]
     data[[ type ]][ which ]

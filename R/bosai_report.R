@@ -1,17 +1,36 @@
 
-backup_jobs.bosai <- function(alls, time = Sys.Date(),
+summary_assess.bosai <- function(data, time = Sys.Date(),
+  back_dir = .prefix("summary", "wd"),
+  .time = if (is(time, "Date")) time else as.Date(time, tryFormats = "%Y-%m-%d"))
+{
+  data <- dplyr::filter(data, finish <= !!time)
+  data <- register_data(data, file.path(back_dir, "records.rds"))
+  export <- file.path(
+    back_dir, paste0("summary_", Sys.Date(), ".csv")
+  )
+  data <- dplyr::mutate(data, cost = ifelse(type == "思路设计", 3, NA))
+  data <- dplyr::select(data, type, id, title, cost, finish)
+  data <- dplyr::mutate(data, name = paste0(id, ", ", title))
+  data <- dplyr::select(data, type, name, cost, finish)
+  data.table::fwrite(data, export)
+  register_data <- TRUE
+  browseURL(normalizePath(export))
+}
+
+backup_jobs.bosai <- function(data, time = Sys.Date(),
   month = lubridate::month(.time - 12),
   year = lubridate::year(.time - 12), back_dir = .prefix("backup", "db"),
   .time = if (is(time, "Date")) time else as.Date(time, tryFormats = "%Y-%m-%d"))
 {
   dir.create(back_dir, FALSE)
   file_records <- file.path(back_dir, "records.rds")
+  data <- dplyr::filter(data, finish < !!time)
   if (file.exists(file_records)) {
     records <- readRDS(file_records)
-    data <- dplyr::anti_join(alls, records)
+    data <- dplyr::anti_join(data, records)
   } else {
     records <- tibble::tibble()
-    data <- alls
+    data <- data
   }
   data <- dplyr::filter(data, finish < time)
   if (!nrow(data)) {
@@ -56,6 +75,32 @@ backup_jobs.bosai <- function(alls, time = Sys.Date(),
   saveRDS(records, file_records)
   unlist(res)
   browseURL(thedir)
+}
+
+register_data <- function(data, rds_records, no_to_stop = TRUE,
+  fun_mutate = function(x) dplyr::mutate(x, summary_month = Sys.Date(), .before = 1))
+{
+  if (file.exists(rds_records)) {
+    records <- readRDS(rds_records)
+    data <- dplyr::anti_join(data, records)
+  } else {
+    records <- tibble::tibble()
+  }
+  if (!nrow(data)) {
+    print(records)
+    if (no_to_stop) {
+      stop("No data need to backup.")
+    }
+  }
+  records <- dplyr::bind_rows(records, fun_mutate(data))
+  env <- parent.frame(1)
+  withr::defer({
+    isThat <- try(get("register_data", envir = env), TRUE)
+    if (!inherits(isThat, "try-error") && is.logical(isThat) && isThat) {
+      saveRDS(records, rds_records)
+    }
+  }, env)
+  return(data)
 }
 
 formatName.bosai <- function(file, info) {

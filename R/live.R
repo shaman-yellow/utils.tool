@@ -1263,6 +1263,9 @@ wrap <- function(data, width = 10, height = 8, showtext = FALSE) {
     try(data@showtext <- showtext, showtext)
     data
   } else {
+    if (is(data, "gg.obj")) {
+      data <- as_grob(data)
+    }
     .wrap(data = data, width = width, height = height, showtext = showtext)
   }
 }
@@ -2187,7 +2190,14 @@ trunc_table <- function(x) {
   } else {
     30
   }
-  x <- dplyr::mutate_all(x, as.character)
+  x <- dplyr::mutate_all(x, 
+    function(x) {
+      if (is.numeric(x)) {
+        as.character(signif(x, 4))
+      } else {
+        as.character(x)
+      }
+    })
   x <- dplyr::mutate_all(x, function(str) stringr::str_trunc(str, width))
   colnames(x) %<>% stringr::str_trunc(width)
   if (nrow(x) > 5) {

@@ -304,10 +304,15 @@ setMethod("step4", signature = c(x = "job_lasso"),
       if (TRUE) {
         coef <- as_tibble(Matrix::as.matrix(multi_cox$coef))
         colnames(coef)[-1] <- lambdas
-        coef <- arrange(coef, dplyr::desc(abs(lambda.min)))
-        coef <- rename(coef, variable = rownames)
+        coef <- dplyr::rename(coef, variable = rownames)
         message("Plot Significant coefficients.")
-        p.lassoCOX_coeffients <- plot_sig(filter(coef, !grepl("Inter", variable)))
+        p.lassoCOX_coeffients <- sapply(
+          lambdas, simplify = FALSE,
+          function(lam) {
+            coef <- dplyr::arrange(coef, dplyr::desc(abs(!!rlang::sym(lam))))
+            plot_sig(dplyr::filter(coef, !grepl("Inter", variable)), y = lam)
+          }
+        )
       }
       x <- plotsAdd(x, p.lassoCOX_model, p.lassoCOX_ROC, p.lassoCOX_coeffients)
       x <- methodAdd(x, "以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归，以 `{fun_multiCox}` 函数作 {nfold} 交叉验证获得模型。", TRUE)
@@ -356,7 +361,7 @@ plot_roc <- function(roc) {
 plot_sig <- function(data, x = colnames(data)[1], y = colnames(data)[2],
   lab_x = "Variables", lab_y = "Coefficients") 
 {
-  data <- filter(data, abs(!!rlang::sym(y)) != 0)
+  data <- dplyr::filter(data, abs(!!rlang::sym(y)) != 0)
   p <- ggplot(data, aes(x = stats::reorder(!!rlang::sym(x),
         !!rlang::sym(y)), y = !!rlang::sym(y))) +
     geom_point(aes(color = !!rlang::sym(y))) +

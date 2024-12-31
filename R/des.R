@@ -163,6 +163,7 @@
     `bt2` = "基因组比对:Bowtie 2",
     `mfuzz` = "对基因聚类分析mfuzz",
     `pubmed` = "PubMed 文献搜索",
-    `gds` = "GEO 数据库搜索"
+    `gds` = "GEO 数据库搜索",
+    `pathview` = "通路可视化"
   )
 }

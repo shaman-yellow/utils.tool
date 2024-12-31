@@ -12,7 +12,9 @@ inclu.fig <- function(image, land = FALSE, saveDir = "thesis_fig", dpi = 300,
   if (!file.exists(saveDir))
     dir.create(saveDir)
   upper <- dirname(image)
-  file <- basename(image)
+  file <- paste0(
+    digest::digest(image, "crc32c"), "_", basename(image)
+  )
   ## backup for figure
   if (grepl("\\.pdf$", file)) {
     savename <- file.path(saveDir, sub("\\.pdf$", ".png", file))
@@ -21,7 +23,7 @@ inclu.fig <- function(image, land = FALSE, saveDir = "thesis_fig", dpi = 300,
       need_trim <- TRUE
     } else need_trim <- FALSE
   } else {
-    savename <- paste0(saveDir, "/", file)
+    savename <- file.path(saveDir, file)
     if (!file.exists(savename)) {
       file.copy(image, savename)
       need_trim <- TRUE

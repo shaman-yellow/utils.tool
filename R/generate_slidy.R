@@ -97,8 +97,19 @@ cite_show <- function(keys, as.character = TRUE,
   if (as.character) {
     text <- vapply(eles,
       function(x) {
-        if (is.null(x$IF)) {
-          paste0("(", x$year, ")")
+        if (is.null(x$IF) || !length(x$IF)) {
+          noIF <- TRUE
+        } else if (is.na(x$IF)) {
+          noIF <- TRUE
+        } else {
+          noIF <- FALSE
+        }
+        if (noIF) {
+          if (length(x$journal)) {
+            paste0("(", x$year, ", ", x$journal, ")")
+          } else {
+            paste0("(", x$year, ")")
+          }
         } else {
           paste0("(", x$year, ", **IF:", x$IF, "**, ", x$Class, ", ", x$journal, ")")
         }

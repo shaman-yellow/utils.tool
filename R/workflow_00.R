@@ -1853,9 +1853,11 @@ setMethod("upd", signature = c(x = "job"),
     new@params <- x@params
     if (inherits(try(x@snap@.xData, TRUE), "try-error")) {
       new@snap <- .snap()
-      new@snap@.xData <- as.environment(x@params$.snap)
-      new@snap@.xData$.order <- names(x@params$.snap)
-      new@params$.snap <- NULL
+      if (!is.null(x@params$.snap) && is(x@params$.snap, "list")) {
+        new@snap@.xData <- as.environment(x@params$.snap)
+        new@snap@.xData$.order <- names(x@params$.snap)
+        new@params$.snap <- NULL  
+      }
     }
     new@plots <- x@plots
     new@tables <- x@tables

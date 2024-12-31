@@ -632,12 +632,19 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
     } else if (mode == "linear") {
       lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = FALSE)
     }
-    x <- .job(params = list(res = lst))
+    x <- .job(
+      params = list(res = lst), 
+      analysis = "关联分析", sig = x@sig
+    )
     fun <- function(x) length(unique(x))
     if (identical(from, to)) {
       x <- snapAdd(x, "将基因集 ({fun(from)}) 关联分析，")
     } else {
-      x <- snapAdd(x, "将基因集 (A -> B) (A:{fun(from)}, B:{fun(to)}) 关联分析，")
+      if (length(from) < 10 && length(to) < 10) {
+        x <- snapAdd(x, "将基因 ({bind(from)} -> {bind(to)}) 关联分析，")
+      } else {
+        x <- snapAdd(x, "将基因集 (A -> B) (A:{fun(from)}, B:{fun(to)}) 关联分析，")
+      }
     }
     x <- snapAdd(x, "共得到 {nrow(lst$sig.corp)} 个显著的基因对 (P &lt; 0.05)。")
     return(x)
@@ -683,7 +690,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
 }
 
 setMethod("vis", signature = c(x = "corp"),
-  function(x, group = NULL, facet = ".id")
+  function(x, group = NULL, facet = ".id", lab.x = "Level", lab.y = "Level")
   {
     x <- as_tibble(x)
     x <- dplyr::mutate(x, .id = paste0(From, "_", To))
@@ -708,6 +715,7 @@ setMethod("vis", signature = c(x = "corp"),
         geom_point() +
         stat_smooth(method = "lm", col = "red") +
         facet +
+        labs(x = lab.x, y = lab.y) +
         geom_text(data = anno,
           aes(x = x, y = y,
             label = paste0("Cor = ", round(cor, 2), "\n", "P-value = ", signif(pvalue, 2))),

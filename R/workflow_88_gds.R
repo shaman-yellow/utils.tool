@@ -145,6 +145,13 @@ setMethod("step2", signature = c(x = "job_gds"),
     return(x)
   })
 
+setMethod("anno", signature = c(x = "job_gds"),
+  function(x){
+    if (x@step < 2L) {
+      stop('x@step < 2L, should have metadata of all dataset.')
+    }
+  })
+
 setMethod("step3", signature = c(x = "job_gds"),
   function(x, ref, mode = c("survival"), from_backup = TRUE)
   {

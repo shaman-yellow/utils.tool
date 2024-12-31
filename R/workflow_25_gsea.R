@@ -215,70 +215,6 @@ setMethod("step2", signature = c(x = "job_gsea"),
   })
 
 setMethod("step3", signature = c(x = "job_gsea"),
-  function(x, pathways, species = x$org,
-    name = paste0("pathview", gs(Sys.time(), " |:", "_")),
-    search = "pathview")
-  {
-    step_message("Use pathview to visualize reults pathway.")
-    require(pathview)
-    data <- x@tables$step1$table_kegg
-    if (is.null(x$pathview_dir)) {
-      x$pathview_dir <- name
-    } else {
-      name <- x$pathview_dir
-    }
-    dir.create(name, FALSE)
-    setwd(name)
-    cli::cli_alert_info("pathview::pathview")
-    tryCatch({
-      res.pathviews <- sapply(pathways, simplify = FALSE,
-        function(pathway) {
-          data <- dplyr::filter(data, ID == !!pathway)
-          pathway <- gs(data$ID, "^[a-zA-Z]*", "")
-          genes <- as.character(unlist(data$geneID_list))
-          genes.all <- x@object$entrezgene_id
-          genes <- genes.all[ match(genes, names(genes.all)) ]
-          res.pathview <- try(
-            pathview::pathview(gene.data = genes,
-              pathway.id = pathway, species = species,
-              keys.align = "y", kegg.native = TRUE, same.layer = FALSE,
-              key.pos = "topright", na.col = "grey90")
-          )
-          if (inherits(res.pathview, "try-error")) {
-            try(dev.off(), silent = TRUE)
-          }
-          return(res.pathview)
-        })
-    }, finally = {setwd("../")})
-    x@tables[[ 3 ]] <- namel(res.pathviews)
-    p.pathviews <- .pathview_search(name, search, x, res.pathviews)
-    x@plots[[ 3 ]] <- namel(p.pathviews)
-    .add_internal_job(.job(method = "R package `pathview` used for KEGG pathways visualization", cite = "[@PathviewAnRLuoW2013]"))
-    return(x)
-  })
-
-.pathview_search <- function(name, search, x, lst, snap = "") {
-  figs <- list.files(name, search, full.names = TRUE)
-  names <- get_realname(figs)
-  p.pathviews <- mapply(figs, names, SIMPLIFY = FALSE,
-    FUN = function(x, name) {
-      x <- .file_fig(x)
-      genes <- dplyr::filter(lst[[ name ]]$plot.data.gene, all.mapped != "")$labels
-      attr(x, "genes") <- genes
-      attr(x, "lich") <- new_lich(
-        list("Interactive figure" = paste0("\\url{https://www.genome.jp/pathway/", name, "}"),
-          "Enriched genes" = paste0(unique(genes), collapse = ", ")
-        )
-      )
-      x <- setLegend(x, "KEGG 通路可视化 ({name}) 展示了富集基因在该通路的上下游关系。{snap}")
-      return(x)
-    })
-  names(p.pathviews) <- names
-  p.pathviews <- .set_lab(p.pathviews, sig(x), names, "visualization")
-  p.pathviews
-}
-
-setMethod("step4", signature = c(x = "job_gsea"),
   function(x, db, cutoff = .05, map = NULL, pvalue = FALSE){
     step_message("Custom database for GSEA enrichment.")
     ## general analysis
@@ -304,9 +240,9 @@ setMethod("step4", signature = c(x = "job_gsea"),
     )
     x@params$res.gsea <- res.gsea
     x@params$db.gsea <- db
-    x@tables[[ 4 ]] <- namel(table_gsea, table_insDb)
+    x@tables[[ 3 ]] <- namel(table_gsea, table_insDb)
     p.code <- .set_lab(p.code, sig(x), "GSEA plot of pathway")
-    x@plots[[ 4 ]] <- namel(p.code, p.pie_insDb)
+    x@plots[[ 3 ]] <- namel(p.code, p.pie_insDb)
     return(x)
   })
 
@@ -327,7 +263,7 @@ setMethod("filter", signature = c(x = "jobn_enrich"),
   function(x, pattern, ..., use = c("kegg", "go"), which = 1, genes = NULL)
   {
     message("Search genes in enriched pathways.")
-    if ((missing(pattern) || is.null(pattern)) & !is.null(genes)) {
+    if ((missing(pattern) || is.null(pattern)) && !is.null(genes)) {
       pattern <- paste0(paste0("^", genes, "$"), collapse = "|")
     }
     if (is(x, "job_gsea")) {
@@ -463,3 +399,47 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
 color_set2 <- function() {
   unname(c(sample(ggsci:::ggsci_db$uchicago$dark, 1), sample(color_set()[1:10], 1)))
 }
+
+# setMethod("step3", signature = c(x = "job_gsea"),
+#   function(x, pathways, species = x$org,
+#     name = paste0("pathview", gs(Sys.time(), " |:", "_")),
+#     search = "pathview")
+#   {
+#     step_message("Use pathview to visualize reults pathway.")
+#     require(pathview)
+#     data <- x@tables$step1$table_kegg
+#     if (is.null(x$pathview_dir)) {
+#       x$pathview_dir <- name
+#     } else {
+#       name <- x$pathview_dir
+#     }
+#     dir.create(name, FALSE)
+#     setwd(name)
+#     cli::cli_alert_info("pathview::pathview")
+#     tryCatch({
+#       res.pathviews <- sapply(pathways, simplify = FALSE,
+#         function(pathway) {
+#           data <- dplyr::filter(data, ID == !!pathway)
+#           pathway <- gs(data$ID, "^[a-zA-Z]*", "")
+#           genes <- as.character(unlist(data$geneID_list))
+#           genes.all <- x@object$entrezgene_id
+#           genes <- genes.all[ match(genes, names(genes.all)) ]
+#           res.pathview <- try(
+#             pathview::pathview(gene.data = genes,
+#               pathway.id = pathway, species = species,
+#               keys.align = "y", kegg.native = TRUE, same.layer = FALSE,
+#               key.pos = "topright", na.col = "grey90")
+#           )
+#           if (inherits(res.pathview, "try-error")) {
+#             try(dev.off(), silent = TRUE)
+#           }
+#           return(res.pathview)
+#         })
+#     }, finally = {setwd("../")})
+#     x@tables[[ 3 ]] <- namel(res.pathviews)
+#     p.pathviews <- .pathview_search(name, search, x, res.pathviews)
+#     x@plots[[ 3 ]] <- namel(p.pathviews)
+#     .add_internal_job(.job(method = "R package `pathview` used for KEGG pathways visualization", cite = "[@PathviewAnRLuoW2013]"))
+#     return(x)
+#   })
+#
