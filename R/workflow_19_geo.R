@@ -190,6 +190,29 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
     }
   })
 
+.expect_col_geo_group <- setClass("expect_col_geo_group",
+  contains = c("expect_col"),
+  prototype = prototype(
+    name = "group", pattern_find = c(
+      "disease", "treatment", "tissue", "title"
+    )
+  ))
+
+.expect_col_geo_sample <- setClass(".expect_col_geo_group",
+  contains = c("expect_col"),
+  prototype = prototype(
+    name = "sample", pattern_find = c("rownames", "title"),
+    fun_check = function(x) all(!duplicated(x))
+    ))
+
+.expect_cols_geo <- setClass("expect_cols_geo",
+  contains = c("expect_cols"),
+  prototype = prototype(
+    list(.expect_col_geo_sample(), .expect_col_geo_group()),
+    global = function(x) {
+      dplyr::relocate(x, sample, group)
+    }))
+
 get_metadata.geo <- function(lst,
   select = rlang::quos(rownames, title),
   pattern = c("diagnosis", "Sex", "^age", "^time point", "data_processing"),

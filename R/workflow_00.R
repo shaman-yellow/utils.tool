@@ -4,6 +4,28 @@
 
 setClass("virtual_job", "VIRTUAL")
 
+setClassUnion("function_or_NULL", c("function", "NULL"))
+
+.expect_col <- setClass("expect_col",
+  representation = representation(
+    name = "character", pattern_find = "character",
+    fun_check = "function_or_NULL",
+    pattern_recode = "character", fun_mutate = "function_or_NULL"),
+  prototype = prototype(
+    name = character(1), pattern_find = character(1),
+    fun_check = NULL, pattern_recode = character(0), fun_mutate = NULL
+    ))
+
+.expect_cols <- setClass("expect_cols",
+  contains = c("list"),
+  representation = representation(global = "function_or_NULL"),
+  prototype = prototype(global = NULL))
+
+setValidity("expect_cols",
+  function(object){
+    all(vapply(object@.Data, is, logical(1), "expect_col"))
+  })
+
 .meth <- setClass("meth",
   contains = c("environment"),
   representation = representation(init = "logical"),
@@ -589,6 +611,71 @@ setMethod("show", signature = c(object = "job"),
     message("Object size: ", obj.size(object))
     if (!is.null(object@params$set_remote))
       message("Remote: ", object@params$remote)
+  })
+
+setGeneric("expect",
+  function(x, ref, ...) standardGeneric("expect"))
+
+setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
+  function(x, ref){
+    lapply(ref, 
+      function(i) {
+        which <- integer(0)
+        for (pat in i@pattern_find) {
+          if (length(which <- grp(colnames(x), pat))) {
+            if (!is.null(i@fun_check)) {
+              isThats <- vapply(which, function(n) i@fun_check(x[[n]]), logical(1))
+              if (all(!isThats)) next
+              which <- which[ isThats ]
+            } else break
+          }
+        }
+        re_check <- FALSE
+        if (!length(which)) {
+          which <- menu(
+            colnames(x), title = glue::glue(
+              "Can not match '{i@name}' by pattern, please specify that."
+            )
+          )
+          re_check <- TRUE
+        } else if (length(which) > 1) {
+          which <- menu(
+            colnames(x)[which], title = glue::glue(
+              "Match too many '{i@name}' with pattern, please specify one."
+            )
+          )
+          re_check <- TRUE
+        }
+        if (re_check && !is.null(i@fun_check)) {
+          if (!i@fun_check(x[[ which ]])) {
+            if (!usethis::ui_yeah('!i@fun_check(x[[ which ]]), continue?')) {
+              stop("Can not pass function checking.")
+            }
+          }
+        }
+        colnames(x)[which] <- i@name
+        if (length(i@pattern_recode)) {
+          if (!is.null(names(i@pattern_recode))) {
+            stop('!is.null(names(i@pattern_recode)), should has names.')
+          }
+          meta <- group_strings(
+            x[[ i@name ]], i@pattern_recode
+          )
+          matches <- match(x[[ i@name ]], meta[[ "target" ]])
+          x[[ i@name ]] <- meta[[ "group" ]][ matches ]
+          x[[ i@name ]] <- ifelse(
+            is.na(x[[ i@name ]]), "Others", x[[ i@name ]]
+          )
+        }
+        if (!is.null(i@fun_mutate)) {
+          x[[ i@name ]] <- i@fun_mutate(x[[ i@name ]])
+        }
+        x <<- x
+      })
+    if (!is.null(ref@global)) {
+      x <- ref@global(x)
+    }
+    return(x)
   })
 
 setGeneric("params",
