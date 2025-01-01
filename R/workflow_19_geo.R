@@ -190,27 +190,110 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
     }
   })
 
+setMethod("expect", signature = c(x = "job_geo", ref = "ANY"),
+  function(x, ref, force = FALSE, id = x@object){
+    if (missing(ref)) {
+      ref <- geo_cols()
+    }
+    expect(x$guess, ref, force = force, id = id)
+  })
+
+preset_group_string <- function(x) {
+  if (!is.character(x)) {
+    content <- stringr::str_wrap(
+      bind(as.character(head(x, n = 10))), indent = 4, exdent = 4
+    )
+    writeLines(paste0(crayon::yellow("Target not character:\n"), content))
+    if (usethis::ui_yeah("Use that?")) {
+      x <- as.character(x)
+    } else {
+      stop("...")
+    }
+  }
+  if (length(x) < 2) {
+    stop('length(x) < 2, two few string to process.')
+  }
+  x <- strsplit(x, "\\s")
+  len <- min(lengths(x))
+  if (len > 2) {
+    ## cut leading
+    for (i in seq_len(len)) {
+      chs <- vapply(x, function(ch) ch[i], character(1))
+      if (length(unique(chs)) > 1) {
+        break
+      }
+    }
+    if (i > 1) {
+      cut <- bind(x[[1]][seq_len(i - 1)], co = " ")
+      message(glue::glue("Leading string cutoff: '{cut}'"))
+      x <- lapply(x, function(x) x[ -seq_len(i - 1) ])
+      len <- min(lengths(x))
+    }
+    ## cut trailing
+    if (len > 2) {
+      for (i in seq_len(len)) {
+        chs <- vapply(x, function(ch) rev(ch)[i], character(1))
+        if (length(unique(chs)) > 1) {
+          break
+        }
+      }
+      if (i > 1) {
+        cut <- bind(rev(rev(x[[1]])[seq_len(i - 1)]), co = " ")
+        message(glue::glue("Trailing string cutoff: '{cut}'"))
+        x <- lapply(x, function(x) rev(rev(x)[ -seq_len(i - 1) ]))
+      }
+    }
+  }
+  x <- vapply(x, function(ch) paste0(ch, collapse = " "), character(1))
+  return(x)
+}
+
 .expect_col_geo_group <- setClass("expect_col_geo_group",
   contains = c("expect_col"),
   prototype = prototype(
     name = "group", pattern_find = c(
       "disease", "treatment", "tissue", "title"
-    ),
+    ), fun_mutate = preset_group_string,
     fun_check = function(x) any(duplicated(x))
   ))
 
 .expect_col_geo_sample <- setClass(".expect_col_geo_sample",
   contains = c("expect_col"),
   prototype = prototype(
-    name = "sample", pattern_find = c("rownames", "title"),
+    name = "sample", pattern_find = c("rownames"),
     fun_check = function(x) all(!duplicated(x))
     ))
+
+## do recode first, then mutate.
+geo_cols <- function(
+  group_mutate = preset_group_string, sample_mutate = NULL,
+  group = c("treatment", "disease", "tissue", "title"), sample = "rownames",
+  group_recode = character(0), sample_recode = character(0),
+  db_file = .prefix("expect_cols_geo.rds", "db"),
+  global = function(x) dplyr::relocate(x, sample, group),
+  uniqueness = "rownames")
+{
+  cols <- list(
+    .expect_col_geo_sample(
+      pattern_find = sample, fun_mutate = sample_mutate, 
+      pattern_recode = group_recode
+      ),
+    .expect_col_geo_group(
+      pattern_find = group, fun_mutate = group_mutate, 
+      pattern_recode = group_recode
+    )
+  )
+  .expect_cols_geo(
+    cols, db_file = db_file, global = global, uniqueness = uniqueness
+  )
+}
 
 .expect_cols_geo <- setClass("expect_cols_geo",
   contains = c("expect_cols"),
   prototype = prototype(
     list(.expect_col_geo_sample(), .expect_col_geo_group()),
-    uniqueness = "title",
+    uniqueness = "rownames",
+    db_file = .prefix("expect_cols_geo.rds", "db"),
     global = function(x) {
       dplyr::relocate(x, sample, group)
     }))

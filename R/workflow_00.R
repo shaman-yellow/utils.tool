@@ -29,13 +29,18 @@ setMethod("show", signature = c(object = "expect_col"),
       )
       content <- append(content, extra)
     }
+    extra <- paste(
+      crayon::silver("Mutate:"), !is.null(object@fun_mutate)
+    )
+    content <- append(content, extra)
     writeLines(content)
   })
 
 .expect_cols <- setClass("expect_cols",
   contains = c("list"),
   representation = representation(
-    global = "function_or_NULL", uniqueness = "character"
+    global = "function_or_NULL", uniqueness = "character",
+    db_file = "character"
   ),
   prototype = prototype(global = NULL))
 
@@ -44,6 +49,7 @@ setMethod("show", signature = c(object = "expect_cols"),
     if (length(object@uniqueness)) {
       writeLines(
         c(paste(crayon::blue("Uniqueness:"), object@uniqueness), 
+          paste(crayon::blue("DB file:"), object@db_file),
           crayon::silver("++++++"))
       )
     }
@@ -541,8 +547,6 @@ setMethod("meth", signature = c(x = "job", ref = "logical"),
     }
   })
 
-setGeneric("hunt",
-  function(x, ref, ...) standardGeneric("hunt"))
 setMethod("meth", signature = c(x = "job", ref = "numeric_or_character"),
   function(x, ref){
     fun <- function(ref) {
@@ -642,22 +646,188 @@ setMethod("show", signature = c(object = "job"),
       message("Remote: ", object@params$remote)
   })
 
+setGeneric("hunt",
+  function(x, ref, ...) standardGeneric("hunt"))
+setGeneric("upd",
+  function(x, ...) standardGeneric("upd"))
+
+.db_expect <- setClass(
+  "db_expect", contains = c("list"), 
+  representation = representation(db_file = "character")
+)
+
+setMethod("show", signature = c(object = "db_expect"),
+  function(object){
+    content <- c(
+      paste(crayon::yellow("DB file:"), object@db_file), 
+      paste(crayon::silver("Number:"), length(object)),
+      paste(crayon::silver("Duplicated:", length(which(duplicated(object@.Data)))))
+    )
+    writeLines(content)
+  })
+
+new_db_expect <- function(db_file, create_dir = TRUE) {
+  if (!length(db_file) || length(db_file) > 1) {
+    stop('!length(db_file) || length(db_file) > 1, illegal file name.')
+  }
+  if (file.exists(db_file)) {
+    message(glue::glue("The file '{db_file}' already exists."))
+  } else {
+    if (create_dir) {
+      dir <- dirname(db_file)
+      dir.create(dir, FALSE, recursive = TRUE)
+    }
+  }
+  .db_expect(db_file = db_file)
+}
+
+.hash_expect <- setClass("hash_expect",
+  contains = c("character"),
+  representation = representation(hash = "character"),
+  prototype = NULL)
+
+setMethod("show", signature = c(object = "hash_expect"),
+  function(object){
+    writeLines(c(crayon::silver(object@hash), bind(object@.Data)))
+  })
+
+setGeneric("hash_expect",
+  function(x, ...) standardGeneric("hash_expect"))
+setGeneric("hash_expect<-",
+  function(x, value) standardGeneric("hash_expect<-"))
+setMethod("hash_expect", signature = c(x = "ANY"),
+  function(x){
+    attr(x, "__HASH_EXPECT__")
+  })
+setReplaceMethod("hash_expect", signature = c(x = "ANY"),
+  function(x, value){
+    if (!is(value, "hash_expect")) {
+      stop('!is(value, "hash_expect"), value should be a "hash_expect" object.')
+    }
+    attr(x, "__HASH_EXPECT__") <- value
+    return(x)
+  })
+
+setMethod("hunt", signature = c(x = "expect_cols", ref = "ANY"),
+  function(x, ref){
+    hunt(suppressMessages(new_db_expect(x@db_file)), ref)
+  })
+
+setMethod("hunt", signature = c(x = "db_expect", ref = "hash_expect"),
+  function(x, ref){
+    if (!length(x)) {
+      if (length(x@db_file) && file.exists(x@db_file)) {
+        x@.Data <- readRDS(x@db_file)
+      }
+    }
+    x[[ ref@hash ]]
+  })
+
+setMethod("hunt", signature = c(x = "db_expect", ref = "ANY"),
+  function(x, ref){
+    hunt(x, hash_expect(ref))
+  })
+
+setMethod("hunt", signature = c(x = "db_expect", ref = "NULL"),
+  function(x, ref){
+    stop("`ref` should not be NULL, or without 'hash_expect'.")
+  })
+
+setMethod("upd", signature = c(x = "expect_cols"),
+  function(x, data, ...){
+    upd(suppressMessages(new_db_expect(x@db_file)), data, ...)
+  })
+
+setMethod("upd", signature = c(x = "db_expect"),
+  function(x, data, save = TRUE){
+    ref <- hash_expect(data)
+    if (!is(ref, "hash_expect")) {
+      stop('!is(hash_expect(data), "hash_expect"), should be "hash_expect" object.')
+    }
+    if (!length(x@.Data)) {
+      if (!length(x@db_file)) {
+        stop('!length(x@db_file), no "db_file"?')
+      }
+      if (file.exists(x@db_file)) {
+        x@.Data <- readRDS(x@db_file)
+      }
+    }
+    item <- sapply(
+      ref@.Data, function(name) data[[ name ]], simplify = FALSE
+    )
+    if (!is.null(x[[ ref@hash ]])) {
+      if (identical(x[[ ref@hash ]], item)) {
+        message("Already exists, and identical, need not update.")
+        return(x)
+      } else {
+        message("Already exists, update now.")
+      }
+    } else {
+      message("Add new record.")
+    }
+    x[[ ref@hash ]] <- item
+    if (save) {
+      lst <- x@.Data
+      names(lst) <- names(x)
+      saveRDS(lst, x@db_file)
+    }
+    return(x)
+  })
+
 setGeneric("expect",
   function(x, ref, ...) standardGeneric("expect"))
 
+set_hash_expect <- function(x, ref, id = NULL) {
+  if (length(ref@uniqueness)) {
+    if (is.null(x[[ref@uniqueness]])) {
+      stop('is.null(x[[ref@uniqueness]]), element should not be NULL.')
+    }
+    if (is(x, "df")) {
+      len <- nrow(x)
+    } else {
+      len <- length(x)
+    }
+    if (!len) {
+      stop('!len, should has at least one depth.')
+    }
+    hash <- digest::digest(c(id, x[[ref@uniqueness]]), "md5")
+    hash_expect(x) <- .hash_expect(
+      vapply(ref, function(obj) obj@name, character(1)),
+      hash = hash
+    )  
+  }
+  return(x)
+}
+
 setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
-  function(x, ref, db = NULL) {
+  function(x, ref, force = FALSE, id = NULL) {
     if (!length(ref)) {
       stop('!length(ref), not found any "expect_col".')
     }
+    if (length(ref@uniqueness)) {
+      x <- set_hash_expect(x, ref, id)
+      if (length(ref@db_file)) {
+        records <- hunt(ref, x)
+        if (!is.null(records) && !force) {
+          message(crayon::yellow("Recodes exists, use that."))
+          x <- dplyr::mutate(x, !!!records)
+          if (!is.null(ref@global)) {
+            x <- ref@global(x)
+          }
+          return(x)
+        }
+      }
+    }
     lapply(ref,
       function(i) {
+        message(crayon::silver("+++ "), crayon::blue(i@name), crayon::silver(" +++"))
         which <- integer(0)
         for (pat in i@pattern_find) {
           if (length(which <- grp(colnames(x), pat))) {
             if (!is.null(i@fun_check)) {
               isThats <- vapply(which, function(n) i@fun_check(x[[n]]), logical(1))
               if (all(!isThats)) {
+                which <- integer(0)
                 next
               } else {
                 which <- which[ isThats ]
@@ -668,8 +838,12 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
         }
         re_check <- FALSE
         if (!length(which)) {
+          choices <- vapply(colnames(x), 
+            function(name) {
+              paste0(name, ": ", bind("\'", head(x[[name]], n = 20), "\'"))
+            }, character(1))
           which <- menu(
-            colnames(x), title = glue::glue(
+            stringr::str_trunc(choices, 80), title = glue::glue(
               "Can not match '{i@name}' by pattern, please specify that."
             )
           )
@@ -706,10 +880,18 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
         if (!is.null(i@fun_mutate)) {
           x[[ i@name ]] <- i@fun_mutate(x[[ i@name ]])
         }
+        show <- stringr::str_wrap(
+          bind(paste0("\'", head(x[[i@name]], n = 10), "\'")),
+          indent = 4, exdent = 4
+        )
+        message(glue::glue("Matched {crayon::yellow(i@name)}:\n{show}"))
         x <<- x
       })
     if (!is.null(ref@global)) {
       x <- ref@global(x)
+    }
+    if (length(ref@db_file)) {
+      upd(ref, x)
     }
     return(x)
   })
@@ -1943,22 +2125,19 @@ setGeneric("intersect",
 setGeneric("fill",
   function(x, ...) standardGeneric("fill"))
 
-setGeneric("upd",
-  function(x, ...) standardGeneric("upd"))
-
 setGeneric("upload",
   function(x, ...) standardGeneric("upload"))
 
 setGeneric("pull",
   function(x, ...) standardGeneric("pull"))
 
-setGeneric("not",
-  function(x, ...) standardGeneric("not"))
-
 setMethod("intersect", signature = c(x = "ANY", y = "ANY"),
   function(x, y){
     base::intersect(x, y)
   })
+
+setGeneric("not",
+  function(x, ...) standardGeneric("not"))
 
 setMethod("not", signature = c(x = "job"),
   function(x){
