@@ -16,10 +16,39 @@ setClassUnion("function_or_NULL", c("function", "NULL"))
     fun_check = NULL, pattern_recode = character(0), fun_mutate = NULL
     ))
 
+setMethod("show", signature = c(object = "expect_col"),
+  function(object){
+    content <- c(
+      paste(crayon::yellow("Name:"), object@name), 
+      paste(crayon::silver("Pattern:"), bind(object@pattern_find))
+    )
+    if (length(object@pattern_recode)) {
+      extra <- paste(
+        crayon::silver("Recode:"), 
+        bind(names(object@pattern_recode), " = ", unname(object@pattern_recode))
+      )
+      content <- append(content, extra)
+    }
+    writeLines(content)
+  })
+
 .expect_cols <- setClass("expect_cols",
   contains = c("list"),
-  representation = representation(global = "function_or_NULL"),
+  representation = representation(
+    global = "function_or_NULL", uniqueness = "character"
+  ),
   prototype = prototype(global = NULL))
+
+setMethod("show", signature = c(object = "expect_cols"),
+  function(object){
+    if (length(object@uniqueness)) {
+      writeLines(
+        c(paste(crayon::blue("Uniqueness:"), object@uniqueness), 
+          crayon::silver("++++++"))
+      )
+    }
+    invisible(lapply(object@.Data, show))
+  })
 
 setValidity("expect_cols",
   function(object){
@@ -617,16 +646,23 @@ setGeneric("expect",
   function(x, ref, ...) standardGeneric("expect"))
 
 setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
-  function(x, ref){
-    lapply(ref, 
+  function(x, ref, db = NULL) {
+    if (!length(ref)) {
+      stop('!length(ref), not found any "expect_col".')
+    }
+    lapply(ref,
       function(i) {
         which <- integer(0)
         for (pat in i@pattern_find) {
           if (length(which <- grp(colnames(x), pat))) {
             if (!is.null(i@fun_check)) {
               isThats <- vapply(which, function(n) i@fun_check(x[[n]]), logical(1))
-              if (all(!isThats)) next
-              which <- which[ isThats ]
+              if (all(!isThats)) {
+                next
+              } else {
+                which <- which[ isThats ]
+                break
+              }
             } else break
           }
         }
@@ -653,7 +689,7 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
             }
           }
         }
-        colnames(x)[which] <- i@name
+        x[[ i@name ]] <- x[[ which ]]
         if (length(i@pattern_recode)) {
           if (!is.null(names(i@pattern_recode))) {
             stop('!is.null(names(i@pattern_recode)), should has names.')

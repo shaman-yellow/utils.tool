@@ -195,10 +195,11 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
   prototype = prototype(
     name = "group", pattern_find = c(
       "disease", "treatment", "tissue", "title"
-    )
+    ),
+    fun_check = function(x) any(duplicated(x))
   ))
 
-.expect_col_geo_sample <- setClass(".expect_col_geo_group",
+.expect_col_geo_sample <- setClass(".expect_col_geo_sample",
   contains = c("expect_col"),
   prototype = prototype(
     name = "sample", pattern_find = c("rownames", "title"),
@@ -209,6 +210,7 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
   contains = c("expect_cols"),
   prototype = prototype(
     list(.expect_col_geo_sample(), .expect_col_geo_group()),
+    uniqueness = "title",
     global = function(x) {
       dplyr::relocate(x, sample, group)
     }))
