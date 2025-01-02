@@ -800,9 +800,13 @@ set_hash_expect <- function(x, ref, id = NULL) {
 }
 
 setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
-  function(x, ref, force = FALSE, id = NULL) {
+  function(x, ref, force = FALSE, id = NULL, sleep = NULL, silent_select = TRUE)
+  {
     if (!length(ref)) {
       stop('!length(ref), not found any "expect_col".')
+    }
+    if (!is.null(id)) {
+      cli::cli_h2(paste("START:", id))
     }
     if (length(ref@uniqueness)) {
       x <- set_hash_expect(x, ref, id)
@@ -813,6 +817,9 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
           x <- dplyr::mutate(x, !!!records)
           if (!is.null(ref@global)) {
             x <- ref@global(x)
+          }
+          if (!is.null(id)) {
+            cli::cli_h3("END")
           }
           return(x)
         }
@@ -843,7 +850,7 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
               paste0(name, ": ", bind("\'", head(x[[name]], n = 20), "\'"))
             }, character(1))
           which <- menu(
-            stringr::str_trunc(choices, 80), title = glue::glue(
+            stringr::str_trunc(choices, 160), title = glue::glue(
               "Can not match '{i@name}' by pattern, please specify that."
             )
           )
@@ -855,6 +862,9 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
             )
           )
           re_check <- TRUE
+        }
+        if (re_check && silent_select) {
+          re_check <- FALSE
         }
         if (re_check && !is.null(i@fun_check)) {
           if (!i@fun_check(x[[ which ]])) {
@@ -884,7 +894,11 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
           bind(paste0("\'", head(x[[i@name]], n = 10), "\'")),
           indent = 4, exdent = 4
         )
-        message(glue::glue("Matched {crayon::yellow(i@name)}:\n{show}"))
+        note <- crayon::silver(paste0("(From column: ", colnames(x)[which], ")"))
+        message(glue::glue("Matched {crayon::yellow(i@name)} {note}:\n{show}"))
+        if (!is.null(sleep) && is.numeric(sleep)) {
+          Sys.sleep(sleep)
+        }
         x <<- x
       })
     if (!is.null(ref@global)) {
@@ -892,6 +906,9 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
     }
     if (length(ref@db_file)) {
       upd(ref, x)
+    }
+    if (!is.null(id)) {
+      cli::cli_h3("END")
     }
     return(x)
   })
@@ -2738,7 +2755,7 @@ remotejob <- function(wd, remote = "remote") {
   .job(params = list(set_remote = TRUE, wd = wd, remote = remote))
 }
 
-set_prefix <- function(wd, db, op) {
+set_prefix <- function(wd, db = wd, op = wd) {
   options(wd_prefix = wd, db_prefix = db, op_prefix = op)
 }
 

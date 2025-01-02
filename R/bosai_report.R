@@ -107,10 +107,11 @@ formatName.bosai <- function(file, info) {
   if (missing(info)) {
     info <- get("info", envir = parent.frame(1))
   }
+  ext <- tools::file_ext(file)
   nfile <- paste0(info$id, "-", info$client, "-",
-    info$type, "-", info$title, "-", format.Date(info$finish, "%Y.%m.%d"), ".docx")
+    info$type, "-", info$title, "-", format.Date(info$finish, "%Y.%m.%d"), ".", ext)
   file.copy(file, nfile, TRUE)
-  browseURL(nfile)
+  gett(dirname(normalizePath(nfile)))
   tools::file_path_sans_ext(nfile)
 }
 

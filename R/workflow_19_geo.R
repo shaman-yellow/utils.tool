@@ -107,14 +107,6 @@ setMethod("step2", signature = c(x = "job_geo"),
     return(x)
   })
 
-batch_geo <- function(gses, getGPL = FALSE, cl = 5) {
-  res <- pbapply::pblapply(gses,
-    function(x) try(step1(job_geo(x), getGPL = getGPL)), cl = 5
-  )
-  metas <- lapply(res, function(x) try(x$guess))
-  namel(res, metas)
-}
-
 setMethod("meta", signature = c(x = "job_geo"),
   function(x, use = 1L){
     counts <- as_tibble(x@params$about[[ use ]]@assayData$exprs)
@@ -198,16 +190,46 @@ setMethod("expect", signature = c(x = "job_geo", ref = "ANY"),
     expect(x$guess, ref, force = force, id = id)
   })
 
+showStrings <- function(x, stat = TRUE) {
+  if (stat) {
+    freq <- table(x)
+    x <- paste0(names(freq), " (n=", unname(freq), ")")
+  }
+  if (length(x) > 10) {
+    x <- c(head(x, n = 10), "...")
+  }
+  stringr::str_wrap(bind("'", x, "'"), indent = 4, exdent = 4)
+}
+
 preset_group_string <- function(x) {
+  knit_strings <- function(x) {
+    x <- gs(x, "[()]", "")
+    gs(x, "^[^a-zA-Z0-9]|[^a-zA-Z0-9]$", "")
+  }
   if (!is.character(x)) {
-    content <- stringr::str_wrap(
-      bind(as.character(head(x, n = 10))), indent = 4, exdent = 4
-    )
+    content <- showStrings(x)
     writeLines(paste0(crayon::yellow("Target not character:\n"), content))
     if (usethis::ui_yeah("Use that?")) {
       x <- as.character(x)
     } else {
       stop("...")
+    }
+  }
+  if (isUnique <- all(table(x) == 1)) {
+    message('all(table(x) == 1), try eliminating numbering.')
+    elim <- function(ch) gs(ch, "[0-9]+[^0-9]*$", "")
+    strings <- x
+    while (isUnique && any(grpl(strings, "[0-9]"))) {
+      strings <- knit_strings(elim(strings))
+      isUnique <- all(table(strings) == 1)
+    }
+    if (min(nchar(strings)) && length(unique(strings)) != 1) {
+      x <- strings
+    } else {
+      stop(
+        'min(nchar(strings)) && length(unique(strings)) != 1, illegal final results:\n',
+        showStrings(strings)
+      )
     }
   }
   if (length(x) < 2) {
@@ -244,30 +266,50 @@ preset_group_string <- function(x) {
       }
     }
   }
-  x <- vapply(x, function(ch) paste0(ch, collapse = " "), character(1))
+  x <- vapply(
+    x, function(ch) {
+      knit_strings(paste0(ch, collapse = " "))
+    }, character(1)
+  )
+  message(crayon::yellow("[Function: preset_group_string] Final results:\n"), showStrings(x))
   return(x)
+}
+
+.pattern_geo_group <- function() {
+  c("disease", "treatment", "protocol", "tissue", "title")
 }
 
 .expect_col_geo_group <- setClass("expect_col_geo_group",
   contains = c("expect_col"),
   prototype = prototype(
-    name = "group", pattern_find = c(
-      "disease", "treatment", "tissue", "title"
-    ), fun_mutate = preset_group_string,
-    fun_check = function(x) any(duplicated(x))
-  ))
+    name = "group", pattern_find = .pattern_geo_group(),
+    fun_mutate = preset_group_string,
+    fun_check = function(x) {
+      isThat <- any(duplicated(x)) && length(unique(x)) > 1
+      if (!isThat) {
+        message("[Function: fun_check] At least one quantity must be greater than 1.")
+      }
+      isThat
+    }
+    ))
 
 .expect_col_geo_sample <- setClass(".expect_col_geo_sample",
   contains = c("expect_col"),
   prototype = prototype(
     name = "sample", pattern_find = c("rownames"),
-    fun_check = function(x) all(!duplicated(x))
+    fun_check = function(x) {
+      isThat <- all(!duplicated(x))
+      if (!isThat) {
+        message("[Function: fun_check] All should be unique.")
+      }
+      isThat
+    }
     ))
 
 ## do recode first, then mutate.
 geo_cols <- function(
   group_mutate = preset_group_string, sample_mutate = NULL,
-  group = c("treatment", "disease", "tissue", "title"), sample = "rownames",
+  group = .pattern_geo_group(), sample = "rownames",
   group_recode = character(0), sample_recode = character(0),
   db_file = .prefix("expect_cols_geo.rds", "db"),
   global = function(x) dplyr::relocate(x, sample, group),

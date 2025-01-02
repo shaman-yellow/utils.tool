@@ -136,8 +136,11 @@ setMethod("step2", signature = c(x = "job_gds"),
       stop('length(gse) > 50 && !force, too many items for query.')
     }
     x$res <- batch_geo(gses, ...)
+    names(x$res$metas) <- gses
     if (TRUE) {
       x$res$res <- NULL
+    } else {
+      names(x$res$res) <- gses
     }
     x$querys <- gses
     snap <- length(which(vapply(x$res$metas, is, logical(1), "df")))
@@ -145,12 +148,79 @@ setMethod("step2", signature = c(x = "job_gds"),
     return(x)
   })
 
-setMethod("anno", signature = c(x = "job_gds"),
-  function(x){
+setMethod("expect", signature = c(x = "job_gds", ref = "ANY"),
+  function(x, ref, force = FALSE, ids = names(x$res$metas),
+    sleep = NULL, return_type = c("self", "data.frame"), ...)
+  {
     if (x@step < 2L) {
       stop('x@step < 2L, should have metadata of all dataset.')
     }
+    if (missing(ref)) {
+      ref <- geo_cols()
+    }
+    return_type <- match.arg(return_type)
+    metas <- x$res$metas
+    if (length(metas) != length(ids)) {
+      stop('length(metas) != length(ids), not match?')
+    }
+    metas <- mapply(metas, ids, SIMPLIFY = FALSE,
+      FUN = function(meta, id) {
+        expect(meta, ref, force = force, id = id, sleep = sleep, ...)
+      })
+    if (return_type == "self") {
+      x$res$metas <- metas
+      return(x)
+    } else {
+      return(metas)
+    }
   })
+
+setMethod("anno", signature = c(x = "job_gds"),
+  function(x, col = "group") {
+    if (x@step < 2L) {
+      stop('x@step < 2L, should have metadata of all dataset.')
+    }
+    metas <- x$res$metas
+    if (!identical(names(metas), x@object$GSE)) {
+      stop('!identical(names(metas), x@object$GSE), can not match GSE id in object(x)')
+    }
+    types <- x@object$gdsType
+    summaries <- x@object$summary
+    snaps <- mapply(
+      metas, names(metas), types, summaries, SIMPLIFY = FALSE,
+      FUN = function(data, id, type, summary) {
+        scPattern <- "single|scRNA"
+        if (grpl(summary, scPattern) || any(grpl(unlist(data), scPattern))) {
+          extype <- " (scRNA-seq) "
+        } else {
+          extype <- ""
+        }
+        string <- data[[ col ]]
+        if (is.null(string)) {
+          stop(glue::glue('is.null(string), can not found "{col}" in metadata of "{id}".'))
+        }
+        x <- table(string)
+        snap_freqs <- glue::glue("{names(x)} (n = {unname(x)})")
+        snap_freqs <- stringr::str_wrap(
+          paste0("- ", snap_freqs), 100, 4, 4
+        )
+        snap_freqs <- bind(snap_freqs, co = "\n")
+        type <- .mutate_gdsType(type)
+        glue::glue("- **{id}**, **Type**: {extype}{type}\n{snap_freqs}")
+      }
+    )
+    snaps <- bind(unlist(snaps), co = "\n")
+    x <- snapAdd(x, snaps, step = "a", add = FALSE)
+    return(x)
+  })
+
+.mutate_gdsType <- function(x) {
+  x <- gs(x, "profiling by array", "Microarray")
+  x <- gs(x, "profiling by high throughput sequencing", "RNA-seq")
+  x <- gs(x, "Expression", "")
+  x <- gs(x, "coding RNA", "coding")
+  x
+}
 
 setMethod("step3", signature = c(x = "job_gds"),
   function(x, ref, mode = c("survival"), from_backup = TRUE)
@@ -265,3 +335,36 @@ setMethod("step0", signature = c(x = "job_gds"),
   function(x){
     step_message("Prepare your data with function `job_gds`.")
   })
+
+batch_geo <- function(gses, getGPL = FALSE, cl = 1L) {
+  if (!requireNamespace("GEOquery", quietly = TRUE)) {
+    stop('!requireNamespace("GEOquery", quietly = TRUE), no package of "GEOquery".')
+  }
+  usedPackages <- c(
+    "GEOquery", "dplyr", "RCurl", "usethis", "stringr",
+    "cli", "crayon", "glue", "rlang"
+  )
+  lapply(usedPackages, requireNamespace, quietly = TRUE)
+  res <- pbapply::pblapply(gses,
+    function(x) {
+      times <- 0L
+      res <- NULL
+      while((is.null(res) || inherits(res, "try-error")) && times <= 5L) {
+        times <- times + 1L
+        res <- try(suppressMessages(step1(job_geo(x), getGPL = getGPL)), FALSE)
+        if (times > 1) {
+          cli::cli_alert_info("Got error, try again in 3 second.")
+          Sys.sleep(3)
+        }
+      }
+      if (is.null(res)) {
+        cli::cli_alert_danger(x)
+      } else {
+        cli::cli_alert_success(x)
+      }
+      return(res)
+    }, cl = cl
+  )
+  metas <- lapply(res, function(x) try(x$guess))
+  namel(res, metas)
+}
