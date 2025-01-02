@@ -293,10 +293,19 @@ geo_cols <- function(
   prototype = prototype(
     list(.expect_col_geo_sample(), .expect_col_geo_group()),
     uniqueness = "rownames",
-    db_file = .prefix("expect_cols_geo.rds", "db"),
     global = function(x) {
       dplyr::relocate(x, sample, group)
     }))
+
+setMethod("initialize", "expect_cols_geo", 
+  function(.Object, ...) {
+    .Object <- callNextMethod()
+    if (!length(.Object@db_file)) {
+      .Object@db_file <- .prefix("expect_cols_geo.rds", "db")
+    }
+    .Object
+  })
+
 
 get_metadata.geo <- function(lst,
   select = rlang::quos(rownames, title),
