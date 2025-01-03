@@ -2738,12 +2738,40 @@ saves <- function(file = "workflow.rdata", saveInjobs = TRUE, ...) {
     saveRDS(injobs, rds)
   }
   if (file.exists(file)) {
-    isThat <- usethis::ui_yeah("The `file` exists, overwrite that?")
+    isThat <- sureThat("The `file` exists, overwrite that?")
     if (!isThat) {
       return(NULL)
     }
   }
   save.image(file, ...)
+}
+
+sureThat <- function(x, yes = c("Yes", "Sure", "Yup",
+    "Yeah", "Agree", "Absolutely"), no = c("No way", "Not now", 
+    "Negative", "No", "Nope", "Never"), n_yes = 1, n_no = 2, 
+  shuffle = TRUE, .envir = parent.frame())
+{
+  x <- glue::glue_collapse(x, "\n")
+  x <- glue::glue(x, .envir = .envir)
+  if (!rlang::is_interactive()) {
+    usethis::ui_stop(c("User input required, but session is not interactive.",
+        "Query: {x}"))
+  }
+  n_yes <- min(n_yes, length(yes))
+  n_no <- min(n_no, length(no))
+  qs <- c(sample(yes, n_yes), sample(no, n_no))
+  if (shuffle) {
+    qs <- sample(qs)
+  }
+  if (getOption("job_appending", FALSE) && requireNamespace("nvimcom")) {
+    choices <- bind(
+      paste0("\"", c(x, "exit", qs), "\""), co = ", "
+    )
+    .C("nvimcom_msg_to_nvim", glue::glue('RSelect({choices})'), PACKAGE = "nvimcom")
+  }
+  rlang::inform(x)
+  out <- utils::menu(qs)
+  out != 0L && qs[[out]] %in% yes
 }
 
 loads <- function(file = "workflow.rdata", ...) {

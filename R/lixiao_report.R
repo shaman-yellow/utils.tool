@@ -849,7 +849,7 @@ items <- function(
     }
   }
   if (file.exists(save)) {
-    if (!usethis::ui_yeah("File exists, use this?")) {
+    if (!sureThat("File exists, use this?")) {
       return(writeLines("Stopped."))
     }
     info <- readRDS(save)
