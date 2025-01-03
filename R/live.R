@@ -2752,7 +2752,7 @@ new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = TRU
   }
 }
 
-new_venn <- function(..., lst = NULL, wrap = TRUE, fun_pre = rm.no, force_upset = TRUE) {
+new_venn <- function(..., lst = NULL, wrap = TRUE, fun_pre = rm.no, force_upset = FALSE) {
   if (!is.null(lst) && length(list(...))) {
     lst <- c(lst, list(...))
   }
@@ -2773,6 +2773,22 @@ new_venn <- function(..., lst = NULL, wrap = TRUE, fun_pre = rm.no, force_upset 
         axis.title = element_blank(),
         axis.ticks = element_blank()) +
       theme()
+    for (i in rev(seq_along(p$layers))) {
+      if (is(p$layers[[i]]$geom, "GeomLabel")) {
+        which <- i
+      } else if (is(p$layers[[i]]$geom, "GeomText")) {
+        whichText <- i
+        break
+      }
+    }
+    shouldChange <- !grpl(p$layers[[which]]$data$id, "/")
+    p$layers[[which]]$data[shouldChange, ] <- dplyr::mutate(
+      p$layers[[which]]$data[shouldChange, ], both = paste0(name, "\n", count, " (", percent, ")")
+    )
+    p$layers[[which]]$data[!shouldChange, ] <- dplyr::mutate(
+      p$layers[[which]]$data[!shouldChange, ], both = paste0(count, " (", percent, ")")
+    )
+    p$layers[[whichText]] <- NULL
   }
   if (wrap) {
     p <- wrap(p, 5, 3)
@@ -2780,6 +2796,7 @@ new_venn <- function(..., lst = NULL, wrap = TRUE, fun_pre = rm.no, force_upset 
   attr(p, "ins") <- ins <- ins(lst = lst)
   attr(p, "lich") <- new_lich(list(All_intersection = ins))
   lab(p) <- paste0("Intersection of ", paste0(names(lst), collapse = " with "))
+  p <- setLegend(p, "将{bind(names(lst))} 取交集。")
   p
 }
 

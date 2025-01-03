@@ -42,9 +42,19 @@ job_limma_normed <- function(data, metadata, genes = NULL) {
     if (any(duplicated(genes[[1]]))) {
       stop("any(duplicated(genes[[1]]))")
     }
-    genes <- dplyr::slice(genes, match(rownames(data), genes[[1]]))
+    genes <- merge(
+      data.frame(rownames = rownames(data)), 
+      genes, by.x = "rownames", by.y = colnames(genes)[[1]], 
+      all.x = TRUE, sort = FALSE
+    )
   }
-  .job_limma(object = data, params = list(metadata = metadata, isTcga = FALSE, normed = TRUE, genes = genes))
+  message(glue::glue("Metdata Dim: {bind(dim(metadata))}\nData Dim: {bind(dim(data))}"))
+  .job_limma(
+    object = data, params = list(
+      metadata = metadata, isTcga = FALSE, normed = TRUE, 
+      genes = genes, rna = TRUE
+    )
+  )
 }
 
 setMethod("regroup", signature = c(x = "job_limma"),
@@ -93,7 +103,7 @@ setMethod("filter", signature = c(x = "job_limma"),
           glue::glue("after filter, dim of object(x)$counts: {bind(dim(object(x)$counts))}")
         )
       }
-      x <- snapAdd(x, "{snap}")
+      x <- snapAdd(x, "{snap}", add = FALSE)
       return(x)
     }
   })
@@ -154,7 +164,8 @@ setMethod("step1", signature = c(x = "job_limma"),
     ))
   {
     step_message("Preprocess expression data.")
-    if (x$rna) {
+    ## sample names check
+    if (!x$normed && x$rna) {
       x <- methodAdd(x, "以 R 包 `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 对数据预处理。")
       x <- snapAdd(x, "以 `edgeR` 将{x$project} RNA-seq 数据标准化 (详见方法章节)。")
     }
@@ -200,7 +211,7 @@ setMethod("step1", signature = c(x = "job_limma"),
             genes = if (is.null(x$genes)) data.frame(rownames = rownames(object(x))) else x$genes,
             targets = x$metadata,
             E = object(x)
-          )  
+          )
         } else {
           x$normed_data <- object(x)
         }
@@ -235,6 +246,9 @@ setMethod("step1", signature = c(x = "job_limma"),
     }
     if (length(plots)) {
       x@plots[[ 1 ]] <- plots
+    }
+    if (!length(group)) {
+      stop('!length(group), no any data?')
     }
     x@params$group <- group
     x@params$design <- design
@@ -286,6 +300,9 @@ setMethod("step2", signature = c(x = "job_limma"),
     } else {
       trend <- FALSE
     }
+    if (x$normed) {
+      object(x) <- new("EList", x@params$normed_data)
+    }
     object(x) <- diff_test(object(x), x@params$design, contr, block, trend = trend)
     x <- methodAdd(x, "使用 `limma::lmFit`, `limma::contrasts.fit`, `limma::eBayes` 拟合线形模型。")
     plots <- list()
@@ -293,28 +310,20 @@ setMethod("step2", signature = c(x = "job_limma"),
       tops <- extract_tops(object(x), use = use, use.cut = use.cut, cut.fc = cut.fc)
       tops <- lapply(
         tops, dplyr::relocate,
-        logFC, !!rlang::sym(use)
+        !!rlang::sym(label), logFC, !!rlang::sym(use)
       )
       x <- methodAdd(x, "以 `limma::topTable` 提取所有结果，并过滤得到 {use} 小于 {use.cut}，|Log2(FC)| 大于 {cut.fc} 的统计结果。")
-      if (x$normed) {
-        if (!is.null(x$genes)) {
-          tops <- lapply(tops,
-            function(obj) {
-              obj <- map(obj, colnames(obj)[1], x$genes, colnames(x$genes)[1], label, col = label)
-              if (!is.null(x$from_scfea)) {
-                ## the genes belong to the module
-                obj <- map(obj, colnames(obj)[1], x$genes, colnames(x$genes)[1], "gene", col = "gene")
-                dic <- nl(x$compounds_annotation$name, x$compounds_annotation$kegg, TRUE)
-                obj <- dplyr::mutate(obj, compounds = strsplit(name, " -> "),
-                  kegg = lapply(compounds,
-                    function(x) {
-                      dplyr::recode(x, !!!dic)
-                    })
-                )
-              }
-              obj
-            })
-        }
+      if (!is.null(x$from_scfea)) {
+        tops <- lapply(tops, 
+          function(obj) {
+            dic <- nl(x$compounds_annotation$name, x$compounds_annotation$kegg, TRUE)
+            obj <- dplyr::mutate(obj, compounds = strsplit(name, " -> "),
+              kegg = lapply(compounds,
+                function(x) {
+                  dplyr::recode(x, !!!dic)
+                })
+            )    
+          })
       }
       tops <- .set_lab(tops, sig(x), paste("data", gs(names(tops), "-", "vs")))
       lab(tops) <- paste(sig(x), "DEGs data")
@@ -461,29 +470,118 @@ setMethod("clear", signature = c(x = "job_limma"),
 
 setMethod("map", signature = c(x = "job_limma"),
   function(x, ref, ref.use = .guess_symbol(x),
-    group = NULL, group.use = "group", pvalue = TRUE){
+    group = NULL, group.use = "group", pvalue = TRUE, 
+    which = 1L, use = c("adj.P.Val", "P.Value"))
+  {
     object <- x@params$normed_data
     if (identical(class(object), "list")) {
-      object <- new("EList", object)
+      object <- new_from_package("EList", "limma", object)
     }
-    object <- object[!duplicated(object$genes[[ ref.use ]]), ]
-    rownames(object) <- object$genes[[ ref.use ]]
+    message(glue::glue("Use name of {ref.use}."))
+    object <- e(
+      limma::`[.EList`(object,
+        !duplicated(object$genes[[ ref.use ]]) & !is.na(object$genes[[ ref.use ]]),)
+    )
+    message(glue::glue("After deduplicated: {bind(dim(object))}"))
+    res <- try(
+      rownames(object) <- object$genes[[ ref.use ]], TRUE
+    )
+    if (inherits(res, "try-error")) {
+      stop(
+        glue::glue('inherits(res, "try-error"), row number not match, or rownames is NA?')
+      )
+    }
     object <- object[rownames(object) %in% ref, ]
+    message("Remove duplicated names.")
     if (any(duplicated(rownames(object)))) {
       object <- object[ !duplicated(rownames(object)), ]
     }
+    if (!is.null(which)) {
+      top <- x@tables$step2$tops[[ which ]]
+      top <- dplyr::filter(top, !!rlang::sym(ref.use) %in% ref)
+      if (!nrow(top)) {
+        stop('!nrow(top), no significant data.')
+      }
+      group <- names(x@tables$step2$tops)[which]
+      group <- gs(strsplit(group, "-")[[1]], " ", "")
+      if (any(!group %in% object$targets[[ group.use ]])) {
+        stop(
+          'any(!group %in% object$targets[[ group.use ]]), can not found contrast group.'
+        )
+      }
+    }
     if (!is.null(group)) {
       object <- object[, object$targets[[ group.use ]] %in% group]
-    }
+    }  
     data <- tibble::as_tibble(t(object$E))
     data$group <- object$targets$group
     data <- tidyr::gather(data, var, value, -group)
-    p <- wrap(.map_boxplot2(data, pvalue))
-    p <- .set_lab(p, sig(x), "wilcox test for some genes")
-    snap(p) <- "以 wilcox.test 检验少量基因 ({bind(ref)}) 的表达。"
+    p <- .map_boxplot2(data, pvalue)
+    if (is.null(which)) {
+      legend <- "以 wilcox.test 检验少量基因 ({bind(ref)}) 的表达。"
+    } else {
+      for (i in seq_along(p$layers)) {
+        if (is(p$layers[[i]], "GeomText")) {
+          break
+        }
+      }
+      if (!any(colnames(p$layers[[i]]$data) == "labs")) {
+        stop('!any(colnames(p$layers[[i]]$data) == labs), may be ggplot2 version not match?')
+      }
+      use <- match.arg(use)
+      top <- dplyr::mutate(
+        top, labs = paste0(
+          "italic(", use, ") == \"", signif(!!rlang::sym(use), 3), "\""
+        )
+      )
+      p$layers[[i]]$data <- map(
+        p$layers[[i]]$data, "var", top, ref.use, "labs", col = "labs"
+      )
+      legend <- "基因 {bind(ref)} 表达水平，以及对应的 limma 差异分析显著水平。"
+    }
+    scale <- sqrt(length(ref)) * 3
+    just <- 1L
+    if (!is.null(group)) {
+      just <- max(nchar(group)) - 10
+      if (just < 0) {
+        just <- 1L
+      } else {
+        just <- just / 15 * .5 * scale
+      }
+    }
+    p <- setLegend(wrap(p, scale, scale + just), legend)
     feature(p) <- ref
-    p
+    x <- plotsAdd(x, p.BoxPlotOfDEGs = p, reset = FALSE, step = 2L)
+    return(x)
   })
+
+.map_boxplot2 <- function(data, pvalue, x = "group", y = "value",
+  xlab = "Group", ylab = "Value", ids = "var", test = "wilcox.test", 
+  annotation = NULL, ...)
+{
+  p <- ggplot(data, aes(x = !!rlang::sym(x), y = !!rlang::sym(y), color = !!rlang::sym(x))) +
+    geom_boxplot(outlier.shape = NA, fill = "transparent") +
+    geom_jitter(aes(x = !!rlang::sym(x), y = !!rlang::sym(y), fill = !!rlang::sym(x)),
+      stroke = 0, shape = 21, width = .1, color = "transparent") +
+    facet_wrap(ggplot2::vars(!!rlang::sym(ids)), ...) +
+    scale_fill_manual(values = color_set()) +
+    scale_color_manual(values = color_set()) +
+    labs(x = xlab, y = ylab) +
+    theme_minimal() +
+    theme(legend.position = "none",
+      axis.text.x = element_text(angle = 45, hjust = 1)) +
+    geom_blank()
+  if (pvalue) {
+    fn <- fivenum(data[[ y ]])
+    levels <- 2 * seq(length(unique(data[[ x ]])) - 1)
+    hs <- fn[4] + abs(fn[5] - fn[1]) / levels
+    p <- ggpval::add_pval(
+      p, heights = hs, pval_text_adj = (fn[5] - fn[1]) / 15, 
+      test = test, annotation = annotation
+    )
+  }
+  p
+}
 
 plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
   fc = .3, seed = 1, HLs = NULL, use.fc = "logFC", label.fc = "log2(FC)",
@@ -601,7 +699,8 @@ setMethod("cal_corp",
     newjob <- .job_limma(params = list(normed_data = x))
     x <- cal_corp(newjob, NULL, from, to, names, use, theme, HLs, mode)
     snap(x) <- c(
-      list(step0 = glue::glue("将两组相同样品来源的数据集 (dataset: {bind(sigs)})) 关联分析。")),
+      list(step0 = glue::glue("将两组相同样品来源的数据集 (dataset: {bind(sigs)})
+        ) 关联分析。")),
       step1 = snap(x)[[1]])
     x
   })
@@ -625,7 +724,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
     }
     if (mode == "heatmap") {
       lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = TRUE)
-      if (length(unique(from)) > 1 && length(unique(to)) > 1) {
+      if (length(unique(from)) >= 1 && length(unique(to)) >= 1) {
         lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
         lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), theme, "significant correlation")
       }
@@ -641,9 +740,9 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
       x <- snapAdd(x, "将基因集 ({fun(from)}) 关联分析，")
     } else {
       if (length(from) < 10 && length(to) < 10) {
-        x <- snapAdd(x, "将基因 ({bind(from)} -> {bind(to)}) 关联分析，")
+        x <- snapAdd(x, "将基因 ({bind(from)} -> {bind(to)}) 关联分析。")
       } else {
-        x <- snapAdd(x, "将基因集 (A -> B) (A:{fun(from)}, B:{fun(to)}) 关联分析，")
+        x <- snapAdd(x, "将基因集 (A -> B) (A:{fun(from)}, B:{fun(to)}) 关联分析。")
       }
     }
     x <- snapAdd(x, "共得到 {nrow(lst$sig.corp)} 个显著的基因对 (P &lt; 0.05)。")

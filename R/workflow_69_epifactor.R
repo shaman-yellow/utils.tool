@@ -48,6 +48,20 @@ setMethod("step1", signature = c(x = "job_epifactor"),
     data <- .set_lab(data, sig(x), paste0("all ", x$use), "of epigenetic regulators")
     x@tables[[ 1 ]] <- nl(x$use, list(data))
     x <- methodAdd(x, "从数据库 `EpiFactors` {cite_show('Epifactors2022Maraku2023')} 获取表观遗传调控蛋白的数据。")
+    x <- snapAdd(x, "获取 `EpiFactors` 中的表观遗传调控蛋白。")
+    x$.feature <- as_feature(data$HGNC_symbol, x)
+    return(x)
+  })
+
+setMethod("filter", signature = c(x = "job_epifactor"),
+  function(x, types = c("RNA methylation"), ...)
+  {
+    types <- paste0(types, collapse = "|")
+    x@tables$step1$protein <- trace_filter(
+      x@tables$step1$protein, grpl(Modification, !!types), ...
+    )
+    x$.feature <- as_feature(x@tables$step1$protein$HGNC_symbol, x)
+    x <- snapAdd(x, snap(x@tables$step1$protein), add = TRUE)
     return(x)
   })
 

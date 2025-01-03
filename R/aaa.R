@@ -2,6 +2,12 @@
 # utilites
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+new_from_package <- function(Class, package, ...) {
+  ClassDef <- getClass("EList", where = asNamespace(package))
+  value <- .Call(methods:::C_new_object, ClassDef)
+  initialize(value, ...)
+}
+
 setFakeClasses <- function(classes) {
   lapply(classes,
     function(name) {

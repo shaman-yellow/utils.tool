@@ -276,7 +276,7 @@ preset_group_string <- function(x) {
 }
 
 .pattern_geo_group <- function() {
-  c("disease", "treatment", "protocol", "tissue", "title")
+  c("drug", "disease", "treatment", "protocol", "tissue", "title")
 }
 
 .expect_col_geo_group <- setClass("expect_col_geo_group",
@@ -318,7 +318,7 @@ geo_cols <- function(
   cols <- list(
     .expect_col_geo_sample(
       pattern_find = sample, fun_mutate = sample_mutate, 
-      pattern_recode = group_recode
+      pattern_recode = sample_recode
       ),
     .expect_col_geo_group(
       pattern_find = group, fun_mutate = group_mutate, 

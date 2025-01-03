@@ -68,7 +68,7 @@ job_gds <- function(keys,
     "({n}[Number of Samples]) AND (GSE[Entry Type])"
   )
   if (!is.null(org)) {
-    extra <- paste(extra, "AND ({org}[Organism])")
+    extra <- paste(extra, glue::glue("AND ({org}[Organism])"))
   }
   object <- edirect_db("gds", c(query, extra), elements, ...)
   object <- dplyr::mutate(object, GSE = paste0("GSE", GSE))
@@ -97,9 +97,12 @@ setMethod("step1", signature = c(x = "job_gds"),
     if (!is.null(clinical)) {
       message(glue::glue("dim: {bind(dim(object(x)))}, clinical == {clinical}"))
       if (clinical) {
-        object(x) <- dplyr::filter(object(x), !grpl(summary, "cell type|cell line|CD[0-9]+"))
+        object(x) <- dplyr::filter(
+          object(x),
+          !grpl(summary, "in vivo|in vitro|cells|cell type|cell line|CD[0-9]+", TRUE)
+        )
         x <- methodAdd(x,
-          "仅查询临床样本信息，因此滤除匹配到 'cell type' 或 'cell line' 的实验数据例。
+          "仅查询临床样本信息，因此滤除匹配到 'cells', 'cell type' 或 'cell line' 的实验数据例。
           此外，去除了以特定 Marker 细胞类型为研究对象的数据例 (CD4、CD8 T 细胞等)。")
       }
     }
@@ -246,9 +249,7 @@ setMethod("step3", signature = c(x = "job_gds"),
 
 add_field <- function(keys, field) {
   if (any(which <- !grpl(keys, "\\["))) {
-    keys[which] <- vapply(keys[which],
-      function(x) paste0(x, field), character(1)
-    )
+    keys[which] <- paste0(keys[which], field)
   }
   keys
 }

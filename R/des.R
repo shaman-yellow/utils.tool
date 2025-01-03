@@ -164,6 +164,7 @@
     `mfuzz` = "对基因聚类分析mfuzz",
     `pubmed` = "PubMed 文献搜索",
     `gds` = "GEO 数据库搜索",
-    `pathview` = "通路可视化"
+    `pathview` = "通路可视化",
+    `venn` = "取交集"
   )
 }

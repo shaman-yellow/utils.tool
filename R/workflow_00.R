@@ -428,7 +428,7 @@ trace_filter <- function(data, ..., quosures = NULL) {
               'is.na(match), detected "grepl" or "grpl", but not matched the pattern.'
             )
           }
-          glue::glue("匹配 {col} 中{neg}包含 {match} 字符的数据")
+          glue::glue("匹配 {col} 中{neg}包含{match}的描述")
         } else {
           types <- unique(data[[ col ]])
           if (length(types) > 20) {
@@ -875,8 +875,8 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
         }
         x[[ i@name ]] <- x[[ which ]]
         if (length(i@pattern_recode)) {
-          if (!is.null(names(i@pattern_recode))) {
-            stop('!is.null(names(i@pattern_recode)), should has names.')
+          if (is.null(names(i@pattern_recode))) {
+            stop('is.null(names(i@pattern_recode)), should has names.')
           }
           meta <- group_strings(
             x[[ i@name ]], i@pattern_recode
@@ -891,7 +891,8 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
           x[[ i@name ]] <- i@fun_mutate(x[[ i@name ]])
         }
         show <- stringr::str_wrap(
-          bind(paste0("\'", head(x[[i@name]], n = 10), "\'")),
+          bind(c(bind(paste0("\'", head(x[[i@name]], n = 10), "\'")),
+            if (length(x[[i@name]]) > 10) "..." else NULL)),
           indent = 4, exdent = 4
         )
         note <- crayon::silver(paste0("(From column: ", colnames(x)[which], ")"))
@@ -1252,25 +1253,33 @@ tablesAdd <- function(x, ...) {
   jobSlotAdd(x, "tables", ...)
 }
 
-jobSlotAdd <- function(x, name, ...) {
+jobSlotAdd <- function(x, name, ..., reset, step) {
   calls <- getNamesOfCall(substitute(list(...)))
   objs <- list(...)
   names(objs) <- calls
   labs <- formatNames(calls)
-  symbol <- paste0(".", name, "_initial")
-  isInitial <- x[[ symbol ]]
-  if (is.null(isInitial) || isInitial) {
-    x[[ symbol ]] <- FALSE
-    reset <- TRUE
-  } else {
-    reset <- FALSE
+  if (missing(reset)) {
+    symbol <- paste0(".", name, "_initial")
+    isInitial <- x[[ symbol ]]
+    if (is.null(isInitial) || isInitial) {
+      x[[ symbol ]] <- FALSE
+      reset <- TRUE
+    } else {
+      reset <- FALSE
+    }  
+  }
+  if (missing(step)) {
+    step <- x@step
   }
   db <- if (reset) {
     list()
+  } else if (length(slot(x, name)) >= step) {
+    slot(x, name)[[ step ]]
   } else {
-    slot(x, name)[[ x@step ]]
+    list()
   }
-  slot(x, name)[[ x@step ]] <- c(db, .set_lab_batch(objs, labs, sig(x)))
+  db <- db[ !names(db) %in% names(objs) ]
+  slot(x, name)[[ step ]] <- c(db, .set_lab_batch(objs, labs, sig(x)))
   return(x)
 }
 
@@ -1613,11 +1622,13 @@ setGeneric("step1", group = list("step_series"),
       x$seed <- seed
     }
     x <- checkAddStep(x, 1L)
+    x$.append_heading <- TRUE
     x <- standardGeneric("step1")
     x <- stepPostModify(x, 1)
-    if (identical(parent.frame(1), .GlobalEnv)) {
+    if (identical(parent.frame(1), .GlobalEnv) && x$.append_heading) {
       job_append_heading(x)
     }
+    x$.append_heading <- NULL
     x
   })
 

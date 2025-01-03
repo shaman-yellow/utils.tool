@@ -1,4 +1,22 @@
 
+summary_month.bosai <- function(data, time = Sys.Date(),
+  back_dir = .prefix("summary", "wd"),
+  .time = if (is(time, "Date")) time else as.Date(time, tryFormats = "%Y-%m-%d"), 
+  upd = FALSE, ...)
+{
+  data <- dplyr::filter(data, finish <= !!time)
+  data <- register_data(data, file.path(back_dir, "month_records.rds"))
+  summary_week.bosai(
+    time, orders = data, templ_dir = .prefix("summary/"), templ_file = "summary_month.xlsx",
+    dir_prefix = "summary_month_", dir_suffix = paste0(
+      lubridate::year(time), "_", lubridate::month(time)
+    ), mode = "month"
+  )
+  register_data <- upd
+  return(data)
+}
+
+
 summary_assess.bosai <- function(data, time = Sys.Date(),
   back_dir = .prefix("summary", "wd"),
   .time = if (is(time, "Date")) time else as.Date(time, tryFormats = "%Y-%m-%d"))
@@ -123,10 +141,13 @@ summary_week.bosai <- function(
   week = lubridate::week(time),
   path = .prefix(),
   templ_dir = .prefix("summary/"),
-  rm = FALSE, must_include = "__must_include__")
+  templ_file = "summary.xlsx",
+  rm = FALSE, must_include = "__must_include__", dir_prefix = "summary_", 
+  dir_suffix = week, mode = c("week", "month"))
 {
-  dir <- file.path(path, paste0("summary_", week))
-  targets <- c(ass = "summary.xlsx")
+  mode <- match.arg(mode)
+  dir <- file.path(path, paste0(dir_prefix, dir_suffix))
+  targets <- c(ass = templ_file)
   if (rm) {
     unlink(list.files(dir, full.names = TRUE, all.files = TRUE, recursive = TRUE), TRUE, TRUE)
     dir.create(dir)
@@ -139,10 +160,12 @@ summary_week.bosai <- function(
   targets[] <- file.path(dir, targets)
   wb <- openxlsx2::wb_load(targets[[ "ass" ]])
   ## prepare orders (this week or next week)
-  orders <- dplyr::filter(orders,
-    is.na(lubridate::week(finish)) | (lubridate::week(finish) == !!week) |
-      id %in% must_include
-  )
+  if (mode == "week") {
+    orders <- dplyr::filter(orders,
+      is.na(lubridate::week(finish)) | (lubridate::week(finish) == !!week) |
+        id %in% must_include
+    )
+  }
   ## modify the assess table
   data_ass <- dplyr::mutate(orders, expect = finish)
   data_ass <- dplyr::select(data_ass,
@@ -154,10 +177,13 @@ summary_week.bosai <- function(
   }
   pos.data_ass <- list(3, 1)
   wb <- fun(wb, dplyr::filter(data_ass, !is.na(finish) | id %in% must_include))
-  pos.data_ass <- list(15, 1)
-  wb <- fun(wb, dplyr::filter(data_ass, is.na(finish)))
+  if (mode == "week") {
+    pos.data_ass <- list(15, 1)
+    wb <- fun(wb, dplyr::filter(data_ass, is.na(finish)))
+  }
   openxlsx2::wb_save(wb, targets[[ "ass" ]])
   ## check
+  gett(dirname(normalizePath(targets[[ "ass" ]])))
   browseURL(normalizePath(targets[[ "ass" ]]))
 }
 
