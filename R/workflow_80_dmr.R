@@ -174,7 +174,7 @@ plot_dmr <- function(data, chr, genome = c("hg38", "mm10", "rn6"),
   if (!is.null(symbol) || !is.null(subset.cpgIsland)) {
     small <- TRUE
   } else small <- FALSE
-  ## DMR region
+  ## DMR region
   if (TRUE) {
     ## for annotation
     if (dmrRegion) {
