@@ -2410,7 +2410,7 @@ view_obj_for_vim <- function(x, y, view = TRUE) {
           alls <- alls[alls[, 1] == classY, ]
         }
         if (is.matrix(alls)) {
-          useWhich <- menu(apply(alls, 1, paste0, collapse = ", "), title = "Show which?")
+          useWhich <- menuThat(apply(alls, 1, paste0, collapse = ", "), "Show which?")
         } else if (is.character(alls)) {
           useWhich <- integer(0)
         }
@@ -2744,6 +2744,16 @@ saves <- function(file = "workflow.rdata", saveInjobs = TRUE, ...) {
     }
   }
   save.image(file, ...)
+}
+
+menuThat <- function(qs, x, ...) {
+  if (getOption("job_appending", FALSE) && requireNamespace("nvimcom")) {
+    choices <- bind(
+      paste0("\"", c(x, "exit", qs), "\""), co = ", "
+    )
+    .C("nvimcom_msg_to_nvim", glue::glue('RSelect({choices})'), PACKAGE = "nvimcom")
+  }
+  menu(qs, x, ...)
 }
 
 sureThat <- function(x, yes = c("Yes", "Sure", "Yup",
