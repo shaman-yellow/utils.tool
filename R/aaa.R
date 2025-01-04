@@ -2,6 +2,23 @@
 # utilites
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+binary_search <- function(fun = function(x) x <= 5, low = 1, high = 12)
+{
+  n <- 0L
+  while (low < high) {
+    n <- n + 1L
+    mayThat <- floor((low + high) / 2)
+    has <- fun(mayThat)
+    if (has) {
+      low <- mayThat + 1
+    } else {
+      high <- mayThat
+    }
+  }
+  message("Loop times: ", n)
+  return(low - 1)
+}
+
 new_from_package <- function(Class, package, ...) {
   ClassDef <- getClass("EList", where = asNamespace(package))
   value <- .Call(methods:::C_new_object, ClassDef)

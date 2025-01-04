@@ -1646,6 +1646,36 @@ job_append_heading <- function (x, mutate = TRUE, heading = NULL) {
   }
 }
 
+findMaxStepMethod <- function(class, max = 12L, inherited = TRUE) {
+  allMax <- vapply(
+    c(names(attributes(getClassDef(class))$contains), class),
+    function(name) {
+      for (i in seq_len(max)) {
+        sigs <- findMethodSignatures(
+          f = paste0("step", i), inherited = TRUE
+        )
+        if (!any(sigs == name)) {
+          return(i - 1L)
+        }
+      }
+    }, integer(1)
+  )
+  return(max(allMax))
+}
+
+job_append_method <- function(x) {
+  if (getOption("job_appending", FALSE)) {
+    if (is(x, "job")) {
+      if (requireNamespace("nvimcom")) {
+        oname <- substitute(x)
+        max <- findMaxStepMethod(class(x))
+        args <- glue::glue("CheckAndAppendMethod('{oname}', {max})")
+        .C("nvimcom_msg_to_nvim", args, PACKAGE = "nvimcom")
+      }
+    }
+  }
+}
+
 .append_heading <- function(x, mutate = FALSE) {
   args <- paste0("CheckAndAppendHeading('", x, "'", if (mutate) ", 1" else ", 0", ")")
   if (requireNamespace("nvimcom")) {
