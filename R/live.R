@@ -1931,7 +1931,7 @@ autor_preset <- function(echo = FALSE, eval = FALSE, autor_relocate = TRUE, ...)
 ## orinal function, for save file, and return file name
 
 auto_clear <- function(wd = ".", cache = "cache", ft = "Figure+Table",
-  rep = "report_picture", register = TRUE)
+  rep = "report_picture", register = TRUE, Inclu_image_info = TRUE)
 {
   fun <- function(dir) {
     if (!is.null(dir)) {
@@ -1940,6 +1940,9 @@ auto_clear <- function(wd = ".", cache = "cache", ft = "Figure+Table",
         unlink(dir, TRUE, TRUE)
       }  
     }
+  }
+  if (Inclu_image_info) {
+    options(Inclu_image_info = NULL)
   }
   lapply(c(cache, ft, rep), fun)
   if (register) {

@@ -62,6 +62,25 @@ setMethod("feature", signature = c(x = "JOB_herb"),
     }
   })
 
+setMethod("asjob_vina", signature = c(x = "job_batman"),
+  function(x, ref, ...){
+    ref <- resolve_feature_snapAdd_onExit("x", ref)
+    herComTar <- x$easyRead
+    # Target.name, symbol, hgnc_symbol or Others?
+    herComTar <- dplyr::filter(herComTar, Target.name %in% ref)
+    herComTar <- .set_lab(herComTar, sig(x), "herbs compounds and targets for docking")
+    herComTar <- setLegend(herComTar, "含靶点基因的化合物和对应中药的附表 (Ingredient.id 为 PubChem CID)。")
+    s.com <- try_snap(herComTar, "Herb_pinyin_name", "Ingredient.name")
+    snapAdd_onExit("x", "含靶点基因的化合物与对应的中药统计：{s.com}")
+    object <- dplyr::distinct(
+      # cpd names, hgnc_symbols, cids
+      herComTar, Ingredient.name, Target.name, Ingredient.id
+    )
+    x <- job_vina(.layout = object)
+    x$herComTar <- herComTar
+    return(x)
+  })
+
 setMethod("map", signature = c(x = "JOB_herb", ref = "feature"),
   function(x, ref, HLs = NULL, levels = NULL, lab.level = "Level", name = "dis", compounds = NULL,
     compounds.keep.intersection = FALSE,

@@ -204,6 +204,7 @@ setMethod("step3", signature = c(x = "job_herb"),
     x@params$herbs_targets <- herbs_targets
     easyRead <- map(x@params$herbs_targets, "herb_id", object(x)$herb, "Herb_", "Herb_pinyin_name")
     easyRead <- .set_lab(easyRead, sig(x), "Herbs compounds and targets")
+    easyRead <- setLegend(easyRead, "为所有中药、化合物以及对应靶点汇总表格。")
     x@params$easyRead <- easyRead
     if (length(unique(herbs_targets$herb_id)) > 1) {
       ## plot upset of herbs targets

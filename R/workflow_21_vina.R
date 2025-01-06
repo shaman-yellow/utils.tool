@@ -56,13 +56,12 @@ setMethod("asjob_vina", signature = c(x = "job_stringdb"),
 
 setMethod("step0", signature = c(x = "job_vina"),
   function(x){
-    step_message("Prepare your data with function `job_vina`.
-      "
-    )
+    step_message("Prepare your data with function `job_vina`. ")
   })
 
 setMethod("step1", signature = c(x = "job_vina"),
-  function(x, bdb = FALSE, each_target = 1, pdbs = NULL, bdb_file = .prefix("BindingDB_All_202401.tsv", "db"))
+  function(x, order = TRUE, each_target = 1, pdbs = NULL, 
+    bdb_file = .prefix("BindingDB_All_202401.tsv", "db"))
   {
     step_message("Prepare Docking Combination.")
     if (is.null(x$mart)) {
@@ -90,30 +89,21 @@ setMethod("step1", signature = c(x = "job_vina"),
     } else {
       message("Got PDB for all `hgnc_symbol`.")
     }
-    if (bdb) {
-      if (file.exists(bdb_file)) {
-        message("Database `BindingDB` used for pre-filtering of docking candidates.")
-        bdb <- ld_cutRead(bdb_file, c("PubChem CID", "PDB ID(s) of Target Chain"))
-        bdb <- dplyr::filter(bdb, `PubChem CID` %in% object(x)$cids)
-        colnames(bdb) <- c("PubChem_id", "pdb_id")
-        x@params$bdb_compounds_targets <- bdb
-        bdb <- nl(bdb$PubChem_id, strsplit(bdb$pdb_id, ","))
-        bdb <- lst_clear0(bdb)
-        bdb <- lapply(bdb, function(v) v[ v %in% x$targets_annotation$pdb ])
-        bdb <- lst_clear0(bdb)
-        if (!length(bdb)) {
-          stop("No candidates found in BindingDB.")
-        }
-        x$dock_layout <- bdb
-        .add_internal_job(.job(method = "Database `BindingDB` used for pre-filtering of docking candidates.",
-            cite = "[@BindingdbIn20Gilson2016]"))
+    if (length(nrow(x$targets_annotation))) {
+      x$annoPdbs <- as_tibble(e(bio3d::pdb.annotate(x$targets_annotation$pdb)))
+      if (order) {
+        annoPdbs <- dplyr::distinct(x$annoPdbs, structureId, resolution)
+        x$targets_annotation <- map(
+          x$targets_annotation, "pdb", annoPdbs, "structureId", 
+          "resolution", col = "resolution"
+        )
+        x$targets_annotation <- dplyr::arrange(x$targets_annotation, resolution)
       }
-    } else {
-      pdbs <- split(x$targets_annotation$pdb, x$targets_annotation$hgnc_symbol)
-      pdbs <- unlist(lapply(pdbs, head, n = each_target), use.names = FALSE)
-      x$dock_layout <- sapply(object(x)$cids, function(cid) pdbs, simplify = FALSE)
-      names(x$dock_layout) <- object(x)$cids
     }
+    pdbs <- split(x$targets_annotation$pdb, x$targets_annotation$hgnc_symbol)
+    pdbs <- unlist(lapply(pdbs, head, n = each_target), use.names = FALSE)
+    x$dock_layout <- sapply(object(x)$cids, function(cid) pdbs, simplify = FALSE)
+    names(x$dock_layout) <- object(x)$cids
     return(x)
   })
 
@@ -485,7 +475,7 @@ vina <- function(lig, recep, dir = "vina_space",
     } else {
       cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = TRUE)
       try(.cdRun("timeout ", timeLimit, 
-          " vina  --ligand ", files[1],
+          " ", pg("vina"), "  --ligand ", files[1],
           " --maps ", reals[2],
           " --scoring ", scoring,
           " --exhaustiveness ", exhaustiveness,
@@ -706,3 +696,24 @@ setMethod("res", signature = c(x = "job_vina"),
     }
     data
   })
+
+# deprecated:
+# if (bdb) {
+#   if (file.exists(bdb_file)) {
+#     message("Database `BindingDB` used for pre-filtering of docking candidates.")
+#     bdb <- ld_cutRead(bdb_file, c("PubChem CID", "PDB ID(s) of Target Chain"))
+#     bdb <- dplyr::filter(bdb, `PubChem CID` %in% object(x)$cids)
+#     colnames(bdb) <- c("PubChem_id", "pdb_id")
+#     x@params$bdb_compounds_targets <- bdb
+#     bdb <- nl(bdb$PubChem_id, strsplit(bdb$pdb_id, ","))
+#     bdb <- lst_clear0(bdb)
+#     bdb <- lapply(bdb, function(v) v[ v %in% x$targets_annotation$pdb ])
+#     bdb <- lst_clear0(bdb)
+#     if (!length(bdb)) {
+#       stop("No candidates found in BindingDB.")
+#     }
+#     x$dock_layout <- bdb
+#     .add_internal_job(.job(method = "Database `BindingDB` used for pre-filtering of docking candidates.",
+#         cite = "[@BindingdbIn20Gilson2016]"))
+#   }
+# }

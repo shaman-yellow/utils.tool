@@ -326,6 +326,7 @@ setMethod("step2", signature = c(x = "job_limma"),
           })
       }
       tops <- .set_lab(tops, sig(x), paste("data", gs(names(tops), "-", "vs")))
+      tops <- setLegend(tops, glue::glue("为 {names(tops)} 差异分析统计表格。"))
       lab(tops) <- paste(sig(x), "DEGs data")
       if (length(tops) >= 2) {
         lst <- lapply(tops, function(x) x[[ label ]])
@@ -347,6 +348,7 @@ setMethod("step2", signature = c(x = "job_limma"),
       }
     )
     p.volcano <- .set_lab(p.volcano, sig(x), gs(names(p.volcano), "-", "vs"))
+    p.volcano <- setLegend(p.volcano, "为 {names(p.volcano)} 差异分析火山图。")
     lab(p.volcano) <- paste(sig(x), "volcano plot")
     plots <- c(plots, namel(p.volcano))
     tables <- namel(tops)

@@ -1138,6 +1138,7 @@ setMethod("pg", signature = c(x = "character"),
 pg_local_recode <- function() {
   conda <- getOption("conda", "~/miniconda3")
   lst <- list(
+    vina = "vina",
     python = "{conda}/bin/python3",
     conda = "{conda}/bin/conda",
     conda_env = "{conda}/envs",
@@ -1236,13 +1237,23 @@ setReplaceMethod("Legend", signature = c(x = "ANY"),
     return(x)
   })
 
-setLegend <- function(x, from, ..., env = parent.frame(1)) {
-  if (is.null(env)) {
-    Legend(x) <- from
+setLegend <- function(x, from, ..., check_list = TRUE, env = parent.frame(1))
+{
+  if (check_list && is(x, "list") && length(from) == length(x)) {
+    x <- mapply(x, from, FUN = 
+      function(obj, leg) {
+        Legend(obj) <- glue::glue(leg, .envir = env, ...)
+        return(obj)
+      }, SIMPLIFY = FALSE)
+    return(x)
   } else {
-    Legend(x) <- glue::glue(from, .envir = env, ...)
+    if (is.null(env)) {
+      Legend(x) <- from
+    } else {
+      Legend(x) <- glue::glue(from, .envir = env, ...)
+    }
+    return(x)
   }
-  return(x)
 }
 
 plotsAdd <- function(x, ...) {
@@ -1324,8 +1335,7 @@ setMethod("methodAdd", signature = c(x = "job", from = "character"),
 
 setMethod("methodAdd", signature = c(x = "job", from = "job"),
   function(x, from, ...){
-    from <- paste0(unlist(from@meth, use.names = FALSE), collapse = "")
-    methodAdd(x, from, ...)
+    methodAdd(x, meth(from), ...)
   })
 
 setMethod("methodAdd", signature = c(x = "job", from = "meth"),
@@ -1375,8 +1385,7 @@ setMethod("snapAdd", signature = c(x = "job", from = "character"),
 
 setMethod("snapAdd", signature = c(x = "job", from = "job"),
   function(x, from, ...){
-    from <- paste0(unlist(snap(from), use.names = FALSE), collapse = "")
-    snapAdd(x, from, ...)
+    snapAdd(x, snap(from), ...)
   })
 
 setMethod("snapAdd", signature = c(x = "job", from = "meth"),
@@ -1444,7 +1453,7 @@ methodAdd_onExit <- function(x, static, funName = "methodAdd",
   mapply(objs, labs, SIMPLIFY = FALSE,
     FUN = function(obj, lab) {
       if (is.null(lab(obj))) {
-        if (length(obj) > 1 && is(obj, "list")) {
+        if (length(obj) >= 1 && is(obj, "list")) {
           if (is.null(names(obj))) {
             names <- paste0("n", seq_along(obj))
           } else {
@@ -1646,9 +1655,13 @@ job_append_heading <- function (x, mutate = TRUE, heading = NULL) {
   }
 }
 
+getParentClasses <- function(class) {
+  names(attributes(getClassDef(class))$contains)
+}
+
 findMaxStepMethod <- function(class, max = 12L, inherited = TRUE) {
   allMax <- vapply(
-    c(names(attributes(getClassDef(class))$contains), class),
+    c(getParentClasses(class), class),
     function(name) {
       for (i in seq_len(max)) {
         sigs <- findMethodSignatures(
@@ -1784,46 +1797,53 @@ stepPostModify <- function(x, n = NULL) {
       x <- convertPlots(x, n)
     }
     if (length(x@plots) >= n) {
-      if (!is.null(x@plots[[ n ]]))
+      if (!is.null(x@plots[[ n ]])) {
         names(x@plots)[ n ] <- paste0("step", n)
-      new_plots <- paste0(xname, "@plots$step", x@step, "$", names(x@plots[[ x@step ]]))
-      cli::cli_alert_info("Plot news:")
-      lapply(new_plots, cli::cli_code)
-      news <- c(news, new_plots)
+      }
+      if (!is.null(xname)) {
+        new_plots <- paste0(xname, "@plots$step", x@step, "$", names(x@plots[[ x@step ]]))
+        cli::cli_alert_info("Plot news:")
+        lapply(new_plots, cli::cli_code)
+        news <- c(news, new_plots)
+      }
     }
     if (length(x@tables) >= n) {
       if (!is.null(x@tables[[ n ]]))
         names(x@tables)[ n ] <- paste0("step", n)
-      new_tables <- paste0(xname, "@tables$step", x@step, "$", names(x@tables[[ x@step ]]))
-      cli::cli_alert_info("Table news:")
-      lapply(new_tables, cli::cli_code)
-      news <- c(news, new_tables)
+      if (!is.null(xname)) {
+        new_tables <- paste0(xname, "@tables$step", x@step, "$", names(x@tables[[ x@step ]]))
+        cli::cli_alert_info("Table news:")
+        lapply(new_tables, cli::cli_code)
+        news <- c(news, new_tables)
+      }
     }
   }
-  isNewParams <- !names(x@params) %in% x@others$.oldParams
-  if (any(isNewParams)) {
-    cli::cli_alert_info("Params news:")
-    new_params <- paste0(xname, "@params$", names(x@params)[ isNewParams ])
-    lapply(new_params, cli::cli_code)
-    news <- c(news, new_params)
-  }
-  if (!is.null(xname) && length(xname)) {
-    assign(xname, x)
-    writeJobSlotsAutoCompletion(xname, environment())
-  }
-  meth <- meth(x, x@step)
-  if (any(nchar(meth))) {
-    if (length(meth) > 1) {
-      meth <- paste0(meth, collapse = "")
+  if (!is.null(xname)) {
+    isNewParams <- !names(x@params) %in% x@others$.oldParams
+    if (any(isNewParams)) {
+      cli::cli_alert_info("Params news:")
+      new_params <- paste0(xname, "@params$", names(x@params)[ isNewParams ])
+      lapply(new_params, cli::cli_code)
+      news <- c(news, new_params)
     }
-    message("METH:\n", .strwrapCh(meth))
-  }
-  snap <- snap(x, x@step)
-  if (any(nchar(snap))) {
-    if (length(snap) > 1) {
-      snap <- paste0(snap, collapse = "")
+    if (!is.null(xname) && length(xname)) {
+      assign(xname, x)
+      writeJobSlotsAutoCompletion(xname, environment())
     }
-    message("SNAP:\n", .strwrapCh(snap))
+    meth <- meth(x, x@step)
+    if (any(nchar(meth))) {
+      if (length(meth) > 1) {
+        meth <- paste0(meth, collapse = "")
+      }
+      message("METH:\n", .strwrapCh(meth))
+    }
+    snap <- snap(x, x@step)
+    if (any(nchar(snap))) {
+      if (length(snap) > 1) {
+        snap <- paste0(snap, collapse = "")
+      }
+      message("SNAP:\n", .strwrapCh(snap))
+    }
   }
   x
 }
@@ -2361,7 +2381,8 @@ activate_base <- function(env_pattern = "base",
   e(reticulate::import("platform"))
 }
 
-treeObj <- function(obj, stops = c("gg", "wrap"), maxdepth = 10L, envir = parent.frame(1)) {
+treeObj <- function(obj, stops = c("gg", "wrap", "data.frame"), maxdepth = 10L, envir = parent.frame(1))
+{
   depth <- 0L
   subsL1 <- ""
   form <- function(x) {
@@ -2437,7 +2458,7 @@ view_obj_for_vim <- function(x, y, view = TRUE) {
         stop("No methods signatures.")
       } else if (nrow(alls) > 1) {
         if (!is.null(classY)) {
-          alls <- alls[alls[, 1] == classY, ]
+          alls <- alls[alls[, 1] %in% getParentClasses(classY), ]
         }
         if (is.matrix(alls)) {
           useWhich <- menuThat(apply(alls, 1, paste0, collapse = ", "), "Show which?")
@@ -2799,9 +2820,11 @@ sureThat <- function(x, yes = c("Yes", "Sure", "Yup",
   }
   n_yes <- min(n_yes, length(yes))
   n_no <- min(n_no, length(no))
-  qs <- c(sample(yes, n_yes), sample(no, n_no))
   if (shuffle) {
+    qs <- c(sample(yes, n_yes), sample(no, n_no))
     qs <- sample(qs)
+  } else {
+    qs <- c(yes[n_yes], no[n_no])
   }
   if (getOption("job_appending", FALSE) && requireNamespace("nvimcom")) {
     choices <- bind(
@@ -2828,6 +2851,19 @@ loads <- function(file = "workflow.rdata", ...) {
     # pkgload::unload("nvimcom")
     # require("nvimcom")
   # }
+}
+
+.auto_loads <- function() {
+  if (!length(ls(envir = .GlobalEnv))) {
+    if (length(save <- list.files(".", "workflow.*rdata"))) {
+      if (sureThat("Workflow file exists, load that?", shuffle = FALSE)) {
+        if (length(save) > 1) {
+          save <- save[menuThat(save, "Which file you want to load?")]
+        }
+        loads(save)
+      }
+    }
+  }
 }
 
 remotejob <- function(wd, remote = "remote") {
