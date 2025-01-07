@@ -46,7 +46,6 @@ split_text_by_width <- function(text, width) {
   current_line <- ""
   lines <- c()
   for (part in parts) {
-    part <- trimws(part)
     if (part == "") next
     part_width <- sum(nchar(stringr::str_replace_all(part, "[\u4e00-\u9fa5]", "")) + 
                       2 * stringr::str_count(part, "[\u4e00-\u9fa5]"))

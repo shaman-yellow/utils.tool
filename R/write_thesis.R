@@ -6,7 +6,7 @@ inclu.fig <- function(image, land = FALSE, saveDir = "thesis_fig", dpi = 300,
   scale = if (land) {
     list(width = 10, height = 6.2)
   } else {
-    list(width = 6.2, height = 10)
+    list(width = 6.2, height = 5)
   }, name = NULL)
 {
   if (!file.exists(saveDir))

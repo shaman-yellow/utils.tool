@@ -283,12 +283,10 @@ get_pdb <- function(ids, cl = 3, mkdir.pdb = "protein_pdb", fun_download = downl
 }
 
 download_pdb.RCurl <- function(ids, cl, mkdir.pdb) {
-  cli::cli_alert_info("RCurl::getURL")
   pbapply::pblapply(ids, cl = cl,
     function(id) {
       url <- paste0("https://files.rcsb.org/download/", id, ".pdb")
-      content <- RCurl::getURL(url)
-      writeLines(content, paste0(mkdir.pdb, "/", id, ".pdb"))
+      utils::download.file(url, file.path(mkdir.pdb, paste0(id, ".pdb")))
     })
 }
 

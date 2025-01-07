@@ -272,6 +272,33 @@ setMethod("anno", signature = c(x = "job_batman"),
     return(x)
   })
 
+setMethod("asjob_vina", signature = c(x = "job_batman"),
+  function(x, ref, ...){
+    ref <- resolve_feature_snapAdd_onExit("x", ref)
+    herComTar <- x$easyRead
+    # Target.name, symbol, hgnc_symbol or Others?
+    herComTar <- dplyr::filter(herComTar, Target.name %in% ref)
+    herComTar <- .set_lab(herComTar, sig(x), "herbs compounds and targets for docking")
+    herComTar <- setLegend(herComTar, "含靶点基因的化合物和对应中药的附表 (Ingredient.id 为 PubChem CID)。")
+    s.com <- try_snap(herComTar, "Herb_pinyin_name", "Ingredient.name")
+    snapAdd_onExit("x", "含靶点基因的化合物与对应的中药统计：{s.com}。")
+    comTar <- dplyr::distinct(
+      herComTar, Ingredient.id, Ingredient.name, Target.name
+    )
+    herComTar <- .set_lab(herComTar, sig(x), "compounds and targets for docking")
+    comTar <- setLegend(comTar, "将用于分子对接的化合物和靶点组合。")
+    s.com <- try_snap(comTar, "Target.name", "Ingredient.name")
+    snapAdd_onExit("x", "用于分子对接的靶点对应化合物统计：{s.com}。")
+    object <- dplyr::distinct(
+      # cpd names, hgnc_symbols, cids
+      herComTar, Ingredient.name, Target.name, Ingredient.id
+    )
+    x <- job_vina(.layout = object)
+    x$herComTar <- herComTar
+    x$comTar <- comTar
+    return(x)
+  })
+
 .add_properties.PubChemR <- function(name = c(literature_count = "LiteratureCount"))
 {
   stop("As the PubchemR Version update, This function is deprecated.")

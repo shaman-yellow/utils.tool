@@ -145,8 +145,9 @@ get_clipboard <- function() {
 }
 
 gett <- function(obj) {
-  if (.Platform$OS.type != "unix") {
-    stop("The value got TRUE: `.Platform$OS.type != 'unix'`")
+  if (Sys.which("xsel") == "") {
+    message('Sys.which("xsel") == "", command `xsel` not available.')
+    return()
   }
   if (length(obj) > 1) {
     obj <- paste0(obj, collapse = "\n")

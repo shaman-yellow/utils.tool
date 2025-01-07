@@ -80,6 +80,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
     p.kegg <- vis_enrich.kegg(res.kegg, maxShow = maxShow.kegg, use = use)
     use.p <- attr(p.kegg, "use.p")
     p.kegg <- .set_lab(p.kegg, sig(x), names(p.kegg), "KEGG enrichment")
+    p.kegg <- setLegend(p.kegg, glue::glue("为 {.enNames(p.kegg)} GO 富集分析气泡图。"))
     fun <- function(sets) {
       lapply(sets,
         function(set) {
@@ -90,10 +91,12 @@ setMethod("step1", signature = c(x = "job_enrich"),
     }
     res.kegg <- lapply(res.kegg, mutate, geneName_list = fun(geneID_list))
     res.kegg <- .set_lab(res.kegg, sig(x), names(res.kegg), "KEGG enrichment data")
+    res.kegg <- setLegend(res.kegg, glue::glue("为 {.enNames(res.kegg)} KEGG 富集分析统计表。"))
     cli::cli_alert_info("clusterProfiler::enrichGO")
     res.go <- multi_enrichGO(object(x), orgDb = orgDb, cl = cl)
     p.go <- vis_enrich.go(res.go, maxShow = maxShow.go, use = use.p)
     p.go <- .set_lab(p.go, sig(x), names(p.go), "GO enrichment")
+    p.go <- setLegend(p.go, glue::glue("为 {.enNames(p.go)} GO 富集分析气泡图。"))
     res.go <- lapply(res.go,
       function(data) {
         if (all(vapply(data, is.data.frame, logical(1)))) {
@@ -103,6 +106,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
         }
       })
     res.go <- .set_lab(res.go, sig(x), names(res.go), "GO enrichment data")
+    res.go <- setLegend(res.go, glue::glue("为 {.enNames(res.go)} GO 富集分析统计表。"))
     x@tables[[ 1 ]] <- namel(res.kegg, res.go)
     x@plots[[ 1 ]] <- namel(p.kegg, p.go)
     x@params$check_go <- check_enrichGO(res.go)
@@ -110,6 +114,14 @@ setMethod("step1", signature = c(x = "job_enrich"),
     methodAdd_onExit("x", "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')}进行 KEGG 和 GO 富集分析。以 {use} 表示显著水平。")
     return(x)
   })
+
+.enNames <- function(x) {
+  if (length(x) == 1 && names(x) == "ids") {
+    return("")
+  } else {
+    return(names(x))
+  }
+}
 
 setMethod("step2", signature = c(x = "job_enrich"),
   function(x, pathways, which.lst = 1, species = x$organism,

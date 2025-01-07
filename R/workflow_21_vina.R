@@ -71,6 +71,8 @@ setMethod("step1", signature = c(x = "job_vina"),
     }
     x$targets_annotation <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
       object(x)$hgnc_symbols, distinct = FALSE)
+    x <- methodAdd(x, "以 R 包 `biomaRt` ({packageVersion('biomaRt')}) {cite_show('MappingIdentifDurinc2009')} 获取基因 Symbol 对应的蛋白结构 PDB (<https://www.rcsb.org/>) 数据库 ID。")
+    x <- snapAdd(x, "以 `biomaRt` 获取基因 Symbol 对应的蛋白结构 (PDB，详见方法章节)。")
     x$targets_annotation <- dplyr::filter(x$targets_annotation, pdb != "")
     x$targets_annotation <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = TRUE)
     if (!is.null(pdbs)) {
@@ -91,6 +93,9 @@ setMethod("step1", signature = c(x = "job_vina"),
     }
     if (length(nrow(x$targets_annotation))) {
       x$annoPdbs <- as_tibble(e(bio3d::pdb.annotate(x$targets_annotation$pdb)))
+      x <- methodAdd(
+        x, "以 R 包 `bio3d` ({packageVersion('bio3d')}) 获取 PDB ID 对应的注释 (蛋白结构分辨率, resolution) 。"
+      )
       if (order) {
         annoPdbs <- dplyr::distinct(x$annoPdbs, structureId, resolution)
         x$targets_annotation <- map(
@@ -98,68 +103,95 @@ setMethod("step1", signature = c(x = "job_vina"),
           "resolution", col = "resolution"
         )
         x$targets_annotation <- dplyr::arrange(x$targets_annotation, resolution)
+        x <- methodAdd(x, "首要以 resolution 选取用于分子对接的蛋白结构 (resolution 越小，分辨率越高) 。")
+        x <- snapAdd(x, "选取分辨率最高 (即，resolution 值最小) 的 PDB 作为分子对接的蛋白结构。")
       }
     }
-    pdbs <- split(x$targets_annotation$pdb, x$targets_annotation$hgnc_symbol)
-    pdbs <- unlist(lapply(pdbs, head, n = each_target), use.names = FALSE)
-    x$dock_layout <- sapply(object(x)$cids, function(cid) pdbs, simplify = FALSE)
+    used_pdbs <- dplyr::distinct(
+      x$targets_annotation, hgnc_symbol, .keep_all = TRUE
+    )
+    used_pdbs <- setLegend(used_pdbs, "基因 Symbol 所用的蛋白结构，以及对应的 PDB ID 和分辨率。")
+    x <- tablesAdd(x, t.proteins_used_PDB = used_pdbs)
+    used_pdbs <- nl(
+      used_pdbs$hgnc_symbol, used_pdbs$pdb, FALSE
+    )
+    if (!length(used_pdbs)) {
+      stop('!length(used_pdbs), no any protein need docking?')
+    }
+    x$dock_layout <- sapply(object(x)$cids, function(cid) used_pdbs, simplify = FALSE)
     names(x$dock_layout) <- object(x)$cids
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_vina"),
-  function(x, try_cluster_random = TRUE, nGroup = 30, nMember = 3, cl = 10, sdf.3d = NULL)
+  function(x, try_cluster_random = TRUE, nGroup = 100, nMember = 3, cl = 10, sdf.3d = NULL)
   {
     step_message("Download sdf files and convert as pdbqt for ligands.")
     sdfFile <- query_sdfs(unique(names(x$dock_layout)), curl_cl = cl)
+    x <- methodAdd(x, "以 PubChem API
+      (<https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest>) 获取化合物 SDF
+      结构文件。"
+    )
+    x <- snapAdd(x, "从 PubChem 获取化合物 SDF 结构文件(2D)。")
     Show_filter <- FALSE
-    if (try_cluster_random) {
-      if (length(object(x)$cids) > nGroup) {
-        message("To reduce docking candidates, clustering the molecules, and random sample each group to get `n`")
-        set.seed(100)
-        sdfset <- e(ChemmineR::read.SDFset(sdfFile))
-        message("Read ", length(sdfset), " molecules.")
-        apset <- e(ChemmineR::sdf2ap(sdfset))
-        cluster <- e(ChemmineR::cmp.cluster(db = apset, cutoff = seq(0.9, 0.4, by = -0.1)))
-        cluster <- dplyr::select(cluster, 1, dplyr::starts_with("CLID"))
-        nCl <- apply(cluster[, -1], 2, function(x) length(unique(x)))
-        useWhich <- which( nCl < 30 )[1] + 1
-        if (is.na(useWhich)) {
-          useWhich <- menu(paste0(names(nCl), "__", unname(nCl)), title = "Need custom select for cutoff.")
-          useWhich <- useWhich + 1
-        }
-        message("Use cutoff: ", colnames(cluster)[useWhich])
-        groups <- split(seq_along(sdfset), cluster[useWhich])
-        message("Now, get group number: ", length(groups))
-        groups <- lapply(groups,
-          function(x) {
-            if (length(x) > nMember) {
-              sample(x, nMember)
-            } else x
-          })
-        sdfset <- sdfset[unlist(groups, use.names = FALSE)]
-        MaybeError <- vapply(ChemmineR::cid(sdfset), FUN.VALUE = logical(1),
-          function(x) {
-            dim(sdfset[[x]][[2]])[2] < 3
-        })
-        sdfset <- sdfset[which(!MaybeError)]
-        sdfFile <- gs(sdfFile, "\\.sdf$", "_random.sdf")
-        e(ChemmineR::write.SDF(sdfset, sdfFile))
-        Show_filter <- TRUE
-        .add_internal_job(.job(method = "R package `ChemmineR` used for similar chemical compounds clustering",
-            cite = "[@ChemminerACoCaoY2008]"
-            ))
-        x$chem_lich <- new_lich(list(
-            "Clustering method:" = "Binning Clustering",
-            "Use Cut-off:" = colnames(cluster)[useWhich],
-            "Cluster number:" = length(groups),
-            "Each sampling for next step (docking):" = nMember
-            ))
+    if (try_cluster_random && length(object(x)$cids) > nGroup) {
+      message("To reduce docking candidates, clustering the molecules, and random sample each group to get `n`")
+      set.seed(100)
+      sdfset <- e(ChemmineR::read.SDFset(sdfFile))
+      message("Read ", length(sdfset), " molecules.")
+      apset <- e(ChemmineR::sdf2ap(sdfset))
+      cluster <- e(ChemmineR::cmp.cluster(db = apset, cutoff = seq(0.9, 0.4, by = -0.1)))
+      x <- methodAdd(x, "以 R 包 `ChemmineR` ({packageVersion('ChemmineR')}) {cite_show('ChemminerACoCaoY2008')} 计算化合物结构相似度。")
+      cluster <- dplyr::select(cluster, 1, dplyr::starts_with("CLID"))
+      nCl <- apply(cluster[, -1], 2, function(x) length(unique(x)))
+      useWhich <- which( nCl < 30 )[1] + 1
+      if (is.na(useWhich)) {
+        useWhich <- menu(paste0(names(nCl), "__", unname(nCl)), title = "Need custom select for cutoff.")
+        useWhich <- useWhich + 1
       }
+      message("Use cutoff: ", colnames(cluster)[useWhich])
+      groups <- split(seq_along(sdfset), cluster[useWhich])
+      message("Now, get group number: ", length(groups))
+      groups <- lapply(groups,
+        function(x) {
+          if (length(x) > nMember) {
+            sample(x, nMember)
+          } else x
+        })
+      sdfset <- sdfset[unlist(groups, use.names = FALSE)]
+      MaybeError <- vapply(ChemmineR::cid(sdfset), FUN.VALUE = logical(1),
+        function(x) {
+          dim(sdfset[[x]][[2]])[2] < 3
+        })
+      sdfset <- sdfset[which(!MaybeError)]
+      sdfFile <- gs(sdfFile, "\\.sdf$", "_random.sdf")
+      e(ChemmineR::write.SDF(sdfset, sdfFile))
+      Show_filter <- TRUE
+      .add_internal_job(.job(method = "R package `ChemmineR` used for similar chemical compounds clustering",
+          cite = "[@ChemminerACoCaoY2008]"
+          ))
+      x$chem_lich <- new_lich(list(
+          "Clustering method:" = "Binning Clustering",
+          "Use Cut-off:" = colnames(cluster)[useWhich],
+          "Cluster number:" = length(groups),
+          "Each sampling for next step (docking):" = nMember
+          )
+      )
     }
     if (is.null(sdf.3d)) {
       message("Overwrite exists 3D SDF file.")
-      sdfFile <- cal_3d_sdf(sdfFile)
+      guess_sdf.3d <- gs(sdfFile, "\\.sdf$", "_3D.sdf")
+      if (file.exists(guess_sdf.3d)) {
+        if (sureThat("File exists: {guess_sdf.3d}, use it?")) {
+          sdfFile <- guess_sdf.3d
+        } else {
+          sdfFile <- cal_3d_sdf(sdfFile)
+        }
+      } else {
+        sdfFile <- cal_3d_sdf(sdfFile)
+      }
+      x <- methodAdd(x, "使用 `openbabel` 的工具 (`obgen`) 计算 SDF 文件的 3D 构象 (转化为 3D SDF文件)。")
+      x <- snapAdd(x, "以 `openbabel` 计算化合物的 3D 构象。")
     } else if (file.exists(sdf.3d)) {
       message("Use '", sdf.3d, "'")
       sdfFile <- sdf.3d
@@ -171,23 +203,30 @@ setMethod("step2", signature = c(x = "job_vina"),
       message("Now, Total docking molecules: ", length(sdfset))
     }
     res.pdbqt <- mk_prepare_ligand.sdf(sdfFile)
+    x <- methodAdd(x, "以 Python `meeko` 包 (`mk_prepare_ligand.py`) 转化 SDF 文件获取配体 PDBQT 用于分子对接。")
+    x <- snapAdd(x, "以 `meeko` 从 SDF 转化得到配体的 PDBQT 文件。")
     x$res.ligand <- nl(res.pdbqt$pdbqt.cid, res.pdbqt$pdbqt)
     message("Got (filter out in `mk_prepare_ligand.sdf`): ", length(x$res.ligand))
     alls <- unique(as.character(object(x)$cid))
-    message("Not got:", paste0(alls[!alls %in% names(x$res.ligand)], collapse = ", "))
+    notGot <- alls[!alls %in% names(x$res.ligand)]
+    message("Not got:", paste0(notGot, collapse = ", "))
     message("Filter the `x$dock_layout`")
     x$dock_layout <- x$dock_layout[ names(x$dock_layout) %in% names(x$res.ligand) ]
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_vina"),
-  function(x, cl = 10, pattern = NULL,
-    extra_pdb.files = NULL, extra_layouts = NULL, extra_symbols = NULL, filter = TRUE)
+  function(x, cl = 10, pattern = NULL, extra_pdb.files = NULL, extra_layouts = NULL,
+    extra_symbols = NULL, filter = TRUE, exclude_nonStd = c(
+      "NAG", "BMA", "FUL"
+    ))
   {
     step_message("Dowload pdb files for Receptors.")
     ids <- unique(unlist(x$dock_layout, use.names = FALSE))
     if (length(ids)) {
-      pdb.files <- get_pdb(ids, cl = cl)
+      pdb.files <- get_pdb(ids, cl = cl, mkdir.pdb = "protein_pdb")
+      x <- methodAdd(x, "以 RCSB API  (<https://www.rcsb.org/docs/programmatic-access/web-apis-overview>) 获取蛋白 PDB 文件。")
+      x <- snapAdd(x, "从 RCSB PDB 获取 PDB 文件。")
     } else {
       pdb.files <- NULL
     }
@@ -217,7 +256,29 @@ setMethod("step3", signature = c(x = "job_vina"),
     if (!is.null(pattern)) {
       pdb.files <- filter_pdbs(pdb.files, pattern)
     }
+    if (!is.null(exclude_nonStd)) {
+      pattern <- paste0(
+        paste0("\\b", exclude_nonStd, "\\b"), collapse = "|"
+      )
+      files_nonStds <- pdb.files[select_files_by_grep(pdb.files, pattern)]
+      cmdRmd <- paste0(
+        "remove ", paste0(
+          glue::glue("resn {exclude_nonStd}"), collapse = " or "
+        )
+      )
+      lapply(files_nonStds, 
+        function(file) {
+          cdRun(glue::glue("{pg('pymol')} -c -Q -d 'load {file}; {cmdRmd}; save {file}; quit'"))
+        })
+      writeLines(exclude_nonStd, file.path("protein_pdb", ".pymol_cleaned"))
+    }
+    if (file.exists(file.path("protein_pdb", ".pymol_cleaned"))) {
+      x <- methodAdd(x, "以 `pymol` {cite_show('LigandDockingSeelig2010')} 删除受体 PDB 文件中的非标准残基 (例如 {bind(exclude_nonStd)})。")
+      x <- snapAdd(x, "以 `pymol` 去除非标准残基 ({bind(exclude_nonStd)})。")
+    }
     x$res.receptor <- prepare_receptor(pdb.files)
+    x <- methodAdd(x, "以 `ADFR` {cite_show('AutogridfrImpZhang2019')} 工具组的准备受体蛋白的 PDBQT 文件 (以 `prepare_receptor` 添加氢原子，并转化为 PDBQT 文件) 。请参考 <https://autodock-vina.readthedocs.io/en/latest/docking_basic.html>。")
+    x <- snapAdd(x, "以 `ADFR` 工具给受体添加氢原子，转化为 PDBQT 文件。")
     names <- names(x$res.receptor)
     anno <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = TRUE)
     gotSymbols <- anno$hgnc_symbol[ match(tolower(names), tolower(anno$pdb)) ]
@@ -267,6 +328,10 @@ setMethod("step4", signature = c(x = "job_vina"),
       file.remove("/tmp/res.log")
     }
     saveRDS(x, save.object)
+    message(glue::glue("Save this 'job_vina' as: {save.object}."))
+    x <- methodAdd(x, "以 `AutoDock-Vina` 提供的工具 (`prepare_gpf.py`) (<https://github.com/ccsb-scripps/AutoDock-Vina>) 创建 GPF (grid parameter file)。")
+    x <- methodAdd(x, "以 `ADFR` {cite_show('AutogridfrImpZhang2019')} 工具 `autogrid4` 计算亲和图谱 (Affinity Maps)。")
+    x <- snapAdd(x, "以 `ADFR` 创建 Affinity Maps (详见方法章节) 。")
     pbapply::pblapply(x$runs,
       function(v) {
         lig <- x$res.ligand[[ v[1] ]]
@@ -277,14 +342,18 @@ setMethod("step4", signature = c(x = "job_vina"),
         }
       }
     )
-    if (.Platform$OS.type == "unix") {
+    x <- methodAdd(
+      x, "运行 AutoDock-Vina {cite_show('AutodockVina1Eberha2021')} (parameters: scoring = ad4; exhaustiveness = 32)。"
+    )
+    x <- snapAdd(x, "以 `Autodock-Vina` 进行自动分子对接。")
+    if (.Platform$OS.type == "unix" && Sys.which("notify-send") != "") {
       system("notify-send 'AutoDock vina' 'All job complete'")
     }
     return(x)
   })
 
 setMethod("step5", signature = c(x = "job_vina"),
-  function(x, compounds, by.y, facet = "Ingredient_name", excludes = NULL, top = 5, cutoff.af = NULL)
+  function(x, compounds, by.y, facet = "Ingredient_name", excludes = NULL, top = NULL, cutoff.af = NULL)
   {
     step_message("Summary and visualization for results.")
     x$summary_vina <- summary_vina(x$savedir)
@@ -322,6 +391,8 @@ setMethod("step5", signature = c(x = "job_vina"),
     }
     res_dock <- dplyr::arrange(res_dock, Affinity)
     res_dock <- dplyr::filter(res_dock, !is.na(!!rlang::sym(facet)))
+    res_dock <- .set_lab(res_dock, sig(x), "All combining Affinity data")
+    res_dock <- setLegend(res_dock, "分子对接得分 (亲和度) 附表。")
     data <- dplyr::distinct(res_dock, PubChem_id, hgnc_symbol, .keep_all = TRUE)
     if (!is.null(cutoff.af)) {
       data <- dplyr::filter(data, Affinity < !!cutoff.af)
@@ -349,6 +420,7 @@ setMethod("step5", signature = c(x = "job_vina"),
     height <- nrow(data) + 1
     p.res_vina <- wrap(p.res_vina, 8, if (height > 9.5) 9.5 else height)
     p.res_vina <- .set_lab(p.res_vina, sig(x), "Overall combining Affinity")
+    p.res_vina <- setLegend(p.res_vina, "为分子对接亲和度得分可视化，能量越低，代表亲和度越高。")
     x@tables[[ 5 ]] <- namel(res_dock, unique_tops = data)
     x@plots[[ 5 ]] <- namel(p.res_vina)
     return(x)
@@ -379,6 +451,10 @@ setMethod("step6", signature = c(x = "job_vina"),
     figs <- unlist(figs, recursive = FALSE)
     lab(figs) <- paste(sig(x), "docking visualization")
     names(figs) <- paste0("Top", seq_along(figs), "_", names(figs))
+    x <- snapAdd(x, "使用 `pymol` 将分子对接结果可视化。")
+    figs <- setLegend(
+      figs, glue::glue("分子对接结果。蛋白(Symbol: {data$hgnc_symbol}) (PDB: {data$PDB_ID}) 与化合物 (name: {data$Ingredient_name}) (PubChem CID: {data$PubChem_id})，亲和度为 {data$Affinity}。")
+    )
     x@plots[[ 6 ]] <- figs
     data <- .set_lab(data, sig(x), "Metadata of visualized Docking")
     data <- dplyr::select(data, -dir, -file)
@@ -398,6 +474,9 @@ setMethod("step7", signature = c(x = "job_vina"),
     figs <- unlist(figs, recursive = FALSE)
     lab(figs) <- paste(sig(x), "docking interaction details")
     names(figs) <- paste0("Top", seq_along(figs), "_", names(figs))
+    figs <- setLegend(
+      figs, glue::glue("分子对接结果局部细节。图中展示了蛋白(Symbol: {data$hgnc_symbol}) (PDB: {data$PDB_ID}) 与化合物 (name: {data$Ingredient_name}) (PubChem CID: {data$PubChem_id}) 之间的氢键结合。")
+    )
     x@plots[[ 7 ]] <- figs
     return(x)
   })
@@ -518,7 +597,7 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
       expr <- ""
     }
     try(.cdRun("timeout ", timeLimit, 
-        " pymol ",
+        " ", pg("pymol"), " ",
         " -d \"load ", out, ";",
         " load ", recep, ";",
         " ray;", expr, "\" "), TRUE)
@@ -631,19 +710,14 @@ mk_prepare_ligand.sdf <- function(sdf_file, mkdir.pdbqt = "pdbqt", check = FALSE
 }
 
 select_files_by_grep <- function(files, pattern){
-  res <- lapply(files,
+  vapply(files,
     function(file) {
-      line <- readLines(file)
-      if (any(grepl(pattern, line, TRUE)))
-        return(file)
-      else NULL
-    })
-  res <- res[ !vapply(res, is.null, logical(1)) ]
-  res
+      any(grepl(pattern, readLines(file), TRUE))
+    }, logical(1))
 }
 
 filter_pdbs <- function(files, pattern = "ORGANISM_SCIENTIFIC: HOMO SAPIENS") {
-  select_files_by_grep(files, pattern)
+  files[ select_files_by_grep(files, pattern) ]
 }
 
 prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {

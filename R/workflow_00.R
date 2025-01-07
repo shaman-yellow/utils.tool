@@ -925,6 +925,8 @@ setGeneric("others",
 setGeneric("object",
   function(x, ...) standardGeneric("object"))
 
+setGeneric("label",
+  function(x, ...) standardGeneric("label"))
 setGeneric("pg",
   function(x, ...) standardGeneric("pg"))
 setGeneric("relative",
@@ -1004,6 +1006,15 @@ setMethod("ref", signature = c(x = "character_ref"),
       .add_internal_job(job)
     }
     return(x)
+  })
+
+setMethod("label", signature = c(x = "ANY"),
+  function(x, ...){
+    if (is.null(lab(x))) {
+      stop('is.null(lab(x)), no "lab" found, use `lab` to set it.')
+    }
+    x <- as_chunk_label(lab(x))
+    ref(x, ...)
   })
 
 setMethod("ref", signature = c(x = "character"),
@@ -1162,7 +1173,7 @@ pg_local_recode <- function() {
     autogrid4 = "autogrid4",
     scsa = "python3 ~/SCSA/SCSA.py",
     scsa_db = "~/SCSA/whole_v2.db",
-    pymol = "pymol",
+    pymol = "/usr/bin/python3 -m pymol",
     # sirius = .prefix("sirius/bin/sirius", "op"),
     obgen = "obgen"
   )
@@ -1928,7 +1939,7 @@ rapply2_asWrap <- function(x, class = "gg.obj") {
     x
   } else if (is(x, "can_not_be_draw")) {
     x
-  } else if (is(x, "list") && length(x)) {
+  } else if (identical(class(x), "list") && length(x)) {
     attrs <- attributes(x)
     names <- names(x)
     x <- lapply(seq_along(x),
