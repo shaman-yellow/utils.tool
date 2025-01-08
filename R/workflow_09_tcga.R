@@ -63,12 +63,11 @@ setMethod("step1", signature = c(x = "job_tcga"),
   function(x, query = c("RNA"), keep_consensus = FALSE){
     step_message("Get information in TCGA.")
     object(x) <- object(x)[ names(object(x)) %in% query ]
-    pblapply <- pbapply::pblapply
     if (is.null(x@tables$step1)) {
-      object(x) <- e(pblapply(object(x),
+      object(x) <- pbapply::pblapply(object(x),
           function(args) {
             do.call(TCGAbiolinks::GDCquery, args)
-          }))
+          })
       res_query <- sapply(names(object(x)), simplify = FALSE,
         function(name) {
           as_tibble(object(x)[[ name ]]$results[[1]])
@@ -200,7 +199,7 @@ setGeneric("asjob_limma", group = list("asjob_series"),
 
 setMethod("asjob_limma", signature = c(x = "job_tcga"),
   function(x, ..., col_id = "sample", row_id = "gene_id", group = "vital_status",
-    get_treatment = TRUE)
+    get_treatment = TRUE, mutate_follow = TRUE)
   {
     step_message("Use `object(x)@assays@data$unstranded` converted as job_limma.")
     filter_sample <- rlang::enquos(...)
@@ -212,6 +211,23 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
           gs(rownames(metadata), "[a-zA-Z0-9]+-[a-zA-Z0-9]+-[a-zA-Z0-9]+-([0-9]+).*", "\\1")
           ) < 10, 'tumor', 'normal'))
     metadata <- dplyr::mutate(metadata, group = !!rlang::sym(group))
+    if (mutate_follow) {
+      times <- c("days_to_last_follow_up", "days_to_death")
+      if (!any(hasThats <- times %in% colnames(metadata))) {
+        messages(
+          glue::glue("Can not found {times[!hasThats]}, skip mutate following times.")
+        )
+      } else {
+        metadata <- dplyr::mutate(
+          metadata, days_to_last_follow_up = ifelse(
+            vital_status == "Dead", days_to_death, days_to_last_follow_up
+          )
+        )
+        message(message_table(
+            table(is.na(metadata$days_to_last_follow_up), useNA = "ifany")
+            ))
+      }
+    }
     genes <- data.frame(object(x)@rowRanges)
     genes <- dplyr::relocate(genes, !!rlang::sym(row_id))
     counts <- object(x)@assays@data$unstranded
@@ -253,7 +269,7 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
     p.isTumor <- .set_lab(p.isTumor, sig(x), "Tumor distribution")
     if (grpl(project, "^TCGA")) {
       t.common <- try(dplyr::select(metadata, age_at_index, vital_status, gender, tumor_grade,
-        ajcc_pathologic_stage, classification_of_tumor), TRUE)
+          ajcc_pathologic_stage, classification_of_tumor), TRUE)
       if (!inherits(t.common, "try-error")) {
         x$t.common <- t.common
       }
@@ -266,9 +282,6 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
       x <- methodAdd(x, "{meta.snap}")
       x <- snapAdd(x, "{meta.snap}")
     }
-    # if (!is.null(filter_follow_up)) {
-    # meth(x)$step0 <- glue::glue("以 days_to_last_follow_up 大于 {filter_follow_up} 用于分析。")
-    # }
     return(x)
   })
 

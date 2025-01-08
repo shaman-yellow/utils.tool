@@ -1892,16 +1892,16 @@ set_index <- function(fig = TRUE, tab = TRUE, for_docx = FALSE) {
     cat("\\newpage\n\n")
     cat("\\pagenumbering{arabic}\n\n")
   } else if (knitr::pandoc_to("docx") && for_docx) {
-    cat("<!---BLOCK_TOC--->")
+    toc <- c("<!---BLOCK_TOC--->")
     if (fig) {
-      cat("\\newpage")
-      cat("<!---BLOCK_TOC{seq_id: 'fig'}--->")
+      toc <- c(toc, "\\newpage", "<!---BLOCK_TOC{seq_id: 'fig'}--->")
     }
     if (tab) {
-      cat("\\newpage")
-      cat("<!---BLOCK_TOC{seq_id: 'tab'}--->")
+      toc <- c(toc, "\\newpage", "<!---BLOCK_TOC{seq_id: 'tab'}--->")
     }
-    cat("\\newpage")
+    toc <- c(toc, "\\newpage")
+    toc <- officedown:::block_macro(toc, "docx")
+    writeLines(toc)
   }
 }
 

@@ -90,10 +90,24 @@ job_gsea <- function(topTable, annotation, use)
   used.symbol <- nl(topTable$symbol, topTable$logFC, FALSE)
   if (missing(annotation)) {
     message("Missing `annotation`, use 'hgnc_symbol' to get annotation.")
-    mart <- new_biomart()
-    annotation <- filter_biomart(mart,
-      c("hgnc_symbol", "entrezgene_id"), "hgnc_symbol", topTable$symbol)
-    annotation <- dplyr::rename(annotation, !!!nl(use, "hgnc_symbol"))
+    if (TRUE) {
+      topTable <- dplyr::mutate(topTable, symbol = gname(symbol))
+      annotation <- e(
+        clusterProfiler::bitr(
+          topTable$symbol, fromType = "SYMBOL", toType = "ENTREZID",
+          OrgDb = org.Hs.eg.db::org.Hs.eg.db
+        )
+      )
+      annotation <- dplyr::rename(
+        annotation, symbol = SYMBOL, entrezgene_id = ENTREZID
+      )
+    } else {
+      mart <- new_biomart()
+      message(glue::glue("Use: {bind(head(topTable$symbol))} ..."))
+      annotation <- filter_biomart(mart,
+        c("hgnc_symbol", "entrezgene_id"), "hgnc_symbol", topTable$symbol)
+      annotation <- dplyr::rename(annotation, !!!nl(use, "hgnc_symbol"))
+    }
   }
   topTable <- map(topTable, "symbol", annotation, use, "entrezgene_id")
   used.entrezgene_id <- nl(topTable$entrezgene_id, topTable$logFC, FALSE)
@@ -137,6 +151,8 @@ setMethod("step1", signature = c(x = "job_gsea"),
         ), TRUE)
     if (!inherits(table_kegg, "try-error")) {
       table_kegg <- dplyr::as_tibble(table_kegg)
+      table_kegg <- .set_lab(table_kegg, sig(x), "GSEA KEGG enrichment data")
+      table_kegg <- setLegend(table_kegg, "为 GSEA KEGG 富集分析统计附表。")
       p.kegg <- e(enrichplot::dotplot(
           res.kegg, showCategory = show, orderBy = order,
           decreasing = order == "x"
@@ -164,6 +180,8 @@ setMethod("step1", signature = c(x = "job_gsea"),
       )
       table_go <- dplyr::arrange(table_go, p.adjust)
       table_go <- as_tibble(table_go)
+      table_go <- .set_lab(table_go, sig(x), "GSEA GO enrichment data")
+      table_go <- setLegend(table_go, "为 GSEA GO 富集分析统计附表。")
       data <- dplyr::mutate(split_lapply_rbind(table_go, ~ ONTOLOGY, head, n = 10),
         Description = stringr::str_trunc(Description, 50)
       )
@@ -187,8 +205,12 @@ setMethod("step1", signature = c(x = "job_gsea"),
     x@params$res.kegg <- res.kegg
     x@tables[[ 1 ]] <- namel(table_go, table_kegg)
     p.go <- .set_lab(wrap(p.go), sig(x), "GSEA GO enrichment")
-    p.kegg <- .set_lab(wrap(p.kegg), sig(x), "GSEA KEGG enrichment")
-    x <- methodAdd(x, "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')} 按 GSVA 算法 (`clusterProfiler::gseGO`, `ClusterProfiler::gseKEGG`)，进行 KEGG 和 GO 富集分析。")
+    p.go <- setLegend(p.go, "GSEA GO 富集分析气泡图。")
+    p.kegg <- .set_lab(
+      wrap(p.kegg, 6.5, 6), sig(x), "GSEA KEGG enrichment"
+    )
+    p.kegg <- setLegend(p.kegg, "为 GSEA KEGG 富集分析气泡图。")
+    x <- methodAdd(x, "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')} 按 GSVA 算法 (`clusterProfiler::gseGO`, `ClusterProfiler::gseKEGG`)，进行 KEGG 和 GO 富集分析 (P-value Cutoff = 0.05) 。")
     x@plots[[ 1 ]] <- namel(p.go, p.kegg)
     x$org <- org
     return(x)
@@ -202,11 +224,19 @@ setMethod("step2", signature = c(x = "job_gsea"),
     obj <- x@params[[ use ]]
     p.code <- wrap(e(enrichplot::gseaplot2(obj, key, pvalue_table = FALSE)), 7.5, 6)
     p.code <- .set_lab(p.code, sig(x), "GSEA plot of the pathways")
+    p.code <- setLegend(p.code, "为 GSEA KEGG 富集条码图 (以 `clusterProfiler` 仿 GSEA 软件绘图)。")
+    if (missing(key)) {
+      sigPaths <- head(dplyr::arrange(x@tables$step1$table_kegg, p.adjust)$Description, n = 3)
+      x <- snapAdd(
+        x, "按矫正 P 值排序 (BH, p.adjust) ，最显著的三条通路为: {bind(sigPaths)}。"
+      )
+    }
     if (!is.null(highlight)) {
       p.highlight <- plot_highlight_enrich(
         x@tables$step1$table_kegg, highlight, object(x)$symbol, ...
       )
       p.highlight <- .set_lab(p.highlight, sig(x), "KEGG enrichment with enriched genes")
+      p.highlight <- setLegend(p.highlight, "为通路富集图，兼部分通路的富集基因表达。")
     } else {
       p.highlight <- NULL
     }
@@ -260,9 +290,16 @@ setMethod("step3", signature = c(x = "job_gsea"),
 setClassUnion("jobn_enrich", c("job_gsea", "job_enrich"))
 
 setMethod("filter", signature = c(x = "jobn_enrich"),
-  function(x, pattern, ..., use = c("kegg", "go"), which = 1, genes = NULL)
+  function(x, pattern, ..., use = c("kegg", "go"), 
+    which = 1, genes = NULL, return_type = c("job", "data.frame"))
   {
     message("Search genes in enriched pathways.")
+    return_type <- match.arg(return_type)
+    if (return_type == "job") {
+      if (is(genes, "feature")) {
+        genes <- unlist(genes@.Data)
+      }
+    }
     if ((missing(pattern) || is.null(pattern)) && !is.null(genes)) {
       pattern <- paste0(paste0("^", genes, "$"), collapse = "|")
     }
@@ -297,7 +334,18 @@ setMethod("filter", signature = c(x = "jobn_enrich"),
         })
     }
     data <- .set_lab(data, sig(x), "filter by match genes")
-    data
+    if (return_type == "data.frame") {
+      return(data)
+    }
+    if (return_type == "job") {
+      if (nrow(data) < 5 && nrow(data)) {
+        x <- snapAdd(x, "从富集结果中筛选包含 {less(genes)} 的通路。")
+        x <- snapAdd(x, "共筛选到 {nrow(data)} 个通路。")
+        x <- snapAdd(x, "为：{bind(data$Description)}。")
+      }
+      x$filtered_pathways <- data
+      return(x)
+    }
   })
 
 setMethod("map", signature = c(x = "job_monocle", ref = "jobn_enrich"),
@@ -316,6 +364,20 @@ setMethod("map", signature = c(x = "job_monocle", ref = "jobn_enrich"),
     p <- .set_lab(p, sig(x), "show pathway genes in pseudotime")
     p
   })
+
+setMethod("res", signature = c(x = "job_gsea", ref = "character"),
+  function(x, ref = c("id", "des", "p", "adj"),
+    which = 1, from = c("kegg", "go"))
+  {
+    type <- match.arg(ref)
+    type <- switch(
+      type, id = "ID", des = "Description", p = "pvalue", adj = "p.adjust"
+    )
+    from <- match.arg(from)
+    data <- x@tables$step1[[ paste0("table_", from) ]]
+    data[[ type ]][ which ]
+  })
+
 
 plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
   n = 10L, shift = .2, top_by = "p.adjust", sort_by = "GeneRatio", use = "p.adjust")

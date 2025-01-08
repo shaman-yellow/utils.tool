@@ -165,6 +165,7 @@
     `pubmed` = "PubMed 文献搜索",
     `gds` = "GEO 数据库搜索",
     `pathview` = "通路可视化",
+    `xena` = "癌症相关数据获取",
     `venn` = "取交集"
   )
 }

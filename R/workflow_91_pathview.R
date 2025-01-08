@@ -141,6 +141,7 @@ setMethod("step1", signature = c(x = "job_pathview"),
     dir.create(name, FALSE)
     setwd(name)
     cli::cli_alert_info("pathview::pathview")
+    require(pathview)
     tryCatch({
       res.pathviews <- sapply(pathways, simplify = FALSE,
         function(pathway) {
@@ -187,7 +188,7 @@ setMethod("step1", signature = c(x = "job_pathview"),
   })
 
 setMethod("feature", signature = c(x = "job_pathview"),
-  function(x, ref = 1L){
+  function(x, ref = "all"){
     if (identical(ref, "all")) {
       feas <- x$.feature
       as_feature(

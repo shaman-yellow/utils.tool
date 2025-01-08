@@ -212,7 +212,7 @@ setMethod("step1", signature = c(x = "job_survival"),
           data, status = fun_status(o_status),
           group = fun_group(!!!rlang::syms(genes), time, status),
         )
-        fit <- survival::survfit(survival::Surv(time, status) ~ group, data = data)
+        fit <- survival::survfit.formula(survival::Surv(time, status) ~ group, data = data)
         diff <- survival::survdiff(survival::Surv(time, status) ~ group, data = data)
         title <- paste0(genes, collapse = " & ")
         p.surv <- survminer::ggsurvplot(fit, data = data,

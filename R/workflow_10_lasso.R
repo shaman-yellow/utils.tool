@@ -261,7 +261,7 @@ setMethod("step4", signature = c(x = "job_lasso"),
       methodName <- if (alpha) "lasso" else "ridge"
       set.seed(x$seed)
       multi_cox$model <- model <- e(glmnet::cv.glmnet(data, target,
-          alpha = alpha, family = family, nfold = nfold, type.measure = "deviance", ...))
+          alpha = alpha, family = family, nfold = nfold, type.measure = type.measure, ...))
       p.lassoCOX_model <- wrap(as_grob(expression(plot(model)), environment()), 6, 6, showtext = TRUE)
       lambdas <- c("lambda.min", "lambda.1se")
       res <- sapply(lambdas, simplify = FALSE,
@@ -455,10 +455,20 @@ setMethod("merge", signature = c(x = "job_lasso", y = "job_lasso"),
 
 .mutate_last_follow_up_time <- function(x) {
   if (any(is.na(x))) {
-    message(glue::glue("NA in 'time' found, as max"))
+    freqs <- table(is.na(x), useNA = "ifany")
+    message(
+      crayon::red(glue::glue("NA: {message_table(freqs)} in 'time' found, as max"))
+    )
     max <- max(x, na.rm = TRUE)
     ifelse(is.na(x), max, x)
   } else {
     x
   }
+}
+
+message_table <- function(freqs) {
+  paste0(
+    glue::glue("{names(freqs)} (n = {unname(freqs)})"), 
+    collapse = ", "
+  )
 }

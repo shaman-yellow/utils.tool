@@ -39,10 +39,23 @@ job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_i
     stop("is.null(names(ids))")
   }
   if (missing(annotation)) {
-    mart <- new_biomart()
-    annotation <- filter_biomart(
-      mart, c(from, "entrezgene_id"), from, unique(unlist(ids))
-    )
+    if (TRUE) {
+      ids <- lapply(ids, gname)
+      annotation <- e(
+        clusterProfiler::bitr(
+          unique(unlist(ids)), fromType = "SYMBOL", toType = "ENTREZID",
+          OrgDb = org.Hs.eg.db::org.Hs.eg.db
+        )
+      )
+      annotation <- dplyr::rename(
+        annotation, !!!nl(c(from, to), c("SYMBOL", "ENTREZID"))
+      )
+    } else {
+      mart <- new_biomart()
+      annotation <- filter_biomart(
+        mart, c(from, "entrezgene_id"), from, unique(unlist(ids))
+      )
+    }
   }
   maps <- lapply(ids,
     function(id) {

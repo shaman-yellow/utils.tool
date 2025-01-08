@@ -450,7 +450,7 @@ trace_filter <- function(data, ..., quosures = NULL) {
     snap <- paste0(bind(snaps), glue::glue("，最终得到 {nrow(data)} 例数据。"))
   }
   message(snap)
-  snap(data) <- snap
+  snap(data, .open = "{{{", .close = "}}}") <- snap
   return(data)
 }
 
@@ -925,6 +925,9 @@ setGeneric("others",
 setGeneric("object",
   function(x, ...) standardGeneric("object"))
 
+setGeneric("less",
+  function(x, ...) standardGeneric("less"))
+
 setGeneric("label",
   function(x, ...) standardGeneric("label"))
 setGeneric("pg",
@@ -961,6 +964,14 @@ setGeneric("ref",
   function(x, ...) standardGeneric("ref"))
 setGeneric("transmute",
   function(x, ref, ...) standardGeneric("transmute"))
+
+setMethod("less", signature = c(x = "character"),
+  function(x, n = 3, ...){
+    if (length(x) > n) {
+      x <- c(head(x, n = n), "...")
+    }
+    bind(x, ...)
+  })
 
 setMethod("transmute", signature = c(x = "feature", ref = "missing"),
   function(x){
