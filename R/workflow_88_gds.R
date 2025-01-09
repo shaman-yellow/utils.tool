@@ -166,9 +166,23 @@ setMethod("expect", signature = c(x = "job_gds", ref = "ANY"),
     if (length(metas) != length(ids)) {
       stop('length(metas) != length(ids), not match?')
     }
+    if (length(force) == 1 && is.null(names(force))) {
+      force <- rep(force, length(ids))
+      names(force) <- ids
+    } else if (length(force) < length(ids)) {
+      if (is.null(names(force))) {
+        stop('is.null(names(force)), do not know how to match force.')
+      }
+      if (any(!names(force) %in% ids)) {
+        stop('any(!names(force) %in% ids), some not match?')
+      }
+      extraForce <- ids[ !ids %in% names(force) ]
+      extraForce <- nl(extraForce, rep(FALSE, length(extraForce)), FALSE)
+      force <- c(force, extraForce)
+    }
     metas <- mapply(metas, ids, SIMPLIFY = FALSE,
       FUN = function(meta, id) {
-        expect(meta, ref, force = force, id = id, sleep = sleep, ...)
+        expect(meta, ref, force = force[[id]], id = id, sleep = sleep, ...)
       })
     if (return_type == "self") {
       x$res$metas <- metas

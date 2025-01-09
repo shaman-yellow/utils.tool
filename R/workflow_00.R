@@ -186,14 +186,23 @@ setValidity("feature_list",
   })
 
 setMethod("[[", signature = c(x = "feature"),
-  function(x, i, ...){
+  function(x, i, ...) {
     x@.Data <- x@.Data[[ i ]]
+    if (is(x, "feature_list") && is(x@.Data, "character")) {
+      new <- .feature_char()
+      for (i in slotNames(new)) {
+        slot(new, i) <- slot(x, i)
+      }
+      x <- new
+    }
+    names(x) <- names(x@.Data)
     return(x)
   })
 
 setMethod("[", signature = c(x = "feature"),
   function(x, i, ...){
     x@.Data <- x@.Data[ i ]
+    names(x) <- names(x)[ i ]
     return(x)
   })
 
@@ -264,7 +273,7 @@ setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
     }
     sig <- sig(ref)
     if (length(sig)) {
-      sig <- glue::glue("(Section: {sig})")
+      sig <- glue::glue("[Section: {sig}]")
     } else {
       sig <- ""
     }
@@ -306,7 +315,7 @@ setMethod("snap", signature = c(x = "feature", ref = "missing"),
   })
 
 setMethod("snap", signature = c(x = "feature", ref = "logical"),
-  function(x, ref = FALSE, limit = 20){
+  function(x, ref = FALSE, limit = 50, num = 3){
     if (ref) {
       if (is(x, "feature_list")) {
         stop('is(x, "feature_list"), only "feature_char" support.')
@@ -324,18 +333,19 @@ setMethod("snap", signature = c(x = "feature", ref = "logical"),
       } else if (is(x, "feature_char")) {
         str <- x@.Data
       }
-      if (length(str) >= 2) {
-        if (length(str) == 2) {
+      if (length(str) >= num) {
+        n <- length(str)
+        if (length(str) == num) {
           add <- FALSE
         } else {
           add <- TRUE
         }
-        str <- bind(head(str, n = 2))
+        str <- bind(head(str, n = num))
         if (nchar(str) > 25) {
-          str <- stringr::str_trunc(str, 25)
+          str <- stringr::str_trunc(str, limit)
         }
         if (add) {
-          str <- paste0(str, ", etc.")
+          str <- paste0(str, glue::glue(", ...[n = {n}]"))
         }
       }
       sep <- if (nchar(str)) ", " else ""
@@ -844,20 +854,23 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
           }
         }
         re_check <- FALSE
-        if (!length(which)) {
-          choices <- vapply(colnames(x), 
+        showChoices <- function(colnames) {
+          choices <- vapply(colnames, 
             function(name) {
               paste0(name, ": ", bind("\'", head(x[[name]], n = 20), "\'"))
             }, character(1))
+          stringr::str_trunc(choices, 160)
+        }
+        if (!length(which)) {
           which <- menu(
-            stringr::str_trunc(choices, 160), title = glue::glue(
+            showChoices(colnames(x)), title = glue::glue(
               "Can not match '{i@name}' by pattern, please specify that."
             )
           )
           re_check <- TRUE
         } else if (length(which) > 1) {
           which <- menu(
-            colnames(x)[which], title = glue::glue(
+            showChoices(colnames(x)[which]), title = glue::glue(
               "Match too many '{i@name}' with pattern, please specify one."
             )
           )
@@ -892,7 +905,7 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
         }
         show <- stringr::str_wrap(
           bind(c(bind(paste0("\'", head(x[[i@name]], n = 10), "\'")),
-            if (length(x[[i@name]]) > 10) "..." else NULL)),
+              if (length(x[[i@name]]) > 10) "..." else NULL)),
           indent = 4, exdent = 4
         )
         note <- crayon::silver(paste0("(From column: ", colnames(x)[which], ")"))
@@ -965,12 +978,23 @@ setGeneric("ref",
 setGeneric("transmute",
   function(x, ref, ...) standardGeneric("transmute"))
 
-setMethod("less", signature = c(x = "character"),
-  function(x, n = 3, ...){
-    if (length(x) > n) {
-      x <- c(head(x, n = n), "...")
+setMethod("less", signature = c(x = "numeric_or_character"),
+  function(x, n = 3, ..., quote = NULL){
+    if (!is.null(snap(x))) {
+      return(snap(x))
     }
-    bind(x, ...)
+    if (length(x) > n) {
+      out <- head(x, n = n)
+    } else {
+      out <- x
+    }
+    if (is.null(quote) && any(grpl(out, "[^a-zA-Z0-9]"))) {
+      out <- paste0("\"", out, "\"")
+    }
+    if (length(x) > n) {
+      out <- c(out, glue::glue("...(n = {length(x)})"))
+    }
+    bind(out, ...)
   })
 
 setMethod("transmute", signature = c(x = "feature", ref = "missing"),
@@ -1439,6 +1463,20 @@ resolve_feature_snapAdd_onExit <- function(x, feature, funName = "snapAdd",
   } else {
     feature
   }
+}
+
+resolve_feature <- function(feature, unlist = TRUE, 
+  use.names = FALSE, recursive = TRUE)
+{
+  if (is(feature, "feature")) {
+    snap <- snap(feature)
+    feature <- feature@.Data
+    if (unlist) {
+      feature <- unlist(feature, use.names = use.names, recursive = recursive)
+    }
+    snap(feature) <- snap
+  } 
+  return(feature)
 }
 
 snapAdd_onExit <- function(x, static, funName = "snapAdd",

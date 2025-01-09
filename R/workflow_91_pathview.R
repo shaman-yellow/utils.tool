@@ -187,6 +187,57 @@ setMethod("step1", signature = c(x = "job_pathview"),
     return(x)
   })
 
+setMethod("step2", signature = c(x = "job_pathview"),
+  function(x, genes, f.size = 1.5, gp = gpar(col = "steelblue2", lty = "solid", lwd = 1.5))
+  {
+    genes <- resolve_feature(genes)
+    pathways <- x@plots$step1$p.pathviews
+    metas <- x@tables$step1$t.ResultsOfPathviews
+    x <- snapAdd(x, "从KEGG {bind(names(metas))}中，查找包含{less(genes)}的通路。")
+    file_figs <- sapply(names(metas), simplify = FALSE,
+      function(name) {
+        file <- pathways[[name]]@.Data
+        newfile <- file.path(
+          dirname(file), 
+          paste0("Mark_", tools::file_path_sans_ext(basename(file)), ".pdf")
+        )
+        data <- metas[[name]]$plot.data.gene
+        data <- dplyr::filter(data, labels %in% !!genes)
+        if (nrow(data)) {
+          img <- magick::image_read(file)
+          info <- magick::image_info(img)
+          width <- 5
+          height <- 5 * info$height / info$width
+          pdf(newfile, width, height)
+          res <- tryCatch({
+            par(mar = rep(0, 4))
+            graphics:::plot.raster(grDevices::as.raster(img))
+            lapply(seq_len(nrow(data)), 
+              function(n) {
+                location <- data[n, ]
+                w <- location$width / info$width * f.size
+                h <- location$height / info$width * f.size
+                x <- location$x / info$width
+                y <- 1 - (location$y / info$height)
+                grid.draw(roundrectGrob(x, y, w, h, gp = gp))    
+              })
+          }, finally = dev.off())
+          file_fig <- pathways[[name]]
+          file_fig@.Data <- newfile
+          file_fig$lich[["Marked genes"]] <- bind(data$labels)
+          return(file_fig)
+        } else {
+          return(NULL)
+        }
+      })
+    file_figs <- lst_clear0(file_figs)
+    if (length(file_figs)) {
+      file_figs <- setLegend(file_figs, glue::glue("为KEGG {names(file_figs)}通路图，包含基因上调或下调信息，并标记了{less(genes)}。"))
+      x <- plotsAdd(x, p.marked_pathway = file_figs)
+    }
+    return(x)
+  })
+
 setMethod("feature", signature = c(x = "job_pathview"),
   function(x, ref = "all"){
     if (identical(ref, "all")) {

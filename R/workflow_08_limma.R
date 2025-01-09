@@ -670,8 +670,7 @@ setMethod("tops", signature = c(x = "job_limma"),
     gs(features, "\\.[0-9]*$", "")
   })
 
-setMethod("cal_corp", 
-  signature = c(x = "job_limma", y = "job_limma"),
+setMethod("cal_corp", signature = c(x = "job_limma", y = "job_limma"),
   function(x, y, from, to, names = NULL, use = .guess_symbol(x),
     theme = NULL, HLs = NULL, mode = c("heatmap", "linear"))
   {
@@ -709,11 +708,19 @@ setMethod("cal_corp",
 
 setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
   function(x, y, from, to, names = NULL, use = .guess_symbol(x),
-    theme = NULL, HLs = NULL, mode = c("heatmap", "linear"))
+    theme = NULL, HLs = NULL, mode = c("heatmap", "linear"), 
+    cut.cor = .3, cut.p = .05)
   {
     mode <- match.arg(mode)
     data <- as_tibble(x@params$normed_data$E)
     anno <- as_tibble(x@params$normed_data$genes)
+    from <- resolve_feature(from)
+    to <- resolve_feature(to)
+    if (identical(from, to)) {
+      snapAdd_onExit("x", "将基因集 ({less(from)}) 相互关联分析。")
+    } else {
+      snapAdd_onExit("x", "将基因 ({less(from)} -> {less(to)}) 关联分析。")
+    }
     if (!any(colnames(anno) == use)) {
       if (!is.null(x$genes)) {
         if (any(colnames(x$genes) == use)) {
@@ -730,24 +737,29 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
         lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
         lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), theme, "significant correlation")
       }
+      snapAdd_onExit("x", "共得到 {nrow(lst$sig.corp)} 个显著的基因对 (P &lt; {cut.p})。")
     } else if (mode == "linear") {
-      lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = FALSE)
+      lst <- list()
+      lst$corp <- .cal_corp.elist(
+        data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = FALSE
+      )
+      lst$sig.corp <- dplyr::filter(lst$corp, cor >= cut.cor, pvalue < cut.p)
+      lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), "significant correlation analysis data")
+      lst$sig.corp <- setLegend(
+        lst$sig.corp, "为关联分析统计附表 (P-value cutoff: {cut.p}, Cor (关联系数) cutoff: {cut.cor})。"
+      )
+      lst$p.sig.corp <- vis(.corp(lst$sig.corp))
+      lst$p.sig.corp <- .set_lab(lst$p.sig.corp, sig(x), "significant correlation plots")
+      lst$p.sig.corp <- setLegend(lst$p.sig.corp, "为显著关联的基因的线型回归图。")
+      snapAdd_onExit(
+        "x", "共得到 {nrow(lst$sig.corp)} 个显著的基因对 (P &lt; {cut.p}, |Cor| &gt; {cut.cor})。"
+      )
     }
     x <- .job(
       params = list(res = lst), 
       analysis = "关联分析", sig = x@sig
     )
-    fun <- function(x) length(unique(x))
-    if (identical(from, to)) {
-      x <- snapAdd(x, "将基因集 ({fun(from)}) 关联分析，")
-    } else {
-      if (length(from) < 10 && length(to) < 10) {
-        x <- snapAdd(x, "将基因 ({bind(from)} -> {bind(to)}) 关联分析。")
-      } else {
-        x <- snapAdd(x, "将基因集 (A -> B) (A:{fun(from)}, B:{fun(to)}) 关联分析。")
-      }
-    }
-    x <- snapAdd(x, "共得到 {nrow(lst$sig.corp)} 个显著的基因对 (P &lt; 0.05)。")
+    x$.feature <- list(from = x$res$sig.corp$From, to = x$res$sig.corp$To)
     return(x)
   })
 
@@ -794,7 +806,7 @@ setMethod("vis", signature = c(x = "corp"),
   function(x, group = NULL, facet = ".id", lab.x = "Level", lab.y = "Level")
   {
     x <- as_tibble(x)
-    x <- dplyr::mutate(x, .id = paste0(From, "_", To))
+    x <- dplyr::mutate(x, .id = paste0(From, "(Axis x)_", To, "(Axis y)"))
     facet <- match.arg(facet)
     theme <- rstyle("theme")
     fun_plot <- function(x) {

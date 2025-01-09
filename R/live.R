@@ -23,6 +23,23 @@ setMethod("$", signature = c(x = "fig"),
     attr(x, name)
   })
 
+setMethod("$<-", signature = c(x = "fig"),
+  function(x, name, value){
+    x[[ name ]] <- value
+    return(x)
+  })
+
+setMethod("[[", signature = c(x = "fig"),
+  function(x, i, ...){
+    attr(x, i)
+  })
+
+setMethod("[[<-", signature = c(x = "fig"),
+  function(x, i, ..., value){
+    attr(x, i) <- value
+    return(x)
+  })
+
 f <- function(file) {
   .file_fig(file)
 }
@@ -1311,8 +1328,7 @@ z7 <- function(x, s.w = .7, s.h = .7) {
   zoom(x, s.w, s.h)
 }
 
-setMethod("show", 
-  signature = c(object = "wrap"),
+setMethod("show", signature = c(object = "wrap"),
   function(object){
     setdev(width = object@width, height = object@height)
     if (is(object@data, "grob.obj")) {

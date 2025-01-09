@@ -226,11 +226,18 @@ setMethod("step2", signature = c(x = "job_gsea"),
     p.code <- .set_lab(p.code, sig(x), "GSEA plot of the pathways")
     p.code <- setLegend(p.code, "为 GSEA KEGG 富集条码图 (以 `clusterProfiler` 仿 GSEA 软件绘图)。")
     if (missing(key)) {
-      sigPaths <- head(dplyr::arrange(x@tables$step1$table_kegg, p.adjust)$Description, n = 3)
+      data <- head(
+        dplyr::arrange(x@tables$step1$table_kegg, p.adjust), n = 3
+      )
+      sigPaths <- data$Description
       x <- snapAdd(
         x, "按矫正 P 值排序 (BH, p.adjust) ，最显著的三条通路为: {bind(sigPaths)}。"
       )
+    } else {
+      data <- dplyr::filter(x@tables$step1$table_kegg, ID %in% key)
     }
+    x$.feature <- data$geneName_list
+    names(x$.feature) <- key
     if (!is.null(highlight)) {
       p.highlight <- plot_highlight_enrich(
         x@tables$step1$table_kegg, highlight, object(x)$symbol, ...
@@ -245,17 +252,42 @@ setMethod("step2", signature = c(x = "job_gsea"),
   })
 
 setMethod("step3", signature = c(x = "job_gsea"),
-  function(x, db, cutoff = .05, map = NULL, pvalue = FALSE){
+  function(x, db, cutoff = .05, map = NULL, pvalue = FALSE, 
+    db_anno = NULL, mode = c(
+      "curated gene sets" = "C2",
+      "hallmark gene sets" = "H",
+      "positional gene sets" = "C1",
+      "regulatory target gene sets" = "C3",
+      "computational gene sets" = "C4",
+      "ontology gene sets" = "C5",
+      "oncogenic signature gene sets" = "C6"
+      ))
+  {
     step_message("Custom database for GSEA enrichment.")
     ## general analysis
-    insDb <- lapply(split(db, ~ term),
-      function(data) intersect(data$symbol, names(object(x)$symbol)))
-    p.pie_insDb <- new_pie(rep(names(insDb), lengths(insDb)))
-    table_insDb <- dplyr::filter(db, symbol %in% names(object(x)$symbol))
+    if (missing(db)) {
+      mode <- match.arg(mode)
+      db_anno <- e(msigdbr::msigdbr(species = "Homo sapiens", category = mode))
+      db <- dplyr::select(db_anno, gs_id, symbol = gene_symbol)
+      x <- methodAdd(x, "以 R 包 `msigdbr` ({packageVersion('msigdbr')}) 获取 MSigDB 数据库基因集，用于 clusterProfiler GSEA 富集分析。")
+      x <- snapAdd(x, "以 `msigdbr` 获取 {mode} ({names(mode)}) 基因集。")
+    }
+    if (FALSE) {
+      insDb <- lapply(split(db, ~ term),
+        function(data) intersect(data$symbol, names(object(x)$symbol)))
+      p.pie_insDb <- new_pie(rep(names(insDb), lengths(insDb)))
+      table_insDb <- dplyr::filter(db, symbol %in% names(object(x)$symbol))
+    }
     ## enrichment
     res.gsea <- e(clusterProfiler::GSEA(object(x)$symbol, TERM2GENE = db,
         pvalueCutoff = cutoff))
+    x <- snapAdd(x, "以 `clusterProfiler::GSEA` 对基因集富集分析。")
     table_gsea <- dplyr::as_tibble(res.gsea@result)
+    if (!is.null(db_anno) && all(c("gs_id", "gs_description") %in% colnames(db_anno))) {
+      table_gsea <- map(
+        table_gsea, "ID", db_anno, "gs_id", "gs_description", col = "Description"
+      )
+    }
     if (!is.null(map)) {
       alls <- table_gsea$ID
       map <- alls[ grepl(map, alls) ]
@@ -270,9 +302,9 @@ setMethod("step3", signature = c(x = "job_gsea"),
     )
     x@params$res.gsea <- res.gsea
     x@params$db.gsea <- db
-    x@tables[[ 3 ]] <- namel(table_gsea, table_insDb)
+    x@tables[[ 3 ]] <- namel(table_gsea)
     p.code <- .set_lab(p.code, sig(x), "GSEA plot of pathway")
-    x@plots[[ 3 ]] <- namel(p.code, p.pie_insDb)
+    x@plots[[ 3 ]] <- namel(p.code)
     return(x)
   })
 
@@ -290,14 +322,14 @@ setMethod("step3", signature = c(x = "job_gsea"),
 setClassUnion("jobn_enrich", c("job_gsea", "job_enrich"))
 
 setMethod("filter", signature = c(x = "jobn_enrich"),
-  function(x, pattern, ..., use = c("kegg", "go"), 
-    which = 1, genes = NULL, return_type = c("job", "data.frame"))
+  function(x, pattern, ..., use = c("kegg", "go", "gsea"), 
+    which = 1, genes = NULL, return_type = c("job", "data.frame"), step = x@step)
   {
     message("Search genes in enriched pathways.")
     return_type <- match.arg(return_type)
     if (return_type == "job") {
       if (is(genes, "feature")) {
-        genes <- unlist(genes@.Data)
+        genes <- resolve_feature(genes)
       }
     }
     if ((missing(pattern) || is.null(pattern)) && !is.null(genes)) {
@@ -314,6 +346,8 @@ setMethod("filter", signature = c(x = "jobn_enrich"),
         data <- x@tables$step1[[ paste0(prefix, "kegg") ]]
       } else if (use == "go") {
         data <- x@tables$step1[[ paste0(prefix, "go") ]]
+      } else if (use == "gsea") {
+        data <- x@tables$step3[[ paste0(prefix, "gsea") ]]
       }
       if (is(x, "job_enrich")) {
         data <- data[[ which ]]
@@ -333,17 +367,22 @@ setMethod("filter", signature = c(x = "jobn_enrich"),
           x[x %in% genes]
         })
     }
-    data <- .set_lab(data, sig(x), "filter by match genes")
+    data <- .set_lab(data, sig(x), "filter by match genes ", step)
+    data <- setLegend(data, "以{less(genes)}筛选到的通路。")
     if (return_type == "data.frame") {
       return(data)
     }
     if (return_type == "job") {
-      if (nrow(data) < 5 && nrow(data)) {
-        x <- snapAdd(x, "从富集结果中筛选包含 {less(genes)} 的通路。")
-        x <- snapAdd(x, "共筛选到 {nrow(data)} 个通路。")
-        x <- snapAdd(x, "为：{bind(data$Description)}。")
+      if (nrow(data)) {
+        init(snap(x)) <- TRUE
+        x <- snapAdd(
+          x, "从富集结果中筛选包含{less(genes)}的通路。", step = step
+        )
+        x <- snapAdd(
+          x, "筛选到{less(data$Description)}。", step = step
+        )
       }
-      x$filtered_pathways <- data
+      x[[ paste0("filtered_pathways_", use, "_", step) ]] <- data
       return(x)
     }
   })
