@@ -18,16 +18,54 @@
     analysis = "MungeSumstats 获取 GWAS 数据"
     ))
 
-job_ogwas <- function(traits, ...)
+job_ogwas <- function(traits, api_token = NULL, dir = .prefix("ogwas", "db"), 
+  force = FALSE)
 {
+  if (missing(traits)) {
+    stop('missing(traits), please give the pattern to match.')
+  }
+  if (is.null(api_token)) {
+    if (is.null(api_token <- getOption("gwas_token", NULL))) {
+      stop('is.null(getOption("gwas_token", NULL))')
+    }
+  }
+  if (!dir.exists(dir)) {
+    dir.create(dir)
+  }
+  file_ogwasInfo <- file.path(dir, "ogwasinfo.rds")
+  if (file.exists(file_ogwasInfo) && !force) {
+    ogwasInfo <- readRDS(file_ogwasInfo)
+  } else {
+    ogwasInfo <- try(
+      e(ieugwasr::gwasinfo(opengwas_jwt = api_token)), TRUE
+    )
+    if (inherits(ogwasInfo, "try-error")) {
+      stop(
+        'inherits(ogwasInfo, "try-error"), maybe the token Expired?\n',
+        'Move to <https://api.opengwas.io/profile/>.'
+      )
+    }
+    if (!is(ogwasInfo, "data.frame")) {
+      stop('!is(ogwasInfo, "data.frame"), not valid.')
+    }
+    cli::cli_alert_info("Sys.setenv")
+    saveRDS(ogwasInfo, file_ogwasInfo)
+  }
+  Sys.setenv(OPENGWAS_JWT = api_token)
+  ogwasInfo <- as_tibble(data.frame(ogwasInfo))
   x <- .job_ogwas()
-  res <- e(MungeSumstats::find_sumstats(traits = traits))
+  x$ogwasInfo <- ogwasInfo
+  if (length(traits) > 1) {
+    traits <- paste0(traits, collapse = "|")
+  }
+  res <- dplyr::filter(ogwasInfo, grpl(trait, !!traits, TRUE))
   if (!nrow(res)) {
     stop('!nrow(res), found nothing.')
   }
-  object(x) <- as_tibble(res)
-  lab(object(x)) <- "Traits in Open GWAS"
-  x
+  lab(res) <- "Traits found in Open GWAS"
+  res <- setLegend(res, "在 Open GWAS 中匹配到的可用数据集 (GWAS统计数据)。")
+  object(x) <- res
+  return(x)
 }
 
 setMethod("step0", signature = c(x = "job_ogwas"),
@@ -38,13 +76,7 @@ setMethod("step0", signature = c(x = "job_ogwas"),
   })
 
 setMethod("step1", signature = c(x = "job_ogwas"),
-  function(x){
-    step_message("")
-    return(x)
-  })
-
-setMethod("step2", signature = c(x = "job_ogwas"),
-  function(x, ids, ref_genome = "GRCH38",
+  function(x, ids, which = NULL, ref_genome = "GRCH38",
     vcf_dir = .prefix("ogwas_vcf", "db"), save_dir = .prefix("ogwas_data", "db"))
   {
     step_message("Import gwas summary data")
@@ -54,8 +86,12 @@ setMethod("step2", signature = c(x = "job_ogwas"),
     if (!dir.create(save_dir)) {
       dir.create(save_dir)
     }
+    if (!is.null(which) && missing(ids)) {
+      ids <- object(x)$id[which]
+    }
     .suggest_bio_package("SNPlocs.Hsapiens.dbSNP155.GRCh38")
     .suggest_bio_package("BSgenome.Hsapiens.NCBI.GRCh38")
+    .suggest_bio_package("GenomicFiles")
     x$db <- e(MungeSumstats::import_sumstats(ids = ids, ref_genome = ref_genome,
         vcf_dir = vcf_dir, save_dir = save_dir))
     return(x)

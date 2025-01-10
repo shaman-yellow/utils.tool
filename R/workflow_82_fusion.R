@@ -16,7 +16,7 @@
     cite = "[@IntegrativeAppGusev2016]",
     method = "",
     tag = "fusion",
-    analysis = "FUSION 用于整合 GWAS 与功能基因集数据"
+    analysis = "FUSION TWAS全转录组关联研究"
     ))
 
 job_fusion <- function()

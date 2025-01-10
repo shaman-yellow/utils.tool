@@ -12,7 +12,7 @@
     others = "ANY"),
   prototype = prototype(
     pg = "gds",
-    info = c("https://www.ncbi.nlm.nih.gov/books/NBK3837/"),
+    info = c("https://www.ncbi.nlm.nih.gov/books/NBK179288/"),
     cite = "",
     method = "",
     tag = "gds",
@@ -87,9 +87,13 @@ setMethod("step1", signature = c(x = "job_gds"),
     if (!is.null(single_cell)) {
       message(glue::glue("dim: {bind(dim(object(x)))}, single_cell == {single_cell}"))
       if (single_cell) {
-        object(x) <- dplyr::filter(object(x), grpl(summary, "single[ -]cell|scRNA"))
+        object(x) <- dplyr::filter(
+          object(x), grpl(paste(title, summary), "single[ -]cell|scRNA", TRUE)
+        )
       } else {
-        object(x) <- dplyr::filter(object(x), !grpl(summary, "single[ -]cell|scRNA"))
+        object(x) <- dplyr::filter(
+          object(x), !grpl(paste(title, summary), "single[ -]cell|scRNA", TRUE)
+        )
       }
       snap <- if (single_cell) "仅保留" else "滤除"
       x <- methodAdd(x, "以正则匹配，{snap}包含 'single cell' 或 'scRNA' 的数据例。")
@@ -227,7 +231,7 @@ setMethod("anno", signature = c(x = "job_gds"),
       }
     )
     snaps <- bind(unlist(snaps), co = "\n")
-    x <- snapAdd(x, snaps, step = "a", add = FALSE)
+    x <- snapAdd(x, paste0("可用数据，及其组别为：\n\n", snaps), step = "a", add = FALSE)
     return(x)
   })
 

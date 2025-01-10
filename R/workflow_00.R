@@ -823,7 +823,12 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
       if (length(ref@db_file)) {
         records <- hunt(ref, x)
         if (!is.null(records) && !force) {
-          message(crayon::yellow("Recodes exists, use that."))
+          message(
+            crayon::yellow("Recodes exists, use that.\n"),
+            paste0(
+              vapply(records, showStrings, character(1)), collapse = "\n"
+            )
+          )
           x <- dplyr::mutate(x, !!!records)
           if (!is.null(ref@global)) {
             x <- ref@global(x)
@@ -840,6 +845,8 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
         function(name) {
           paste0(name, ": ", bind("\'", head(x[[name]], n = 20), "\'"))
         }, character(1))
+      ## Add unknown.
+      choices <- c(choices, "Unknown")
       stringr::str_trunc(choices, 160L)
     }
     lapply(ref,
@@ -849,7 +856,19 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
         for (pat in i@pattern_find) {
           if (length(which <- grp(colnames(x), pat))) {
             if (!is.null(i@fun_check)) {
-              isThats <- vapply(which, function(n) i@fun_check(x[[n]]), logical(1))
+              isThats <- vapply(which,
+                function(n) {
+                  if (is.null(i@fun_mutate)) {
+                    i@fun_check(x[[n]]) 
+                  } else {
+                    res <- try(i@fun_mutate(x[[n]]), TRUE)
+                    if (inherits(res, "try-error")) {
+                      return(FALSE)
+                    } else {
+                      i@fun_check(res)
+                    }
+                  }
+                }, logical(1))
               if (all(!isThats)) {
                 which <- integer(0)
                 next
@@ -869,47 +888,54 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
           )
           re_check <- TRUE
         } else if (length(which) > 1) {
+          whiches <- which
           which <- menu(
             showChoices(colnames(x)[which]), title = glue::glue(
               "Match too many '{i@name}' with pattern, please specify one."
             )
           )
+          which <- which(colnames(x) == colnames(x)[whiches][which])
           re_check <- TRUE
         }
         if (re_check && silent_select) {
           re_check <- FALSE
         }
-        if (re_check && !is.null(i@fun_check)) {
-          if (!i@fun_check(x[[ which ]])) {
-            if (!usethis::ui_yeah('!i@fun_check(x[[ which ]]), continue?')) {
-              stop("Can not pass function checking.")
+        if (which <= length(x)) {
+          if (re_check && !is.null(i@fun_check)) {
+            if (!i@fun_check(x[[ which ]])) {
+              if (!usethis::ui_yeah('!i@fun_check(x[[ which ]]), continue?')) {
+                stop("Can not pass function checking.")
+              }
             }
           }
-        }
-        x[[ i@name ]] <- x[[ which ]]
-        if (length(i@pattern_recode)) {
-          if (is.null(names(i@pattern_recode))) {
-            stop('is.null(names(i@pattern_recode)), should has names.')
+          x[[ i@name ]] <- x[[ which ]]
+          if (length(i@pattern_recode)) {
+            if (is.null(names(i@pattern_recode))) {
+              stop('is.null(names(i@pattern_recode)), should has names.')
+            }
+            meta <- group_strings(
+              x[[ i@name ]], i@pattern_recode
+            )
+            matches <- match(x[[ i@name ]], meta[[ "target" ]])
+            x[[ i@name ]] <- meta[[ "group" ]][ matches ]
+            x[[ i@name ]] <- ifelse(
+              is.na(x[[ i@name ]]), "Others", x[[ i@name ]]
+            )
           }
-          meta <- group_strings(
-            x[[ i@name ]], i@pattern_recode
+          if (!is.null(i@fun_mutate)) {
+            x[[ i@name ]] <- i@fun_mutate(x[[ i@name ]])
+          }
+          show <- stringr::str_wrap(
+            bind(c(bind(paste0("\'", head(x[[i@name]], n = 10), "\'")),
+                if (length(x[[i@name]]) > 10) "..." else NULL)),
+            indent = 4, exdent = 4
           )
-          matches <- match(x[[ i@name ]], meta[[ "target" ]])
-          x[[ i@name ]] <- meta[[ "group" ]][ matches ]
-          x[[ i@name ]] <- ifelse(
-            is.na(x[[ i@name ]]), "Others", x[[ i@name ]]
-          )
+          note <- crayon::silver(paste0("(From column: ", colnames(x)[which], ")"))
+          message(glue::glue("Matched {crayon::yellow(i@name)} {note}:\n{show}"))
+        } else {
+          message(crayon::red("You selected 'Unknown', so the results will all be 'Unknown'."))
+          x[[ i@name ]] <- "Unknown"
         }
-        if (!is.null(i@fun_mutate)) {
-          x[[ i@name ]] <- i@fun_mutate(x[[ i@name ]])
-        }
-        show <- stringr::str_wrap(
-          bind(c(bind(paste0("\'", head(x[[i@name]], n = 10), "\'")),
-              if (length(x[[i@name]]) > 10) "..." else NULL)),
-          indent = 4, exdent = 4
-        )
-        note <- crayon::silver(paste0("(From column: ", colnames(x)[which], ")"))
-        message(glue::glue("Matched {crayon::yellow(i@name)} {note}:\n{show}"))
         if (!is.null(sleep) && is.numeric(sleep)) {
           Sys.sleep(sleep)
         }

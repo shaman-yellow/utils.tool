@@ -191,9 +191,11 @@ setMethod("expect", signature = c(x = "job_geo", ref = "ANY"),
   })
 
 showStrings <- function(x, stat = TRUE) {
-  if (stat) {
-    freq <- table(x)
-    x <- paste0(names(freq), " (n=", unname(freq), ")")
+  if (any(duplicated(x))) {
+    if (stat) {
+      freq <- table(x)
+      x <- paste0(names(freq), " (n=", unname(freq), ")")
+    }
   }
   if (length(x) > 10) {
     x <- c(head(x, n = 10), "...")

@@ -92,7 +92,7 @@ backup_jobs.bosai <- function(data, time = Sys.Date(),
   records <- dplyr::bind_rows(records, data)
   saveRDS(records, file_records)
   unlist(res)
-  browseURL(thedir)
+  browseURL(normalizePath(thedir))
 }
 
 register_data <- function(data, rds_records, no_to_stop = TRUE,
@@ -161,8 +161,11 @@ summary_week.bosai <- function(
   wb <- openxlsx2::wb_load(targets[[ "ass" ]])
   ## prepare orders (this week or next week)
   if (mode == "week") {
+    wday <- lubridate::wday(time)
+    from <- time - wday
+    to <- time + 7 - wday
     orders <- dplyr::filter(orders,
-      is.na(lubridate::week(finish)) | (lubridate::week(finish) == !!week) |
+      is.na(finish) | (finish >= !!from & finish < !!to) |
         id %in% must_include
     )
   }
