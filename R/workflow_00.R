@@ -835,10 +835,17 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
         }
       }
     }
+    showChoices <- function(colnames) {
+      choices <- vapply(colnames, 
+        function(name) {
+          paste0(name, ": ", bind("\'", head(x[[name]], n = 20), "\'"))
+        }, character(1))
+      stringr::str_trunc(choices, 160L)
+    }
     lapply(ref,
       function(i) {
         message(crayon::silver("+++ "), crayon::blue(i@name), crayon::silver(" +++"))
-        which <- integer(0)
+        which <- integer(0L)
         for (pat in i@pattern_find) {
           if (length(which <- grp(colnames(x), pat))) {
             if (!is.null(i@fun_check)) {
@@ -854,13 +861,6 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
           }
         }
         re_check <- FALSE
-        showChoices <- function(colnames) {
-          choices <- vapply(colnames, 
-            function(name) {
-              paste0(name, ": ", bind("\'", head(x[[name]], n = 20), "\'"))
-            }, character(1))
-          stringr::str_trunc(choices, 160)
-        }
         if (!length(which)) {
           which <- menu(
             showChoices(colnames(x)), title = glue::glue(
