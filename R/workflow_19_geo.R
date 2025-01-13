@@ -187,7 +187,8 @@ setMethod("expect", signature = c(x = "job_geo", ref = "ANY"),
     if (missing(ref)) {
       ref <- geo_cols()
     }
-    expect(x$guess, ref, force = force, id = id)
+    x$guess <- expect(x$guess, ref, force = force, id = id)
+    return(x)
   })
 
 showStrings <- function(x, stat = TRUE) {
@@ -273,6 +274,7 @@ preset_group_string <- function(x) {
       knit_strings(paste0(ch, collapse = " "))
     }, character(1)
   )
+  x <- gs(x, " ", "_")
   message(crayon::yellow("[Function: preset_group_string] Final results:\n"), showStrings(x))
   return(x)
 }

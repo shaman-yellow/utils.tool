@@ -62,11 +62,38 @@ remoteRun <- function(..., path, run_after_cd = NULL,
   system(cmd)
 }
 
+set_remoteRun.bosai <- function(core = 16) {
+  set_remoteRun(glue::glue("sbatch -p v6_384 -N 1 -n 1 -c {core}"), "#!/bin/bash")
+}
+
 set_remoteRun <- function(remoteRun = "bash", scriptHeading = NULL, scriptPrefix = NULL) {
   options(remoteRun = remoteRun,
     scriptHeading = scriptHeading,
     scriptPrefix = scriptPrefix
   )
+}
+
+testRem_file.exists <- function(x, file, wait = 10,
+  cancel = "testRem", env_cancel = .GlobalEnv)
+{
+  getFun <- function() {
+    res <- try(get(cancel, envir = env_cancel), TRUE)
+    if (inherits(res, "try-error") | !is.logical(res)) {
+      res <- TRUE
+    }
+    res
+  }
+  testFun <- function() {
+    if ((notHasThat <- !rem_file.exists(file)) && getFun()) {
+      message(
+        '!rem_file.exists(file), try again in ', wait, " minutes."
+      )
+      later::later(testFun, wait * 60)
+    } else if (!notHasThat && Sys.which("notify-send") != "") {
+      cdRun("notify-send 'Got File: ", file, "'")
+    }
+  }
+  testFun()
 }
 
 scriptPrefix <- function(x) {

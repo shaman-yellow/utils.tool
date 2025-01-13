@@ -25,6 +25,9 @@ setGeneric("asjob_scfea", group = list("asjob_series"),
 setMethod("asjob_scfea", signature = c(x = "job_seurat"),
   function(x, cells = NULL, org = c("mouse", "human"), assay = "RNA", dir = "scfea", ...)
   {
+    if (!is(x, "job_seurat5n")) {
+      stop('!is(x, "job_seurat5n")')
+    }
     org <- match.arg(org)
     message("Use org: ", org)
     if (org == "mouse") {
@@ -33,7 +36,7 @@ setMethod("asjob_scfea", signature = c(x = "job_seurat"),
       moduleGene_file <- "module_gene_m168.csv"
     }
     if (TRUE) {
-      file <- paste0(pg("scfea_db"), "/", moduleGene_file)
+      file <- file.path(pg("scfea_db"), moduleGene_file)
       fun_test <- function(file) {
         x <- readLines(file)[-1]
         x <- lapply(strsplit(x, ","), function(x) x[-1])
@@ -44,23 +47,26 @@ setMethod("asjob_scfea", signature = c(x = "job_seurat"),
     objAssay <- object(x)@assays[[ assay ]]
     if (isMultiAssays(objAssay)) {
       message("Combined data from multiple layers of the assay.")
-      data <- integrateLayers(objAssay)@assays$RNA$counts
+      data <- objAssay$counts
     } else {
       data <- objAssay@counts
       if (identical(dim(data), c(0L, 0L))) {
         data <- objAssay@data
       }
     }
+    message("Subset by `cells`.")
     data <- data[ rownames(data) %in% refs, ]
     metadata <- meta(x)
     if (!is.null(cells)) {
       data <- data[, cells]
       metadata <- metadata[cells, ]
+    } else {
+      x <- snapAdd(x, "将 `Seurat` (所有细胞) 以 `scFEA` 预测代谢通量。")
     }
     message("Dim: ", paste0(dim(data), collapse = ", "))
     message("Max: ", max(apply(data, 2, max)))
     if (dir.exists(dir)) {
-      if (usethis::ui_yeah("Directory of `dir` exists, remove that?")) {
+      if (sureThat("Directory of `dir` exists, remove that?")) {
         unlink(dir, recursive = TRUE)
       }
     }
@@ -69,7 +75,7 @@ setMethod("asjob_scfea", signature = c(x = "job_seurat"),
     data.table::fwrite(data.frame(data, check.names = FALSE), expr_file, row.names = TRUE)
     x <- job_scfea(expr_file, org = org)
     x@params <- c(x@params, list(metadata = metadata, from_seurat = TRUE))
-    meth(x)$step0 <- glue::glue("将 Seurat 的 `{assay}` Assay 作为输入数据，以 `scFEA` 预测细胞的代谢通量 {cite_show('AGraphNeuralAlgham2021')}。")
+    x <- methodAdd(x, "将 Seurat 的 `{assay}` Assay ('counts') 作为输入数据，以 `scFEA` 预测细胞的代谢通量 {cite_show('AGraphNeuralAlgham2021')}。参考 <https://github.com/changwn/scFEA/blob/master/scFEA_tutorial1.ipynb> 和 <https://github.com/changwn/scFEA/blob/master/scFEA_tutorial2.ipynb>。")
     return(x)
   })
 
@@ -165,6 +171,8 @@ setMethod("step2", signature = c(x = "job_scfea"),
     }
     t.balance <- ftibble(paste0(dir, "/", "balance.csv"))
     t.flux <- ftibble(paste0(dir, "/", "flux.csv"))
+    t.flux <- .set_lab(t.flux, sig(x), "metabolic flux matrix")
+    t.flux <- setLegend(t.flux, "为细胞代谢通量矩阵 (各 `M_` 为代谢模块)。")
     fun <- function(file) {
       lst <- strsplit(readLines(file)[-1], ",")
       names(lst) <- lapply(lst, function(x) x[1])
@@ -173,15 +181,20 @@ setMethod("step2", signature = c(x = "job_scfea"),
     }
     dir_db <- pg("scfea_db")
     t.moduleGenes <- fun(paste0(dir_db, "/", x$moduleGene_file))
+    t.moduleGenes <- .set_lab(t.moduleGenes, sig(x), "genes related to metabolic flux")
+    t.moduleGenes <- setLegend(t.moduleGenes, "代谢通量对应的模块的基因。")
     maybePlot <- list.files(dir, "loss_[0-9]+-[0-9]+\\.png", full.names = TRUE)
     if (length(maybePlot)) {
       p.loss <- .file_fig(maybePlot)
       p.loss <- .set_lab(p.loss, sig(x), "Convergency of the loss terms during training")
+      p.loss <- setLegend(p.loss, "为 `scFEA` 训练过程的收敛曲线。")
     } else {
       p.loss <- NULL
     }
     t.anno <- ftibble(paste0(dir_db, "/", x$module_annotation))
     t.anno <- dplyr::mutate(t.anno, name = paste0(Compound_IN_name, " -> ", Compound_OUT_name))
+    t.anno <- .set_lab(t.anno, sig(x), "annotation of metabolic flux")
+    t.anno <- setLegend(t.anno, "各代谢模块的注释。")
     t.compounds <- tibble::tibble(
       name = c(t.anno$Compound_IN_name, t.anno$Compound_OUT_name),
       kegg = c(t.anno$Compound_IN_ID, t.anno$Compound_OUT_ID)
@@ -254,15 +267,15 @@ setMethod("set_remote", signature = c(x = "job_scfea"),
     local_wd <- x$wd
     x$wd <- "."
     if (rem_file.exists(wd)) {
-      isThat <- usethis::ui_yeah("Dir exists, remove all files ?")
+      isThat <- sureThat("Dir exists, remove all files ?")
       if (isThat) {
-        cdRun("ssh ", remote, " 'rm -r ", wd, "'")
+        cdRun("ssh ", x$remote, " 'rm -r ", wd, "'")
       }
     }
     rem_dir.create(wd)
     x$wd <- wd
     rem_dir.create("output")
-    cdRun("scp ", file.path(local_wd, "data.csv"), " ", remote, ":", wd)
+    cdRun("scp ", file.path(local_wd, "data.csv"), " ", x$remote, ":", wd)
     x$map_local <- local_wd
     x$dir <- "."
     return(x)

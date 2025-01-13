@@ -182,6 +182,7 @@ setMethod("step4", signature = c(x = "job_seurat"),
       x@tables[[ 4 ]] <- namel(anno_SingleR)
       x@plots[[ 4 ]] <- namel(p.score_SingleR, p.map_SingleR)
       x@params$group.by <- "SingleR_cell"
+      x <- methodAdd(x, "以 R 包 `SingleR` ({packageVersion('SingleR')}) 注释细胞群。")
     }
     return(x)
   })
@@ -203,6 +204,7 @@ setMethod("step5", signature = c(x = "job_seurat"),
     }
     all_markers_no_filter <- markers
     markers <- dplyr::filter(markers, p_val_adj < .05)
+    markers <- setLegend(markers, "为所有细胞群的 Marker (LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}; 矫正 P 值阈值 {0.05})")
     tops <- dplyr::slice_max(dplyr::group_by(markers, cluster), avg_log2FC, n = 10)
     if (FALSE) {
       p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = TRUE))
@@ -210,7 +212,8 @@ setMethod("step5", signature = c(x = "job_seurat"),
       x@plots[[ 5 ]] <- namel(p.toph)
     }
     x@tables[[ 5 ]] <- list(all_markers = markers, all_markers_no_filter = all_markers_no_filter)
-    meth(x)$step5 <- glue::glue("以 `Seurat::FindAllMarkers` (LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}) 为所有细胞群寻找 Markers。")
+    x <- snapAdd(x, "计算所有细胞群的 Marker。")
+    x <- methodAdd(x, "以 `Seurat::FindAllMarkers` (LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}) 为所有细胞群寻找 Markers。")
     return(x)
   })
 
@@ -240,7 +243,10 @@ setMethod("step6", signature = c(x = "job_seurat"),
         p.markers <- e(Seurat::DoHeatmap(object(x), features = res$markers,
             group.by = "ChatGPT_cell", raster = TRUE, group.colors = color_set(), label = FALSE))
         p.markers <- .set_lab(p.markers, sig(x), "Markers in cell types")
+        p.markers <- setLegend(p.markers, "为 ChatGPT 注释细胞群使用的首要 Marker 热图。")
         attr(p.markers, "lich") <- new_lich(namel(ChatGPT_Query = query$query, feedback), sep = "\n")
+        t.gptRes <- setLegend(res$data, "为 ChatGPT-4 对细胞类型的注释。")
+        x <- tablesAdd(x, t.ChatGPT4_cell_types_annotation = t.gptRes)
         ## dim plot
         p.map_gpt <- e(Seurat::DimPlot(
             object(x), reduction = "umap", label = FALSE, pt.size = .7,
@@ -248,8 +254,15 @@ setMethod("step6", signature = c(x = "job_seurat"),
             ))
         p.map_gpt <- wrap(as_grob(p.map_gpt), 7, 4)
         p.map_gpt <- .set_lab(p.map_gpt, sig(x), "ChatGPT", "Cell type annotation")
-        x@plots[[ 6 ]] <- namel(p.map_gpt, p.markers)
-        meth(x)$step6 <- glue::glue("以 ChatGPT-4o 注释细胞类型 {cite_show('Assessing_GPT_4_Hou_W_2024')}。将每一个细胞群的 Top {n} 基因提供给 ChatGPT，使其注释细胞类型。询问信息为：\n\n{text_roundrect(query$message)}")
+        p.map_gpt <- setLegend(p.map_gpt, "ChatGPT 对细胞群的注释结果。")
+        p.props_gpt <- plot_cells_proportion(
+          object(x)@meta.data, "orig.ident", "ChatGPT_cell"
+        )
+        p.props_gpt <- .set_lab(p.props_gpt, sig(x), "ChatGPT4 Cell Proportions in each sample")
+        p.props_gpt <- setLegend(p.props_gpt, "为 ChatGPT-4 注释的细胞群在各个样本中的占比。")
+        x@plots[[ 6 ]] <- namel(p.map_gpt, p.markers, p.props_gpt)
+        x <- snapAdd(x, "根据细胞群 Markers (检出率至少为 {filter.pct}，选取 Top {n}) ，让 ChatGPT-4 对细胞类型注释。")
+        x <- methodAdd(x, "以 ChatGPT-4 注释细胞类型 {cite_show('Assessing_GPT_4_Hou_W_2024')}。将每一个细胞群的 Top {n} 基因提供给 ChatGPT，使其注释细胞类型。询问信息为：\n\n{text_roundrect(query$message)}")
       } else {
         stop("Terminated.")
       }
@@ -837,9 +850,10 @@ parse_GPTfeedback <- function(feedback) {
   res <- strsplit(res, "\\. ")
   cells <- vapply(res, function(x) strsplit(x[1], "; ")[[1]][1], character(1))
   markers <- lapply(res, function(x) strsplit(x[2], "; "))
+  data <- tibble::tibble(cells = cells, markers = markers)
   markers <- markers[ order(cells) ]
   markers <- unique(gs(unlist(markers), "\\s", ""))
-  namel(markers, cells)
+  namel(markers, cells, data)
 }
 
 prepare_GPTmessage_for_celltypes <- function(tissue, marker_list, n = 10, toClipboard = TRUE)
@@ -859,4 +873,18 @@ prepare_GPTmessage_for_celltypes <- function(tissue, marker_list, n = 10, toClip
     gett(query)
   }
   return(list(query = query, message = message, ncluster = ncluster))
+}
+
+plot_cells_proportion <- function(metadata, sample = "orig.ident", cell = "ChatGPT_cell") {
+  ntypes <- length(unique(metadata[[ cell ]]))
+  data <- data.frame(
+    prop.table(table(metadata[[ cell ]], metadata[[ sample ]]), 1)
+  )
+  p.props <- ggplot(data, aes(x = Var1, y = Freq, fill = Var2)) +
+    geom_bar(stat = "identity", width = .7, size = .5) +
+    coord_flip() +
+    labs(x = "Cells", y = "Ratio", fill = "Sample") +
+    scale_fill_manual(values = color_set()) +
+    rstyle("theme")
+  wrap(p.props, 7, .4 * ntypes)
 }

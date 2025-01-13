@@ -34,12 +34,16 @@ job_seurat5n <- function(dirs, names = NULL, mode = c("sc", "st"), st.filename =
       }
     })
   x <- .job_seurat5n(object = object)
+  if (!is.null(names)) {
+    x <- snapAdd(x, "读取 {bind(names)} 样本的数据集。")
+  }
   object(x) <- e(SeuratObject:::merge.Seurat(object(x)[[1]], object(x)[-1]))
   object(x)[[ "percent.mt" ]] <- e(Seurat::PercentageFeatureSet(object(x), pattern = "^MT-"))
   p.qc_pre <- plot_qc.seurat(x)
   p.qc_pre <- .set_lab(p.qc_pre, sig(x), "Pre-Quality control")
+  p.qc_pre <- setLegend(p.qc_pre, "为 QC (质量控制) 图 (数据过滤前) 。")
   x@params$p.qc_pre <- p.qc_pre
-  meth(x)$step0 <- glue::glue("使用 Seurat R 包 ({packageVersion('Seurat')}) 进行单细胞数据质量控制 (QC) 和下游分析。依据 <{x@info}> 为指导对单细胞数据预处理。")
+  x <- methodAdd(x, "使用 Seurat R 包 ({packageVersion('Seurat')}) 进行单细胞数据质量控制 (QC) 和下游分析。依据 <{x@info}> 为指导对单细胞数据预处理。")
   return(x)
 }
 
@@ -59,8 +63,10 @@ setMethod("step1", signature = c(x = "job_seurat5n"),
           ))
       p.qc_aft <- plot_qc.seurat(x)
       p.qc_aft <- .set_lab(p.qc_aft, sig(x), "After Quality control")
+      p.qc_aft <- setLegend(p.qc_aft, "为数据过滤后的 QC 图。")
       x@params$p.qc_aft <- p.qc_aft
-      meth(x)$step1 <- glue::glue("一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。")
+      x <- snapAdd(x, "前期质量控制，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。")
+      x <- methodAdd(x, "一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。")
     }
     return(x)
   })
@@ -75,13 +81,15 @@ setMethod("step2", signature = c(x = "job_seurat5n"),
     p.pca_rank <- e(Seurat::ElbowPlot(object(x), ndims))
     p.pca_rank <- wrap(pretty_elbowplot(p.pca_rank), 4, 4)
     p.pca_rank <- .set_lab(p.pca_rank, sig(x), "Standard deviations of PCs")
+    p.pca_rank <- setLegend(p.pca_rank, "为主成分 (PC) 的 Standard deviations。")
     x@plots[[ 2 ]] <- namel(p.pca_rank)
-    meth(x)$step <- glue::glue("执行标准 Seurat 分析工作流 (`NormalizeData`, `FindVariableFeatures`, `ScaleData`, `RunPCA`)。以 `ElbowPlot` 判断后续分析的 PC 维度。")
+    x <- methodAdd(x, "执行标准 Seurat 分析工作流 (`NormalizeData`, `FindVariableFeatures`, `ScaleData`, `RunPCA`)。以 `ElbowPlot` 判断后续分析的 PC 维度。")
+    x <- snapAdd(x, "数据归一化，PCA 聚类 (Seurat 标准工作流，见方法章节) 后，绘制 PC standard deviations 图。")
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_seurat5n"),
-  function(x, dims = 1:15, resolution = 2, use = "HarmonyIntegration")
+  function(x, dims = 1:15, resolution = 2, use = c("HarmonyIntegration", "CCAIntegration"))
   {
     step_message("Identify clusters of cells")
     object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims, reduction = "pca"))
@@ -92,7 +100,9 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
     p.umapUint <-  e(Seurat::DimPlot(object(x), reduction = "umap_unintegrated",
         group.by = c("orig.ident", "seurat_clusters"), cols = color_set(TRUE)))
     p.umapUint <- .set_lab(wrap(p.umapUint, 10, 5), sig(x), "UMAP Unintegrated")
+    p.umapUint <- setLegend(p.umapUint, "为去除批次效应之前的 UMAP 聚类图。")
     ## integrated
+    use <- match.arg(use)
     methods <- list(CCAIntegration = Seurat::CCAIntegration,
       HarmonyIntegration = Seurat::HarmonyIntegration)
     use <- match.arg(use, names(methods))
@@ -107,8 +117,10 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
     p.umapInt <-  e(Seurat::DimPlot(object(x),
         group.by = c("orig.ident", "seurat_clusters"), cols = color_set(TRUE)))
     p.umapInt <- .set_lab(wrap(p.umapInt, 10, 5), sig(x), "UMAP Integrated")
+    p.umapInt <- setLegend(p.umapInt, "为 去除批次效应之后的 UMAP 聚类图。")
     plots <- namel(p.umapUint, p.umapInt)
     x@plots[[ 3 ]] <- c(x@plots[[ 3 ]], plots)
-    meth(x)$step3 <- glue::glue("以 `Seurat::IntegrateLayers` 集成数据，去除批次效应 (使用 {use} 方法)。在 1-{max(dims)} PC 维度下，以 `Seurat::FindNeighbors` 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 `Seurat::FindClusters` 函数识别细胞群并以 `Seurat::RunUMAP` 进行 UMAP 聚类。")
+    x <- methodAdd(x, "以 `Seurat::IntegrateLayers` 集成数据，去除批次效应 (使用 {use} 方法)。在 1-{max(dims)} PC 维度下，以 `Seurat::FindNeighbors` 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 `Seurat::FindClusters` 函数识别细胞群并以 `Seurat::RunUMAP` 进行 UMAP 聚类。")
+    x <- snapAdd(x, "去除批次效应后 (详见方法章节) ，在 1-{max(dims)} PC 维度，{resolution} 分辨率下，对细胞群 UMAP 聚类。")
     return(x)
   })
