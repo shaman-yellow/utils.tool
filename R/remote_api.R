@@ -86,11 +86,13 @@ testRem_file.exists <- function(x, file, wait = 10,
   testFun <- function() {
     if ((notHasThat <- !rem_file.exists(file)) && getFun()) {
       message(
-        '!rem_file.exists(file), try again in ', wait, " minutes."
+        glue::glue(
+          "'!rem_file.exists(file), try again in {wait} minutes,\nUse `{cancel} <- FALSE` to cancel."
+        )
       )
       later::later(testFun, wait * 60)
     } else if (!notHasThat && Sys.which("notify-send") != "") {
-      cdRun("notify-send 'Got File: ", file, "'")
+      cdRun("notify-send 'Got File: ", x$wd, "/", file, "'")
     }
   }
   testFun()

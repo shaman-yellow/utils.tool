@@ -263,6 +263,7 @@ setMethod("step6", signature = c(x = "job_seurat"),
         x@plots[[ 6 ]] <- namel(p.map_gpt, p.markers, p.props_gpt)
         x <- snapAdd(x, "根据细胞群 Markers (检出率至少为 {filter.pct}，选取 Top {n}) ，让 ChatGPT-4 对细胞类型注释。")
         x <- methodAdd(x, "以 ChatGPT-4 注释细胞类型 {cite_show('Assessing_GPT_4_Hou_W_2024')}。将每一个细胞群的 Top {n} 基因提供给 ChatGPT，使其注释细胞类型。询问信息为：\n\n{text_roundrect(query$message)}")
+        x@params$group.by <- "ChatGPT_cell"
       } else {
         stop("Terminated.")
       }
@@ -512,13 +513,15 @@ plot_qc.seurat <- function(x) {
 }
 
 setMethod("vis", signature = c(x = "job_seurat"),
-  function(x, group.by = x@params$group.by, pt.size = .7, palette = x$palette){
+  function(x, group.by = x@params$group.by, pt.size = .7, 
+    palette = x$palette, reduction = "umap", ...)
+  {
     if (is.null(palette)) {
       palette <- color_set()
     }
     p <- wrap(as_grob(e(Seurat::DimPlot(
-          object(x), reduction = "umap", label = FALSE, pt.size = pt.size,
-          group.by = group.by, cols = palette
+          object(x), reduction = reduction, label = FALSE, pt.size = pt.size,
+          group.by = group.by, cols = palette, ...
           ))), 7, 4)
     .set_lab(p, sig(x), "The", gs(group.by, "_", "-"))
   })

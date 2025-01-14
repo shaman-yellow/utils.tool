@@ -54,17 +54,29 @@ setMethod("asjob_scfea", signature = c(x = "job_seurat"),
         data <- objAssay@data
       }
     }
-    message("Subset by `cells`.")
+    # actually used genes
     data <- data[ rownames(data) %in% refs, ]
     metadata <- meta(x)
+    message("Subset by `cells`.")
     if (!is.null(cells)) {
       data <- data[, cells]
       metadata <- metadata[cells, ]
     } else {
-      x <- snapAdd(x, "将 `Seurat` (所有细胞) 以 `scFEA` 预测代谢通量。")
+      snapAdd_onExit("x", "将 `Seurat` (所有细胞) 以 `scFEA` 预测代谢通量。")
     }
     message("Dim: ", paste0(dim(data), collapse = ", "))
     message("Max: ", max(apply(data, 2, max)))
+    # test expression
+    noAnyExpre <- which(apply(data, 2, sum) == 0)
+    if (length(noAnyExpre)) {
+      message(
+        glue::glue("Some cells no any expression (of actually used genes),
+          randomly mutate them (+1).\n{bind(colnames(data)[noAnyExpre])}")
+      )
+      set.seed(143254345L)
+      whichGene <- sample(seq_len(nrow(data)), 10)
+      data[whichGene, noAnyExpre] <- data[whichGene, noAnyExpre] + 1
+    }
     if (dir.exists(dir)) {
       if (sureThat("Directory of `dir` exists, remove that?")) {
         unlink(dir, recursive = TRUE)
@@ -157,6 +169,9 @@ setMethod("step1", signature = c(x = "job_scfea"),
       " --output_flux_file ", "flux.csv",
       " --output_balance_file ", "balance.csv"
     )
+    if (is.remote(x)) {
+      testRem_file.exists(x, "flux.csv", x$wait)
+    }
     return(x)
   })
 
@@ -202,6 +217,48 @@ setMethod("step2", signature = c(x = "job_scfea"),
     t.compounds <- dplyr::distinct(t.compounds)
     x@tables[[ 2 ]] <- namel(t.flux, t.anno, t.balance, t.moduleGenes, t.compounds)
     x@plots[[ 2 ]] <- namel(p.loss)
+    return(x)
+  })
+
+setMethod("map", signature = c(x = "job_seurat", ref = "job_scfea"),
+  function(x, ref, dims = 1:5)
+  {
+    x <- snapAdd(
+      x, "将 `scFEA` 的代谢通量预测，输入 `Seurat` 数据对象中，按标准工作流分析，以细胞群聚类。", step = "m"
+    )
+    data_flux <- ref@tables$step2$t.flux
+    data_flux <- data.frame(
+      data_flux[, -1], row.names = data_flux[[1]], check.names = FALSE
+    )
+    data_flux <- t(as.matrix(data_flux))
+    object(x)[["FLUX"]] <- e(SeuratObject::CreateAssayObject(counts = data_flux))
+    oAssay <- SeuratObject::DefaultAssay(object(x))
+    SeuratObject::DefaultAssay(object(x)) <- 'FLUX'
+    object(x) <- e(
+      Seurat::FindVariableFeatures(object(x), selection.method = "vst", nfeatures = 2000)
+    )
+    object(x) <- e(Seurat::ScaleData(object(x), features = rownames(object(x)), assay = 'FLUX'))
+    object(x) <- e(Seurat::RunPCA(
+      object(x), features = SeuratObject::VariableFeatures(object = object(x)), 
+      npcs = 10, reduction.name = 'pca.flux', assay = "FLUX"
+    ))
+    p.flux_pca_rank <- pretty_elbowplot(
+      e(Seurat::ElbowPlot(object(x), reduction = "pca.flux"))
+    )
+    p.flux_pca_rank <- wrap(p.flux_pca_rank, 4, 4)
+    p.flux_pca_rank <- .set_lab(p.flux_pca_rank, sig(x), "Ranking of principle components of metabolic flux")
+    x$p.flux_pca_rank <- p.flux_pca_rank
+    object(x) <- e(Seurat::FindNeighbors(
+      object(x), dims = dims, assay = "FLUX", reduction = "pca.flux"
+    ))
+    object(x) <- e(Seurat::FindClusters(object(x), resolution = 0.5))
+    object(x) <- e(Seurat::RunUMAP(
+      object(x), dims = dims, assay = 'FLUX', reduction.name = "umap.flux"
+    ))
+    p.map_flux <- vis(x, reduction = "umap.flux")
+    p.map_flux <- .set_lab(p.map_flux, sig(x), "cells metabolic flux")
+    x$p.map_flux <- setLegend(p.map_flux, "为细胞代谢通量 (`scFEA` 预测，输入 `Seurat`) 的 UMAP 聚类。")
+    SeuratObject::DefaultAssay(object(x)) <- oAssay
     return(x)
   })
 

@@ -97,6 +97,11 @@ setMethod("[[<-", signature = c(x = "meth"),
     if (!is(i, "character")) {
       stop('!is(i, "character"), `i` must be "character".')
     }
+    if (is(value, "NULL")) {
+      x@.xData$.order <- x@.xData$.order[ x@.xData$.order != i ]
+      x@.xData[[ i ]] <- NULL
+      return(x)
+    }
     if (!is(value, "character")) {
       stop('!is(value, "character"), must be character.')
     }
@@ -1627,6 +1632,9 @@ set_remote.default <- function(x, tmpdir, map_local, remote) {
     x$map_local <- map_local
   if (is.null(x$tmpdir))
     x$tmpdir <- tmpdir
+  if (is.null(x$wait)) {
+    x$wait <- 10L
+  }
   return(x)
 }
 
