@@ -327,7 +327,7 @@ setMethod("step2", signature = c(x = "job_limma"),
       }
       tops <- .set_lab(tops, sig(x), paste("data", gs(names(tops), "-", "vs")))
       tops <- setLegend(tops, glue::glue("为 {names(tops)} 差异分析统计表格。"))
-      lab(tops) <- paste(sig(x), "DEGs data")
+      lab(tops) <- paste(sig(x), "Differential Statistic data")
       if (length(tops) >= 2) {
         lst <- lapply(tops, function(x) x[[ label ]])
         names(lst) <- gs(names(lst), "\\s*-\\s*", " vs ")
@@ -352,18 +352,50 @@ setMethod("step2", signature = c(x = "job_limma"),
     lab(p.volcano) <- paste(sig(x), "volcano plot")
     plots <- c(plots, namel(p.volcano))
     tables <- namel(tops)
-    if (!is.null(x$from_scfea)) {
-      message("Gene names split by '-'.")
-      belong.flux <- reframe_col(dplyr::select(ref, gene, name), "gene",
-        function(x) unlist(strsplit(unlist(x), "-")))
-      belong.flux <- dplyr::relocate(belong.flux, gene, Metabolic_flux = name)
-      belong.flux <- .set_lab(belong.flux, sig(x), "Differential metabolic flux related Genes")
-      tables <- c(tops, namel(belong.flux))
-    }
+    # if (!is.null(x$from_scfea)) {
+    #   message("Gene names split by '-'.")
+    #   belong.flux <- reframe_col(dplyr::select(ref, gene, name), "gene",
+    #     function(x) unlist(strsplit(unlist(x), "-")))
+    #   belong.flux <- dplyr::relocate(belong.flux, gene, Metabolic_flux = name)
+    #   belong.flux <- .set_lab(belong.flux, sig(x), "Differential metabolic flux related Genes")
+    #   tables <- c(tops, namel(belong.flux))
+    # }
     x@tables[[ 2 ]] <- tables
     x@plots[[ 2 ]] <- plots
     return(x)
   })
+
+pattern_contrasts <- function(group, formula, pattern = paste0(signature, "$"),
+  signature)
+{
+  if (any(duplicated(group))) {
+    group <- unique(group)
+  }
+  formula <- substitute(formula)
+  if (length(formula) != 3) {
+    stop('length(formula) != 3, not "X - Y"?')
+  }
+  if (!identical(rlang::as_label(formula[[1]]), "-")) {
+    stop(
+      '!identical(rlang::as_label(formula[[1]]), "-"), not versus?'
+    )
+  }
+  if (missing(signature)) {
+    signature <- vapply(c(formula[[2]], formula[[3]]), rlang::as_label, character(1))
+  }
+  pattern <- paste0(pattern, collapse = "|")
+  subtypes <- gs(group, pattern, "")
+  if (!any(duplicated(subtypes))) {
+    stop('!any(duplicated(subtypes)), no any overlap?')
+  }
+  subtypes <- unique(subtypes)
+  lhs <- paste0(subtypes, signature[1])
+  rhs <- paste0(subtypes, signature[2])
+  if (any(!lhs %in% group) || any(!rhs %in% group)) {
+    stop('any(!lhs %in% group) || any(!rhs %in% group), string executed error.')
+  }
+  paste0(lhs, " - ", rhs)
+}
 
 setMethod("group", signature = c(x = "job_limma"),
   function(x, group)

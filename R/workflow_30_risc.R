@@ -201,7 +201,7 @@ setMethod("ids", signature = c(x = "job_risc"),
   })
 
 pgc <- pattern_gradientColor <- function(pattern, names,
-  colors = ggsci::pal_rickandmorty()(10))
+  colors = ggsci::pal_rickandmorty()(10), ...)
 {
   if (length(pattern) > length(colors)) {
     message("`colors` provided not enough.")
@@ -213,7 +213,7 @@ pgc <- pattern_gradientColor <- function(pattern, names,
   palette <- lapply(pattern,
     function(pt) {
       n <<- n + 1L
-      x <- sort(names[ grpl(names, pt) ])
+      x <- sort(names[ grpl(names, pt, ...) ])
       colors <- colorRampPalette(c("white", colors[n]))(length(x) + 2)[-(1:2)]
       names(colors) <- x
       return(colors)

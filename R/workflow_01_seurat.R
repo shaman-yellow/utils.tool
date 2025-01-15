@@ -221,7 +221,7 @@ setMethod("step6", signature = c(x = "job_seurat"),
   function(x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = 1.5, filter.pct = .7,
     org = c("Human", "Mouse"),
     cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_cell",
-    method = c("gpt", "scsa"), n = 30)
+    method = c("gpt", "scsa"), n = 10, variable = TRUE)
   {
     method <- match.arg(method)
     if (method == "gpt") {
@@ -229,6 +229,11 @@ setMethod("step6", signature = c(x = "job_seurat"),
       all_markers <- x@tables$step5$all_markers
       if (!is.null(filter.pct)) {
         all_markers <- dplyr::filter(all_markers, pct.1 >= filter.pct)
+      }
+      if (variable) {
+        all_markers <- dplyr::filter(
+          all_markers, gene %in% SeuratObject::VariableFeatures(object(x))
+        )
       }
       query <- prepare_GPTmessage_for_celltypes(tissue, all_markers, n = n)
       if (usethis::ui_yeah("Get results from clipboard?")) {
@@ -239,8 +244,65 @@ setMethod("step6", signature = c(x = "job_seurat"),
         res <- parse_GPTfeedback(feedback)
         seqs <- match(object(x)@meta.data[[ "seurat_clusters"]], 0:(query$ncluster - 1))
         object(x)@meta.data[[ "ChatGPT_cell"]] <- res$cells[ seqs ]
+        ## is High discriminative genes?
+        all_markers$cells <- res$cells[match(all_markers$cluster, 0:(query$ncluster - 1))]
+        all_markers <- dplyr::filter(all_markers, gene %in% res$markers)
+        numInMarkers <- vapply(res$markers,
+          function(marker) {
+            cells <- unique(dplyr::filter(all_markers, gene == !!marker)$cells)
+            length(cells)
+          }, integer(1))
+        isPrimMarkers <- numInMarkers <= 2L
+        notDiscMarkers <- res$markers[!isPrimMarkers]
+        message(
+          glue::glue(
+            "Total not discriminative markers {length(notDiscMarkers)} / {length(res$markers)}:
+            \t{bind(notDiscMarkers)}"
+          )
+        )
+        cell_markers <- reframe_col(res$data, "markers", unlist)
+        cell_markers$num <- numInMarkers[ match(cell_markers$markers, res$markers) ]
+        cell_markers <- dplyr::arrange(cell_markers, num)
+        cell_markers <- dplyr::distinct(cell_markers, cells, .keep_all = TRUE)
+        x$hp_cell_markers <- cell_markers
+        excluOverMarkers <- unique(cell_markers$markers)
+        message(
+          glue::glue(
+            "Markers excluded overlaps: {length(excluOverMarkers)}
+            (Not discriminative {length(which(excluOverMarkers %in% notDiscMarkers))})"
+          )
+        )
+        gptCells <- object(x)@meta.data[["ChatGPT_cell"]]
+        nfilter <- c()
+        for (i in seq_len(nrow(cell_markers))) {
+          if (cell_markers$num[i] > 3) {
+            gptCells <- ifelse(
+              gptCells == cell_markers$cells[i], "Unknown", gptCells
+            )
+            nfilter <- c(nfilter, i)
+            next
+          }
+          if (cell_markers$num[i] > 1) {
+            dat <- dplyr::filter(cell_markers, markers == cell_markers$markers[i])
+            maybeParent <- dat$cells[ which.min(nchar(dat$cells)) ]
+            if (maybeParent != cell_markers$cells[i] && grpl(cell_markers$cells[i], maybeParent, TRUE)) {
+              message(glue::glue("Re assign cells: {cell_markers$cells[i]} -> {maybeParent}"))
+              gptCells <- ifelse(
+                gptCells == cell_markers$cells[i], maybeParent, gptCells
+              )
+              nfilter <- c(nfilter, i)
+            }
+          }
+        }
+        if (length(nfilter)) {
+          cell_markers <- cell_markers[-nfilter, ]
+        }
+        cell_markers <- dplyr::arrange(cell_markers, cells)
+        excluOverMarkers <- unique(cell_markers$markers)
+        message(glue::glue("Post Markers excluded overlaps: {length(excluOverMarkers)}"))
+        object(x)@meta.data[["ChatGPT_cell"]] <- gptCells
         ## heatmap
-        p.markers <- e(Seurat::DoHeatmap(object(x), features = res$markers,
+        p.markers <- e(Seurat::DoHeatmap(object(x), features = excluOverMarkers,
             group.by = "ChatGPT_cell", raster = TRUE, group.colors = color_set(), label = FALSE))
         p.markers <- .set_lab(p.markers, sig(x), "Markers in cell types")
         p.markers <- setLegend(p.markers, "为 ChatGPT 注释细胞群使用的首要 Marker 热图。")
@@ -513,16 +575,27 @@ plot_qc.seurat <- function(x) {
 }
 
 setMethod("vis", signature = c(x = "job_seurat"),
-  function(x, group.by = x@params$group.by, pt.size = .7, 
+  function(x, group.by = x@params$group.by,
+    pt.size = .7, mode = c("cell", "sample"),
     palette = x$palette, reduction = "umap", ...)
   {
-    if (is.null(palette)) {
-      palette <- color_set()
+    mode <- match.arg(mode)
+    if (mode == "cell") {
+      if (is.null(palette)) {
+        palette <- color_set()
+      }
+    } else if (mode == "sample") {
+      x <- mutate(x, Cell_Sample = paste0(!!rlang::sym(group.by), "_", orig.ident))
+      groups <- unique(object(x)@meta.data[[ group.by ]])
+      patterns <- paste0("^", gs(groups, "[()]", "."), "_")
+      Cell_Samples <- unique(object(x)@meta.data[[ "Cell_Sample" ]])
+      palette <- pattern_gradientColor(patterns, Cell_Samples)
+      group.by <- "Cell_Sample"
     }
     p <- wrap(as_grob(e(Seurat::DimPlot(
-          object(x), reduction = reduction, label = FALSE, pt.size = pt.size,
-          group.by = group.by, cols = palette, ...
-          ))), 7, 4)
+            object(x), reduction = reduction, label = FALSE, pt.size = pt.size,
+            group.by = group.by, cols = palette, ...
+            ))), 7, 4)
     .set_lab(p, sig(x), "The", gs(group.by, "_", "-"))
   })
 
@@ -849,9 +922,10 @@ matchCellMarkers <- function(lst.markers, ref, least = 2) {
 }
 
 parse_GPTfeedback <- function(feedback) {
-  res <- gs(feedback, "^[0-9]+\\. |\\.$", "")
+  res <- gs(feedback, "^[0-9]+\\. |\\.$|\\*|\\(.*\\)\\s*", "")
   res <- strsplit(res, "\\. ")
   cells <- vapply(res, function(x) strsplit(x[1], "; ")[[1]][1], character(1))
+  cells <- gs(cells, "^\\s*|\\s*$", "")
   markers <- lapply(res, function(x) strsplit(x[2], "; "))
   data <- tibble::tibble(cells = cells, markers = markers)
   markers <- markers[ order(cells) ]

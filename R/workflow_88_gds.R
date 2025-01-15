@@ -107,7 +107,9 @@ setMethod("step1", signature = c(x = "job_gds"),
         )
         x <- methodAdd(x,
           "仅查询临床样本信息，因此滤除匹配到 'cells', 'cell type' 或 'cell line' 的实验数据例。
-          此外，去除了以特定 Marker 细胞类型为研究对象的数据例 (CD4、CD8 T 细胞等)。")
+          此外，去除了以特定 Marker 细胞类型为研究对象的数据例 (CD4、CD8 T 细胞等，可能是来源于实验室的数据)。
+          (注：以上仅为查找合适的 GEO 数据所做的数据筛选，与实际分析无关) 。"
+        )
       }
     }
     if (!is.null(rna_or_array)) {

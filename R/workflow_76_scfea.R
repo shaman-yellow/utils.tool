@@ -251,6 +251,9 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_scfea"),
     object(x) <- e(Seurat::FindNeighbors(
       object(x), dims = dims, assay = "FLUX", reduction = "pca.flux"
     ))
+    x <- mutate(
+      x, seurat_clusters_RNA = seurat_clusters, .after = seurat_clusters
+    )
     object(x) <- e(Seurat::FindClusters(object(x), resolution = 0.5))
     object(x) <- e(Seurat::RunUMAP(
       object(x), dims = dims, assay = 'FLUX', reduction.name = "umap.flux"
@@ -259,6 +262,11 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_scfea"),
     p.map_flux <- .set_lab(p.map_flux, sig(x), "cells metabolic flux")
     x$p.map_flux <- setLegend(p.map_flux, "为细胞代谢通量 (`scFEA` 预测，输入 `Seurat`) 的 UMAP 聚类。")
     SeuratObject::DefaultAssay(object(x)) <- oAssay
+    x <- dplyr::mutate(
+      x, seurat_clusters_FLUX = seurat_clusters,
+      seurat_clusters = seurat_clusters_RNA,
+      .after = seurat_clusters
+    )
     return(x)
   })
 
@@ -282,9 +290,19 @@ setMethod("asjob_limma", signature = c(x = "job_scfea"),
     if (missing(metadata) && !is.null(x$from_seurat)) {
       message("Use metadata from `x$metadata`")
       metadata <- x$metadata
-    }
-    if (missing(metadata) || missing(group)) {
-      stop("missing(metadata) || missing(group)")
+      if (missing(group)) {
+        group <- "group"
+        guess_group <- tail(colnames(metadata), n = 1)
+        message(
+          glue::glue("Guess group based on '{guess_group}', trunc the numbering in 'orig.ident'.")
+        )
+        metadata <- dplyr::mutate(
+          metadata, sample = rownames, group = paste0(
+            !!rlang::sym(guess_group), ".", gs(orig.ident, "[0-9]*$", "")
+          ), group = gs(make.names(group), "[.]+", "_")
+        )
+        message("Use group:\n", showStrings(metadata[[ group ]]))
+      }
     }
     counts <- data.frame(x@tables$step2$t.flux)
     rownames(counts) <- counts[[1]]
@@ -305,13 +323,18 @@ setMethod("asjob_limma", signature = c(x = "job_scfea"),
     } else {
       message("Use first column of `metadata` as sample name (cell name).")
       metadata <- dplyr::filter(metadata, !!rlang::sym(colnames(metadata)[1]) %in% !!colnames(counts))
-      metadata <- dplyr::rename(metadata, sample = !!rlang::sym(colnames(metadata)[1]),
-        group = !!rlang::sym(group))
+      if (!all(c("sample", "group") %in% colnames(metadata))) {
+        metadata <- dplyr::rename(
+          metadata, sample = !!rlang::sym(colnames(metadata)[1]),
+          group = !!rlang::sym(group)
+        )
+      }
       metadata <- dplyr::relocate(metadata, sample, group)
     }
     cli::cli_alert_info("job_limma_normed")
     compounds_annotation <- x@tables$step2$t.compounds
     x <- job_limma_normed(counts, metadata, genes = genes)
+    x <- snapAdd(x, "以 `limma` 的线形分析策略，对细胞的代谢通量差异分析。")
     x@analysis <- "Limma 代谢通量差异分析"
     x$from_scfea <- TRUE
     x$compounds_annotation <- compounds_annotation
