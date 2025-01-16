@@ -250,7 +250,7 @@ setMethod("step3", signature = c(x = "job_gds"),
   {
     step_message("Search in metadata.")
     if (missing(ref)) {
-      mode <- match.fun(mode)
+      mode <- match.arg(mode)
       if (mode == "survival") {
         ref <- "Survival|Event|Dead|Alive|Status|Day|Time"
       }
@@ -357,7 +357,12 @@ setMethod("step0", signature = c(x = "job_gds"),
     step_message("Prepare your data with function `job_gds`.")
   })
 
-batch_geo <- function(gses, getGPL = FALSE, cl = 1L) {
+batch_geo <- function(gses, getGPL = FALSE, cl = 1L, 
+  db_dir = .prefix("gds_geoMeta", "db"))
+{
+  if (!dir.exists(db_dir)) {
+    dir.create(db_dir)
+  }
   if (!requireNamespace("GEOquery", quietly = TRUE)) {
     stop('!requireNamespace("GEOquery", quietly = TRUE), no package of "GEOquery".')
   }
@@ -368,6 +373,10 @@ batch_geo <- function(gses, getGPL = FALSE, cl = 1L) {
   lapply(usedPackages, requireNamespace, quietly = TRUE)
   res <- pbapply::pblapply(gses,
     function(x) {
+      file_cache <- file.path(db_dir, paste0(x, ".rds"))
+      if (file.exists(file_cache)) {
+        return(readRDS(file_cache))
+      }
       times <- 0L
       res <- NULL
       while((is.null(res) || inherits(res, "try-error")) && times <= 5L) {
@@ -383,6 +392,10 @@ batch_geo <- function(gses, getGPL = FALSE, cl = 1L) {
       } else {
         cli::cli_alert_success(x)
       }
+      data <- .job_geo(object = x,
+        step = 1L, params = list(guess = try(res$guess, TRUE))
+      )
+      saveRDS(data, file_cache)
       return(res)
     }, cl = cl
   )

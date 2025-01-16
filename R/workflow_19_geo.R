@@ -183,12 +183,17 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
   })
 
 setMethod("expect", signature = c(x = "job_geo", ref = "ANY"),
-  function(x, ref, force = FALSE, id = x@object){
+  function(x, ref, force = FALSE, id = x@object, ret = c("meta", "job")){
+    ret <- match.arg(ret)
     if (missing(ref)) {
       ref <- geo_cols()
     }
     x$guess <- expect(x$guess, ref, force = force, id = id)
-    return(x)
+    if (ret == "job") {
+      return(x)
+    } else if (ret == "meta") {
+      return(x$guess)
+    }
   })
 
 showStrings <- function(x, stat = TRUE) {

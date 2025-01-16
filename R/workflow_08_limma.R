@@ -234,10 +234,10 @@ setMethod("step1", signature = c(x = "job_limma"),
       if (!no.array_norm) {
         x <- methodAdd(x, "使用 `log2` 和 `limma::normalizeBetweenArrays` 对数据标准化。")
         object(x)$counts <- e(limma::normalizeBetweenArrays(log2(object(x)$counts)))
-        x$normed_data <- new("EList",
-          list(genes = object(x)$genes, targets = object(x)$samples, E = object(x)$counts)
-        )
       }
+      x$normed_data <- new("EList",
+        list(genes = object(x)$genes, targets = object(x)$samples, E = object(x)$counts)
+      )
     }
     if (pca) {
       pca <- pca_data.long(as_data_long(object(x)))

@@ -23,7 +23,8 @@ setGeneric("asjob_lasso", group = list("asjob_series"),
 
 setMethod("asjob_lasso", signature = c(x = "job_limma"),
   function(x, use.filter = NULL, use = "gene_name", from_normed = TRUE,
-    fun_scale = function(x) log2(x + 1), dup_method = c("max", "min", "mean"))
+    fun_scale = function(x) scale(x, TRUE, TRUE),
+    dup_method = c("max", "min", "mean"), use.format = TRUE)
   {
     step_message("The default, 'job_limma' from 'job_tcga' were adapted to convertion.")
     dup_method <- match.arg(dup_method)
@@ -43,7 +44,11 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
           snap <- glue::glue("将{snap(use.filter)}用于 COX 回归分析。")
           use.filter <- unlist(use.filter@.Data, use.names = FALSE)
         }
-        pos <- gname(x@params$normed_data$genes[[use]]) %in% use.filter
+        if (use.format) {
+          pos <- gname(x@params$normed_data$genes[[use]]) %in% use.filter
+        } else {
+          pos <- x@params$normed_data$genes[[use]] %in% use.filter
+        }
         object <- e(limma::`[.EList`(x@params$normed_data, pos, ))
         if (any(duplicated(object$genes[[ use ]]))) {
           cli::cli_alert_warning("Duplicated names (genes) founds.")
@@ -55,41 +60,46 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
       } else {
         object <- x@params$normed_data
       }
-      message("Ignore parameter of `fun_scale`")
       mtx <- t(object$E)
-      colnames(mtx) <- object$genes[[ use ]]
-      x <- .job_lasso(object = mtx)
+      gnames <- object$genes[[ use ]]
+      if (use.format) {
+        colnames(mtx) <- gname(gnames)
+      } else {
+        colnames(mtx) <- gnames
+      }
+      mtx <- mtx[, !duplicated(colnames(mtx)) & !is.na(colnames(mtx))]
+      x <- .job_lasso(object = fun_scale(mtx))
       x <- snapAdd(x, snap)
       x <- snapAdd(x, "共 {ncol(mtx)} 个基因在数据集 {project} 中找到 (根据基因名匹配)。")
       x@params$metadata <- as_tibble(object$targets)
     } else {
       stop("x@step == 0L, case deprecated.")
-      if (x@step == 0L) {
-        message(glue::glue("x@step == 0L, use raw counts."))
-      }
-      genes <- object(x)$genes
-      counts <- object(x)$counts
-      if (!is.null(use.filter)) {
-        pos <- genes[[ use ]] %in% use.filter
-        genes <- genes[pos, ]
-        counts <- counts[pos, ]
-        if (any(duplicated(genes[[ use ]]))) {
-          cli::cli_alert_warning("Duplicated names (genes) founds.")
-          lst <- .deduplicated_genes(counts, genes, use, dup_method)
-          genes <- lst$genes
-          counts <- lst$counts
-        }
-      }
-      mtx <- t(counts)
-      if (!is.null(fun_scale)) {
-        message("Use `fun_scale` to scale the data.")
-        mtx <- fun_scale(mtx)
-        attr(mtx, "scaled:center") <- attr(mtx, "scaled:scale") <- NULL
-      }
-      colnames(mtx) <- genes[[ use ]]
-      metadata <- as_tibble(object(x)$samples)
-      x <- .job_lasso(object = mtx)
-      x@params$metadata <- metadata
+      # if (x@step == 0L) {
+      #   message(glue::glue("x@step == 0L, use raw counts."))
+      # }
+      # genes <- object(x)$genes
+      # counts <- object(x)$counts
+      # if (!is.null(use.filter)) {
+      #   pos <- genes[[ use ]] %in% use.filter
+      #   genes <- genes[pos, ]
+      #   counts <- counts[pos, ]
+      #   if (any(duplicated(genes[[ use ]]))) {
+      #     cli::cli_alert_warning("Duplicated names (genes) founds.")
+      #     lst <- .deduplicated_genes(counts, genes, use, dup_method)
+      #     genes <- lst$genes
+      #     counts <- lst$counts
+      #   }
+      # }
+      # mtx <- t(counts)
+      # if (!is.null(fun_scale)) {
+      #   message("Use `fun_scale` to scale the data.")
+      #   mtx <- fun_scale(mtx)
+      #   attr(mtx, "scaled:center") <- attr(mtx, "scaled:scale") <- NULL
+      # }
+      # colnames(mtx) <- genes[[ use ]]
+      # metadata <- as_tibble(object(x)$samples)
+      # x <- .job_lasso(object = mtx)
+      # x@params$metadata <- metadata
     }
     return(x)
   })
@@ -226,6 +236,7 @@ setMethod("step3", signature = c(x = "job_lasso"),
 
 setMethod("step4", signature = c(x = "job_lasso"),
   function(x, use_data = x$use_data, inherit_unicox = TRUE,
+    inherit_unicox.cut.p = NULL,
     fun = c("coxph", "glmnet", "cv.glmnet"), nfold = 10,
     alpha = 1, family = "cox", type.measure = c("deviance", "C"), ...)
   {
@@ -244,9 +255,15 @@ setMethod("step4", signature = c(x = "job_lasso"),
     }
     if (inherit_unicox) {
       cli::cli_alert_info("Inherits results (significant feature) from Univariate COX.")
-      data <- data[, colnames(data) %in% x$sig.uni_cox$feature ]
-      valid <- valid[, colnames(valid) %in% x$sig.uni_cox$feature ]
-      x <- snapAdd(x, "在单因素回归得到的基因的基础上，")
+      sig.uni_cox <- x$sig.uni_cox
+      if (!is.null(inherit_unicox.cut.p)) {
+        sig.uni_cox <- dplyr::filter(sig.uni_cox, pvalue < inherit_unicox.cut.p)
+        x <- snapAdd(x, "在单因素回归得到的基因 (P &lt; {inherit_unicox.cut.p}) 的基础上，")
+      } else {
+        x <- snapAdd(x, "在单因素回归得到的基因 (P &lt; 0.05) 的基础上，")
+      }
+      data <- data[, colnames(data) %in% sig.uni_cox$feature ]
+      valid <- valid[, colnames(valid) %in% sig.uni_cox$feature ]
     }
     multi_cox <- list()
     # Multivariate

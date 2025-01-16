@@ -262,7 +262,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_scfea"),
     p.map_flux <- .set_lab(p.map_flux, sig(x), "cells metabolic flux")
     x$p.map_flux <- setLegend(p.map_flux, "为细胞代谢通量 (`scFEA` 预测，输入 `Seurat`) 的 UMAP 聚类。")
     SeuratObject::DefaultAssay(object(x)) <- oAssay
-    x <- dplyr::mutate(
+    x <- mutate(
       x, seurat_clusters_FLUX = seurat_clusters,
       seurat_clusters = seurat_clusters_RNA,
       .after = seurat_clusters

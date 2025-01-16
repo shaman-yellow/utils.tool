@@ -32,6 +32,7 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
       stop("x@step < 3L")
     }
     use.group <- match.arg(use.group)
+    message("Check coeffients table.")
     if (missing(fea_coefs)) {
       if (use.group == "mul_cox") {
         lambda <- paste0("lambda.", match.arg(lambda))
@@ -52,6 +53,7 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
     if (is.null(fea_coefs)) {
       stop("`fea_coefs` should be specified.")
     }
+    message("Check genes.")
     use_genes <- fea_coefs$feature
     data <- as_tibble(x$get(use_data)$data)
     if (any(!use_genes %in% colnames(data))) {
@@ -232,8 +234,10 @@ setMethod("step1", signature = c(x = "job_survival"),
             roc_time <- c(3, 5, 10)
           }
           cols <- c("blue", "red", "orange")[seq_along(roc_time)]
-          roc <- timeROC::timeROC(data$time / 12, data$status, data[[ genes ]], cause = 1,
-            times = roc_time)
+          roc <- timeROC::timeROC(
+            data$time / 12, data$status, data[[ genes ]], 
+            cause = 1, times = roc_time, weighting = "cox"
+          )
           legends <- mapply(roc_time, cols, seq_along(roc_time),
             FUN = function(time, col, n) {
               plot(roc, time, col = col, add = (n != 1), title = "")

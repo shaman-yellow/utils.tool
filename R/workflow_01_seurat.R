@@ -221,7 +221,7 @@ setMethod("step6", signature = c(x = "job_seurat"),
   function(x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = 1.5, filter.pct = .7,
     org = c("Human", "Mouse"),
     cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_cell",
-    method = c("gpt", "scsa"), n = 10, variable = TRUE)
+    method = c("gpt", "scsa"), n = 30, variable = TRUE)
   {
     method <- match.arg(method)
     if (method == "gpt") {
@@ -922,7 +922,7 @@ matchCellMarkers <- function(lst.markers, ref, least = 2) {
 }
 
 parse_GPTfeedback <- function(feedback) {
-  res <- gs(feedback, "^[0-9]+\\. |\\.$|\\*|\\(.*\\)\\s*", "")
+  res <- gs(feedback, "^[0-9. ]+|\\.$|\\*|\\(.*\\)\\s*", "")
   res <- strsplit(res, "\\. ")
   cells <- vapply(res, function(x) strsplit(x[1], "; ")[[1]][1], character(1))
   cells <- gs(cells, "^\\s*|\\s*$", "")
@@ -935,7 +935,7 @@ parse_GPTfeedback <- function(feedback) {
 
 prepare_GPTmessage_for_celltypes <- function(tissue, marker_list, n = 10, toClipboard = TRUE)
 {
-  message <- glue::glue("Identify cell types of {tissue} cells using the following markers separately for each row. Only provide the cell type name (for each row). Show numbers before the name. Some can be a mixture of multiple cell types (separated by '; ', end with '. '). Then, provide at least 1 and at most 3 classical markers that distinguish the cell type from other cells (separated by '; ').  (e.g., 1. X Cell; Y Cell. Marker1; Marker2; Marker3)")
+  message <- glue::glue("Identify cell types of {tissue} cells using the following markers separately for each row. Only provide the cell type name (for each row). Show numbers before the name. Some can be a mixture of multiple cell types (separated by '; ', end with '. '). Then, provide at least 1 and at most 5 classical markers (as more as possible) that distinguish the cell type from other cells (separated by '; ').  (e.g., 1. X Cell; Y Cell. Marker1; Marker2; Marker3; Marker4; Marker5)")
   message("`marker_list` should be table output from seurat (column: cluster, gene)")
   marker_list <- split(marker_list$gene, marker_list$cluster)
   ncluster <- length(marker_list)
