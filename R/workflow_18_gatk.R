@@ -134,7 +134,7 @@ setMethod("step4", signature = c(x = "job_gatk"),
   })
 
 setMethod("step5", signature = c(x = "job_gatk"),
-  function(x, annovar_path = "~/disk_sda1/annovar",
+  function(x, annovar_path = pg("annovar"),
     use_db = 1:2, ref = get_realname(x@params$geneRef_file),
     db_used = c("refGene", "cytoBand", "exac03", "avsnp147", "dbnsfp30a")[use_db],
     db_operation = c("g", "r", "f", "f", "f")[use_db])

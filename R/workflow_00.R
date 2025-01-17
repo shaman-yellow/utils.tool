@@ -1215,6 +1215,7 @@ setMethod("pg", signature = c(x = "character"),
 pg_local_recode <- function() {
   conda <- getOption("conda", "~/miniconda3")
   lst <- list(
+    annovar = "~/disk_sda1/annovar",
     vina = "vina",
     python = "{conda}/bin/python3",
     conda = "{conda}/bin/conda",
@@ -1712,11 +1713,18 @@ set_sig <- function(x) {
 setGeneric("step1", group = list("step_series"),
   function(x, ...) {
     # if (identical(sig(x), character(0))) {
+    legal <- TRUE
     if (identical(parent.frame(1), .GlobalEnv)) {
-      name <- substitute(x)
-      sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
-      attr(sig, "name") <- as.character(name)
-      sig(x) <- sig 
+      name <- rlang::as_label(substitute(x))
+      if (grepl("^[A-Za-z][A-Za-z0-9_.]*$", name)) {
+        sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
+        attr(sig, "name") <- name
+        sig(x) <- sig 
+      } else {
+        legal <- FALSE
+      }
+    } else {
+      legal <- FALSE
     }
     # }
     if (is.null(seed <- getOption("step_seed"))) {
@@ -1728,7 +1736,7 @@ setGeneric("step1", group = list("step_series"),
     x$.append_heading <- TRUE
     x <- standardGeneric("step1")
     x <- stepPostModify(x, 1)
-    if (identical(parent.frame(1), .GlobalEnv) && x$.append_heading) {
+    if (legal && x$.append_heading) {
       job_append_heading(x)
     }
     x$.append_heading <- NULL

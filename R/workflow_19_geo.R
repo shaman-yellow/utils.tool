@@ -390,6 +390,9 @@ get_metadata.geo <- function(lst,
 }
 
 get_prod.geo <- function(lst) {
-  res <- as.list(dplyr::distinct(do.call(rbind, lst$abbrev)))
+  res <- as.list(dplyr::distinct(do.call(dplyr::bind_rows, lst$abbrev)))
+  if (any(lengths(res) > 1)) {
+    res <- lapply(res, bind, co = " ### ")
+  }
   .lich(res)
 }
