@@ -1215,7 +1215,11 @@ setMethod("pg", signature = c(x = "character"),
 pg_local_recode <- function() {
   conda <- getOption("conda", "~/miniconda3")
   lst <- list(
+    ldscPython = "{conda}/bin/conda run -n ldsc python",
+    ldsc = "~/ldsc",
     annovar = "~/disk_sda1/annovar",
+    vep = "~/ensembl-vep/vep",
+    vep_cache = "~/disk_sda1/.vep",
     vina = "vina",
     python = "{conda}/bin/python3",
     conda = "{conda}/bin/conda",

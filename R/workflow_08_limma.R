@@ -442,6 +442,7 @@ setMethod("step3", signature = c(x = "job_limma"),
       x$.feature <- tops
     } else {
       names(tops) <- gs(names(tops), "-", "vs")
+      x$.feature <- tops
       s.com <- vapply(tops, try_snap, character(1))
       s.com <- paste0("- ", names(s.com), "：", s.com, "。")
       s.com <- paste0(s.com, collapse = "\n")
@@ -450,7 +451,7 @@ setMethod("step3", signature = c(x = "job_limma"),
       x <- snapAdd(x, "所有上调 DEGs 共 {sfun('up')} 个，所有下调 DEGs 共 {sfun('down')} 个。")
       x <- snapAdd(x, "所有非重复基因共 {length(unique(unlist(tops)))} 个。")
       tops <- unlist(tops, recursive = FALSE)
-      x$.feature <- x$sets_intersection <- tops
+      x$sets_intersection <- tops
       message("The guess use dataset combination of:\n",
         "\t ", names(tops)[1], " %in% ", names(tops)[4], "\n",
         "\t ", names(tops)[2], " %in% ", names(tops)[3])
@@ -669,9 +670,16 @@ setMethod("asjob_wgcna", signature = c(x = "job_limma"),
       rownames(object) <- rownames(object$genes)
     } else {
       if (any(duplicated(object$genes[[ use ]]))) {
-        stop(glue::glue("The column of `use`: {use} has duplicated value."))
+        message(
+          glue::glue("The column of `use`: {use} has duplicated value, removed that.")
+        )
+        object <- object[ !duplicated(object$genes[[use]]), ]
       }
       rownames(object) <- object$genes[[ use ]]
+    }
+    filter_genes <- resolve_feature_snapAdd_onExit("x", filter_genes)
+    if (is(filter_genes, "list")) {
+      filter_genes <- unlist(filter_genes)
     }
     if (!is.null(filter_genes)) {
       object <- object[ object$genes[[ use ]] %in% filter_genes, ]
@@ -679,8 +687,9 @@ setMethod("asjob_wgcna", signature = c(x = "job_limma"),
     log_counts <- as_tibble(object$E)
     gene_annotation <- as_tibble(object$genes)
     log_counts[[1]] <- gene_annotation[[1]]
-    job_wgcna(select(object$targets, sample, group),
+    x <- job_wgcna(select(object$targets, sample, group),
       log_counts, gene_annotation)
+    return(x)
   })
 
 setMethod("meta", signature = c(x = "job_limma"),
@@ -1034,6 +1043,7 @@ prepare_expr_data <- function(metadata, counts, genes, message = TRUE)
   cli::cli_alert_info("Only keep samples record in `metadata`.")
   counts <- dplyr::select(counts, 1, dplyr::all_of(metadata$sample))
   if (ncol(counts) != nrow(metadata) + 1) {
+    message(glue::glue("Dim: {bind(dim(counts))}"))
     stop("ncol(counts) != nrow(metadata) + 1")
   }
   cli::cli_alert_info("`make.names` for sample names.")

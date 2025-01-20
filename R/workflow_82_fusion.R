@@ -34,3 +34,16 @@ setMethod("step1", signature = c(x = "job_fusion"),
     step_message("Quality control (QC).")
     return(x)
   })
+
+format_sumstats <- function(input, sample_size, output = "output")
+{
+  # https://github.com/bulik/ldsc/wiki/Summary-Statistics-File-Format
+  pg_py <- pg("ldscPython")
+  pg_path <- pg("ldsc")
+  pg_munge <- file.path(pg_path, "munge_sumstats.py")
+  input <- normalizePath(input)
+  # columns: SNP, N, Z, A1, A2
+  cdRun(glue::glue("{pg_py} {pg_munge} --sumstats {input} \\
+      --N {sample_size} \\
+      --out {output}"))
+}

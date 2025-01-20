@@ -75,7 +75,7 @@ setMethod("step1", signature = c(x = "job_wgcna"),
     raw_sample_tree.p <- wrap(recordPlot(), nrow(params(x)$datExpr0) * .8, nrow(params(x)$datExpr0))
     x@params$raw_sample_tree <- raw_sample_tree
     x@plots[[ 1 ]] <- list(raw_sample_tree = raw_sample_tree.p)
-    meth(x)$step1 <- glue::glue("以 R 包 `WGCNA` ({packageVersion('WGCNA')}) {cite_show('WgcnaAnRPacLangfe2008')} 对数据作共表达分析。分析方法参考 <{x@info}>。")
+    x <- methodAdd(x, "以 R 包 `WGCNA` ({packageVersion('WGCNA')}) {cite_show('WgcnaAnRPacLangfe2008')} 对数据作共表达分析。分析方法参考 <{x@info}>。")
     return(x)
   })
 
@@ -105,8 +105,11 @@ setMethod("step3", signature = c(x = "job_wgcna"),
     e(WGCNA::enableWGCNAThreads(cores))
     sft <- cal_sft(params(x)$datExpr, powers = powers)
     x@params$sft <- sft
-    x@plots[[ 3 ]] <- list(sft = wrap(plot_sft(sft), 10, 5))
-    meth(x)$step3 <- glue::glue("以 `WGCNA::pickSoftThreshold` 预测最佳 soft thresholding powers。")
+    p.sft <- wrap(plot_sft(sft), 10, 5)
+    p.sft <- .set_lab(p.sft, sig(x), "soft thresholding powers")
+    p.sft <- setLegend(p.sft, "WGCNA 软阈值筛选曲线。")
+    x@plots[[ 3 ]] <- list(sft = p.sft)
+    x <- methodAdd(x, "以 `WGCNA::pickSoftThreshold` 预测最佳 soft thresholding powers。")
     return(x)
   })
 
@@ -121,11 +124,14 @@ setMethod("step4", signature = c(x = "job_wgcna"),
     )
     e(WGCNA::enableWGCNAThreads(cores))
     net <- cal_module(params(x)$datExpr, power, ...)
-    if (!is(net, "wgcNet"))
+    if (!is(net, "wgcNet")) {
       net <- .wgcNet(net)
+    }
+    net <- .set_lab(net, sig(x), "co-expression module")
+    net <- setLegend(net, "为 WGCNA 创建的网络的基因共表达模块。")
     x@plots[[ 4 ]] <- list(net = net)
     x@params$MEs <- get_eigens(net)
-    meth(x)$step4 <- glue::glue("选择 power 为 {power}, 以 `WGCNA::blockwiseModules` 创建共表达网络，检测基因模块。")
+    x <- methodAdd(x, "选择 power 为 {power}, 以 `WGCNA::blockwiseModules` 创建共表达网络，检测基因模块。")
     return(x)
   })
 
