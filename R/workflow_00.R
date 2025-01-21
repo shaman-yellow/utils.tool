@@ -352,6 +352,8 @@ setMethod("snap", signature = c(x = "feature", ref = "logical"),
         if (add) {
           str <- paste0(str, glue::glue(", ...[n = {n}]"))
         }
+      } else {
+        str <- bind(str)
       }
       sep <- if (nchar(str)) ", " else ""
       glue::glue("{x@nature} ({str}{sep}{x@snap}) ")

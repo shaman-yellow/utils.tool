@@ -204,6 +204,14 @@ setMethod("step1", signature = c(x = "job_survival"),
     data <- dplyr::rename(object(x), time = !!rlang::sym(time),
       o_status = !!rlang::sym(status))
     if (time == "days_to_last_follow_up" || time == "days_to_death") {
+      p.density_follow_time <- ggplot(data) +
+        geom_density(aes(x = time / 365)) +
+        labs(x = "Time (year)")
+      p.density_follow_time <- .set_lab(p.density_follow_time, sig(x), "density of follow up time")
+      x$p.density_follow_time <- setLegend(
+        wrap(p.density_follow_time, 6, 2.5), 
+        "为随访时间整体分布趋势 (用于确定Time ROC 时间点) 。"
+      )
       data <- dplyr::mutate(data, time = time / 30)
     }
     cli::cli_alert_info("survival::survfit")
@@ -294,7 +302,7 @@ setMethod("step1", signature = c(x = "job_survival"),
     }
     feature(x) <- t.SignificantSurvivalPValue$name
     x <- tablesAdd(x, t.SurvivalPValue, t.SignificantSurvivalPValue)
-    x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。以 R 包 `timeROC` ({packageVersion('timeROC')}) 绘制 1, 3, 5 年生存曲线。")
+    x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。以 R 包 `timeROC` ({packageVersion('timeROC')}) 绘制 {bind(roc_time)} 年生存曲线。")
     return(x)
   })
 

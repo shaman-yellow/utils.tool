@@ -480,7 +480,9 @@ plot_genes_heatmap.elist <- function(normed_data, degs, use = "hgnc_symbol") {
 plot_genes_heatmap <- function(data, metadata) {
   data <- dplyr::rename(as_tibble(data), genes = rownames)
   data <- tidyr::pivot_longer(data, !genes, names_to = "sample", values_to = "expression")
-  data <- tbmerge(data, metadata, by = "sample", all.x = TRUE)
+  data <- tbmerge(
+    data, metadata, by = "sample", all.x = TRUE
+  )
   maxBreak <- max(ceiling(abs(range(data$expression))))
   # ComplexHeatmap::Heatmap
   tidyHeatmap::heatmap(dplyr::group_by(data, group), genes, sample, expression,
@@ -676,12 +678,13 @@ setMethod("asjob_wgcna", signature = c(x = "job_limma"),
         object <- object[ !duplicated(object$genes[[use]]), ]
       }
       rownames(object) <- object$genes[[ use ]]
-    }
-    filter_genes <- resolve_feature_snapAdd_onExit("x", filter_genes)
-    if (is(filter_genes, "list")) {
-      filter_genes <- unlist(filter_genes)
+      rownames(object$genes) <- object$genes[[ use ]]
     }
     if (!is.null(filter_genes)) {
+      filter_genes <- resolve_feature_snapAdd_onExit("x", filter_genes)
+      if (is(filter_genes, "list")) {
+        filter_genes <- unlist(filter_genes)
+      }
       object <- object[ object$genes[[ use ]] %in% filter_genes, ]
     }
     log_counts <- as_tibble(object$E)

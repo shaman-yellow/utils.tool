@@ -72,7 +72,13 @@ setMethod("step1", signature = c(x = "job_wgcna"),
     } else {
       raw_sample_tree <- draw_sampletree(params(x)$datExpr0)
     }
-    raw_sample_tree.p <- wrap(recordPlot(), nrow(params(x)$datExpr0) * .8, nrow(params(x)$datExpr0))
+    raw_sample_tree.p <- wrap(
+      recordPlot(), 
+      min(nrow(params(x)$datExpr0) * .4, 20), 
+      min(nrow(params(x)$datExpr0), 10)
+    )
+    raw_sample_tree.p <- .set_lab(raw_sample_tree.p, sig(x), "sample clustering")
+    raw_sample_tree.p <- setLegend(raw_sample_tree.p, "为样本聚类树")
     x@params$raw_sample_tree <- raw_sample_tree
     x@plots[[ 1 ]] <- list(raw_sample_tree = raw_sample_tree.p)
     x <- methodAdd(x, "以 R 包 `WGCNA` ({packageVersion('WGCNA')}) {cite_show('WgcnaAnRPacLangfe2008')} 对数据作共表达分析。分析方法参考 <{x@info}>。")
@@ -91,6 +97,8 @@ setMethod("step2", signature = c(x = "job_wgcna"),
         cut_tree(params(x)$raw_sample_tree, size, height))
       x@params$datExpr <- datExpr
       object(x) <- clip_data(object(x), datExpr)
+    } else {
+      x$datExpr <- x$datExpr0
     }
     x@params$allTraits <- as_wgcTrait(object(x))
     return(x)
@@ -127,38 +135,82 @@ setMethod("step4", signature = c(x = "job_wgcna"),
     if (!is(net, "wgcNet")) {
       net <- .wgcNet(net)
     }
-    net <- .set_lab(net, sig(x), "co-expression module")
+    x@params$MEs <- get_eigens(net)
+    ME_genes <- net$colors
+    ME_genes <- split(names(ME_genes), unname(ME_genes))
+    names(ME_genes) <- paste0("ME", names(ME_genes))
+    x$ME_genes <- ME_genes
+    x <- snapAdd(x, "以 power {power} (soft thresholding powers) 创建基因共表达模块 (各模块基因数：{try_snap(ME_genes)})。")
+    net <- .set_lab(
+      wrap(net, 7, 6), sig(x), "co-expression module"
+    )
     net <- setLegend(net, "为 WGCNA 创建的网络的基因共表达模块。")
     x@plots[[ 4 ]] <- list(net = net)
-    x@params$MEs <- get_eigens(net)
     x <- methodAdd(x, "选择 power 为 {power}, 以 `WGCNA::blockwiseModules` 创建共表达网络，检测基因模块。")
     return(x)
   })
 
 setMethod("step5", signature = c(x = "job_wgcna"),
-  function(x, traits = NULL){
+  function(x, traits = NULL, group_levels = NULL, cut.p = .05, cut.cor = 0)
+  {
     step_message("Correlation test for modules with trait data. ",
       "This do:",
       "Generate plots in `x@plots[[ 5 ]]`; ",
       "tables in `x@tables[[ 5 ]]`"
     )
+    if (is.null(traits) && !is.null(group_levels) && !is.null(object(x)$targets[[ "group" ]])) {
+      message(glue::glue("Use 'group' in `object(x)$targets`: {bind(group_levels)}."))
+      traits <- object(x)$targets
+      traits$group <- as.integer(factor(traits$group, levels = group_levels))
+      x <- snapAdd(x, "将 'group' 设置为数值变量 ({bind(group_levels)} 依次为 {bind(seq_along(group_levels))}) 与基因共表达模块关联分析。")
+    }
     if (!is.null(traits)) {
       .check_columns(traits, c("sample"))
+      message("Match rownames in expression data.")
       traits <- traits[match(rownames(x@params$datExpr), traits$sample), ]
       rownames <- traits$sample
+      message("The numeric columns will calculate correlation with expression data.")
       traits <- dplyr::select_if(traits, is.numeric)
       traits <- data.frame(traits)
-      rownames(traits) <- traits$sample
+      rownames(traits) <- rownames
       x@params$allTraits <- .wgcTrait(traits)
     }
-    if (is.null(params(x)$allTraits))
+    if (is.null(params(x)$allTraits)) {
       stop("is.null(params(x)$allTraits) == TRUE")
-    if (ncol(params(x)$allTraits) == 0)
+    }
+    if (ncol(params(x)$allTraits) == 0) {
       stop("ncol(params(x)$allTraits) == 0, no data in `allTraits`.")
-    hps_corp <- new_heatdata(params(x)$MEs, params(x)$allTraits)
-    hps_corp <- callheatmap(hps_corp)
-    x@plots[[ 5 ]] <- list(hps_corp = hps_corp)
-    x@tables[[ 5 ]] <- list(corp = hps_corp@data_long)
+    }
+    if (ncol(params(x)$allTraits) == 1) {
+      traitName <- colnames(params(x)$allTraits)
+      cor <- e(WGCNA::cor(params(x)$MEs, params(x)$allTraits, use = "p"))
+      pvalue <- e(WGCNA::corPvalueStudent(cor, nrow(params(x)$MEs)))
+      if (!identical(rownames(cor), rownames(pvalue))) {
+        stop('!identical(rownames(cor), rownames(pvalue))')
+      }
+      x$corp_group <- dplyr::bind_cols(cor, pvalue)
+      colnames(x$corp_group) <- c("cor", "pvalue")
+      x$corp_group <- dplyr::mutate(x$corp_group, MEs = rownames(!!cor), .before = 1)
+      x$corp_group <- .set_lab(
+        x$corp_group, sig(x), "correlation of module with", traitName 
+      )
+      x$corp_group <- setLegend(x$corp_group, "为共表达模块与 {traitName} 的关联性。")
+      sigModules <- dplyr::filter(
+        x$corp_group, abs(cor) > cut.cor, pvalue < cut.p
+      )$MEs
+      x <- snapAdd(
+        x, "筛选显著关联的共表达模块的基因 (pvalue &lt; {cut.p}, cor &gt; {cut.cor})。"
+      )
+      x$.feature <- as_feature(
+        x$ME_genes[ names(x$ME_genes) %in% sigModules ], x,
+        analysis = glue::glue("WGCNA 与 {traitName} 显著关联的共表达模块的基因")
+      )
+    } else {
+      hps_corp <- new_heatdata(params(x)$MEs, params(x)$allTraits)
+      hps_corp <- callheatmap(hps_corp)
+      x@plots[[ 5 ]] <- list(hps_corp = hps_corp)
+      x@tables[[ 5 ]] <- list(corp = hps_corp@data_long)
+    }
     return(x)
   })
 
@@ -221,8 +273,7 @@ plot_sft <- function(sft)
   p1 + p2
 }
 
-cal_module <- function(data, power, cut_hight = .25, min_size = 30, save_tom = "tom",
-  maxBlockSize = 25000, ...)
+cal_module <- function(data, power, save_tom = "tom", ...)
 {
   if (!is(data, "wgcData")) {
     stop("is(data, \"wgcData\") == FALSE")
@@ -230,11 +281,9 @@ cal_module <- function(data, power, cut_hight = .25, min_size = 30, save_tom = "
   require(WGCNA)
   net <- e(WGCNA::blockwiseModules(
       data, power = power,
-      TOMType = "unsigned", minModuleSize = min_size,
-      reassignThreshold = 0, mergeCutHeight = cut_hight,
+      TOMType = "unsigned", reassignThreshold = 0,
       numericLabels = TRUE, pamRespectsDendro = FALSE, loadTOM = TRUE,
-      saveTOMs = TRUE, saveTOMFileBase = save_tom,
-      maxBlockSize = maxBlockSize, verbose = 3, ...
+      saveTOMs = TRUE, saveTOMFileBase = save_tom, verbose = 3, ...
       ))
   .wgcNet(net)
 }

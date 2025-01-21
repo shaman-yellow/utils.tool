@@ -235,17 +235,19 @@ setMethod("step3", signature = c(x = "job_lasso"),
   })
 
 setMethod("step4", signature = c(x = "job_lasso"),
-  function(x, use_data = x$use_data, inherit_unicox = TRUE,
+  function(x, use_data = x$use_data, use_valid = use_data, inherit_unicox = TRUE,
     inherit_unicox.cut.p = NULL,
     fun = c("coxph", "glmnet", "cv.glmnet"), nfold = 10,
-    alpha = 1, family = "cox", type.measure = c("deviance", "C"), ...)
+    alpha = 1, family = "cox", type.measure = c(
+      "deviance", "C", "default"
+    ), ...)
   {
     step_message("Multivariate COX.")
     fun_multiCox <- match.arg(fun)
     type.measure <- match.arg(type.measure)
     data_lst <- x$get(use_data)
     data <- data_lst$data
-    valid_lst <- x$get("v")
+    valid_lst <- x$get(use_data)
     valid <- valid_lst$data
     x$nfold <- nfold
     if (family == "cox") {
@@ -275,7 +277,9 @@ setMethod("step4", signature = c(x = "job_lasso"),
       x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 做多因素 COX 回归 (`survival::coxph`)。", TRUE)
       x <- snapAdd(x, "执行多因素 COX 回归 (`survival::coxph`)。")
     } else if (fun_multiCox == "cv.glmnet") {
-      methodName <- if (alpha) "lasso" else "ridge"
+      methodName <- if (alpha == 1) "lasso"
+        else if (!alpha) "ridge"
+        else if (alpha > 0 && alpha < 1) "Elastic Net"
       set.seed(x$seed)
       multi_cox$model <- model <- e(glmnet::cv.glmnet(data, target,
           alpha = alpha, family = family, nfold = nfold, type.measure = type.measure, ...))
@@ -308,6 +312,7 @@ setMethod("step4", signature = c(x = "job_lasso"),
             n <- multi_cox$coef[, x]
             length(n[ n != 0 ])
           }, integer(1))
+        x$nfeature_lambdas <- s.com
         x <- snapAdd(x, "对应的特征数 (基因数) 分别为 {bind(s.com)}。")
         x <- tablesAdd(x, t.sigMultivariateCoxCoefficients = sig.mul_cox)
       }
@@ -481,6 +486,22 @@ setMethod("merge", signature = c(x = "job_lasso", y = "job_lasso"),
   } else {
     x
   }
+}
+
+multi_test_lasso <- function(x, ..., cut = 15,
+  n = 50, seeds = sample(seq_len(50000), n))
+{
+  jobs <- pbapply::pblapply(seeds, 
+    function(seed) {
+      x@step <- 3L
+      x$seed <- seed
+      step4(x, ...)
+    })
+  ns <- vapply(jobs, 
+    function(x) {
+      any(x$nfeature_lambdas <= cut) && all(x$nfeature_lambdas > 0)
+    }, logical(1))
+  list(jobs = jobs[ns], seeds = seeds[ns])
 }
 
 message_table <- function(freqs) {
