@@ -398,7 +398,7 @@ end_drive <- function(pattern = "[0-9]\\s*java.*-jar") {
 }
 
 get_table.html <- function(x, ...) {
-  if (file.exists(x)) {
+  if (length(x) == 1 && nchar(x) < 2000 && file.exists(x)) {
     str <- readLines(x)
   } else {
     str <- x

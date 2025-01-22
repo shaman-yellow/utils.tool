@@ -19,6 +19,19 @@ binary_search <- function(fun = function(x) x <= 5, low = 1, high = 12)
   return(low - 1)
 }
 
+add_filename_suffix <- function(file, suffix, sep = "_") {
+  if (is.null(file)) {
+    stop('is.null(file), no `file` specified.')
+  }
+  name <- tools::file_path_sans_ext(file)
+  ext <- tools::file_ext(file)
+  if (ext == "gz") {
+    ext <- paste0(tools::file_ext(name), ".", ext)
+    name <- tools::file_path_sans_ext(name)
+  }
+  paste0(name, sep, suffix, ".", ext)
+}
+
 new_from_package <- function(Class, package, ...) {
   ClassDef <- getClass("EList", where = asNamespace(package))
   value <- .Call(methods:::C_new_object, ClassDef)

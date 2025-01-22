@@ -79,7 +79,7 @@ setMethod("step0", signature = c(x = "job_ogwas"),
 
 setMethod("step1", signature = c(x = "job_ogwas"),
   function(x, ids, which = NULL, ref_genome = "GRCH38",
-    vcf_dir = .prefix("ogwas_vcf", "db"), 
+    vcf_dir = .prefix("ogwas_vcf", "db"),
     save_dir = .prefix("ogwas_data", "db"), try_catalog = TRUE)
   {
     step_message("Import gwas summary data")
@@ -111,6 +111,7 @@ setMethod("step1", signature = c(x = "job_ogwas"),
         )
       }
     }
+    object(x) <- dplyr::filter(object(x), id %in% !!ids)
     return(x)
   })
 
@@ -157,8 +158,8 @@ setMethod("step1", signature = c(x = "job_ogwas"),
     file <- file[menu(file, title = "Download which?")]
   }
   file_local <- file.path(db_dir, file)
+  file_url <- paste0(dir_url, "/", file)
   if (!file.exists(file_local)) {
-    file_url <- paste0(dir_url, "/", file)
     download.file(file_url, file_local)
   }
   res <- nl(id, file_local)

@@ -196,14 +196,14 @@ setMethod("expect", signature = c(x = "job_geo", ref = "ANY"),
     }
   })
 
-showStrings <- function(x, stat = TRUE) {
+showStrings <- function(x, stat = TRUE, trunc = TRUE) {
   if (any(duplicated(x))) {
     if (stat) {
       freq <- table(x)
       x <- paste0(names(freq), " (n=", unname(freq), ")")
     }
   }
-  if (length(x) > 10) {
+  if (length(x) > 10 && trunc) {
     x <- c(head(x, n = 10), "...")
   }
   stringr::str_wrap(bind("'", x, "'"), indent = 4, exdent = 4)

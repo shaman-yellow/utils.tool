@@ -2007,10 +2007,16 @@ writeJobSlotsAutoCompletion <- function(x, envir = .GlobalEnv) {
 }
 
 convertPlots <- function(x, n) {
+  gc <- FALSE
   if (length(x@plots) >= n) {
+    if (object.size(x@plots[[ n ]]) > 1e8) {
+      gc <- TRUE
+    }
     x@plots[[ n ]] <- rapply2_asWrap(x@plots[[ n ]], "gg.obj")
   }
-  gc()
+  if (gc) {
+    gc()
+  }
   x
 }
 
