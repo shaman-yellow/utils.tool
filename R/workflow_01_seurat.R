@@ -221,7 +221,8 @@ setMethod("step6", signature = c(x = "job_seurat"),
   function(x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = 1.5, filter.pct = .7,
     org = c("Human", "Mouse"),
     cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_cell",
-    method = c("gpt", "scsa"), n = 30, variable = TRUE)
+    method = c("gpt", "scsa"), 
+    n = 30, variable = FALSE, hp_type = c("pretty", "seurat"))
   {
     method <- match.arg(method)
     if (method == "gpt") {
@@ -302,8 +303,28 @@ setMethod("step6", signature = c(x = "job_seurat"),
         message(glue::glue("Post Markers excluded overlaps: {length(excluOverMarkers)}"))
         object(x)@meta.data[["ChatGPT_cell"]] <- gptCells
         ## heatmap
-        p.markers <- e(Seurat::DoHeatmap(object(x), features = excluOverMarkers,
-            group.by = "ChatGPT_cell", raster = TRUE, group.colors = color_set(), label = FALSE))
+        hp_type <- match.arg(hp_type)
+        if (hp_type == "seurat") {
+          p.markers <- e(Seurat::DoHeatmap(object(x), features = excluOverMarkers,
+              group.by = "ChatGPT_cell", raster = TRUE, group.colors = color_set(), label = FALSE))
+        } else if (hp_type == "pretty") {
+          avgExpr <- Seurat::AverageExpression(
+            object(x), features = excluOverMarkers,
+            assays = object(x)@active.assay,
+            group.by = "ChatGPT_cell", slot = "data"
+          )
+          avgExpr <- data.frame(avgExpr[[ 1 ]], check.names = FALSE)
+          avgExpr <- dplyr::rename(as_tibble(avgExpr), Gene = rownames)
+          avgExpr <- tidyr::pivot_longer(avgExpr, -Gene, names_to = "Cell", values_to = "Expression")
+          avgExpr <- dplyr::mutate(
+            avgExpr, Expression = log2(Expression + 1), 
+            Gene = factor(Gene, levels = excluOverMarkers)
+          )
+          p.markers <- tidyHeatmap::heatmap(
+            avgExpr, Gene, Cell, Expression, cluster_columns = FALSE, 
+            cluster_rows = FALSE
+          )
+        }
         p.markers <- .set_lab(p.markers, sig(x), "Markers in cell types")
         p.markers <- setLegend(p.markers, "为 ChatGPT 注释细胞群使用的首要 Marker 热图。")
         attr(p.markers, "lich") <- new_lich(namel(ChatGPT_Query = query$query, feedback), sep = "\n")
@@ -355,6 +376,11 @@ setMethod("step7", signature = c(x = "job_seurat"),
     x@params$group.by <- "cell_type"
     return(x)
   })
+
+as_type_group <- function(type, group) {
+  group <- paste0(type, "_", gs(group, "[0-9]*$", ""))
+  gs(make.names(group), "[.]+", "_")
+}
 
 setMethod("diff", signature = c(x = "job_seurat"),
   function(x, group.by, contrasts, name = "contrasts", force = TRUE)
@@ -850,7 +876,7 @@ scsa_annotation <- function(
   x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = .5,
   org = c("Human", "Mouse"),
   cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_annotation",
-  onlyUseRefMarkers = FALSE)
+  onlyUseRefMarkers = FALSE, ...)
 {
   if (grpl(tissue, "(?<!\\\\)\\s", perl = TRUE)) {
     tissue <- gs(tissue, "\\s", "\\\\ ")
@@ -935,7 +961,7 @@ parse_GPTfeedback <- function(feedback) {
 
 prepare_GPTmessage_for_celltypes <- function(tissue, marker_list, n = 10, toClipboard = TRUE)
 {
-  message <- glue::glue("Identify cell types of {tissue} cells using the following markers separately for each row. Only provide the cell type name (for each row). Show numbers before the name. Some can be a mixture of multiple cell types (separated by '; ', end with '. '). Then, provide at least 1 and at most 5 classical markers (as more as possible) that distinguish the cell type from other cells (separated by '; ').  (e.g., 1. X Cell; Y Cell. Marker1; Marker2; Marker3; Marker4; Marker5)")
+  message <- glue::glue("Identify cell types of {tissue} cells using the following markers separately for each row. Only provide the cell type name (for each row). Show numbers before the name. Some can be a mixture of multiple cell types (separated by '; ', end with '. '). Then, provide at least 1 and at most 5 markers  that distinguish the cell type from other cells (separated by '; ').  (e.g., 1. X Cell; Y Cell. Marker1; Marker2; Marker3)")
   message("`marker_list` should be table output from seurat (column: cluster, gene)")
   marker_list <- split(marker_list$gene, marker_list$cluster)
   ncluster <- length(marker_list)

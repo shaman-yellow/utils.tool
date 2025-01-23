@@ -410,6 +410,48 @@ setMethod("map", signature = c(x = "job_enrich", ref = "job_enrich"),
     return(x)
   })
 
+map_gene <- function(data, col,
+  from = "ENTREZID", to = "SYMBOL",
+  from_bm = "entrezgene_id", to_bm = "hgnc_symbol", try_bm = FALSE,
+  get = to, OrgDb = org.Hs.eg.db::org.Hs.eg.db, gname = TRUE)
+{
+  if (gname) {
+    data[[ get ]] <- gname(data[[ col ]])
+  } else {
+    data[[ get ]] <- data[[ col ]]
+  }
+  data <- dplyr::relocate(data, !!rlang::sym(get), .after = !!rlang::sym(col))
+  ids <- data[[ get ]]
+  if (any(duplicated(ids))) {
+    ids <- unique(ids)
+  }
+  annotation <- e(
+    suppressWarnings(clusterProfiler::bitr(
+      ids, fromType = from, toType = to,
+      OrgDb = OrgDb
+    ))
+  )
+  backup <- data[[ get ]]
+  data <- map(data, get, annotation, from, to, col = get)
+  funStat <- function() {
+    misFreq <- length(which(is.na(data[[ get ]]))) / nrow(data)
+    message(glue::glue("Missing '{to}': {misFreq} of data."))
+    return(misFreq)
+  }
+  misFreq <- funStat()
+  if (try_bm && misFreq > .3) {
+    message(glue::glue("Try biomaRt."))
+    mart <- new_biomart()
+    annotation <- filter_biomart(
+      mart, c(from_bm, to_bm), from_bm, ids
+    )
+    data[[ get ]] <- backup
+    data <- map(data, get, annotation, from_bm, to_bm, col = get)
+    funStat()
+  }
+  return(data)
+}
+
 get_genes.keggPath <- function(name) {
   if (!is(name, "character")) {
     stop("is(name, 'character')")

@@ -110,39 +110,146 @@ setMethod("step1", signature = c(x = "job_fusion"),
   })
 
 setMethod("step2", signature = c(x = "job_fusion"),
-  function(x, tissue = "Whole_Blood", from = "GTEx",
-    weights_dir = .prefix("fusion_weights", "db"))
+  function(x, tissue = "Whole_Blood", from = "GTEx", type = "all_samples_link",
+    dir_weights = .prefix("fusion_weights", "db"), force = FALSE)
   {
-    step_message("Compute TWAS score.")
-    if (!dir.exists(weights_dir)) {
-      dir.create(weights_dir)
+    step_message("Prepare TWAS weight file.")
+    if (!dir.exists(dir_weights)) {
+      dir.create(dir_weights)
     }
     file_candidates <- file.path(
-      weights_dir, paste0("items_", from, ".rds")
+      dir_weights, paste0("items_", from, ".rds")
     )
-    if (!file.exists(file_candidates)) {
+    if (!file.exists(file_candidates) || force) {
       url <- "http://gusevlab.org/projects/fusion/"
       str_html <- RCurl::getURL(url)
       lst <- get_table.html(str_html, elFun = tryGetLink.plantaedb)
       if (from == "GTEx") {
         cols <- c("Tissue", "All Samples", "link", "EUR Samples")
+        isThat <- vapply(lst, 
+          function(x) {
+            all(cols %in% colnames(x))
+          }, logical(1))
+        data_candidates <- lst[ isThat ][[1]]
+        colnames(data_candidates) <- c(
+          "tissue", "all_samples", "all_samples_link", "eur_samples", "eur_samples_link"
+        )
+        data_candidates <- as_tibble(data_candidates)
+        data_candidates <- dplyr::mutate(
+          data_candidates, dplyr::across(
+            dplyr::ends_with("link"),
+            function(x) sub(".* ### ", "", x)
+          )
+        )
+        saveRDS(data_candidates, file_candidates)
       } else {
         stop('from == "GTEx", no any other ...')
       }
-      isThat <- vapply(lst, 
-        function(x) {
-          all(cols %in% colnames(x))
-        }, logical(1))
-      data_candidates <- lst[ isThat ][[1]]
-      saveRDS(data_candidates, file_candidates)
     } else {
       data_candidates <- readRDS(file_candidates)
     }
-    x$data_candidates <- data_candidates
     if (missing(tissue)) {
-      message(showStrings(data_candidates[[ "Tissue" ]], FALSE, FALSE))
+      message(showStrings(data_candidates[[ "tissue" ]], FALSE, FALSE))
       stop("Please provide the `Tissue`.")
     }
+    candidate <- dplyr::filter(
+      data_candidates, grpl(tissue, !!tissue)
+    )
+    if (!nrow(candidate)) {
+      stop('!nrow(candidate), can not match.')
+    }
+    if (nrow(candidate) > 1) {
+      stop('nrow(candidate) > 1, too many candidate.')
+    }
+    file_weight <- file.path(dir_weights, basename(candidate[[ type ]]))
+    dir_untar <- tools::file_path_sans_ext(file_weight, TRUE)
+    x <- methodAdd(x,
+      "获取 {candidate$tissue} 组织的表达权重文件 (Expression Weights) (<{candidate[[type]]}>)。"
+    )
+    if (!dir.exists(dir_untar)) {
+      if (!file.exists(file_weight)) {
+        download.file(candidate[[ type ]], file_weight)
+      }
+      message(glue::glue("Decompressed '{file_weight}' to '{dir_untar}'."))
+      utils::untar(
+        normalizePath(file_weight, mustWork = FALSE), 
+        exdir = normalizePath(dir_untar)
+      )
+    }
+    file_pos <- file.path(
+      dir_untar, paste0(basename(dir_untar), ".pos")
+    )
+    if (!file.exists(file_pos)) {
+      stop('!file.exists(file_pos), file missing?')
+    }
+    x$weight_pos <- file_pos
+    x$weight_dir <- dir_untar
+    return(x)
+  })
+
+setMethod("step3", signature = c(x = "job_fusion"),
+  function(x, chrs = "all", dir_output = "fusion", 
+    cl = 3L, use = c("adjust.P", "P"), use.cut = .05)
+  {
+    step_message("TWAS: Performing the expression imputation.")
+    if (!requireNamespace("plink2R", quietly = TRUE)) {
+      stop('!requireNamespace("plink2R", quietly = TRUE), not installed?')
+    }
+    dir_output <- touch_dir(dir_output)
+    pg_dir <- pg("fusion")
+    file_script <- file.path(pg_dir, "FUSION.assoc_test.R")
+    dir_ref_ld <- file.path(pg_dir, "LDREF")
+    allChrs <- gs(list.files(dir_ref_ld, "bim$"), ".*\\.([0-9]+)\\.[^0-9]*", "\\1")
+    if (identical(chrs, "all")) {
+      message(glue::glue("Use all chromosome: {bind(allChrs)}"))
+      chrs <- allChrs
+    } else if (!any(as.character(chrs) %in% allChrs)) {
+      stop('!any(as.character(chrs) %in% allChrs), some not match?')
+    }
+    ref_ld_chr <- file.path(dir_ref_ld, "1000G.EUR.")
+    file_sumstats <- x$file_sumstats
+    outputs <- pbapply::pblapply(chrs, cl = cl,
+      function(chr) {
+        output <- file.path(
+          dir_output, paste0("chr_", chr, ".dat")
+        )
+        if (!file.exists(output)) {
+          cdRun(glue::glue("Rscript {file_script} \\
+              --sumstats {file_sumstats} \\
+              --weights {x$weight_pos} \\
+              --weights_dir {x$weight_dir} \\
+              --ref_ld_chr {ref_ld_chr} \\
+              --chr {chr} \\
+              --out {output}"
+              ))
+          if (!file.exists(output)) {
+            stop('!file.exists(output), not successfully?')
+          }
+        } else {
+          message(glue::glue("File {output} exists, skip imputation."))
+        }
+        return(output)
+      })
+    outputs <- frbind(lapply(outputs, 
+      function(file) {
+        x <- ftibble(file)
+        dplyr::mutate(x, TWAS.P.adjust = p.adjust(TWAS.P, "fdr"))
+      }))
+    outputs <- map_gene(outputs, "ID", "ENSEMBL")
+    use <- match.arg(use)
+    use <- switch(use, adjust.P = "TWAS.P.adjust", P = "TWAS.P")
+    outputs <- dplyr::arrange(outputs, !!rlang::sym(use))
+    sigOutputs <- dplyr::filter(outputs, !!rlang::sym(use) < !!use.cut)
+    sigOutputs <- setLegend(sigOutputs, "为 TWAS 显著统计表 ({use} &lt; {use.cut})。")
+    feature(x) <- sigOutputs$SYMBOL[ !is.na(sigOutputs$SYMBOL) ]
+    outputs <- setLegend(outputs, "为 TWAS 基因与疾病关联性统计结果，显著性 TWAS.P.adjust 由 TWAS.P 以染色体对应的基因数 (Expression Weights) FDR 校正计算。该表格的解释请参考 <http://gusevlab.org/projects/fusion/>。")
+    x <- tablesAdd(x, TWAS_statistic = outputs, TWAS_significant = sigOutputs)
+    x <- methodAdd(x, "以 `FUSION` {cite_show('IntegrativeAppGusev2016')} (<http://gusevlab.org/projects/fusion/>) 进行 TWAS 预测，得到基因与疾病之间的关联统计。")
+    chrs <- sort(as.integer(chrs))
+    if (identical(chrs, min(chrs):max(chrs))) {
+      chrs <- paste0(min(chrs), "-", max(chrs))
+    }
+    x <- snapAdd(x, "以 `FUSION` 预测基因与疾病之间的关联 (chromosome: {bind(chrs)})。(TWAS 能够提供 SNP 如何通过调控基因表达来影响表型的机制)")
     return(x)
   })
 

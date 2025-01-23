@@ -1214,9 +1214,20 @@ setMethod("pg", signature = c(x = "character"),
     }
   })
 
+touch_dir <- function(dir_output, check = TRUE) {
+  if (check && dir.exists(dir_output)) {
+    if (sureThat("dir.exists(dir_output), removed?")) {
+      unlink(dir_output, TRUE)
+    }
+  }
+  dir.create(dir_output, FALSE)
+  return(dir_output)
+}
+
 pg_local_recode <- function() {
   conda <- getOption("conda", "~/miniconda3")
   lst <- list(
+    fusion = "~/fusion_twas",
     ldscPython = "{conda}/bin/conda run -n ldsc python",
     ldsc = "~/ldsc",
     annovar = "~/disk_sda1/annovar",
