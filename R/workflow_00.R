@@ -16,6 +16,15 @@ setClassUnion("function_or_NULL", c("function", "NULL"))
     fun_check = NULL, pattern_recode = character(0), fun_mutate = NULL
     ))
 
+gcol <- general_col <- function(name, pattern, check = NULL, 
+  recode = character(0), mutate = NULL)
+{
+  .expect_col(
+    name = name, pattern_find = pattern, fun_check = check, 
+    pattern_recode = recode, fun_mutate = mutate
+  )
+}
+
 setMethod("show", signature = c(object = "expect_col"),
   function(object){
     content <- c(
@@ -951,7 +960,7 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
     if (!is.null(ref@global)) {
       x <- ref@global(x)
     }
-    if (length(ref@db_file)) {
+    if (length(ref@uniqueness) && length(ref@db_file)) {
       upd(ref, x)
     }
     if (!is.null(id)) {
