@@ -25,6 +25,15 @@ gcol <- general_col <- function(name, pattern, check = NULL,
   )
 }
 
+gcols <- general_cols <- function(..., global = NULL, 
+  uniqueness = character(0), db_file = character(0))
+{
+  .expect_cols(
+    list(...), global = global,
+    uniqueness = uniqueness, db_file = db_file
+  )
+}
+
 setMethod("show", signature = c(object = "expect_col"),
   function(object){
     content <- c(
@@ -826,7 +835,8 @@ set_hash_expect <- function(x, ref, id = NULL) {
 }
 
 setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
-  function(x, ref, force = FALSE, id = NULL, sleep = NULL, silent_select = TRUE)
+  function(x, ref, force = FALSE, id = NULL, sleep = NULL,
+    silent_select = TRUE, keep = TRUE)
   {
     if (!length(ref)) {
       stop('!length(ref), not found any "expect_col".')
@@ -948,6 +958,9 @@ setMethod("expect", signature = c(x = "data.frame", ref = "expect_cols"),
           )
           note <- crayon::silver(paste0("(From column: ", colnames(x)[which], ")"))
           message(glue::glue("Matched {crayon::yellow(i@name)} {note}:\n{show}"))
+          if (!keep && colnames(x)[which] != i@name) {
+            x <- x[, -which]
+          }
         } else {
           message(crayon::red("You selected 'Unknown', so the results will all be 'Unknown'."))
           x[[ i@name ]] <- "Unknown"
