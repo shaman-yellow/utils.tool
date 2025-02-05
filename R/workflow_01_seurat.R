@@ -383,10 +383,17 @@ as_type_group <- function(type, group) {
 }
 
 setMethod("diff", signature = c(x = "job_seurat"),
-  function(x, group.by, contrasts, name = "contrasts", force = TRUE)
+  function(x, group.by, contrasts, name = "contrasts", cut.fc = 1, cut.p = .5, force = TRUE)
   {
     if (is.data.frame(contrasts)) {
       contrasts <- apply(contrasts, 1, c, simplify = FALSE)
+    }
+    numCells <- table(x@object@meta.data[[ group.by ]])
+    cellsFew <- numCells[ numCells <= 3 ]
+    excluThat <- vapply(contrasts, function(x) any(x %in% names(cellsFew)), logical(1))
+    if (any(excluThat)) {
+      message(glue::glue("Some cells too few, exclude from contrasts ({bind(which(excluThat))})."))
+      contrasts <- contrasts[ !excluThat ]
     }
     if (is.null(x@params[[ name ]]) || force) {
       res <- e(lapply(contrasts,
@@ -401,8 +408,13 @@ setMethod("diff", signature = c(x = "job_seurat"),
       names(res) <- vapply(contrasts, function(x) paste0(x[1], "_vs_", x[2]), character(1))
       res <- dplyr::as_tibble(data.table::rbindlist(res, idcol = TRUE))
       res <- dplyr::rename(res, contrast = .id)
-      res <- dplyr::filter(res, p_val_adj < .05)
+      res <- dplyr::filter(res, p_val_adj < cut.p, abs(avg_log2FC) > cut.fc)
       res <- .set_lab(res, sig(x), "DEGs of the contrasts")
+      res <- setLegend(
+        res, "细胞群差异表达基因附表 (|log~2~(FC)| &gt; {cut.fc}, P-Adjust &lt; {cut.p})。"
+      )
+      init(snap(x)) <- TRUE
+      x <- snapAdd(x, "对细胞群差异分析 (依据 {group.by})，筛选差异表达基因。", step = "d")
       x@params[[ name ]] <- res
     } else {
       res <- x@params[[ name ]]
@@ -422,6 +434,7 @@ setMethod("diff", signature = c(x = "job_seurat"),
     x[[ paste0(name, "_intersection") ]] <- tops
     p.sets_intersection <- new_upset(lst = tops, trunc = NULL)
     p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "contrasts-DEGs-intersection")
+    p.sets_intersection <- setLegend(p.sets_intersection, "细胞群差异表达基因的 UpSet 交集图。")
     x[[ paste0("p.", name, "_intersection") ]] <- p.sets_intersection
     return(x)
   })
@@ -602,14 +615,18 @@ plot_qc.seurat <- function(x) {
 
 setMethod("vis", signature = c(x = "job_seurat"),
   function(x, group.by = x@params$group.by,
-    pt.size = .7, mode = c("cell", "sample"),
-    palette = x$palette, reduction = "umap", ...)
+    pt.size = .7, mode = c("cell", "sample", "type"),
+    palette = x$palette, reduction = "umap", type_pattern = "_[^_]+$", ...)
   {
     mode <- match.arg(mode)
     if (mode == "cell") {
       if (is.null(palette)) {
         palette <- color_set()
       }
+    } else if (mode == "type") {
+      groups <- unique(object(x)@meta.data[[ group.by ]])
+      patterns <- gs(groups, type_pattern, "")
+      palette <- pattern_gradientColor(patterns, groups)
     } else if (mode == "sample") {
       x <- mutate(x, Cell_Sample = paste0(!!rlang::sym(group.by), "_", orig.ident))
       groups <- unique(object(x)@meta.data[[ group.by ]])
@@ -635,10 +652,12 @@ setMethod("focus", signature = c(x = "job_seurat"),
         pt.size = 0, alpha = .3, cols = color_set()
         )))
     p.vln <- .set_lab(p.vln, sig(x), "violing plot of expression level of the genes")
+    p.vln <- setLegend(p.vln, "基因 {less(features)} 表达水平的小提琴图。")
     p.dim <- wrap(e(Seurat::FeaturePlot(
         object(x), features = features
         )))
     p.dim <- .set_lab(p.dim, sig(x), "dimension plot of expression level of the genes")
+    p.dim <- setLegend(p.dim, "基因 {less(features)} 表达水平的 Dimension reduction plot.")
     namel(p.vln, p.dim)
   })
 

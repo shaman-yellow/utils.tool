@@ -124,3 +124,38 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
     x <- snapAdd(x, "去除批次效应后 (详见方法章节) ，在 1-{max(dims)} PC 维度，{resolution} 分辨率下，对细胞群 UMAP 聚类。")
     return(x)
   })
+
+setMethod("asjob_limma", signature = c(x = "job_seurat"),
+  function(x, features, cells, cell_groups, group.by = x$group.by,
+    slot = "data", fun_norm = function(x) log2(x + 1), gname = TRUE)
+  {
+    metadata <- dplyr::mutate(
+      as_tibble(object(x)@meta.data), 
+      sample = rownames, group = !!rlang::sym(group.by), .before = 1
+    )
+    if (missing(cells) && !missing(cell_groups)) {
+      cells <- metadata[[ group.by ]] %in% cell_groups
+    }
+    metadata <- metadata[ cells, ]
+    assay <- object(x)@assays[[ object(x)@active.assay ]]
+    data <- SeuratObject::LayerData(object = assay, layer = slot)
+    genes <- data.frame(gene = rownames(data))
+    if (gname) {
+      genes <- dplyr::mutate(genes, gene = gname(gene))
+    }
+    if (is.character(features)) {
+      features <- genes$gene %in% features
+    }
+    genes <- genes[ features, , drop = FALSE]
+    data <- data[ features, cells ]
+    data <- data.frame(data, check.names = FALSE)
+    data <- fun_norm(data)
+    object <- new_from_package(
+      "EList", "limma", list(E = data, targets = metadata, genes = genes)
+    )
+    validObject(object)
+    x <- .job_limma()
+    x$normed_data <- object
+    return(x)
+  })
+

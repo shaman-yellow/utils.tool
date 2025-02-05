@@ -33,7 +33,7 @@ add_filename_suffix <- function(file, suffix, sep = "_") {
 }
 
 new_from_package <- function(Class, package, ...) {
-  ClassDef <- getClass("EList", where = asNamespace(package))
+  ClassDef <- getClass(Class, where = asNamespace(package))
   value <- .Call(methods:::C_new_object, ClassDef)
   initialize(value, ...)
 }

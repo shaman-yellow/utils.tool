@@ -2310,6 +2310,7 @@ setGeneric("map",
           job_append_heading(x, heading = x$.map_heading)
         }
       }
+      x$.map_heading <- NULL
       x$.map_step <- FALSE
       stepPostModify(x)
     } else {

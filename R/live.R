@@ -894,8 +894,8 @@ setMethod("pca_data.long", signature = c(x = "data_long.eset"),
     callNextMethod(x, NULL)
   })
 
-mx <- function(...){
-  design <- model.matrix(...)
+mx <- function(..., data){
+  design <- model.matrix(..., data = data)
   colnames(design) %<>% gsub(".*?group\\.?", "", .)
   colnames(design) %<>% gsub(".*?batch\\.?", "batch.", .)
   design
@@ -1135,15 +1135,19 @@ setMethod("callheatmap", signature = c(x = "heatdata"),
     if (any(c(y.reformat, x.reformat)) | is.null(x@main)) {
       x <- standby(x)
     }
+    message("Plot main panel.")
     x@gg_main <- do.call(x@fun_plot[[ "main" ]], c(list(x@data_long), x@aesn, list(HLs = HLs)))
+    message("Plot ygroup.")
     if (y.reformat) {
       if (any(colnames(x@ymeta) == x@y_aesn[[ x@aesh ]])) {
         args <- c(list(data = x@ymeta, p = NULL, pal = x@y_pal), x@y_aesn)
         x@gg_ygroup <- do.call(x@fun_plot[[ "ygroup" ]], args)
       }
     }
+    message("Plot tree.")
     x@gg_xtree <- x@fun_plot[[ "xtree" ]](x@main, x@para[[ "method" ]])
     x@gg_ytree <- x@fun_plot[[ "ytree" ]](x@main, x@para[[ "method" ]])
+    message("Plot xgroup.")
     if (x.reformat) {
       if (any(colnames(x@xmeta) == x@x_aesn[[ x@aesh ]])) {
         args <- c(list(data = x@xmeta, p = NULL, pal = x@x_pal), x@x_aesn)
@@ -1377,7 +1381,9 @@ setMethod("cal_corp", signature = c(x = "df", y = "df"),
     }
     if (fast) {
       cor <- agricolae::correlation(x, y)
+      message("as_data_long ...")
       data <- as_data_long(cor$correlation, cor$pvalue, row_var, col_var, "cor", "pvalue")
+      message("as_data_long finished.")
       .corp(add_anno(.corp(data)))
     } else {
       alls <- pbapply::pbapply(x, 2, simplify = FALSE,
@@ -1457,8 +1463,10 @@ setGeneric("add_anno",
 
 setMethod("add_anno", signature = c(x = "corp"),
   function(x){
-    min <- min(x$pvalue[x$pvalue != 0])
+    min <- min(x$pvalue[x$pvalue != 0], na.rm = TRUE)
     dplyr::mutate(tibble::as_tibble(data.frame(x)),
+      cor = ifelse(is.nan(cor), 0, cor),
+      pvalue = ifelse(is.nan(pvalue), 1, pvalue),
       `-log2(P.value)` = -log2(ifelse(pvalue == 0, min / 10, pvalue)),
       significant = ifelse(pvalue > .05, "> 0.05",
         ifelse(pvalue > .001, "< 0.05", "< 0.001")),

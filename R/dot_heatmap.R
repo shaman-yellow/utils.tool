@@ -126,7 +126,7 @@ dot_heatmap <- function(data, x = "sample", y = ".features_id",
   lab_x = "Sample", lab_y = "Feature ID", lab_color = "log2 (Feature level)",
   lab_size = "", lab_shape = NULL, HLs = NULL, ...)
 {
-  scale_color <- if ( 0L > min(data[[ color ]]) & 0L < max(data[[ color ]])) {
+  scale_color <- if ( 0L > min(data[[ color ]], na.rm = TRUE) && 0L < max(data[[ color ]], na.rm = TRUE)) {
     scale_color_gradient2(
       low = "#3182BDFF", high = "#A73030FF",
       limits = range(data[[ color ]])) 
@@ -158,6 +158,7 @@ dot_heatmap <- function(data, x = "sample", y = ".features_id",
       geom_hline <- geom_hline(yintercept = yintercept, linewidth = 4, color = "darkred", alpha = .3)
     }
   }
+  message("dot_heatmap ...")
   p <- ggplot(data, aes(x = !!rlang::sym(x), y = !!rlang::sym(y))) +
     geom_hline + geom_vline +
     geom_point +
@@ -170,6 +171,7 @@ dot_heatmap <- function(data, x = "sample", y = ".features_id",
       axis.text = element_text(face = "plain"),
       axis.text.x = element_blank()) +
     guides
+  message("dot_heatmap finished.")
   return(p)
 }
 

@@ -253,6 +253,50 @@ setMethod("step3", signature = c(x = "job_fusion"),
     return(x)
   })
 
+setMethod("map", signature = c(x = "job_seurat", ref = "job_fusion"),
+  function(x, ref, pattern = NULL, cut.pct = .1, use = "contrasts", 
+    plot_heatmap = FALSE, group.by = x$group.by)
+  {
+    message("Filter by Cell (`pattern`).")
+    if (ref@step < 3L) {
+      stop('ref@step < 3L...')
+    }
+    if (is.null(twas <- ref@tables$step3$TWAS_significant)) {
+      stop('is.null(ref@table$step3$TWAS_significant).')
+    }
+    twas <- dplyr::select(twas, SYMBOL, TWAS.Z, TWAS.P)
+    if (is.null(degs <- x[[ use ]])) {
+      stop('is.null(x[[ use ]]), no this DEGs list computed by `diff`?')
+    }
+    x <- snapAdd(x, "分析{snap(feature(ref))}是否在各个细胞群中差异表达。")
+    x$.map_heading <- "Seurat 细胞群中的 TWAS 风险相关基因"
+    fusion_degsAll <- degs <- tbmerge(degs, twas, by.x = "gene", by.y = "SYMBOL")
+    fusion_degsAll <- .set_lab(fusion_degsAll, sig(x), "TWAS associated genes of Cell Cluster DEGs")
+    x$fusion_degsAll <- setLegend(fusion_degsAll, "TWAS 风险相关的细胞群 DEGs。")
+    cell <- "细胞群"
+    if (!is.null(pattern)) {
+      degs <- dplyr::filter(degs, grpl(contrast, pattern))
+      cell <- "{pattern}"
+    }
+    filter <- ""
+    if (!is.null(cut.pct)) {
+      degs <- dplyr::filter(degs, pct.1 > cut.pct | pct.2 > cut.pct)
+      filter <- "(筛选至少有检出率 {cut.pct * 100}% 的细胞表达该基因)"
+    }
+    degs <- .set_lab(degs, sig(x), "Filtered TWAS associated genes of Cell Cluster DEGs")
+    degs <- setLegend(degs, "TWAS 风险相关的{cell} DEGs {filter}。")
+    x <- snapAdd(
+      x, "筛选 TWAS 风险相关的 DEGs {filter}：{try_snap(degs, 'contrast', 'gene')}。"
+    )
+    x$fusion_degs <- degs
+    if (plot_heatmap) {
+      x$fusion_p.hp <- e(Seurat::DoHeatmap(object(x), features = unique(degs$gene),
+          group.by = x$group.by, raster = TRUE, group.colors = color_set(),
+          slot = "data", label = FALSE))
+    }
+    return(x)
+  })
+
 format_sumstats <- function(input, SNP, A1, A2, Sign, N, output = "output")
 {
   # https://github.com/bulik/ldsc/wiki/Summary-Statistics-File-Format

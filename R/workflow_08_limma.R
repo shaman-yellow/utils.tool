@@ -154,7 +154,11 @@ setMethod("step1", signature = c(x = "job_limma"),
   function(x,
     group = .get_meta(x, "group"), batch = .get_meta(x, "batch"),
     pairs = .get_meta(x, "pairs"),
-    formula = .guess_formula(), design = mx(as.formula(formula)),
+    formula = .guess_formula(), 
+    design = mx(
+      as.formula(formula), 
+      data = tibble::tibble(group = group, batch = batch, pairs = pairs)
+    ),
     min.count = 10,
     no.rna_filter = if (x$normed) TRUE else FALSE,
     no.rna_norm = no.rna_filter,
@@ -173,7 +177,9 @@ setMethod("step1", signature = c(x = "job_limma"),
     data_type <- match.arg(data_type)
     plots <- list()
     s.com <- try_snap(if (x$normed) x$metadata else object(x)$sample, "group", "sample")
-    x <- snapAdd(x, "样本分组：{s.com}。", FALSE)
+    if (nchar(s.com) < 50) {
+      x <- snapAdd(x, "样本分组：{s.com}。", FALSE)
+    }
     if (x$rna || x$isTcga) {
       message("Data from RNA-seq.")
       if (!no.rna_filter && data_type == "count") {
@@ -366,7 +372,7 @@ setMethod("step2", signature = c(x = "job_limma"),
   })
 
 pattern_contrasts <- function(group, formula, pattern = paste0(signature, "$"),
-  signature)
+  signature, as.list = FALSE)
 {
   if (any(duplicated(group))) {
     group <- unique(group)
@@ -394,7 +400,11 @@ pattern_contrasts <- function(group, formula, pattern = paste0(signature, "$"),
   if (any(!lhs %in% group) || any(!rhs %in% group)) {
     stop('any(!lhs %in% group) || any(!rhs %in% group), string executed error.')
   }
-  paste0(lhs, " - ", rhs)
+  if (as.list) {
+    lapply(seq_along(lhs), function(n) c(lhs[n], rhs[n]))
+  } else {
+    paste0(lhs, " - ", rhs)
+  }
 }
 
 setMethod("group", signature = c(x = "job_limma"),
@@ -414,7 +424,9 @@ setMethod("group", signature = c(x = "job_limma"),
 
 setMethod("step3", signature = c(x = "job_limma"),
   function(x, names = NULL, use = "all", use.gene = .guess_symbol(x),
-    fun_filter = rm.no, trunc = NULL)
+    fun_filter = rm.no, trunc = NULL,
+    signature = if (is.null(x$from_scfea)) "DEGs" else "DMFs",
+    gname = is.null(x$from_scfea))
   {
     step_message("Sets intersection.")
     tops <- x@tables$step2$tops
@@ -436,9 +448,11 @@ setMethod("step3", signature = c(x = "job_limma"),
         lst <- list(up = up, down = down)
         lapply(lst, fun_filter)
       })
-    tops <- lapply(tops, function(x) lapply(x, gname))
+    if (gname) {
+      tops <- lapply(tops, function(x) lapply(x, gname))
+    }
     if (length(tops) == 1) {
-      x <- snapAdd(x, "上调或下调 DEGs 统计：{try_snap(tops[[1]])}")
+      x <- snapAdd(x, "上调或下调 {signature} 统计：{try_snap(tops[[1]])}")
       x$.feature <- tops
     } else {
       names(tops) <- gs(names(tops), "-", "vs")
@@ -446,10 +460,10 @@ setMethod("step3", signature = c(x = "job_limma"),
       s.com <- vapply(tops, try_snap, character(1))
       s.com <- paste0("- ", names(s.com), "：", s.com, "。")
       s.com <- paste0(s.com, collapse = "\n")
-      x <- snapAdd(x, "各组差异分析 DEGs 统计：\n\n {s.com}\n\n")
+      x <- snapAdd(x, "各组差异分析 {signature} 统计：\n\n {s.com}\n\n")
       sfun <- function(which) length(unique(unlist(lapply(tops, function(x) x[[ which ]]))))
-      x <- snapAdd(x, "所有上调 DEGs 共 {sfun('up')} 个，所有下调 DEGs 共 {sfun('down')} 个。")
-      x <- snapAdd(x, "所有非重复基因共 {length(unique(unlist(tops)))} 个。")
+      x <- snapAdd(x, "所有上调 {signature} 共 {sfun('up')} 个，所有下调 {signature} 共 {sfun('down')} 个。")
+      x <- snapAdd(x, "所有非重复 {signature} 共 {length(unique(unlist(tops)))} 个。")
       tops <- unlist(tops, recursive = FALSE)
       x$sets_intersection <- tops
       message("The guess use dataset combination of:\n",
@@ -459,8 +473,12 @@ setMethod("step3", signature = c(x = "job_limma"),
           intersect(tops[[ 1 ]], tops[[ 4 ]]),
           intersect(tops[[ 2 ]], tops[[ 3 ]])
           ))
-      p.hp <- plot_genes_heatmap.elist(x$normed_data, unlist(tops), use.gene)
-      p.hp <- .set_lab(wrap(p.hp), sig(x), "Heatmap of DEGs")
+      if (is.null(x$from_scfea)) {
+        p.hp <- plot_genes_heatmap.elist(x$normed_data, unlist(tops), use.gene)
+        p.hp <- .set_lab(wrap(p.hp), sig(x), "Heatmap of {signature}")
+      } else {
+        p.hp <- NULL
+      }
       p.sets_intersection <- new_upset(lst = tops, trunc = trunc)
       p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "Difference", "intersection")
       x@plots[[ 3 ]] <- namel(p.sets_intersection, p.hp)
@@ -470,6 +488,9 @@ setMethod("step3", signature = c(x = "job_limma"),
 
 plot_genes_heatmap.elist <- function(normed_data, degs, use = "hgnc_symbol") {
   degs <- unique(degs)
+  if (is(normed_data, "list")) {
+    normed_data <- new_from_package("EList", "limma", normed_data)
+  }
   normed_data <- normed_data[ normed_data$genes[[ use ]] %in% degs, ]
   rownames(normed_data) <- normed_data$genes[[ use ]]
   metadata <- dplyr::select(as_tibble(normed_data$targets), sample, group)
@@ -715,19 +736,28 @@ setMethod("tops", signature = c(x = "job_limma"),
   })
 
 setMethod("cal_corp", signature = c(x = "job_limma", y = "job_limma"),
-  function(x, y, from, to, names = NULL, use = .guess_symbol(x),
-    theme = NULL, HLs = NULL, mode = c("heatmap", "linear"))
+  function(x, y, from, to, names = NULL, use.x = .guess_symbol(x), 
+    use.y = .guess_symbol(y),
+    theme = NULL, HLs = NULL, mode = c("heatmap", "linear"), gname = TRUE)
   {
     message("Filter out others.")
     eval(use)
     sigs <- c(x@sig, y@sig)
     x <- x$normed_data
-    x <- x[x$genes[[ use ]] %in% from, ]
+    fun_trans <- function(object) {
+      if (is(object, "list")) {
+        object <- new_from_package("EList", "limma", object)
+      }
+      return(object)
+    }
+    x <- fun_trans(x)
+    x <- x[x$genes[[ use.x ]] %in% from, ]
     if (!nrow(x)) {
       stop('!nrow(x), No any genes found')
     }
     y <- y$normed_data
-    y <- y[y$genes[[ use ]] %in% to, ]
+    y <- fun_trans(y)
+    y <- y[y$genes[[ use.y ]] %in% to, ]
     if (!nrow(y)) {
       stop('!nrow(y), No any genes found')
     }
@@ -738,22 +768,26 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_limma"),
     }
     x <- x[, x$targets$sample %in% commonSample]
     y <- y[, y$targets$sample %in% commonSample]
-    message("`rbind` for genes.")
+    message("`rbind` for data.")
     x$E <- rbind(x$E, y$E)
-    x$genes <- rbind(x$genes, y$genes)
+    message("`rbind` for genes.")
+    x$genes <- rbind(
+      dplyr::select(x$genes, NAME = !!rlang::sym(use.x)),
+      dplyr::select(y$genes, NAME = !!rlang::sym(use.y))
+    )
     newjob <- .job_limma(params = list(normed_data = x))
-    x <- cal_corp(newjob, NULL, from, to, names, use, theme, HLs, mode)
-    snap(x) <- c(
-      list(step0 = glue::glue("将两组相同样品来源的数据集 (dataset: {bind(sigs)})
-        ) 关联分析。")),
-      step1 = snap(x)[[1]])
+    x <- cal_corp(
+      newjob, NULL, from, to, names, "NAME", theme, HLs, mode, gname = gname
+    )
+    message("Reset snap.")
+    snap(x)[[ "step0" ]] <- glue::glue("将两组相同样品来源的数据集 (dataset: {bind(sigs)})) 关联分析。")
     x
   })
 
 setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
   function(x, y, from, to, names = NULL, use = .guess_symbol(x),
     theme = NULL, HLs = NULL, mode = c("heatmap", "linear"), 
-    cut.cor = .3, cut.p = .05)
+    cut.cor = .3, cut.p = .05, gname = TRUE)
   {
     mode <- match.arg(mode)
     data <- as_tibble(x@params$normed_data$E)
@@ -776,16 +810,22 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
       }
     }
     if (mode == "heatmap") {
-      lst <- .cal_corp.elist(data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = TRUE)
+      cli::cli_alert_info(".cal_corp.elist")
+      lst <- .cal_corp.elist(
+        data, anno, use, unique(from), 
+        unique(to), names, HLs = HLs, fast = TRUE, gname = gname
+      )
+      message("Correlation finished.")
       if (length(unique(from)) >= 1 && length(unique(to)) >= 1) {
         lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
         lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), theme, "significant correlation")
       }
-      snapAdd_onExit("x", "共得到 {nrow(lst$sig.corp)} 个显著的基因对 (P &lt; {cut.p})。")
+      snapAdd_onExit("x", "共得到 {nrow(lst$sig.corp)} 个显著的关联对 (P &lt; {cut.p})。")
     } else if (mode == "linear") {
       lst <- list()
       lst$corp <- .cal_corp.elist(
-        data, anno, use, unique(from), unique(to), names, HLs = HLs, fast = FALSE
+        data, anno, use, unique(from), 
+        unique(to), names, HLs = HLs, fast = FALSE, gname = gname
       )
       lst$sig.corp <- dplyr::filter(lst$corp, cor >= cut.cor, pvalue < cut.p)
       lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), "significant correlation analysis data")
@@ -804,24 +844,32 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
       analysis = "关联分析", sig = x@sig
     )
     x$.feature <- list(from = x$res$sig.corp$From, to = x$res$sig.corp$To)
+    message("return 'job'.")
     return(x)
   })
 
-.cal_corp.elist <- function(data, anno, use, from, to, names, HLs = NULL, fast = TRUE)
+.cal_corp.elist <- function(data, anno, use, from, 
+  to, names, HLs = NULL, fast = TRUE, gname = TRUE)
 {
   if (is.null(data$rownames)) {
     data <- as_tibble(data)
   }
   data$rownames <- anno[[ use ]]
   colnames(data)[1] <- use
-  data <- dplyr::mutate(data, symbol = gname(!!rlang::sym(use)))
+  if (gname) {
+    data <- dplyr::mutate(data, symbol = gname(!!rlang::sym(use)))
+  } else {
+    data <- dplyr::mutate(data, symbol = !!rlang::sym(use))
+  }
   if (use != "symbol") {
     data <- dplyr::select(data, -!!rlang::sym(use))
     data <- dplyr::relocate(data, symbol)
   }
   lst <- lapply(list(from, to),
     function(set) {
-      set <- gname(set)
+      if (gname) {
+        set <- gname(set)
+      }
       data <- dplyr::filter(data, symbol %in% dplyr::all_of(set))
       dplyr::distinct(data, symbol, .keep_all = TRUE)
     })
@@ -831,6 +879,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
   } else {
     corp <- cal_corp(lst[[1]], lst[[2]], names[[1]], names[[2]], trans = TRUE, fast = fast)
   }
+  message("Correlation computation finished.")
   if (fast) {
     sig.corp <- dplyr::filter(tibble::as_tibble(corp), sign != "-")
     if (length(from) > 1 && length(to) > 1) {

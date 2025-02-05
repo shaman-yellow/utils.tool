@@ -279,7 +279,7 @@ preset_group_string <- function(x) {
       knit_strings(paste0(ch, collapse = " "))
     }, character(1)
   )
-  x <- gs(x, " ", "_")
+  x <- gs(x, " |-", "_")
   message(crayon::yellow("[Function: preset_group_string] Final results:\n"), showStrings(x))
   return(x)
 }
