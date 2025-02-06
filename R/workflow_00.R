@@ -2304,6 +2304,7 @@ setGeneric("map",
       x$.map_step <- TRUE
     }
     x <- standardGeneric("map")
+    x$.map_step <- FALSE
     if (is(x, "job")) {
       if (identical(parent.frame(1), .GlobalEnv)) {
         if (!is.null(x$.map_heading)) {
@@ -2311,7 +2312,6 @@ setGeneric("map",
         }
       }
       x$.map_heading <- NULL
-      x$.map_step <- FALSE
       stepPostModify(x)
     } else {
       x

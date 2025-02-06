@@ -354,7 +354,7 @@ setMethod("step2", signature = c(x = "job_limma"),
       }
     )
     p.volcano <- .set_lab(p.volcano, sig(x), gs(names(p.volcano), "-", "vs"))
-    p.volcano <- setLegend(p.volcano, "为 {names(p.volcano)} 差异分析火山图。")
+    p.volcano <- setLegend(p.volcano, glue::glue("为 {names(p.volcano)} 差异分析火山图。"))
     lab(p.volcano) <- paste(sig(x), "volcano plot")
     plots <- c(plots, namel(p.volcano))
     tables <- namel(tops)
@@ -781,6 +781,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_limma"),
     )
     message("Reset snap.")
     snap(x)[[ "step0" ]] <- glue::glue("将两组相同样品来源的数据集 (dataset: {bind(sigs)})) 关联分析。")
+    x$.cal_corp_heading <- c("关联分析")
     x
   })
 
@@ -818,7 +819,11 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
       message("Correlation finished.")
       if (length(unique(from)) >= 1 && length(unique(to)) >= 1) {
         lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
+        lst$hp <- setLegend(lst$hp, "为关联分析 ({bind(names)}) 热图。")
         lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), theme, "significant correlation")
+        lst$sig.corp <- setLegend(
+          lst$sig.corp, "为关联分析统计附表 (P-value cutoff: 0.05)。"
+        )
       }
       snapAdd_onExit("x", "共得到 {nrow(lst$sig.corp)} 个显著的关联对 (P &lt; {cut.p})。")
     } else if (mode == "linear") {

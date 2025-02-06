@@ -1358,7 +1358,16 @@ setMethod("show", signature = c(object = "wrap"),
   prototype = NULL)
 
 setGeneric("cal_corp", 
-  function(x, y, ...) standardGeneric("cal_corp"))
+  function(x, y, ...) {
+    x <- standardGeneric("cal_corp")
+    if (identical(parent.frame(1), .GlobalEnv)) {
+      if (!is.null(x$.cal_corp_heading)) {
+        job_append_heading(x, heading = x$.cal_corp_heading)
+      }
+      x$.cal_corp_heading <- NULL
+    }
+    return(x)
+  })
 
 setMethod("cal_corp", signature = c(x = "df", y = "df"),
   function(x, y, row_var = "row_var", col_var = "col_var", trans = FALSE, fast = TRUE)

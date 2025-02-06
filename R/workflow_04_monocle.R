@@ -25,8 +25,15 @@ setMethod("do_monocle", signature = c(x = "job_seurat", ref = "character"),
   function(x, ref, dims = 1:15, resolution = 1.2, group.by = x@params$group.by)
   {
     x <- getsub(x, cells = grp(x@object@meta.data[[group.by]], ref))
+    snapAdd_onExit("x", "从 `Seurat` 数据对象 {group.by} 中提取 {ref} 类型的细胞，对其重新聚类分析。")
     x@step <- 2L
     sr_sub <- step3(x, dims, resolution)
+    methodAdd_onExit("x", "从 `Seurat` 数据对象 {group.by} 中提取 {ref} 类型的细胞，对其重新聚类分析。")
+    methodAdd_onExit("x", sr_sub@meth[[ "step3" ]])
+    methodAdd_onExit(
+      "x", "使用 `SeuratWrappers` (`SeuratWrappers::as.cell_data_set`, 参考 <http://htmlpreview.github.io/?https://github.com/satijalab/seurat-wrappers/blob/master/docs/monocle3.html>) 将 `Seurat` 转化为 `Monocle3` 的 `cell_data_set` 数据。该转化将继承 `Seurat` 前期分析的 PCA、UMAP 等聚类结果，用于 `Monocle3` 的拟时分析，使前后分析一致。"
+    )
+    snapAdd_onExit("x", "将 `Seurat` 数据对象转化为 `Monocle3` 数据对象 (详见方法章节)。")
     x <- asjob_monocle(sr_sub, "seurat_clusters")
     x$sr_sub <- sr_sub
     return(x)
@@ -108,7 +115,12 @@ setMethod("step1", signature = c(x = "job_monocle"),
       object(x) <- e(monocle3::preprocess_cds(object(x), norm_method = norm_method))
     }
     object(x) <- e(monocle3::cluster_cells(object(x)))
+    x <- methodAdd(
+      x, "以 `monocle3::cluster_cells` 计算细胞群的 'clusters' 和 'partitions'。"
+    )
     object(x) <- e(monocle3::learn_graph(object(x)))
+    x <- methodAdd(x, "以 `monocle3::learn_graph` 从高维空间 (high-dimensional space) 中构建 'trajectory'。")
+    x <- snapAdd(x, "构建轨迹图 (Trajectory)。")
     p.traj <- e(sapply(groups, simplify = FALSE,
         function(group) {
           p <- monocle3::plot_cells(object(x), color_cells_by = group,
@@ -128,6 +140,7 @@ setMethod("step1", signature = c(x = "job_monocle"),
     p.prin <- p.prin + scale_color_manual(values = palette)
     p.prin <- wrap(p.prin, 10, 7)
     p.prin <- .set_lab(p.prin, sig(x), "principal points")
+    p.prin <- setLegend(p.prin, "为拟时轨迹与 principal point 示意。")
     x@plots[[ 1 ]] <- namel(p.traj, p.prin)
     return(x)
   })
@@ -141,12 +154,15 @@ setMethod("step2", signature = c(x = "job_monocle"),
       else, directly passed to param `root_pr_nodes`.
       "
     )
+    x <- methodAdd(x, "选择 {bind(roots)} (principle points) 为拟时起点，以 `monocle3::order_cells` 将细胞排序，随后构建细胞拟时变化图。")
+    x <- snapAdd(x, "选择 {bind(roots)} (principle points) 为拟时起点。")
     if (!is.null(names(roots))) {
       if (length(roots) > 1)
         stop("With name of `roots`, but length(roots) > 1")
       roots <- get_earliest_principal_nodes(object(x), names(roots), unname(roots))
     }
     object(x) <- e(monocle3::order_cells(object(x), root_pr_nodes = roots))
+    x <- snapAdd(x, "构建细胞的拟时变化图 (Pseudotime)。")
     p.pseu <- e(monocle3::plot_cells(
         object(x), color_cells_by = "pseudotime",
         label_cell_groups = FALSE, label_leaves = FALSE,
@@ -154,6 +170,7 @@ setMethod("step2", signature = c(x = "job_monocle"),
         cell_size = x$pt.size, cell_stroke = 0, alpha = .7
         ))
     p.pseu <- wrap(p.pseu, 6, 5)
+    p.pseu <- setLegend(p.pseu, "为细胞拟时图。")
     p.pseu <- .set_lab(p.pseu, sig(x), "pseudotime")
     x@plots[[ 2 ]] <- namel(p.pseu)
     return(x)
@@ -200,6 +217,8 @@ setMethod("step3", signature = c(x = "job_monocle"),
         fit_goodness <- x@tables[[ 3 ]]$fit_goodness
       }
     }
+    x <- methodAdd(x, "以 `monocle3::graph_test` 寻找单细胞拟时轨迹中差异表达的基因。")
+    x <- snapAdd(x, "寻找单细胞拟时轨迹 (`monocle3::graph_test`) 中差异表达的基因。")
     if (is.null(x@tables[[ 3 ]]$graph_test)) {
       graph_test <- e(monocle3::graph_test(object(x), neighbor_graph = "knn", cores = cores))
       graph_test <- as_tibble(graph_test)
@@ -207,6 +226,7 @@ setMethod("step3", signature = c(x = "job_monocle"),
       graph_test.sig <- dplyr::arrange(graph_test.sig, dplyr::desc(morans_I), q_value)
       graph_test.sig <- dplyr::rename(graph_test.sig, gene_id = 1)
       graph_test.sig <- .set_lab(graph_test.sig, sig(x), "Graph Test Significant genes")
+      graph_test.sig <- setLegend(graph_test.sig, "为 Moran’s I test (Graph Test) 筛选的差异表达基因 (Q-value cutoff: 0.05)。")
     } else {
       graph_test <- x@tables[[ 3 ]]$graph_test
       graph_test.sig <- x@tables[[ 3 ]]$graph_test.sig
@@ -274,8 +294,10 @@ setMethod("step4", signature = c(x = "job_monocle"),
           if (!is.null(groups)) {
             cds <- fun_sub(cds,
               rownames(cds) %in% genes,
-              colData(cds)[[ x@params$group.by ]] %in% groups
+              colData(cds)[[ group.by ]] %in% groups
             )
+          } else {
+            cds <- fun_sub(cds, rownames(cds) %in% genes, )
           }
           p <- monocle3::plot_genes_in_pseudotime(cds,
             label_by_short_name = FALSE,
@@ -284,6 +306,7 @@ setMethod("step4", signature = c(x = "job_monocle"),
           )
           data <- p$data
           p <- wrap(p, 6, length(genes) * 1.6)
+          p <- setLegend(p, "为 {bind(genes)} 在拟时 (Pseudotime) 中的表达变化。")
           namel(p, data)
         }))
     names(genes_in_pseudotime) <- paste0("pseudo", seq_along(genes_in_pseudotime))
@@ -298,6 +321,10 @@ setMethod("step4", signature = c(x = "job_monocle"),
         wrap(p, 7, 2.5)
       })
     genes_in_pseudotime <- lapply(genes_in_pseudotime, function(x) x$p)
+    genes_in_pseudotime <- .set_lab(
+      genes_in_pseudotime, sig(x), 
+      paste0("Set", seq_along(genes_in_pseudotime)), "genes in pseudotime"
+    )
     x@plots[[ 4 ]] <- namel(genes_in_pseudotime, plot_density)
     x@tables[[ 4 ]] <- namel(dat_genes_in_pseudotime)
     return(x)
@@ -438,8 +465,13 @@ setMethod("map", signature = c(x = "job_monocle", ref = "character"),
     }
     seurat <- seurat[ rownames(seurat) %in% ref, ]
     pseudotime <- monocle3::pseudotime(x@object)
+    title <- ""
     if (!is.null(branches)) {
       # branches: list(c("Y_start", "Y_end"))
+      title <- bind(
+        vapply(branches, bind, character(1), co = " -> "), co = ";"
+      )
+      title <- paste0("在 Branch {title}")
       branches <- get_branches.mn(x, branches)
       hpMode <- "normal"
       if (length(branches) == 2) {
@@ -501,7 +533,8 @@ setMethod("map", signature = c(x = "job_monocle", ref = "character"),
     # ComplexHeatmap::top_annotation
     # ComplexHeatmap::HeatmapAnnotation
     p.hp <- .set_lab(p.hp, sig(x), "Pseudotime heatmap of genes")
-    .append_heading("Pseudotime Heatmap")
+    p.hp <- setLegend(p.hp, "为基因 ({less(ref)}) 表达{title}拟时热图。")
+    # .append_heading("Pseudotime Heatmap")
     p.hp
   })
 

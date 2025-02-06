@@ -204,6 +204,7 @@ setMethod("step5", signature = c(x = "job_seurat"),
     }
     all_markers_no_filter <- markers
     markers <- dplyr::filter(markers, p_val_adj < .05)
+    markers <- .set_lab(markers, sig(x), "significant markers of cell clusters")
     markers <- setLegend(markers, "为所有细胞群的 Marker (LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}; 矫正 P 值阈值 {0.05})")
     tops <- dplyr::slice_max(dplyr::group_by(markers, cluster), avg_log2FC, n = 10)
     if (FALSE) {
@@ -325,9 +326,14 @@ setMethod("step6", signature = c(x = "job_seurat"),
             cluster_rows = FALSE
           )
         }
-        p.markers <- .set_lab(p.markers, sig(x), "Markers in cell types")
+        p.markers <- .set_lab(wrap(p.markers), sig(x), "Markers in cell types")
         p.markers <- setLegend(p.markers, "为 ChatGPT 注释细胞群使用的首要 Marker 热图。")
-        attr(p.markers, "lich") <- new_lich(namel(ChatGPT_Query = query$query, feedback), sep = "\n")
+        attr(p.markers, "lich") <- new_lich(
+          namel(
+            ChatGPT_Query = gs(query$query, "\n", ". "), 
+            gs(feedback, "\n", ". ")
+          ), sep = "\n"
+        )
         t.gptRes <- setLegend(res$data, "为 ChatGPT-4 对细胞类型的注释。")
         x <- tablesAdd(x, t.ChatGPT4_cell_types_annotation = t.gptRes)
         ## dim plot
@@ -411,7 +417,7 @@ setMethod("diff", signature = c(x = "job_seurat"),
       res <- dplyr::filter(res, p_val_adj < cut.p, abs(avg_log2FC) > cut.fc)
       res <- .set_lab(res, sig(x), "DEGs of the contrasts")
       res <- setLegend(
-        res, "细胞群差异表达基因附表 (|log~2~(FC)| &gt; {cut.fc}, P-Adjust &lt; {cut.p})。"
+        res, "细胞群差异表达基因附表 (其中 'contrast' 列为比较的两类细胞) (|log~2~(FC)| &gt; {cut.fc}, P-Adjust &lt; {cut.p})。"
       )
       init(snap(x)) <- TRUE
       x <- snapAdd(x, "对细胞群差异分析 (依据 {group.by})，筛选差异表达基因。", step = "d")
@@ -639,6 +645,7 @@ setMethod("vis", signature = c(x = "job_seurat"),
             object(x), reduction = reduction, label = FALSE, pt.size = pt.size,
             group.by = group.by, cols = palette, ...
             ))), 7, 4)
+    p <- setLegend(p, "为 {group.by} 的 {reduction} 聚类图。")
     .set_lab(p, sig(x), "The", gs(group.by, "_", "-"))
   })
 

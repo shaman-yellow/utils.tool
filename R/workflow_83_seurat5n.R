@@ -92,6 +92,11 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
   function(x, dims = 1:15, resolution = 2, use = c("HarmonyIntegration", "CCAIntegration"))
   {
     step_message("Identify clusters of cells")
+    if (!is.null(x$JoinLayers) && x$JoinLayers) {
+      message("Job is 'job_seurat5n', but 'JoinLayers' has been performed, so `callNextMethod`.")
+      x <- callNextMethod(x, dims, resolution, reduction = "pca")
+      return(x)
+    }
     object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims, reduction = "pca"))
     object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution,
         cluster.name = "unintegrated_clusters"))
@@ -122,6 +127,7 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
     x@plots[[ 3 ]] <- c(x@plots[[ 3 ]], plots)
     x <- methodAdd(x, "以 `Seurat::IntegrateLayers` 集成数据，去除批次效应 (使用 {use} 方法)。在 1-{max(dims)} PC 维度下，以 `Seurat::FindNeighbors` 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 `Seurat::FindClusters` 函数识别细胞群并以 `Seurat::RunUMAP` 进行 UMAP 聚类。")
     x <- snapAdd(x, "去除批次效应后 (详见方法章节) ，在 1-{max(dims)} PC 维度，{resolution} 分辨率下，对细胞群 UMAP 聚类。")
+    x$JoinLayers <- TRUE
     return(x)
   })
 

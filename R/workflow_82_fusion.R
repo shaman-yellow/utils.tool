@@ -281,7 +281,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_fusion"),
     filter <- ""
     if (!is.null(cut.pct)) {
       degs <- dplyr::filter(degs, pct.1 > cut.pct | pct.2 > cut.pct)
-      filter <- "(筛选至少有检出率 {cut.pct * 100}% 的细胞表达该基因)"
+      filter <- glue::glue("(筛选至少有检出率 {cut.pct * 100}% 的细胞表达该基因)")
     }
     degs <- .set_lab(degs, sig(x), "Filtered TWAS associated genes of Cell Cluster DEGs")
     degs <- setLegend(degs, "TWAS 风险相关的{cell} DEGs {filter}。")

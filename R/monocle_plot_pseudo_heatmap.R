@@ -7,7 +7,7 @@ pseudotime_heatmap <- function(
     object,
     cluster_rows = TRUE,
     hclust_method = "ward.D2",
-    num_clusters = 6,
+    num_clusters = 2,
     hmcols = NULL,
     add_annotation_row = NULL,
     add_annotation_col = NULL,
@@ -284,7 +284,11 @@ smartEsApply <- function(X, MARGIN, FUN, convert_to_dense, ...) {
   environment(FUN) <- e1
   if (is(X, "Seurat")) {
     exprs <- function(x) {
-      x@assays[[ x@active.assay ]]@scale.data
+      if (is(x@assays[[ x@active.assay ]], "Assay5")) {
+        x@assays[[ x@active.assay ]]$scale.data
+      } else {
+        x@assays[[ x@active.assay ]]@scale.data
+      }
     }
   } else if (is(X, "cell_data_set")) {
     exprs <- function(x) {

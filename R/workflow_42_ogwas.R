@@ -99,6 +99,7 @@ setMethod("step1", signature = c(x = "job_ogwas"),
         vcf_dir = vcf_dir, save_dir = save_dir))
     if (!inherits(x$db[[1]], "simpleError")) {
       x <- methodAdd(x, "以 `MungeSumstats::import_sumstats` 导入 GWAS summary 数据。")
+      x <- snapAdd(x, "以 `MungeSumstats` 获取 GWAS summary 数据 (ID: {bind(ids)}) 。")
     } else {
       message('!inherits(x$db[[1]], "simpleError"), can not import via `MungeSumstats::import_sumstats`.')
       if (try_catalog && length(ids) == 1 && grpl(ids, "GCST")) {
@@ -109,6 +110,7 @@ setMethod("step1", signature = c(x = "job_ogwas"),
           x, "从 GWAS Catalog (<https://www.ebi.ac.uk/>) 下载 {id} 的
           Full Summary Statistic 数据 (<{attr(x$db, 'url')}>)。"
         )
+        x <- snapAdd(x, "从 GWAS Catalog 获取 Full Summary Statistic (ID: {id}) 数据。")
       }
     }
     object(x) <- dplyr::filter(object(x), id %in% !!ids)
