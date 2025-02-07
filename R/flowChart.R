@@ -29,6 +29,21 @@ as_network <- function(lst, layout = 'sugiyama', seed = 100)
         }))
   }
   lst <- strsplit(lst, ":")
+  if (any(isMulti <- lengths(lst) > 2)) {
+    lst[isMulti] <- lapply(lst[isMulti],
+      function(x) {
+        x <- lapply(seq_along(x)[-1], 
+          function(n) {
+            c(x[n-1], x[n])
+          })
+        unlist(x)
+      })
+    lst <- unlist(lst)
+    lst <- lapply(seq(1, length(lst), 2), 
+      function(n) {
+        c(lst[[n]], lst[[n + 1]])
+      })
+  }
   lst <- lapply(lst,
     function(ch) {
       ch <- strsplit(ch, ",")

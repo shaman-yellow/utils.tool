@@ -1354,6 +1354,12 @@ setReplaceMethod("Legend", signature = c(x = "ANY"),
     return(x)
   })
 
+set_lab_legend <- function(object, lab, legend, labs = NULL, ...) {
+  object <- .set_lab(object, lab, labs)
+  object <- setLegend(object, legend)
+  object
+}
+
 setLegend <- function(x, from, ..., check_list = TRUE, env = parent.frame(1))
 {
   if (check_list && is(x, "list") && length(from) == length(x)) {
@@ -2304,7 +2310,9 @@ setGeneric("map",
       x$.map_step <- TRUE
     }
     x <- standardGeneric("map")
-    x$.map_step <- FALSE
+    if (is(x, "job")) {
+      x$.map_step <- FALSE
+    }
     if (is(x, "job")) {
       if (identical(parent.frame(1), .GlobalEnv)) {
         if (!is.null(x$.map_heading)) {

@@ -25,13 +25,11 @@ job_catr <- function(protein, rna)
 
 setMethod("step0", signature = c(x = "job_catr"),
   function(x){
-    step_message("Prepare your data with function `job_catr`.
-      "
-    )
+    step_message("Prepare your data with function `job_catr`. ")
   })
 
 setMethod("step1", signature = c(x = "job_catr"),
-  function(x, wd = timeName("catRapid"), rna_type = "gene_exon_intron"){
+  function(x, wd = "catRapid", rna_type = c("transcript_exon_intron", "gene_exon_intron")){
     step_message("Prepare upload files.")
     if (is.null(x$mart)) {
       mart <- new_biomart()
@@ -39,12 +37,20 @@ setMethod("step1", signature = c(x = "job_catr"),
     } else {
       mart <- x$mart
     }
+    if (dir.exists(wd)) {
+      if (sureThat("dir.exists, remove that?")) {
+        unlink(wd, TRUE)
+      }
+    }
     dir.create(wd, FALSE)
     x$wd <- wd
     protein_seq <- get_seq.pro(object(x)$protein, mart)
+    rna_type <- match.arg(rna_type)
     rna_seq <- get_seq.rna(object(x)$rna, mart, to = rna_type)
-    write(protein_seq$fasta, paste0(wd, "/protein"))
-    write(rna_seq$fasta, paste0(wd, "/rna"))
+    x <- methodAdd(x, "以 R 包 `biomaRt` ({packageVersion('biomaRt')}) {cite_show('MappingIdentifDurinc2009')} 获取 RNA 或蛋白质的序列 (`biomaRt::getSequence`)。")
+    x <- snapAdd(x, "获取 {bind(object(x)$rna)} 的 {rna_type} 序列，以及 {bind(object(x)$protein)} 的 peptide 序列。")
+    write(protein_seq$fasta, "protein")
+    write(rna_seq$fasta, "rna")
     x$protein_seq <- protein_seq
     x$rna_seq <- rna_seq
     return(x)
@@ -118,3 +124,37 @@ setMethod("step3", signature = c(x = "job_catr"),
 timeName <- function(prefix) {
   paste0(prefix, gs(Sys.time(), " |:", "_"))
 }
+
+get_seq.pro <- function(ids, mart, unique = TRUE, fasta = TRUE, from = "hgnc_symbol", to = "peptide") {
+  ids <- unique(ids)
+  data <- e(biomaRt::getSequence(id = ids, type = from, seqType = to, mart = mart))
+  data <- filter(data, !grepl("unavailable", !!rlang::sym(to)))
+  if (unique) {
+    data <- dplyr::mutate(data, long = nchar(!!rlang::sym(to)))
+    data <- dplyr::arrange(data, dplyr::desc(long))
+    data <- dplyr::distinct(data, hgnc_symbol, .keep_all = TRUE)
+  }
+  if (fasta) {
+    fasta <- apply(data, 1,
+      function(vec) {
+        c(paste0(">", vec[[2]]), vec[[1]])
+      })
+    fasta <- .fasta(unlist(fasta))
+    namel(data, fasta)
+  } else {
+    data
+  }
+}
+
+get_seq.rna <- function(ids, mart, unique = TRUE, fasta = TRUE, from = "hgnc_symbol",
+  to = c("transcript_exon_intron", "gene_exon_intron", "coding"))
+{
+  # mrefseq <- biomaRt::getSequence(id = "NM_001621", type = "refseq_mrna", seqType = "coding", mart = mart)
+  # coding <- biomaRt::getSequence(id = "AHR", type = "hgnc_symbol", seqType = "coding", mart = mart)
+  # identical(mrefseq[[1]], coding[[1]])
+  # ref: <https://www.sangon.com/customerCenter/classOnline/help_gene>
+  to <- match.arg(to)
+  do.call(get_seq.pro, as.list(environment()))
+}
+
+

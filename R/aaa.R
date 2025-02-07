@@ -782,3 +782,15 @@ collate_common_function <- function(package, freq = 10) {
   codes <- codes[ nchar(codes) >= 3 ]
   return(codes)
 }
+
+.forest_lines <- function(data, header = TRUE) {
+  if (header) {
+    end <- nrow(data) + 2
+  } else {
+    end <- nrow(data) + 1
+  }
+  lst <- rep(list(gpar(lty = 1, lwd = 2, col = "black")), 3)
+  names(lst) <- c(1:2, end)
+  return(lst)
+}
+
