@@ -60,6 +60,7 @@ setMethod("filter", signature = c(x = "job_epifactor"),
     x@tables$step1$protein <- trace_filter(
       x@tables$step1$protein, grpl(Modification, !!types), ...
     )
+    x@tables$step1$protein <- setLegend(x@tables$step1$protein, "为所有 {types} 类型的表观修饰蛋白。")
     x$.feature <- as_feature(x@tables$step1$protein$HGNC_symbol, x)
     x <- snapAdd(x, snap(x@tables$step1$protein), add = TRUE)
     return(x)

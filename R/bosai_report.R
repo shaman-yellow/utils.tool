@@ -165,7 +165,7 @@ summary_week.bosai <- function(
     from <- time - wday
     to <- time + 7 - wday
     orders <- dplyr::filter(orders,
-      is.na(finish) | (finish >= !!from & finish < !!to) |
+      is.na(finish) | (finish >= !!from & finish <= !!to) |
         id %in% must_include
     )
   }

@@ -60,7 +60,7 @@ setMethod("step0", signature = c(x = "job_vina"),
   })
 
 setMethod("step1", signature = c(x = "job_vina"),
-  function(x, order = TRUE, each_target = 1, pdbs = NULL, 
+  function(x, order = TRUE, each_target = 1, custom_pdbs = NULL, 
     bdb_file = .prefix("BindingDB_All_202401.tsv", "db"))
   {
     step_message("Prepare Docking Combination.")
@@ -75,13 +75,12 @@ setMethod("step1", signature = c(x = "job_vina"),
     x <- snapAdd(x, "以 `biomaRt` 获取基因 Symbol 对应的蛋白结构 (PDB，详见方法章节)。")
     x$targets_annotation <- dplyr::filter(x$targets_annotation, pdb != "")
     x$targets_annotation <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = TRUE)
-    if (!is.null(pdbs)) {
-      pdbs <- list(hgnc_symbol = names(pdbs), pdb = unname(pdbs))
+    if (!is.null(custom_pdbs)) {
+      custom_pdbs <- list(hgnc_symbol = names(custom_pdbs), pdb = unname(custom_pdbs))
       if (!is.character(x$targets_annotation$pdb)) {
         x$targets_annotation <- dplyr::mutate(x$targets_annotation, pdb = as.character(pdb))
       }
-      x$targets_annotation <- tibble::add_row(x$targets_annotation, !!!pdbs)
-      x$targets_annotation <- dplyr::distinct(x$targets_annotation, hgnc_symbol, .keep_all = TRUE)
+      x$targets_annotation <- tibble::add_row(x$targets_annotation, !!!custom_pdbs)
     }
     if (any(isThat <- !object(x)$hgnc_symbols %in% x$targets_annotation$hgnc_symbol)) {
       message("PDB not found:\n\t", paste0(unique(object(x)$hgnc_symbols[ isThat ]), collapse = ", "))
@@ -110,9 +109,17 @@ setMethod("step1", signature = c(x = "job_vina"),
     used_pdbs <- dplyr::distinct(
       x$targets_annotation, hgnc_symbol, .keep_all = TRUE
     )
+    isMultiChains <- vapply(used_pdbs$pdb,
+      function(pdb) {
+        length(which(x$annoPdbs$structureId == pdb)) > 1
+      }, logical(1))
+    if (any(isMultiChains)) {
+      x$pdb_MultiChains <- used_pdbs$pdb[ isMultiChains ]
+      message(glue::glue("Some 'pdb' has multiple chains ({bind(x$pdb_MultiChains)})"))
+    }
     used_pdbs <- setLegend(used_pdbs, "基因 Symbol 所用的蛋白结构，以及对应的 PDB ID 和分辨率。")
     x <- tablesAdd(x, t.proteins_used_PDB = used_pdbs)
-    used_pdbs <- nl(
+    x$used_pdbs <- used_pdbs <- nl(
       used_pdbs$hgnc_symbol, used_pdbs$pdb, FALSE
     )
     if (!length(used_pdbs)) {
@@ -217,7 +224,7 @@ setMethod("step2", signature = c(x = "job_vina"),
 
 setMethod("step3", signature = c(x = "job_vina"),
   function(x, cl = 10, pattern = NULL, extra_pdb.files = NULL, extra_layouts = NULL,
-    extra_symbols = NULL, filter = TRUE, exclude_nonStd = c(
+    extra_symbols = NULL, filter = TRUE, use_complex = TRUE, exclude_nonStd = c(
       "NAG", "BMA", "FUL"
     ))
   {
@@ -253,6 +260,70 @@ setMethod("step3", signature = c(x = "job_vina"),
     } else if (layoutNeedRevise) {
       x$dock_layout %<>% lapply(function(x) c(x, names(extra_pdb.files)))
     }
+    if (!is.null(x$pdb_MultiChains)) {
+      pdb_MultiChains <- tolower(unique(x$pdb_MultiChains))
+      fun_extract_cpdName <- function(lines) {
+        chains <- stringr::str_extract(lines, "(?<=CHAIN: ).*(?=;)")
+        names <- stringr::str_extract(lines, "(?<=MOLECULE: ).*(?=;)")
+        names <- names[ !is.na(names) ]
+        names(names) <- chains[ !is.na(chains) ]
+        return(names)
+      }
+      used_pdbs <- x$used_pdbs
+      pdb_files_MultiChains <- lapply(pdb_MultiChains,
+        function(pdb) {
+          file <- pdb.files[[ pdb ]]
+          contentPdb <- readLines(file)
+          contentPdb <- contentPdb[ grpl(contentPdb, "^COMPND") ]
+          contentPdb <- sep_list(contentPdb, "^COMPND.*MOL_ID", 0)
+          if (length(contentPdb) > 1) {
+            names <- unlist(lapply(unname(contentPdb), fun_extract_cpdName))
+            message(glue::glue("PDB: {pdb.files[[ pdb ]]} has multiple compounds: {bind(names)}."))
+            if (any(nchar(names(names)) > 1)) {
+              stop(
+                glue::glue('Chain names not in expection: {bind(names(names), co = " | ")}')
+              )
+            }
+            chains <- names(names)
+            newfiles <- add_filename_suffix(file, tolower(chains))
+            .pymol_select_chains(file, chains, newfiles)
+            gene_pdbChains <- nl(names, tools::file_path_sans_ext(basename(newfiles)), FALSE)
+            if (any(hasWhich <- names(used_pdbs) %in% names(gene_pdbChains))) {
+              genes <- names(used_pdbs)[hasWhich]
+              message(
+                glue::glue("Detected input gene ({bind(genes)}) in input chains: bind(gene_pdbChains).")
+              )
+              used_pdbs[ hasWhich ] <- gene_pdbChains[ match(genes, names(gene_pdbChains)) ]
+              complexPdb <- pdb
+              names(complexPdb) <- paste0(
+                names(gene_pdbChains), collapse = "+"
+              )
+              used_pdbs <<- c(used_pdbs, complexPdb)
+            }
+            c(file, newfiles)
+          } else {
+            file
+          }
+        })
+      x$used_pdbs <- used_pdbs
+      lessUsedChain <- head(
+        used_pdbs[ grpl(used_pdbs, "_") ], n = 2
+      )
+      x <- snapAdd(x, "对于复合体 PDB (文件中包含支链分子信息)，将使用对应的支链 (以 `pymol` 获取支链) 进行分子对接 (例如 {bind(names(lessUsedChain))}，使用 {bind(lessUsedChain)}) 。")
+      x$dock_layout <- lapply(x$dock_layout,
+        function(vec) {
+          vec[ names(vec) %in% names(used_pdbs) ] <- used_pdbs[ match(
+            names(vec), names(used_pdbs)
+            ) ]
+          vec
+        })
+      pdb_files_MultiChains <- unlist(
+        pdb_files_MultiChains, use.names = FALSE
+      )
+      names(pdb_files_MultiChains) <- tools::file_path_sans_ext(basename(pdb_files_MultiChains))
+      x$pdb_files_MultiChains <- pdb_files_MultiChains
+      pdb.files <- c(pdb.files[!names(pdb.files) %in% pdb_MultiChains], pdb_files_MultiChains)
+    }
     if (!is.null(pattern)) {
       pdb.files <- filter_pdbs(pdb.files, pattern)
     }
@@ -276,6 +347,15 @@ setMethod("step3", signature = c(x = "job_vina"),
       x <- methodAdd(x, "以 `pymol` {cite_show('LigandDockingSeelig2010')} 删除受体 PDB 文件中的非标准残基 (例如 {bind(exclude_nonStd)})。")
       x <- snapAdd(x, "以 `pymol` 去除非标准残基 ({bind(exclude_nonStd)})。")
     }
+    dir.create(cpdir <- "protein_clean_pdb", FALSE)
+    pdb.files <- lapply(pdb.files, 
+      function(file) {
+        newfile <- file.path(cpdir, basename(file))
+        .pymol_select_polymer.protein(file, newfile)
+        newfile
+      })
+    x <- snapAdd(x, "随后，以 `pymol` 仅保留蛋白结构 (polymer.protein)。")
+    x <- methodAdd(x, "以 `pymol` 仅保留蛋白结构 (polymer.protein) (去除了原 PDB 中的配体等其他结构)。")
     x$res.receptor <- prepare_receptor(pdb.files)
     x <- methodAdd(x, "以 `ADFR` {cite_show('AutogridfrImpZhang2019')} 工具组的准备受体蛋白的 PDBQT 文件 (以 `prepare_receptor` 添加氢原子，并转化为 PDBQT 文件) 。请参考 <https://autodock-vina.readthedocs.io/en/latest/docking_basic.html>。")
     x <- snapAdd(x, "以 `ADFR` 工具给受体添加氢原子，转化为 PDBQT 文件。")
@@ -291,6 +371,27 @@ setMethod("step3", signature = c(x = "job_vina"),
         x <- filter(x, x$.layout[[ 1 ]], x$.layout[[ 2 ]])
       }
     }
+    if (any(lengths(x$dock_layout) > 1)) {
+      names <- rep(names(x$dock_layout), lengths(x$dock_layout))
+      dock_layout <- unlist(x$dock_layout, use.names = FALSE)
+      names(dock_layout) <- names
+      x$dock_layout <- dock_layout
+    }
+    if (use_complex && any(isThats <- grpl(names(used_pdbs), "\\+"))) {
+      isUsedChains <- vapply(x$dock_layout, 
+        function(x) {
+          grpl(x, "_")
+        }, logical(1))
+      cpdsUsedChains <- names(x$dock_layout)[isUsedChains]
+      dat <- dplyr::distinct(
+        data.frame(
+          cpd = cpdsUsedChains, pdb = gs(
+            unlist(x$dock_layout[isUsedChains]), "_[a-z]$", ""
+          )
+        )
+      )
+      x$dock_layout <- c(x$dock_layout, nl(dat$cpd, dat$pdb))
+    }
     return(x)
   })
 
@@ -304,10 +405,12 @@ setMethod("filter", signature = c(x = "job_vina"),
     if (is.null(cid)) {
       cid <- unname(object(x)$cids[ match(cpd, names(object(x)$cids)) ])
     }
-    ref <- dplyr::distinct(x$targets_annotation, hgnc_symbol, .keep_all = TRUE)
-    pdb <- ref$pdb[ match(symbol, ref$hgnc_symbol) ]
-    layout <- nl(cid, pdb)
-    x$dock_layout <- layout
+    if (is.null(x$used_pdbs)) {
+      stop('is.null(x$used_pdbs).')
+    }
+    layout <- pdb <- x$used_pdbs[ match(symbol, names(x$used_pdbs)) ]
+    names(layout) <- unlist(cid)
+    x$dock_layout <- as.list(layout)
     return(x)
   })
 
@@ -368,9 +471,10 @@ setMethod("step5", signature = c(x = "job_vina"),
         }
       )
     }
-    res_dock <- dplyr::mutate(x$summary_vina, PubChem_id = as.integer(PubChem_id))
-    anno <- dplyr::mutate(x$targets_annotation, pdb = tolower(pdb))
-    res_dock <- map(res_dock, "PDB_ID", anno, "pdb", "hgnc_symbol", col = "hgnc_symbol")
+    res_dock <- dplyr::mutate(
+      x$summary_vina, PubChem_id = as.integer(PubChem_id),
+      hgnc_symbol = names(x$used_pdbs)[ match(PDB_ID, tolower(x$used_pdbs)) ]
+    )
     if (!is.null(x$from_job_herb)) {
       res_dock <- map(res_dock, "PubChem_id",
         x$compounds, "PubChem_id", "Ingredient_name", col = "Ingredient_name")
@@ -427,7 +531,7 @@ setMethod("step5", signature = c(x = "job_vina"),
   })
 
 setMethod("step6", signature = c(x = "job_vina"),
-  function(x, time = 15, top = NULL, save = TRUE, unique = FALSE, symbol = NULL, cpd = NULL)
+  function(x, time = 30, top = NULL, save = TRUE, unique = FALSE, symbol = NULL, cpd = NULL)
   {
     step_message("Use pymol for all visualization.")
     data <- dplyr::filter(x@tables$step5$res_dock, Affinity < 0)
@@ -630,8 +734,8 @@ summary_vina <- function(space = "vina_space", pattern = "_out\\.pdbqt$")
     Combn = names(res_dock), Affinity = unname(res_dock)
   )
   res_dock <- dplyr::mutate(
-    res_dock, PubChem_id = stringr::str_extract(Combn, "^[^_]{1,}"),
-    PDB_ID = tolower(stringr::str_extract(Combn, "[^_]{1,}$")),
+    res_dock, PubChem_id = gs(Combn, "(.*)_into_.*", "\\1"),
+    PDB_ID = tolower(gs(Combn, ".*_into_(.*)", "\\1")),
     dir = paste0(space, "/", Combn),
     file = paste0(dir, "/", Combn, "_out.pdbqt")
   )
@@ -752,6 +856,22 @@ cal_3d_sdf <- function(sdf) {
     cdRun(pg("obgen"), " ", sdf, " -ff UFF > ", output)
   }
   output
+}
+
+.pymol_select_polymer.protein <- function(file, newfile) {
+  cmd <- glue::glue(
+    "select protein, polymer.protein; save {newfile}, protein"
+  )
+  cdRun(glue::glue("{pg('pymol')} -c -Q -d 'load {file}; {cmd}; quit'"))
+}
+
+.pymol_select_chains <- function(file, chains, newfiles = add_filename_suffix(file, chains))
+{
+  cmd <- glue::glue(
+    "select chain{chains}, chain {chains}; save {newfiles}, chain{chains}"
+  )
+  cmd <- paste0(cmd, collapse = "; ")
+  cdRun(glue::glue("{pg('pymol')} -c -Q -d 'load {file}; {cmd}; quit'"))
 }
 
 setMethod("res", signature = c(x = "job_vina"),

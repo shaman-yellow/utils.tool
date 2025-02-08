@@ -86,10 +86,15 @@ setMethod("step2", signature = c(x = "job_catr"),
       "numof.RNA_Binding_Motifs_Instances"
     )
     p.upset <- new_upset(lst = sets, trunc = NULL)
+    top <- .set_lab(top, sig(x), "RBP top interaction")
+    top <- setLegend(top, "为结合得分附表，解释请参考 <http://service.tartaglialab.com/static_files/shared/documentation_omics2.html>。")
     x@tables[[ 2 ]] <- list(res = res, top = top)
     x@plots[[ 2 ]] <- list(p.upset = p.upset)
     x$sets_filtered <- sets
     x$sets_ins <- ins(lst = sets)
+    x <- methodAdd(x, "以 `catRAPID omics` v2.1 预测蛋白质与RNA的结合性。")
+    # (protein: {bind(object(x)$protein)}. RNA: {bind(object(x)$rna)})
+    x <- snapAdd(x, "以 `catRAPID` 预测蛋白质与 RNA 的结合性。")
     return(x)
   })
 
@@ -125,14 +130,27 @@ timeName <- function(prefix) {
   paste0(prefix, gs(Sys.time(), " |:", "_"))
 }
 
-get_seq.pro <- function(ids, mart, unique = TRUE, fasta = TRUE, from = "hgnc_symbol", to = "peptide") {
+get_seq.pro <- function(ids, mart, unique = TRUE, fasta = TRUE, 
+  from = "hgnc_symbol", to = "peptide", type = c("max", "min"), 
+  distinct = TRUE, max_long = 3000L)
+{
   ids <- unique(ids)
   data <- e(biomaRt::getSequence(id = ids, type = from, seqType = to, mart = mart))
   data <- filter(data, !grepl("unavailable", !!rlang::sym(to)))
   if (unique) {
     data <- dplyr::mutate(data, long = nchar(!!rlang::sym(to)))
-    data <- dplyr::arrange(data, dplyr::desc(long))
-    data <- dplyr::distinct(data, hgnc_symbol, .keep_all = TRUE)
+    type <- match.arg(type)
+    if (type == "min") {
+      data <- dplyr::arrange(data, long)
+    } else {
+      data <- dplyr::arrange(data, dplyr::desc(long))
+    }
+    if (!is.null(max_long)) {
+      data <- dplyr::filter(data, long < !!max_long)
+    }
+    if (distinct) {
+      data <- dplyr::distinct(data, hgnc_symbol, .keep_all = TRUE)
+    }
   }
   if (fasta) {
     fasta <- apply(data, 1,

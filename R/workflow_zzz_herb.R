@@ -86,7 +86,7 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "feature"),
       p.venn2dis <- setLegend(p.venn2dis, "展示了中药的靶点与{ref@type}靶点{snap(ref)}的交集数目。
         两者共含有 {length(p.venn2dis$ins)} 个交集靶点。")
       x[[ paste0("p.venn2", name) ]] <- .set_lab(p.venn2dis, sig(x),
-        "Targets intersect with related targets")
+        "Targets intersect with related targets", name)
     }
     herbs <- unique(x$data.allu[[1]])
     if (!is.null(enrichment)) {
@@ -113,9 +113,11 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "feature"),
     analysis <- glue::glue("中药-成分-{ref@type}-靶点网络")
     data <- setLegend(data, "为用于绘制{analysis}的数据集。")
     if (length(ref)) {
-      x[[ paste0("p.pharm2", name) ]] <- .set_lab(p.pharm, sig(x), "network pharmacology with filtered type")
+      x[[ paste0("p.pharm2", name) ]] <- .set_lab(
+        p.pharm, sig(x), "network pharmacology with filtered type", name
+      )
       x[[ paste0("t.pharm2", name) ]] <- .set_lab(data, sig(x),
-        "network pharmacology with filtered type original data")
+        "network pharmacology with filtered type original data", name)
     } else {
       x$p.pharmMap <-  .set_lab(p.pharm, sig(x), "network pharmacology")
       x$t.pharmMap <- .set_lab(data, sig(x), "network pharmacology")

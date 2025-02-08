@@ -135,38 +135,6 @@ setMethod("Read", signature = c(x = "fasta"),
     return(res)
   })
 
-get_seq.pro <- function(ids, mart, unique = TRUE, fasta = TRUE, from = "hgnc_symbol", to = "peptide") {
-  ids <- unique(ids)
-  data <- e(biomaRt::getSequence(id = ids, type = from, seqType = to, mart = mart))
-  data <- filter(data, !grepl("unavailable", !!rlang::sym(to)))
-  if (unique) {
-    data <- dplyr::mutate(data, long = nchar(!!rlang::sym(to)))
-    data <- dplyr::arrange(data, dplyr::desc(long))
-    data <- dplyr::distinct(data, hgnc_symbol, .keep_all = TRUE)
-  }
-  if (fasta) {
-    fasta <- apply(data, 1,
-      function(vec) {
-        c(paste0(">", vec[[2]]), vec[[1]])
-      })
-    fasta <- .fasta(unlist(fasta))
-    namel(data, fasta)
-  } else {
-    data
-  }
-}
-
-get_seq.rna <- function(ids, mart, unique = TRUE, fasta = TRUE, from = "hgnc_symbol",
-  to = c("gene_exon_intron", "coding"))
-{
-  # mrefseq <- biomaRt::getSequence(id = "NM_001621", type = "refseq_mrna", seqType = "coding", mart = mart)
-  # coding <- biomaRt::getSequence(id = "AHR", type = "hgnc_symbol", seqType = "coding", mart = mart)
-  # identical(mrefseq[[1]], coding[[1]])
-  # ref: <https://www.sangon.com/customerCenter/classOnline/help_gene>
-  to <- match.arg(to)
-  do.call(get_seq.pro, as.list(environment()))
-}
-
 gtitle <- function(grob, title, fill = "#E18727FF") {
   into(grecti3(title, tfill = fill), grob)
 }
