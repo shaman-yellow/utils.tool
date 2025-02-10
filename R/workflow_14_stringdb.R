@@ -42,6 +42,13 @@ setMethod("asjob_stringdb", signature = c(x = "character"),
     job_stringdb(data.frame(Symbol = x))
   })
 
+setMethod("asjob_stringdb", signature = c(x = "feature"),
+  function(x){
+    x <- resolve_feature_snapAdd_onExit("x", x)
+    x <- job_stringdb(unlist(x))
+    return(x)
+  })
+
 setMethod("step0", signature = c(x = "job_stringdb"),
   function(x){
     step_message("Prepare your data with function `job_stringdb`.
@@ -120,8 +127,12 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     hub_genes <- cal_mcc.str(res.str, "Symbol", FALSE, MCC = MCC)
     graph_mcc <- get_subgraph.mcc(res.str$graph, hub_genes, top = tops)
     x$graph_mcc <- graph_mcc <- fast_layout(graph_mcc, layout = "linear", circular = TRUE)
+    x$graph_mcc <- .set_lab(x$graph_mcc, sig(x), "graph MCC layout data")
+    x$graph_mcc <- setLegend(x$graph_mcc,
+      "PPI (带有 Cytohubba {cite_show('CytohubbaIdenChin2014')} MCC 得分) 附表")
     p.mcc <- plot_networkFill.str(graph_mcc, label = "Symbol", HLs = HLs)
     p.mcc <- .set_lab(wrap(p.mcc), sig(x), paste0("Top", tops, " MCC score"))
+    p.mcc <- setLegend(p.mcc, "PPI (带有 Cytohubba {cite_show('CytohubbaIdenChin2014')} MCC 得分) 网络图")
     x@plots[[1]] <- namel(p.ppi, p.mcc)
     x@tables[[1]] <- c(list(mapped = relocate(res.str$mapped, Symbol, STRING_id)),
       namel(hub_genes)
@@ -470,10 +481,14 @@ cal_mcc <- function(edges, MCC = TRUE)
   res
 }
 
-get_subgraph.mcc <- function(igraph, resMcc, top = 10) 
+get_subgraph.mcc <- function(igraph, resMcc, top = 10)
 {
   tops <- dplyr::arrange(resMcc, dplyr::desc(MCC_score))
-  tops <- head(tops$STRING_id, n = top)
+  if (!is.null(top)) {
+    tops <- head(tops$STRING_id, n = top)
+  } else {
+    tops <- tops$STRING_id
+  }
   data <- igraph::as_data_frame(igraph, "both")
   nodes <- dplyr::filter(data$vertices, name %in% !!tops)
   nodes <- merge(nodes, resMcc, by.x = "name", by.y = "STRING_id", all.x = TRUE)

@@ -222,7 +222,7 @@ setMethod("step6", signature = c(x = "job_seurat"),
   function(x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = 1.5, filter.pct = .7,
     org = c("Human", "Mouse"),
     cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_cell",
-    method = c("gpt", "scsa"), 
+    method = c("gpt", "scsa"), keep_markers = 2,
     n = 30, variable = FALSE, hp_type = c("pretty", "seurat"))
   {
     method <- match.arg(method)
@@ -265,7 +265,10 @@ setMethod("step6", signature = c(x = "job_seurat"),
         cell_markers <- reframe_col(res$data, "markers", unlist)
         cell_markers$num <- numInMarkers[ match(cell_markers$markers, res$markers) ]
         cell_markers <- dplyr::arrange(cell_markers, num)
-        cell_markers <- dplyr::distinct(cell_markers, cells, .keep_all = TRUE)
+        ## keep 2-3 markers, for each cells.
+        cell_markers <- split_lapply_rbind(
+          cell_markers, ~ cells, head, n = keep_markers
+        )
         x$hp_cell_markers <- cell_markers
         excluOverMarkers <- unique(cell_markers$markers)
         message(
@@ -275,29 +278,26 @@ setMethod("step6", signature = c(x = "job_seurat"),
           )
         )
         gptCells <- object(x)@meta.data[["ChatGPT_cell"]]
-        nfilter <- c()
-        for (i in seq_len(nrow(cell_markers))) {
-          if (cell_markers$num[i] > 3) {
-            gptCells <- ifelse(
-              gptCells == cell_markers$cells[i], "Unknown", gptCells
-            )
-            nfilter <- c(nfilter, i)
+        allCells <- unique(cell_markers$cells)
+        cells_filter <- c()
+        for (i in allCells) {
+          dat <- dplyr::filter(cell_markers, cells == i)
+          if (all(dat$num > 3)) {
+            gptCells <- ifelse(gptCells == i, "Unknown", gptCells)
+            cells_filter <- c(cells_filter, i)
             next
-          }
-          if (cell_markers$num[i] > 1) {
-            dat <- dplyr::filter(cell_markers, markers == cell_markers$markers[i])
-            maybeParent <- dat$cells[ which.min(nchar(dat$cells)) ]
-            if (maybeParent != cell_markers$cells[i] && grpl(cell_markers$cells[i], maybeParent, TRUE)) {
-              message(glue::glue("Re assign cells: {cell_markers$cells[i]} -> {maybeParent}"))
-              gptCells <- ifelse(
-                gptCells == cell_markers$cells[i], maybeParent, gptCells
-              )
-              nfilter <- c(nfilter, i)
+          } else if (all(dat$num > 1)) {
+            dat_overlap <- dplyr::filter(cell_markers, markers %in% dat$markers)
+            maybeParent <- dat_overlap$cells[ which.min(nchar(dat_overlap$cells)) ]
+            if (maybeParent != i && grpl(i, maybeParent, TRUE)) {
+              message(glue::glue("Re assign cells: {i} -> {maybeParent}"))
+              gptCells <- ifelse(gptCells == i, maybeParent, gptCells)
+              cells_filter <- c(cells_filter, i)
             }
           }
         }
-        if (length(nfilter)) {
-          cell_markers <- cell_markers[-nfilter, ]
+        if (length(cells_filter)) {
+          cell_markers <- dplyr::filter(cell_markers, !cells %in% cells_filter)
         }
         cell_markers <- dplyr::arrange(cell_markers, cells)
         excluOverMarkers <- unique(cell_markers$markers)
@@ -326,7 +326,9 @@ setMethod("step6", signature = c(x = "job_seurat"),
             cluster_rows = FALSE
           )
         }
-        p.markers <- .set_lab(wrap(p.markers), sig(x), "Markers in cell types")
+        p.markers <- .set_lab(
+          wrap(p.markers, 7, 7.5), sig(x), "Markers in cell types"
+        )
         p.markers <- setLegend(p.markers, "为 ChatGPT 注释细胞群使用的首要 Marker 热图。")
         attr(p.markers, "lich") <- new_lich(
           namel(
@@ -351,7 +353,9 @@ setMethod("step6", signature = c(x = "job_seurat"),
         p.props_gpt <- setLegend(p.props_gpt, "为 ChatGPT-4 注释的细胞群在各个样本中的占比。")
         x@plots[[ 6 ]] <- namel(p.map_gpt, p.markers, p.props_gpt)
         x <- snapAdd(x, "根据细胞群 Markers (检出率至少为 {filter.pct}，选取 Top {n}) ，让 ChatGPT-4 对细胞类型注释。")
-        x <- methodAdd(x, "以 ChatGPT-4 注释细胞类型 {cite_show('Assessing_GPT_4_Hou_W_2024')}。将每一个细胞群的 Top {n} 基因提供给 ChatGPT，使其注释细胞类型。询问信息为：\n\n{text_roundrect(query$message)}")
+        x <- methodAdd(
+          x, "以 ChatGPT-4 注释细胞类型 {cite_show('Assessing_GPT_4_Hou_W_2024')}。将每一个细胞群的 Top {n} 基因提供给 ChatGPT，使其注释细胞类型。询问信息为：\n\n{text_roundrect(query$message, 'docx')}"
+        )
         x@params$group.by <- "ChatGPT_cell"
       } else {
         stop("Terminated.")

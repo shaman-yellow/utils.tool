@@ -63,9 +63,11 @@ setMethod("step1", signature = c(x = "job_m6a"),
         res(db, what = genes)
       })
     t.data <- .set_lab(t.data, sig(x), names(t.data), "m6A-Atlas search results")
+    t.data <- setLegend(t.data, glue::glue("从 `m6A-Atlas` 数据库查询到{names(t.data)}测序数据中的基因的 m6A 修饰位点。"))
     lab(t.data) <- glue::glue("{sig(x)} m6A-Atlas search results")
     x@tables[[ 1 ]] <- namel(t.data)
-    x <- methodAdd(x, "以 `m6A-Atlas` 数据库 {cite_show('M6aAtlasV20Liang2024')} 提供的 API 获取所需基因的 m6A 修饰靶点 (<http://rnamd.org/m6a/api.php>)。")
+    x <- snapAdd(x, "从 `m6A-Atlas` 数据库检索 {less(genes)} 可能的 m6A 修饰位点。")
+    x <- methodAdd(x, "以 `m6A-Atlas` 数据库 {cite_show('M6aAtlasV20Liang2024')} 提供的 API 获取所需基因的 m6A 修饰位点 (<http://rnamd.org/m6a/api.php>)。")
     return(x)
   })
 

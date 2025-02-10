@@ -169,6 +169,7 @@
     `fusion` = "TWAS全转录组关联研究",
     `venn` = "取交集",
     `vep` = "变异注释",
-    `seurat5n` = "单细胞数据分析"
+    `seurat5n` = "单细胞数据分析",
+    `lnctard` = "LncRNA调控靶点"
   )
 }

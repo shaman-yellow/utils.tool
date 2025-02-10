@@ -2571,15 +2571,15 @@ locate_file <- function(name, des = "File path: ", relocate = getOption("autor_r
   }
 }
 
-text_roundrect <- function(str, collapse = "\n") {
+text_roundrect <- function(str, type = NULL, collapse = "\n") {
   if (knitr::is_latex_output()) {
     fix.tex(
       paste0("\\begin{center}",
         "\\begin{tcolorbox}[colback=gray!10, colframe=gray!50, width=0.9\\linewidth, arc=1mm, boxrule=0.5pt]",
         str, "\\end{tcolorbox}\n\\end{center}", collapse = collapse
         ))
-  } else if (knitr::pandoc_to("docx")) {
-    c("```", str, "```")
+  } else if (knitr::pandoc_to("docx") || type == "docx") {
+    bind(c("```", str, "```"), co = "\n")
   }
 }
 
@@ -2827,7 +2827,7 @@ new_venn <- function(..., lst = NULL, wrap = TRUE, fun_pre = rm.no, force_upset 
     p$layers[[whichText]] <- NULL
   }
   if (wrap) {
-    p <- wrap(p, 5, 3)
+    p <- wrap(p, if (force_upset) 5 else 2, 3)
   }
   attr(p, "ins") <- ins <- ins(lst = lst)
   attr(p, "lich") <- new_lich(list(All_intersection = ins))

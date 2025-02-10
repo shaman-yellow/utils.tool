@@ -19,14 +19,43 @@
     analysis = "BATMAN 网络药理学"
     ))
 
-job_batman <- function(herbs, db = get_batman_data())
+job_batman <- function(herbs, db = get_batman_data(), cpd_cid = NULL)
 {
   type <- c(herb_browse = "herbs_ingredients",
     known_browse_by_ingredients = "targets",
     predicted_browse_by_ingredients = "predicted_targets"
   )
   names(db) <- dplyr::recode(names(db), !!!as.list(type))
-  herbs_info <- dplyr::filter(db$herbs_ingredients, Chinese.Name %in% !!herbs)
+  if (!is.null(cpd_cid)) {
+    if (!is.numeric(cpd_cid)) {
+      stop('!is.numeric(cpd_cid).')
+    }
+    message('!is.null(cpd_cid), input CIDs, use as Pseudo_herb.')
+    if (!missing(herbs)) {
+      message('!missing(herbs), `herbs` will be ignored.')
+    }
+    herbs <- "Pseudo_herb"
+    cpd_info <- lapply(c("targets", "predicted_targets"),
+      function(type) {
+        data <- dplyr::filter(db[[ type ]], PubChem_CID %in% cpd_cid)
+        dplyr::select(data, PubChem_CID, IUPAC_name)
+      })
+    cpd_info <- dplyr::distinct(frbind(cpd_info))
+    if (!all(isHas <- cpd_cid %in% cpd_info$PubChem_CID)) {
+      if (sureThat("Not all CID found targets, continue?")) {
+        stop("...")
+      }
+    }
+    herbs_info <- tibble::tibble(
+      Pinyin.Name = "Pseudo_herb", Chinese.Name = "Pseudo_herb", 
+      English.Name = "Pseudo_herb", Latin.Name = "Pseudo_herb",
+      Ingredients = paste0(paste0(
+        cpd_info$IUPAC_name, "(", cpd_info$PubChem_CID, ")"
+      ), collapse = "|")
+    )
+  } else {
+    herbs_info <- dplyr::filter(db$herbs_ingredients, Chinese.Name %in% !!herbs)
+  }
   print(herbs_info)
   message("Got the herbs:\n\n\t", paste0(herbs_info$Chinese.Name, collapse = ", "),
     "\n\n", "\tTotal: ", colSum(herbs_info$Chinese.Name))

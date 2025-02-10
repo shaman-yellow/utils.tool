@@ -89,27 +89,30 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "feature"),
         "Targets intersect with related targets", name)
     }
     herbs <- unique(x$data.allu[[1]])
+    leg_enrich <- ""
     if (!is.null(enrichment)) {
       res <- plot_network.enrich(data, enrichment, use.enrich, en.top, HLs = HLs, ...)
       p.pharm <- res$p.pharm
       p.pharm$.path <- res$dataPath
+      leg_enrich <- "此外，图中标注了靶点基因富集的通路。"
     } else {
       p.pharm <- plot_network.pharm(data, HLs = HLs, ax2.level = levels,
         lab.fill = lab.level, force.ax1 = herbs, ...)
-      s.com <- ""
-      if (!is.null(p.pharm$Unique_Com)) {
-        s.com <- try_snap(
-          dplyr::filter(data, Ingredient.name %in% p.pharm$Unique_Com),
-          "Herb_pinyin_name", "Ingredient.name"
-        )
-        s.com <- paste0("唯一化合物统计为：", s.com)
-      }
-      p.pharm <- setLegend(p.pharm, "展示了中药、成分、靶点 (中药靶点与{ref@type}靶点的交集) 的网络图。
-        该图对中心度 (centrality_degree) 较高的节点 (成分或靶点) 做了名称标注。
-        图中的图例标注了节点的所属类型：中药、化合物、靶点。
-        化合物可分为该中药唯一所含的化合物，或者与其他中药共有的化合物。
-        共有的化合物环绕在靶点周围，而唯一的化合物则环绕在中药周围。{s.com}")
     }
+    s.com <- ""
+    if (!is.null(p.pharm$Unique_Com)) {
+      s.com <- try_snap(
+        dplyr::filter(data, Ingredient.name %in% p.pharm$Unique_Com),
+        "Herb_pinyin_name", "Ingredient.name"
+      )
+      s.com <- paste0("唯一化合物统计为：", s.com)
+    }
+    p.pharm <- setLegend(p.pharm, "展示了中药、成分、靶点 (中药靶点与{ref@type}靶点的交集) 的网络图。
+      该图对中心度 (centrality_degree) 较高的节点 (成分或靶点) 做了名称标注。
+      图中的图例标注了节点的所属类型：中药、化合物、靶点。
+      化合物可分为该中药唯一所含的化合物，或者与其他中药共有的化合物。
+      共有的化合物环绕在靶点周围，而唯一的化合物则环绕在中药周围。{s.com}{leg_enrich}"
+    )
     analysis <- glue::glue("中药-成分-{ref@type}-靶点网络")
     data <- setLegend(data, "为用于绘制{analysis}的数据集。")
     if (length(ref)) {
