@@ -95,13 +95,24 @@ setMethod("filter", signature = c(x = "job_limma"),
       snap <- snap(trace_filter(metadata, ...))
       x <- modify_job_limma_meta(x, ..., fun = dplyr::filter)
       if (x@step < 1L) {
-        message(
-          glue::glue("before filter, dim of object(x)$counts: {bind(dim(object(x)$counts))}")
-        )
-        object(x)$counts <- object(x)$counts[ , colnames(object(x)$counts) %in% object(x)$samples$sample ]
-        message(
-          glue::glue("after filter, dim of object(x)$counts: {bind(dim(object(x)$counts))}")
-        )
+        
+        if (x$normed || is(object(x), "data.frame")) {
+          message(
+            glue::glue("before filter, dim of object(x): {bind(dim(object(x)))}")
+          )
+          object(x) <- object(x)[ , colnames(object(x)) %in% x$metadata$sample ]
+          message(
+            glue::glue("after filter, dim of object(x): {bind(dim(object(x)))}")
+          )
+        } else {
+          message(
+            glue::glue("before filter, dim of object(x)$counts: {bind(dim(object(x)$counts))}")
+          )
+          object(x)$counts <- object(x)$counts[ , colnames(object(x)$counts) %in% object(x)$samples$sample ]
+          message(
+            glue::glue("after filter, dim of object(x)$counts: {bind(dim(object(x)$counts))}")
+          )
+        }
       }
       x <- snapAdd(x, "{snap}", add = FALSE)
       return(x)
@@ -224,7 +235,7 @@ setMethod("step1", signature = c(x = "job_limma"),
       }
     } else {
       message("Data from Microarray.")
-      if (no.array_norm == "guess") {
+      if (!x$normed && no.array_norm == "guess") {
         range <- range(object(x)$counts)
         if (all(range > 0) && range[2] > 100) {
           message("May be raw expression dataset.")
@@ -237,13 +248,26 @@ setMethod("step1", signature = c(x = "job_limma"),
           no.array_norm <- TRUE
         }
       }
-      if (!no.array_norm) {
+      if (!x$normed && !no.array_norm) {
         x <- methodAdd(x, "使用 `log2` 和 `limma::normalizeBetweenArrays` 对数据标准化。")
         object(x)$counts <- e(limma::normalizeBetweenArrays(log2(object(x)$counts)))
       }
-      x$normed_data <- new("EList",
-        list(genes = object(x)$genes, targets = object(x)$samples, E = object(x)$counts)
-      )
+      if (x$normed) {
+        x$normed_data <- new_from_package(
+          "EList", "limma", list(
+            genes = x$genes, targets = x$metadata, E = object(x)
+          )
+        )
+      } else {
+        x$normed_data <- new_from_package(
+          "EList", "limma", list(
+            genes = object(x)$genes, 
+            targets = object(x)$samples, 
+            E = object(x)$counts
+          )
+        )
+      }
+      validObject(x$normed_data)
     }
     if (pca) {
       pca <- pca_data.long(as_data_long(object(x)))
@@ -307,7 +331,11 @@ setMethod("step2", signature = c(x = "job_limma"),
       trend <- FALSE
     }
     if (x$normed) {
-      object(x) <- new("EList", x@params$normed_data)
+      if (is(x$normed_data, "EList")) {
+        object(x) <- x$normed_data
+      } else {
+        object(x) <- new_from_package("EList", "limma", x$normed_data)
+      }
     }
     object(x) <- diff_test(object(x), x@params$design, contr, block, trend = trend)
     x <- methodAdd(x, "使用 `limma::lmFit`, `limma::contrasts.fit`, `limma::eBayes` 拟合线形模型。")
@@ -529,7 +557,7 @@ setMethod("clear", signature = c(x = "job_limma"),
 setMethod("map", signature = c(x = "job_limma"),
   function(x, ref, ref.use = .guess_symbol(x),
     group = NULL, group.use = "group", pvalue = TRUE, 
-    which = 1L, use = c("adj.P.Val", "P.Value"))
+    which = 1L, use = c("adj.P.Val", "P.Value"), name = NULL)
   {
     object <- x@params$normed_data
     if (identical(class(object), "list")) {
@@ -609,7 +637,14 @@ setMethod("map", signature = c(x = "job_limma"),
     }
     p <- setLegend(wrap(p, scale, scale + just), legend)
     feature(p) <- ref
-    x <- plotsAdd(x, p.BoxPlotOfDEGs = p, reset = FALSE, step = 2L)
+    if (is.null(name)) {
+      x <- plotsAdd(x, p.BoxPlotOfDEGs = p, reset = FALSE, step = 2L)
+    } else {
+      arg_p <- list(p)
+      names(arg_p) <- paste0("p.BoxPlotOfDEGs_", name)
+      args <- c(list(x), arg_p, list(reset = FALSE, step = 2L))
+      x <- do.call(plotsAdd, args)
+    }
     return(x)
   })
 
@@ -833,6 +868,9 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
         unique(to), names, HLs = HLs, fast = FALSE, gname = gname
       )
       lst$sig.corp <- dplyr::filter(lst$corp, cor >= cut.cor, pvalue < cut.p)
+      if (!nrow(lst$sig.corp)) {
+        stop('!nrow(lst$sig.corp), no any significant results in this cutoff.')
+      }
       lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), "significant correlation analysis data")
       lst$sig.corp <- setLegend(
         lst$sig.corp, "为关联分析统计附表 (P-value cutoff: {cut.p}, Cor (关联系数) cutoff: {cut.cor})。"

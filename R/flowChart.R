@@ -98,7 +98,7 @@ flowChart <- function(graph, scale.x = 1.2, scale.y = 1.2, node.size = 4,
       p
     })
   if (num == 1L) {
-    return(p.lst[[1]])
+    return(wrap(p.lst[[1]], 10, min(10, max(p.lst[[1]]$data$y) * .6), showtext = TRUE))
   } else {
     preview.gl(p.lst)
   }

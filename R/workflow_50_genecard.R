@@ -49,6 +49,7 @@ setMethod("step1", signature = c(x = "job_genecard"),
     step_message("Get from GeneCards website.")
     t.genecards <- get_from_genecards(object(x), score = score, restrict = restrict)
     t.genecards <- .set_lab(t.genecards, sig(x), "disease related targets from GeneCards")
+    t.genecards <- setLegend(t.genecards, "为 GeneCards 检索 ({object(x)}) 得到的基因集。")
     x@tables[[ 1 ]] <- namel(t.genecards)
     x$score <- attr(t.genecards, ".score")
     x <- methodAdd(x, "从 `GeneCards` 数据库 {cite_show('TheGenecardsSStelze2016')} 获取 {object(x)} 相关的基因集，得分 cut-off 为 {x$score}。")

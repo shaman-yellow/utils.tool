@@ -60,7 +60,7 @@ setMethod("step0", signature = c(x = "job_tcga"),
   })
 
 setMethod("step1", signature = c(x = "job_tcga"),
-  function(x, query = c("RNA"), keep_consensus = FALSE){
+  function(x, query = c("RNA", "clinical"), keep_consensus = FALSE){
     step_message("Get information in TCGA.")
     object(x) <- object(x)[ names(object(x)) %in% query ]
     if (is.null(x@tables$step1)) {
@@ -142,8 +142,10 @@ setMethod("step2", signature = c(x = "job_tcga"),
   })
 
 setMethod("step3", signature = c(x = "job_tcga"),
-  function(x, use = "vital_status", query = "RNA",
-    clinical.info = c("patient", "drug", "admin", "follow_up", "radiation"),
+  function(x, query = names(object(x))[1], use = "vital_status",
+    clinical.info = c(
+      "follow_up", "patient", "drug", "admin", "radiation"
+    ),
     type = "unstranded")
   {
     step_message("Prepare data for next step analysis.")
@@ -151,21 +153,27 @@ setMethod("step3", signature = c(x = "job_tcga"),
     if (is.null(lst.query))
       stop("is.null(lst.query)")
     x@params$queries <- object(x)
-    obj <- e(TCGAbiolinks::GDCprepare(query = lst.query, directory = x$dir))
+    if (query != "clinical") {
+      obj <- e(TCGAbiolinks::GDCprepare(query = lst.query, directory = x$dir))
+    } else {
+      obj <- NULL
+    }
     if (query == "RNA") {
       p.vital <- new_pie(SummarizedExperiment::colData(obj)[[ use ]])
       x@plots[[ 3 ]] <- namel(p.vital)
     } else if (query == "protein") {
       obj <- as_tibble(obj)
-      if (!is.null(object(x)[[ "clinical" ]])) {
-        clinical.info <- match.arg(clinical.info)
-        x$metadata <- e(TCGAbiolinks::GDCprepare_clinic(
-            query = object(x)[[ "clinical" ]],
-            clinical.info = clinical.info))
-        x$metadata <- as_tibble(x$metadata)
-      }
     }
-    obj@assays@data <- obj@assays@data[ names(obj@assays@data) %in% type ]
+    if (!is.null(object(x)[[ "clinical" ]])) {
+      clinical.info <- match.arg(clinical.info)
+      x$metadata <- e(TCGAbiolinks::GDCprepare_clinic(
+          query = object(x)[[ "clinical" ]],
+          clinical.info = clinical.info, directory = x$dir))
+      x$metadata <- as_tibble(x$metadata)
+    }
+    if (!is.null(obj)) {
+      obj@assays@data <- obj@assays@data[ names(obj@assays@data) %in% type ]
+    }
     x$dim <- dim(obj)
     object(x) <- obj
     return(x)
@@ -199,7 +207,7 @@ setGeneric("asjob_limma", group = list("asjob_series"),
 
 setMethod("asjob_limma", signature = c(x = "job_tcga"),
   function(x, ..., col_id = "sample", row_id = "gene_id", group = "vital_status",
-    get_treatment = TRUE, mutate_follow = TRUE)
+    get_treatment = FALSE, mutate_follow = TRUE)
   {
     step_message("Use `object(x)@assays@data$unstranded` converted as job_limma.")
     filter_sample <- rlang::enquos(...)
@@ -211,6 +219,34 @@ setMethod("asjob_limma", signature = c(x = "job_tcga"),
           gs(rownames(metadata), "[a-zA-Z0-9]+-[a-zA-Z0-9]+-[a-zA-Z0-9]+-([0-9]+).*", "\\1")
           ) < 10, 'tumor', 'normal'))
     metadata <- dplyr::mutate(metadata, group = !!rlang::sym(group))
+    if (!any(colnames(metadata) == "days_to_last_follow_up")) {
+      message(
+        '!any(colnames(metadata) == "days_to_last_follow_up"), try "days_to_last_followup".'
+      )
+      if (!any(colnames(metadata) == "days_to_last_followup")) {
+        message('!any(colnames(metadata) == "days_to_last_followup"), try get from `x$metadata`.')
+        if (is.null(x$metadata)) {
+          stop('is.null(x$metadata).')
+        }
+        col_follow <- c("days_to_last_followup", "days_to_last_follow_up")
+        isWhich <- col_follow %in% colnames(x$metadata)
+        if (!any(isWhich)) {
+          stop('!any(isWhich), no "follow_up" in x$metadata.')
+        }
+        if (!any(colnames(x$metadata) == "bcr_followup_barcode")) {
+          stop('!any(colnames(x$metadata) == "bcr_followup_barcode").')
+        }
+        x$metadata <- dplyr::mutate(
+          x$metadata, patient = strx(bcr_followup_barcode, "[:alnum:]{4}-[:alnum:]{2}-[:alnum:]{4}")
+        )
+        metadata <- map(
+          metadata, "patient", x$metadata, "patient", col_follow[isWhich],
+          col = "days_to_last_follow_up"
+        )
+      } else {
+        metadata <- dplyr::rename(metadata, days_to_last_follow_up = days_to_last_followup)
+      }
+    }
     if (mutate_follow) {
       times <- c("days_to_last_follow_up", "days_to_death")
       if (!any(hasThats <- times %in% colnames(metadata))) {
@@ -302,11 +338,17 @@ summary_tibble2 <- function(data, group) {
   attr = c("treatment_or_therapy"), add_into = TRUE, name_suffix = NULL)
 {
   type <- match.arg(type)
-  treats <- select(x@object$samples, dplyr::contains("treat"))
+  treats <- dplyr::select(x@object$samples, dplyr::contains("treat"))
+  if (is.null(treats$treatments)) {
+    message('is.null(treats$treatments), skip get treatments data.')
+    return(x)
+  }
   data <- lapply(treats$treatments,
     function(data) {
-      data <- filter(data, treatment_type == !!type)
-      data <- select(data, treatment_type, dplyr::all_of(attr))
+      if (!is.null(data)) {
+        data <- dplyr::filter(data, treatment_type == !!type)
+        data <- dplyr::select(data, treatment_type, dplyr::all_of(attr))
+      }
       data
     })
   data <- do.call(dplyr::bind_rows, data)

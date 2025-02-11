@@ -1557,13 +1557,13 @@ resolve_feature <- function(feature, unlist = TRUE,
 }
 
 snapAdd_onExit <- function(x, static, funName = "snapAdd",
-  saveStatic = ".__SNAP__", env = parent.frame(1))
+  saveStatic = ".__SNAP__", env = parent.frame(1), ...)
 {
-  methodAdd_onExit(x, static, funName, saveStatic, env)
+  methodAdd_onExit(x, static, funName, saveStatic, env, ...)
 }
 
 methodAdd_onExit <- function(x, static, funName = "methodAdd",
-  saveStatic = ".__METH__", env = parent.frame(1))
+  saveStatic = ".__METH__", env = parent.frame(1), ...)
 {
   if (!is(x, "character") || !is(static, "character")) {
     stop('!is(x, "character") || !is(static, "character"), should all be character.')
@@ -1580,7 +1580,7 @@ methodAdd_onExit <- function(x, static, funName = "methodAdd",
   saveEnv[[ name ]] <- glue::glue(static, .envir = env)
   if (!hasSetUp) {
     expr <- glue::glue(
-      "{funName}(get({x}, env = env), saveEnv, env = NULL)"
+      "{funName}(get({x}, env = env), saveEnv, env = NULL, ...)"
     )
     withr::defer(eval(parse(text = expr)), envir = env, "last")
   }

@@ -302,7 +302,7 @@ setMethod("step1", signature = c(x = "job_survival"),
     }
     feature(x) <- t.SignificantSurvivalPValue$name
     x <- tablesAdd(x, t.SurvivalPValue, t.SignificantSurvivalPValue)
-    x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。以 R 包 `timeROC` ({packageVersion('timeROC')}) 绘制 {bind(roc_time)} 年生存曲线。")
+    x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。")
     return(x)
   })
 

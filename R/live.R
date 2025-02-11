@@ -2243,8 +2243,8 @@ as_caption <- function(str) {
 }
 
 trunc_table <- function(x) {
-  if (ncol(x) > 10) {
-    x <- x[, 1:10]
+  if (ncol(x) > 5) {
+    x <- x[, 1:5]
   }
   width <- if (ncol(x) > 7) {
     9

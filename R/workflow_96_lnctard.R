@@ -40,8 +40,14 @@ setMethod("step1", signature = c(x = "job_lnctard"),
   function(x, lnc){
     step_message("Find target genes.")
     t.regulate <- dplyr::filter(x@params$db, Regulator %in% !!lnc)
+    t.regulate <- dplyr::mutate(
+      t.regulate, Target = iconv(
+        Target, to = "UTF-8", sub = "byte"
+      ), Target = gs(Target, "<.*>", "")
+    )
     t.regulate <- setLegend(t.regulate, "为 LncRNA ({less(lnc)}) 调控的靶点基因附表。")
     x <- tablesAdd(x, t.lncRNA_regulation_data = t.regulate)
     x <- snapAdd(x, "从 `LncTarD` 数据库检索 {less(lnc)} 的调控靶基因。")
+    feature(x) <- t.regulate$Target
     return(x)
   })

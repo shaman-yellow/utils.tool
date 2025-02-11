@@ -130,7 +130,9 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     x$graph_mcc <- .set_lab(x$graph_mcc, sig(x), "graph MCC layout data")
     x$graph_mcc <- setLegend(x$graph_mcc,
       "PPI (带有 Cytohubba {cite_show('CytohubbaIdenChin2014')} MCC 得分) 附表")
-    p.mcc <- plot_networkFill.str(graph_mcc, label = "Symbol", HLs = HLs)
+    p.mcc <- plot_networkFill.str(
+      graph_mcc, label = "Symbol", HLs = HLs, netType = network_type
+    )
     p.mcc <- .set_lab(wrap(p.mcc), sig(x), paste0("Top", tops, " MCC score"))
     p.mcc <- setLegend(p.mcc, "PPI (带有 Cytohubba {cite_show('CytohubbaIdenChin2014')} MCC 得分) 网络图")
     x@plots[[1]] <- namel(p.ppi, p.mcc)
