@@ -278,7 +278,7 @@ get_pdb <- function(ids, cl = 3, mkdir.pdb = "protein_pdb", fun_download = downl
     fun_download(ids, cl = cl, mkdir.pdb = mkdir.pdb)
   }
   files <- list.files(mkdir.pdb, ".*\\.pdb$", full.names = TRUE)
-  names(files) <- gsub(".*?([^/]{1,})\\.pdb$", "\\1", files)
+  names(files) <- basename(tools::file_path_sans_ext(files))
   files
 }
 

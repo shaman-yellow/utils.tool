@@ -3,7 +3,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 .job_cluspro <- setClass("job_cluspro", 
-  contains = c("job_hawkdock"),
+  contains = c("job"),
   representation = representation(
     object = "ANY",
     params = "list",
@@ -26,8 +26,12 @@ job_cluspro <- function(symbols, .layout = NULL)
     .layout <- .layout[, 1:2]
     colnames(.layout) <- c("from", "to")
     symbols <- unlist(.layout, use.names = FALSE)
+  } else {
+    symbols <- rm.no(symbols)
+    .layout <- data.frame(t(combn(symbols, 2)))
+    names(.layout) <- c("from", "to")
   }
-  .job_cluspro(object = rm.no(symbols), params = list(.layout = .layout))
+  .job_cluspro(object = list(hgnc_symbols = rm.no(symbols)), params = list(.layout = .layout))
 }
 
 setMethod("step0", signature = c(x = "job_cluspro"),
@@ -36,9 +40,36 @@ setMethod("step0", signature = c(x = "job_cluspro"),
   })
 
 setMethod("step1", signature = c(x = "job_cluspro"),
-  function(x, extra_pdbs, ...){
+  function(x, order = TRUE, each_target = 1, custom_pdbs = NULL){
     step_message("Found PDB.")
-    x <- callNextMethod(x, extra_pdbs, ...)
+    x <- .find_proper_pdb(x, order, each_target, custom_pdbs)
+    if (TRUE) {
+      fun_set_layout <- function(anno) {
+        layouts <- x$.layout
+        layouts <- map(layouts, "from", anno, "hgnc_symbol", "pdb", rename = FALSE)
+        layouts <- map(layouts, "to", anno, "hgnc_symbol", "pdb", rename = FALSE)
+        layouts <- apply(layouts, 1, tolower, simplify = FALSE)
+        names(layouts) <- paste0(x$.layout$from, "_", x$.layout$to)
+        layouts
+      }
+      anno <- dplyr::distinct(x$targets_annotation, hgnc_symbol, .keep_all = TRUE)
+      x$layouts <- fun_set_layout(anno)
+    }
+    x$dock_layout <- x$layouts
+    res <- .get_pdb_files(x)
+    x <- res$x
+    if (any(is.na(unlist(x$dock_layout)))) {
+      x$layouts <- fun_set_layout(
+        data.frame(hgnc_symbol = names(x$used_pdbs), pdb = unname(x$used_pdbs))
+      )
+    }
+    keep <- vapply(x$layouts, 
+      function(x) {
+        all(!is.na(x))
+      }, logical(1))
+    x$layouts <- x$layouts[ keep ]
+    x$pdb.files <- res$pdb.files
+    x$pdb_from <- x$used_pdbs
     return(x)
   })
 

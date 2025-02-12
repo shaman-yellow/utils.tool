@@ -37,6 +37,7 @@ setMethod("step1", signature = c(x = "job_musite"),
     x$mart <- new_biomart(org)
     x$seqs <- get_seq.pro(object(x), x$mart)
     x$seqs_file <- write(x$seqs$fasta, save, max = NULL)
+    x <- snapAdd(x, "以 `biomaRt` 获取蛋白质 ({less(object(x))}) 的序列 (Peptide)。")
     x <- methodAdd(x, "以 `biomaRt` {cite_show('MappingIdentifDurinc2009')} 获取蛋白质 ({org}) 的序列 (`biomaRt::getSequence` 获取 peptide)。")
     return(x)
   })
@@ -48,8 +49,7 @@ setMethod("step2", signature = c(x = "job_musite"),
       "O-linked_glycosylation", "Phosphoserine_Phosphothreonine",
       "Phosphotyrosine", "Pyrrolidone_carboxylic_acid", "S-palmitoyl_cysteine",
       "SUMOylation", "Ubiquitination"
-      ), all_types = type,
-    cutoff = .5, respective = TRUE,
+      ), cutoff = .5, respective = TRUE,
     output = timeName("musite"))
   {
     step_message("Compute PTM position.")
@@ -57,7 +57,7 @@ setMethod("step2", signature = c(x = "job_musite"),
       x$output <- output
       dir.create(x$output)
     }
-    x$type <- vapply(type, match.arg, character(1), choices = all_types)
+    x$type <- match.arg(type, several.ok = TRUE)
     message("Use PTM type: ", bind(x$type))
     models <- paste0(pg("musiteModel"), "/", paste0(x$type, collapse = ";"))
     message("Use models: ", models)
@@ -83,13 +83,16 @@ setMethod("step2", signature = c(x = "job_musite"),
     t.data <- dplyr::relocate(t.data, Sequence_name, PTM_type)
     t.data <- dplyr::arrange(t.data, dplyr::desc(PTM_score))
     t.data <- .set_lab(t.data, sig(x), "prediction PTM of", x$type)
+    t.data <- setLegend(t.data, "以 `MusiteDeep` 预测的修饰位点以及得分附表。")
     t.cutoff <- dplyr::filter(t.data, PTM_score > cutoff)
     t.cutoff <- .set_lab(t.cutoff, sig(x), "high score prediction PTM of", x$type)
+    t.cutoff <- setLegend(t.cutoff, "预测的修饰位点以及得分 (Score cutoff: {cutoff}) 附表。 ")
     p.PTMsNumber <- lapply(split(t.cutoff, ~ PTM_type),
       function(data) {
         new_pie(data$Sequence_name)
     })
     p.PTMsNumber <- .set_lab(p.PTMsNumber, sig(x), names(p.PTMsNumber), "PTM numbers")
+    p.PTMsNumber <- setLegend(p.PTMsNumber, "为预测到的 PTMs 数量饼图。")
     p.hasPTMs <- new_pie(object(x) %in% unique(t.cutoff$Sequence_name))
     strFasta <- Read(x$seqs$fasta)
     fun_str <- function(name, pos) {
@@ -134,11 +137,12 @@ setMethod("step2", signature = c(x = "job_musite"),
           theme(axis.text.y = element_blank())
       })
     p.tops <- .set_lab(p.tops, sig(x), names(p.tops), "PTM score")
+    p.tops <- setLegend(p.tops, glue::glue("为 {names(p.tops)} 的修饰位点以及得分可视化图。"))
     lab(p.tops) <- paste0(sig(x), " ", "All PTM score")
-    x@plots[[ 2 ]] <- namel(p.tops, p.PTMsNumber)
-    x <- plotsAdd(x, p.hasPTMs)
+    x@plots[[ 2 ]] <- namel(p.tops, p.PTMsNumber, p.hasPTMs)
     x@tables[[ 2 ]] <- namel(t.data, t.cutoff)
     x <- methodAdd(x, "以 Python 工具 `MusiteDeep` {cite_show('MusitedeepADWang2020')} 预测 {bind(x$type)} 修饰位点，设定 PTM 得分截断为 {cutoff}。")
+    x <- snapAdd(x, "以 `MusiteDeep` 预测 {bind(x$type)} 修饰位点。")
     return(x)
   })
 

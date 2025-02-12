@@ -64,47 +64,63 @@ setMethod("step1", signature = c(x = "job_vina"),
     bdb_file = .prefix("BindingDB_All_202401.tsv", "db"))
   {
     step_message("Prepare Docking Combination.")
-    if (is.null(x$mart)) {
-      mart <- new_biomart()
-    } else {
-      mart <- x$mart
-    }
-    x$targets_annotation <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
-      object(x)$hgnc_symbols, distinct = FALSE)
+    x <- .find_proper_pdb(x, order, each_target, custom_pdbs)
+    x$dock_layout <- sapply(object(x)$cids, function(cid) x$used_pdbs, simplify = FALSE)
+    names(x$dock_layout) <- object(x)$cids
+    return(x)
+  })
+
+.find_proper_pdb <- function(x, order = TRUE, each_target = 1, custom_pdbs = NULL) {
+  if (!is(x, "job")) {
+    stop('!is(x, "job").')
+  }
+  if (!is(object(x)$hgnc_symbols, "character")) {
+    stop('!is(object(x)$hgnc_symbols, "character").')
+  }
+  if (is.null(x$mart)) {
+    mart <- new_biomart()
+  } else {
+    mart <- x$mart
+  }
+  x$targets_annotation <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
+    object(x)$hgnc_symbols, distinct = FALSE)
+  if (nrow(x$targets_annotation)) {
     x <- methodAdd(x, "以 R 包 `biomaRt` ({packageVersion('biomaRt')}) {cite_show('MappingIdentifDurinc2009')} 获取基因 Symbol 对应的蛋白结构 PDB (<https://www.rcsb.org/>) 数据库 ID。")
     x <- snapAdd(x, "以 `biomaRt` 获取基因 Symbol 对应的蛋白结构 (PDB，详见方法章节)。")
     x$targets_annotation <- dplyr::filter(x$targets_annotation, pdb != "")
     x$targets_annotation <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = TRUE)
-    if (!is.null(custom_pdbs)) {
-      custom_pdbs <- list(hgnc_symbol = names(custom_pdbs), pdb = unname(custom_pdbs))
-      if (!is.character(x$targets_annotation$pdb)) {
-        x$targets_annotation <- dplyr::mutate(x$targets_annotation, pdb = as.character(pdb))
-      }
-      x$targets_annotation <- tibble::add_row(x$targets_annotation, !!!custom_pdbs)
+  }
+  if (!is.null(custom_pdbs)) {
+    custom_pdbs <- list(hgnc_symbol = names(custom_pdbs), pdb = unname(custom_pdbs))
+    if (!is.character(x$targets_annotation$pdb)) {
+      x$targets_annotation <- dplyr::mutate(x$targets_annotation, pdb = as.character(pdb))
     }
-    if (any(isThat <- !object(x)$hgnc_symbols %in% x$targets_annotation$hgnc_symbol)) {
-      message("PDB not found:\n\t", paste0(unique(object(x)$hgnc_symbols[ isThat ]), collapse = ", "))
-      if (!usethis::ui_yeah("Continue?")) {
-        stop("Consider other ways to found PDB files for docking.")
-      }
-    } else {
-      message("Got PDB for all `hgnc_symbol`.")
+    x$targets_annotation <- tibble::add_row(x$targets_annotation, !!!custom_pdbs)
+  }
+  if (any(isThat <- !object(x)$hgnc_symbols %in% x$targets_annotation$hgnc_symbol)) {
+    x$pdb_notGot <- unique(object(x)$hgnc_symbols[ isThat ])
+    message("PDB not found:\n\t", paste0(x$pdb_notGot, collapse = ", "))
+    if (!sureThat("Continue? (Suggests: `.get_pdb_files`)"))
+    {
+      stop("Consider other ways to found PDB files for docking.")
     }
-    if (length(nrow(x$targets_annotation))) {
-      x$annoPdbs <- as_tibble(e(bio3d::pdb.annotate(x$targets_annotation$pdb)))
-      x <- methodAdd(
-        x, "以 R 包 `bio3d` ({packageVersion('bio3d')}) 获取 PDB ID 对应的注释 (蛋白结构分辨率, resolution) 。"
+  } else {
+    message("Got PDB for all `hgnc_symbol`.")
+  }
+  if (nrow(x$targets_annotation)) {
+    x$annoPdbs <- as_tibble(e(bio3d::pdb.annotate(x$targets_annotation$pdb)))
+    x <- methodAdd(
+      x, "以 R 包 `bio3d` ({packageVersion('bio3d')}) 获取 PDB ID 对应的注释 (蛋白结构分辨率, resolution) 。"
+    )
+    if (order) {
+      annoPdbs <- dplyr::distinct(x$annoPdbs, structureId, resolution)
+      x$targets_annotation <- map(
+        x$targets_annotation, "pdb", annoPdbs, "structureId", 
+        "resolution", col = "resolution"
       )
-      if (order) {
-        annoPdbs <- dplyr::distinct(x$annoPdbs, structureId, resolution)
-        x$targets_annotation <- map(
-          x$targets_annotation, "pdb", annoPdbs, "structureId", 
-          "resolution", col = "resolution"
-        )
-        x$targets_annotation <- dplyr::arrange(x$targets_annotation, resolution)
-        x <- methodAdd(x, "首要以 resolution 选取用于分子对接的蛋白结构 (resolution 越小，分辨率越高) 。")
-        x <- snapAdd(x, "选取分辨率最高 (即，resolution 值最小) 的 PDB 作为分子对接的蛋白结构。")
-      }
+      x$targets_annotation <- dplyr::arrange(x$targets_annotation, resolution)
+      x <- methodAdd(x, "首要以 resolution 选取用于分子对接的蛋白结构 (resolution 越小，分辨率越高) 。")
+      x <- snapAdd(x, "选取分辨率最高 (即，resolution 值最小) 的 PDB 作为分子对接的蛋白结构。")
     }
     used_pdbs <- dplyr::distinct(
       x$targets_annotation, hgnc_symbol, .keep_all = TRUE
@@ -125,10 +141,11 @@ setMethod("step1", signature = c(x = "job_vina"),
     if (!length(used_pdbs)) {
       stop('!length(used_pdbs), no any protein need docking?')
     }
-    x$dock_layout <- sapply(object(x)$cids, function(cid) used_pdbs, simplify = FALSE)
-    names(x$dock_layout) <- object(x)$cids
-    return(x)
-  })
+  } else {
+    x$used_pdbs <- NULL
+  }
+  return(x)
+}
 
 setMethod("step2", signature = c(x = "job_vina"),
   function(x, try_cluster_random = TRUE, nGroup = 100, nMember = 3, cl = 10, sdf.3d = NULL)
@@ -217,6 +234,7 @@ setMethod("step2", signature = c(x = "job_vina"),
     alls <- unique(as.character(object(x)$cid))
     notGot <- alls[!alls %in% names(x$res.ligand)]
     message("Not got:", paste0(notGot, collapse = ", "))
+    x$ligand_notGot <- notGot
     message("Filter the `x$dock_layout`")
     x$dock_layout <- x$dock_layout[ names(x$dock_layout) %in% names(x$res.ligand) ]
     return(x)
@@ -224,109 +242,19 @@ setMethod("step2", signature = c(x = "job_vina"),
 
 setMethod("step3", signature = c(x = "job_vina"),
   function(x, cl = 10, pattern = NULL, extra_pdb.files = NULL, extra_layouts = NULL,
-    extra_symbols = NULL, filter = TRUE, use_complex = TRUE, exclude_nonStd = c(
+    filter = TRUE, use_complex = TRUE, exclude_nonStd = c(
       "NAG", "BMA", "FUL"
-    ))
+    ), tryGetFromAlphaFold = TRUE)
   {
     step_message("Dowload pdb files for Receptors.")
-    ids <- unique(unlist(x$dock_layout, use.names = FALSE))
-    if (length(ids)) {
-      pdb.files <- get_pdb(ids, cl = cl, mkdir.pdb = "protein_pdb")
-      x <- methodAdd(x, "以 RCSB API  (<https://www.rcsb.org/docs/programmatic-access/web-apis-overview>) 获取蛋白 PDB 文件。")
-      x <- snapAdd(x, "从 RCSB PDB 获取 PDB 文件。")
-    } else {
-      pdb.files <- NULL
-    }
-    if (!is.null(extra_pdb.files)) {
-      names(extra_pdb.files) <- tolower(names(extra_pdb.files))
-      pdb.files <- c(pdb.files, extra_pdb.files)
-      if (is.null(extra_symbols)) {
-        extra_symbols <- nl(toupper(names(extra_pdb.files)), names(extra_pdb.files), FALSE)
-      }
-      if (!nrow(x@params$targets_annotation)) {
-        x@params$targets_annotation <- dplyr::mutate(x@params$targets_annotation, pdb = character(0))
-      }
-      x@params$targets_annotation %<>%
-        tibble::add_row(hgnc_symbol = names(extra_symbols), pdb = unname(extra_symbols))
-      layoutNeedRevise <- TRUE
-    } else {
-      layoutNeedRevise <- FALSE
-    }
-    if (!is.null(extra_layouts)) {
-      if (is(extra_layouts, "character")) {
-        extra_layouts <- as.list(extra_layouts)
-      }
-      x$dock_layout <- c(x$dock_layout, extra_layouts)
-    } else if (layoutNeedRevise) {
-      x$dock_layout %<>% lapply(function(x) c(x, names(extra_pdb.files)))
-    }
-    if (!is.null(x$pdb_MultiChains)) {
-      pdb_MultiChains <- tolower(unique(x$pdb_MultiChains))
-      fun_extract_cpdName <- function(lines) {
-        chains <- stringr::str_extract(lines, "(?<=CHAIN: ).*(?=;)")
-        names <- stringr::str_extract(lines, "(?<=MOLECULE: ).*(?=;)")
-        names <- names[ !is.na(names) ]
-        names(names) <- chains[ !is.na(chains) ]
-        return(names)
-      }
-      used_pdbs <- x$used_pdbs
-      pdb_files_MultiChains <- lapply(pdb_MultiChains,
-        function(pdb) {
-          file <- pdb.files[[ pdb ]]
-          contentPdb <- readLines(file)
-          contentPdb <- contentPdb[ grpl(contentPdb, "^COMPND") ]
-          contentPdb <- sep_list(contentPdb, "^COMPND.*MOL_ID", 0)
-          if (length(contentPdb) > 1) {
-            names <- unlist(lapply(unname(contentPdb), fun_extract_cpdName))
-            message(glue::glue("PDB: {pdb.files[[ pdb ]]} has multiple compounds: {bind(names)}."))
-            if (any(nchar(names(names)) > 1)) {
-              stop(
-                glue::glue('Chain names not in expection: {bind(names(names), co = " | ")}')
-              )
-            }
-            chains <- names(names)
-            newfiles <- add_filename_suffix(file, tolower(chains))
-            .pymol_select_chains(file, chains, newfiles)
-            gene_pdbChains <- nl(names, tools::file_path_sans_ext(basename(newfiles)), FALSE)
-            if (any(hasWhich <- names(used_pdbs) %in% names(gene_pdbChains))) {
-              genes <- names(used_pdbs)[hasWhich]
-              message(
-                glue::glue("Detected input gene ({bind(genes)}) in input chains: bind(gene_pdbChains).")
-              )
-              used_pdbs[ hasWhich ] <- gene_pdbChains[ match(genes, names(gene_pdbChains)) ]
-              complexPdb <- pdb
-              names(complexPdb) <- paste0(
-                names(gene_pdbChains), collapse = "+"
-              )
-              used_pdbs <<- c(used_pdbs, complexPdb)
-            }
-            c(file, newfiles)
-          } else {
-            file
-          }
-        })
-      x$used_pdbs <- used_pdbs
-      lessUsedChain <- head(
-        used_pdbs[ grpl(used_pdbs, "_") ], n = 2
-      )
-      x <- snapAdd(x, "对于复合体 PDB (文件中包含支链分子信息)，将使用对应的支链 (以 `pymol` 获取支链) 进行分子对接 (例如 {bind(names(lessUsedChain))}，使用 {bind(lessUsedChain)}) 。")
-      x$dock_layout <- lapply(x$dock_layout,
-        function(vec) {
-          vec[ names(vec) %in% names(used_pdbs) ] <- used_pdbs[ match(
-            names(vec), names(used_pdbs)
-            ) ]
-          vec
-        })
-      pdb_files_MultiChains <- unlist(
-        pdb_files_MultiChains, use.names = FALSE
-      )
-      names(pdb_files_MultiChains) <- tools::file_path_sans_ext(basename(pdb_files_MultiChains))
-      x$pdb_files_MultiChains <- pdb_files_MultiChains
-      pdb.files <- c(pdb.files[!names(pdb.files) %in% pdb_MultiChains], pdb_files_MultiChains)
-    }
-    if (!is.null(pattern)) {
-      pdb.files <- filter_pdbs(pdb.files, pattern)
-    }
+    res <- .get_pdb_files(
+      x, cl = cl, pattern = pattern, extra_pdb.files = extra_pdb.files, 
+      extra_layouts = extra_layouts,
+      tryGetFromAlphaFold = tryGetFromAlphaFold
+    )
+    x <- res$x
+    pdb.files <- res$pdb.files
+    used_pdbs <- x$used_pdbs
     if (!is.null(exclude_nonStd)) {
       pattern <- paste0(
         paste0("\\b", exclude_nonStd, "\\b"), collapse = "|"
@@ -360,8 +288,7 @@ setMethod("step3", signature = c(x = "job_vina"),
     x <- methodAdd(x, "以 `ADFR` {cite_show('AutogridfrImpZhang2019')} 工具组的准备受体蛋白的 PDBQT 文件 (以 `prepare_receptor` 添加氢原子，并转化为 PDBQT 文件) 。请参考 <https://autodock-vina.readthedocs.io/en/latest/docking_basic.html>。")
     x <- snapAdd(x, "以 `ADFR` 工具给受体添加氢原子，转化为 PDBQT 文件。")
     names <- names(x$res.receptor)
-    anno <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = TRUE)
-    gotSymbols <- anno$hgnc_symbol[ match(tolower(names), tolower(anno$pdb)) ]
+    gotSymbols <- names(x$used_pdbs)[ match(tolower(names(x$res.receptor)), tolower(x$used_pdbs)) ]
     x$res.receptor.symbol <- gotSymbols
     fun <- function(x) x[ !x %in% gotSymbols ]
     message("Not got: ", paste0(fun(unique(object(x)$hgnc_symbol)), collapse = ", "))
@@ -392,8 +319,179 @@ setMethod("step3", signature = c(x = "job_vina"),
       )
       x$dock_layout <- c(x$dock_layout, nl(dat$cpd, dat$pdb))
     }
+    if (!length(x$res.receptor) || !length(x$res.ligand)) {
+      stop(
+        '!length(x$res.receptor) || !length(x$res.ligand), no any ligand or receptor?'
+      )
+    }
     return(x)
   })
+
+.get_pdb_files <- function(x, cl = 10, pattern = NULL, 
+  extra_pdb.files = NULL, extra_layouts = NULL,
+  tryGetFromAlphaFold = TRUE)
+{
+  if (!is(x, "job")) {
+    stop('!is(x, "job").')
+  }
+  if (is.null(x$dock_layout)) {
+    stop('is.null(x$dock_layout).')
+  }
+  ids <- rm.no(unlist(x$dock_layout, use.names = FALSE))
+  if (length(ids)) {
+    # The returned files is got by list.files
+    pdb.files <- get_pdb(ids, cl = cl, mkdir.pdb = "protein_pdb")
+    pdb.files <- pdb.files[ names(pdb.files) %in% tolower(x$used_pdbs) ]
+    x <- methodAdd(x, "以 RCSB API  (<https://www.rcsb.org/docs/programmatic-access/web-apis-overview>) 获取蛋白 PDB 文件。")
+    x <- snapAdd(x, "从 RCSB PDB 获取 PDB 文件。")
+  } else {
+    pdb.files <- NULL
+  }
+  if (length(x$pdb_notGot) && tryGetFromAlphaFold) {
+    res_af <- get_pdb_from_alphaFold(x$pdb_notGot, "protein_pdb")
+    x <- methodAdd(x, "以 R 包 `UniProt.ws` ({packageVersion('UniProt.ws')}) 获取基因 (symbol) 的 Uniprot Entry ID，随后，以 UniProt Entry ID 从数据库 `AlphaFold` (<https://alphafold.ebi.ac.uk/>) 获取数据库 `PDB` 中不包含的蛋白结构 (预测的结构)。")
+    x <- snapAdd(x, "从数据库 `AlphaFold` 获取 {less(x$pdb_notGot)} 预测的蛋白结构 (详见方法章节)。")
+    x$pdb_notGot_uniprot <- res_af$info
+    # extra_pdb.files: hgnc_symbol = file
+    if (!is.null(extra_pdb.files)) {
+      # symbol = pdb_ID
+      customInput <- basename(tools::file_path_sans_ext(extra_pdb.files))
+      customFiles <- extra_pdb.files
+      # pdb_ID = files
+      names(customFiles) <- unname(customInput)
+    } else {
+      customInput <- NULL
+      customFiles <- NULL
+    }
+    extra_pdb.files <- c(
+      res_af$files, customFiles
+    )
+    used_pdbs_extra <- c(res_af$used_pdbs, customInput)
+    # need revision: x$dock_layout, pdb.files, x$used_pdbs
+  }
+  if (!is.null(extra_pdb.files)) {
+    pdb.files <- c(pdb.files, extra_pdb.files)
+    x$used_pdbs <- c(x$used_pdbs, used_pdbs_extra)
+    layoutNeedRevise <- TRUE
+  } else {
+    layoutNeedRevise <- FALSE
+  }
+  if (!is.null(extra_layouts)) {
+    if (is(extra_layouts, "character")) {
+      extra_layouts <- as.list(extra_layouts)
+    }
+    x$dock_layout <- c(x$dock_layout, extra_layouts)
+  } else if (layoutNeedRevise) {
+    x$dock_layout %<>% lapply(function(x) c(x, unname(used_pdbs_extra)))
+  }
+  if (!is.null(x$pdb_MultiChains)) {
+    pdb_MultiChains <- tolower(unique(x$pdb_MultiChains))
+    fun_extract_cpdName <- function(lines) {
+      chains <- stringr::str_extract(lines, "(?<=CHAIN: ).*(?=;)")
+      names <- stringr::str_extract(lines, "(?<=MOLECULE: ).*(?=;)")
+      names <- names[ !is.na(names) ]
+      names <- if (length(names)) names else "__Omit__"
+      names(names) <- chains[ !is.na(chains) ]
+      return(names)
+    }
+    used_pdbs <- x$used_pdbs
+    pdb_files_MultiChains <- lapply(pdb_MultiChains,
+      function(pdb) {
+        file <- pdb.files[[ pdb ]]
+        contentPdb <- readLines(file)
+        contentPdb <- contentPdb[ grpl(contentPdb, "^COMPND") ]
+        contentPdb <- sep_list(contentPdb, "^COMPND.*MOL_ID", 0)
+        if (length(contentPdb) > 1) {
+          names <- unlist(lapply(unname(contentPdb), fun_extract_cpdName))
+          message(glue::glue("PDB: {pdb.files[[ pdb ]]} has multiple compounds: {bind(names)}."))
+          if (any(nchar(names(names)) > 1)) {
+            stop(
+              glue::glue('Chain names not in expection: {bind(names(names), co = " | ")}')
+            )
+          }
+          chains <- names(names)
+          newfiles <- add_filename_suffix(file, tolower(chains))
+          .pymol_select_chains(file, chains, newfiles)
+          gene_pdbChains <- nl(names, tools::file_path_sans_ext(basename(newfiles)), FALSE)
+          if (any(hasWhich <- names(used_pdbs) %in% names(gene_pdbChains))) {
+            genes <- names(used_pdbs)[hasWhich]
+            message(
+              glue::glue("Detected input gene ({bind(genes)}) in input chains: bind(gene_pdbChains).")
+            )
+            used_pdbs[ hasWhich ] <- gene_pdbChains[ match(genes, names(gene_pdbChains)) ]
+            complexPdb <- pdb
+            names(complexPdb) <- paste0(
+              names(gene_pdbChains), collapse = "+"
+            )
+            used_pdbs <<- c(used_pdbs, complexPdb)
+          }
+          c(file, newfiles)
+        } else {
+          file
+        }
+      })
+    lessUsedChain <- head(
+      used_pdbs[ grpl(used_pdbs, "_[a-e]$") ], n = 2
+    )
+    if (length(lessUsedChain)) {
+      x <- snapAdd(x, "对于复合体 PDB (文件中包含支链分子信息)，将使用对应的支链 (以 `pymol` 获取支链) 进行分子对接 (例如 {bind(names(lessUsedChain))}，使用 {bind(lessUsedChain)}) 。")
+    }
+    x$used_pdbs <- used_pdbs
+    x$dock_layout <- lapply(x$dock_layout,
+      function(vec) {
+        vec[ names(vec) %in% names(used_pdbs) ] <- used_pdbs[ match(
+          names(vec), names(used_pdbs)
+          ) ]
+        vec
+      })
+    pdb_files_MultiChains <- unlist(
+      pdb_files_MultiChains, use.names = FALSE
+    )
+    names(pdb_files_MultiChains) <- tools::file_path_sans_ext(basename(pdb_files_MultiChains))
+    x$pdb_files_MultiChains <- pdb_files_MultiChains
+    pdb.files <- c(pdb.files[!names(pdb.files) %in% pdb_MultiChains], pdb_files_MultiChains)
+  }
+  if (!is.null(pattern)) {
+    pdb.files <- filter_pdbs(pdb.files, pattern)
+  }
+  namel(x, pdb.files)
+}
+
+get_pdb_from_alphaFold <- function(symbols, dir = "protein_pdb")
+{
+  message("Try get from alphaFold database (taxId: 9606, Human)")
+  info <- UniProt.ws::mapUniProt(
+    from = "Gene_Name",
+    to = "UniProtKB-Swiss-Prot",
+    columns = c("accession", "id"),
+    query = list(taxId = 9606, ids = symbols)
+  )
+  if (any(which <- !symbols %in% info$From)) {
+    message(glue::glue("Not Got in alphaFold: {bind(symbols[which])}"))
+  }
+  if (any(duplicated(info$From))) {
+    message('any(duplicated(info$From)), distinct herein.')
+    info <- dplyr::distinct(info, From, .keep_all = TRUE)
+  }
+  files <- apply(info, 1, 
+    function(vec) {
+      id <- vec[[ "Entry" ]]
+      if (!is.na(id)) {
+        url <- glue::glue("https://alphafold.ebi.ac.uk/files/AF-{id}-F1-model_v4.pdb")
+        save <- file.path(dir, paste0(id, ".pdb"))
+        if (!file.exists(save)) {
+          download.file(url, save)
+        }
+        nl(vec[[ "Entry" ]], save, FALSE)
+      } else {
+        NULL
+      }
+    }, simplify = FALSE)
+  list(
+    files = unlist(files), 
+    info = info, used_pdbs = nl(info$From, info$Entry, FALSE)
+  )
+}
 
 setMethod("filter", signature = c(x = "job_vina"),
   function(x, cpd, symbol, cid = NULL)
@@ -435,6 +533,10 @@ setMethod("step4", signature = c(x = "job_vina"),
     x <- methodAdd(x, "以 `AutoDock-Vina` 提供的工具 (`prepare_gpf.py`) (<https://github.com/ccsb-scripps/AutoDock-Vina>) 创建 GPF (grid parameter file)。")
     x <- methodAdd(x, "以 `ADFR` {cite_show('AutogridfrImpZhang2019')} 工具 `autogrid4` 计算亲和图谱 (Affinity Maps)。")
     x <- snapAdd(x, "以 `ADFR` 创建 Affinity Maps (详见方法章节) 。")
+    if (any(grpl(names(x$res.receptor), "[A-Z]"))) {
+      message('any(grpl(names(x$res.receptor), "[A-Z]")), convert to lower case.')
+      names(x$res.receptor) <- tolower(names(x$res.receptor) )
+    }
     pbapply::pblapply(x$runs,
       function(v) {
         lig <- x$res.ligand[[ v[1] ]]
