@@ -2000,6 +2000,14 @@ autosv <- function(x, name, ..., showtext = FALSE, cache = TRUE, force = FALSE) 
         cache <- getOption("cache", "cache")
         dir.create(cache, FALSE)
         saveRDS(x, file.path(cache, paste0(name, ".rds")))
+      } else if (is(x, "df")) {
+        if (any(vapply(x, class, character(1)) == "list")) {
+          x <- dplyr::mutate(x,
+            dplyr::across(dplyr::where(is.list),
+              function(x) {
+                vapply(x, paste0, collapse = " | ", FUN.VALUE = character(1))
+              }))
+        }
       }
       file <- select_savefun(x)(x, name, ...)
       if (showtext) {

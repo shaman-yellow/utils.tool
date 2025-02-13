@@ -36,8 +36,8 @@ summary_assess.bosai <- function(data, time = Sys.Date(),
 }
 
 backup_jobs.bosai <- function(data, time = Sys.Date(),
-  month = lubridate::month(.time - 12),
-  year = lubridate::year(.time - 12), back_dir = .prefix("backup", "db"),
+  month = lubridate::month(.time - 15),
+  year = lubridate::year(.time - 15), back_dir = .prefix("backup", "db"),
   .time = if (is(time, "Date")) time else as.Date(time, tryFormats = "%Y-%m-%d"))
 {
   dir.create(back_dir, FALSE)

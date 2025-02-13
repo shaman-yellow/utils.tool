@@ -145,7 +145,7 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     }
     rownames(counts) <- names
     data <- as_tibble(t(counts))
-    data <- dplyr::bind_cols(data, select(as_tibble(object$targets), -1))
+    data <- dplyr::bind_cols(data, dplyr::select(as_tibble(object$targets), -1))
     data[[ time ]] <- .mutate_last_follow_up_time(data[[ time ]])
     data <- relocate(data, 1, !!rlang::sym(time), !!rlang::sym(status))
     base_method <- match.arg(base_method)
@@ -178,6 +178,42 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     x$genes_surv <- genes_surv
     x$fun_group <- fun_group
     x$fun_status <- function(x) ifelse(x == "Alive", 0, 1) 
+    return(x)
+  })
+
+setMethod("regroup", signature = c(x = "job_limma", ref = "job_survival"),
+  function(x, ref, feature = names(ref$data_group), ...){
+    if (ref@step < 1L) {
+      stop('ref@step < 1L.')
+    }
+    if (x@step < 1L || x@step > 1L) {
+      stop('x@step < 1L || x@step > 1L.')
+    }
+    if (length(feature) > 1) {
+      stop('length(feature) > 1.')
+    }
+    message(glue::glue("Use {feature} (survival related expression) to regroup samples."))
+    if (is.null(ref$data_group)) {
+      stop('is.null(ref$data_group).')
+    }
+    if (!any(names(ref$data_group) == feature)) {
+      stop('!any(names(ref$data_group) == feature).')
+    }
+    data <- ref$data_group[[ feature ]]
+    x <- filter(x, sample %in% !!data$sample, type = "metadata", add_snap = FALSE)
+    if (identical(.get_meta(x, "sample"), data$sample)) {
+      message("Reset group.")
+      x <- modify_job_limma_meta(
+        x, group = data$group, fun = dplyr::mutate, modify_object = TRUE
+      )
+    } else {
+      stop('identical(.get_meta(x, "sample"), data$sample) == FALSE')
+    }
+    x <- set_independence(x)
+    x <- set_design(x, ...)
+    des <- glue::glue("使用 Survival 分析 ({ref@sig}) 时定义的分组数据 (根据 {feature} 的表达，分为 {try_snap(.get_meta(x, 'group'))})。")
+    x@meth[[ "step1" ]] <- des
+    x@snap[[ "step1" ]] <- des
     return(x)
   })
 
@@ -217,8 +253,10 @@ setMethod("step1", signature = c(x = "job_survival"),
     cli::cli_alert_info("survival::survfit")
     lst <- pbapply::pbsapply(genes_surv, simplify = FALSE,
       function(genes) {
-        data <- dplyr::select(data, time, o_status, !!!rlang::syms(genes))
-        data <- dplyr::mutate(
+        data <- dplyr::select(
+          data, sample = rownames, time, o_status, !!!rlang::syms(genes)
+        )
+        data_group <- data <- dplyr::mutate(
           data, status = fun_status(o_status),
           group = fun_group(!!!rlang::syms(genes), time, status),
         )
@@ -271,8 +309,9 @@ setMethod("step1", signature = c(x = "job_survival"),
           roc <- NULL
           p.boxplot <- NULL
         }
-        namel(p.surv, fit, p.roc, roc, p.boxplot, diff)
+        namel(p.surv, fit, p.roc, roc, p.boxplot, diff, data_group)
       })
+    x$data_group <- lapply(lst, function(x) x[[ "data_group" ]])
     plots <- sapply(c("p.surv", "p.roc", "p.boxplot"), simplify = FALSE,
       function(name) {
         lapply(lst, function(x) x[[ name ]])

@@ -198,19 +198,3 @@ vis_pdb <- function(file, expr = NULL, save = NULL, command = pg("pymol"))
   cdRun(command, " ", file, " ", expr)
 }
 
-.expr_pretty_pdb <- function(label.a, pos.a, label.b, pos.b,
-  a = "chain A", b = "chain B")
-{
-  pos <- function(x) paste0("[", paste0(x, collapse = ","), "]")
-  paste0(
-    " -d \"",
-    "color pink, ", a, "; ",
-    "color yellow, ", b, "; ",
-    "pseudoatom pA, pos = ", pos(pos.a), "; ",
-    "pseudoatom pB, pos = ", pos(pos.b), "; ",
-    "set label_size, 25",
-    "\" ",
-    " -d \"", "label pA, '", label.a, "'", "\" ",
-    " -d \"", "label pB, '", label.b, "'", "\" "
-    )
-}

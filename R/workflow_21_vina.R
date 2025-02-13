@@ -349,8 +349,8 @@ setMethod("step3", signature = c(x = "job_vina"),
   }
   if (length(x$pdb_notGot) && tryGetFromAlphaFold) {
     res_af <- get_pdb_from_alphaFold(x$pdb_notGot, "protein_pdb")
-    x <- methodAdd(x, "以 R 包 `UniProt.ws` ({packageVersion('UniProt.ws')}) 获取基因 (symbol) 的 Uniprot Entry ID，随后，以 UniProt Entry ID 从数据库 `AlphaFold` (<https://alphafold.ebi.ac.uk/>) 获取数据库 `PDB` 中不包含的蛋白结构 (预测的结构)。")
-    x <- snapAdd(x, "从数据库 `AlphaFold` 获取 {less(x$pdb_notGot)} 预测的蛋白结构 (详见方法章节)。")
+    x <- methodAdd(x, "以 R 包 `UniProt.ws` ({packageVersion('UniProt.ws')}) 获取基因 (symbol) 的 `UniProtKB-Swiss-Prot` ID (Entry ID)，随后，以 Entry ID 从数据库 `AlphaFold` (<https://alphafold.ebi.ac.uk/>) 获取数据库 `PDB` 中不包含的蛋白结构 (预测的结构)。")
+    x <- snapAdd(x, "对于未从 `PDB` 数据库找到结构文件的，从数据库 `AlphaFold` 获取 {less(x$pdb_notGot)} 预测的蛋白结构 (根据 `UniProtKB-Swiss-Prot` ID，详见方法章节)。")
     x$pdb_notGot_uniprot <- res_af$info
     # extra_pdb.files: hgnc_symbol = file
     if (!is.null(extra_pdb.files)) {

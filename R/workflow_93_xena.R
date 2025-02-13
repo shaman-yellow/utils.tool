@@ -62,7 +62,9 @@ setMethod("step0", signature = c(x = "job_xena"),
 
 setMethod("step1", signature = c(x = "job_xena"),
   function(x, cancer, site, Normal = TRUE, cancer_types = c("Primary Tumor", "Metastatic"),
-    group = "guess", mode = c("SKCM", "OV"), add_batch = TRUE)
+    group = "guess", mode = c(
+      "SKCM", "OV", "COAD"
+    ), add_batch = TRUE)
   {
     step_message("Filter metadata (clinical data).")
     if (!missing(mode)) {
@@ -73,6 +75,9 @@ setMethod("step1", signature = c(x = "job_xena"),
       } else if (mode == "OV") {
         cancer <- "Ovarian Serous Cystadenocarcinoma"
         site <- "Ovary"
+      } else if (mode == "COAD") {
+        cancer <- "Colon Adenocarcinoma"
+        site <- "Colon"
       }
       x$project <- paste0(x$project, "-", mode)
     } else {

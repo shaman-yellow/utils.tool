@@ -68,16 +68,26 @@ setMethod("step1", signature = c(x = "job_cluspro"),
         all(!is.na(x))
       }, logical(1))
     x$layouts <- x$layouts[ keep ]
+    t.docking_layouts <- tibble::tibble(
+      name = names(x$layouts), 
+      from_id = toupper(vapply(x$layouts, function(x) x[[ "from" ]], character(1))),
+      to_id = toupper(vapply(x$layouts, function(x) x[[ "to" ]], character(1)))
+    )
+    t.docking_layouts <- setLegend(t.docking_layouts, "为蛋白质对接所使用的 PDB 来源附表 (如果是 PDB ID，则 pdb 文件直接来源于 `PDB` 数据库；如果是 `UniProtKB-Swiss-Prot` ID，则根据该 ID，从 `AlphaFold` 获取预测的结构文件。")
+    x <- tablesAdd(x, t.docking_layouts)
     x$pdb.files <- res$pdb.files
     x$pdb_from <- x$used_pdbs
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_cluspro"),
-  function(x, port = 9999, ..., usr = getOption("cluspro_user"), psw = getOption("cluspro_password"))
+  function(x, port = 9999, ..., usr = getOption("cluspro_user"),
+    psw = getOption("cluspro_password"))
   {
     step_message("Login.")
     x <- login(x, port, ..., usr = usr, psw = psw)
+    x <- methodAdd(x, "登录 `ClusPro` ({cite_show('TheClusproWebKozako2017')}) (<https://cluspro.bu.edu/home.php>)，上传需要对接的蛋白结构 (PDB) 。")
+    x <- snapAdd(x, "将 PDB 上传至 `ClusPro` 进行对接。")
     return(x)
   })
 
@@ -117,6 +127,7 @@ setMethod("step4", signature = c(x = "job_cluspro"),
         theme(legend.position = "")
       p.score <- wrap(p.score, 9, nrow(data) * .3 + .5)
       p.score <- .set_lab(p.score, sig(x), "Overview of protein docking results.")
+      p.score <- setLegend(p.score, "为每组对接结果的最小能量柱状图 (请参考 <https://cluspro.bu.edu/help.php>)。")
       plots <- namel(p.score)
       if (!is.null(top)) {
         data <- head(data, top)
@@ -135,13 +146,14 @@ setMethod("step4", signature = c(x = "job_cluspro"),
             return(fig)
           })
         figs <- unlist(figs, recursive = FALSE)
+        figs <- setLegend(figs, glue::glue("以 `pymol` 将蛋白质 ({names(figs)}) 对接结果可视化。"))
         plots <- c(plots, list(top = figs))
       }
       x@plots[[ 4 ]] <- plots
       t.data <- .set_lab(t.data, sig(x), "Overview of protein docking results data.")
       x@tables[[ 4 ]] <- namel(t.data)
     } else {
-      message("No score information, please pull results first.")
+      stop("No score information, please pull results first.")
     }
     return(x)
   })
@@ -326,6 +338,7 @@ setMethod("upload", signature = c(x = "job_cluspro"),
     group <- group[ !group %in% finished$Name ]
     ## check now running
     url <- "https://cluspro.bu.edu/queue.php"
+    link$navigate(url)
     fun_get <- function(url) {
       fun_format <- function(x) {
         colnames(x) <- unlist(x[1, ])
@@ -351,6 +364,26 @@ setMethod("upload", signature = c(x = "job_cluspro"),
     ####################################################
     ## upload
     if (length(group)) {
+      fun_need_upload_pdbFile <- function(id) {
+        id_needFile <- x$pdb_notGot_uniprot$Entry
+        if (!is.null(id_needFile)) {
+          any(tolower(id_needFile) == id)
+        } else {
+          FALSE
+        }
+      }
+      if (any(grpl(names(x$pdb.files), "[A-Z]"))) {
+        message('any(grpl(names(x$pdb.files), "[A-Z]")), convert to lower case.')
+        names(x$pdb.files) <- tolower(names(x$pdb.files) )
+      }
+      pdb.files <- as.list(x$pdb.files)
+      fun_get_pdb_file <- function(id) {
+        file <- pdb.files[[ id ]]
+        if (is.null(file)) {
+          stop('is.null(file), do not known the filepath.')
+        }
+        normalizePath(file)
+      }
       message("Start upload.")
       url <- "https://cluspro.bu.edu/home.php"
       n <- 0L
@@ -372,11 +405,29 @@ setMethod("upload", signature = c(x = "job_cluspro"),
           ele <- link$findElement("xpath", "//form//div//select[@name='server']//option[@value='gpu']")
           ele$clickElement()
           ## ligand
-          ele <- link$findElement("xpath", "//div//span//input[@id='ligpdb']")
-          ele$sendKeysToElement(list(layout[[ "from" ]]))
+          if (fun_need_upload_pdbFile(layout[[ "from" ]])) {
+            ele_switch <- link$findElement("xpath", "//div//span[@id='showligfile']")
+            ele_switch$clickElement()
+            Sys.sleep(.5)
+            ele <- link$findElement("xpath", "//div//input[@id='lig' and @type='file']")
+            file <- fun_get_pdb_file(layout[[ "from" ]])
+            ele$sendKeysToElement(list(file))
+          } else {
+            ele <- link$findElement("xpath", "//div//span//input[@id='ligpdb']")
+            ele$sendKeysToElement(list(layout[[ "from" ]]))
+          }
           ## rec
-          ele <- link$findElement("xpath", "//div//span//input[@id='recpdb']")
-          ele$sendKeysToElement(list(layout[[ "to" ]]))
+          if (fun_need_upload_pdbFile(layout[[ "to" ]])) {
+            ele_switch <- link$findElement("xpath", "//div//span[@id='showrecfile']")
+            ele_switch$clickElement()
+            Sys.sleep(.5)
+            ele <- link$findElement("xpath", "//div//input[@id='rec' and @type='file']")
+            file <- fun_get_pdb_file(layout[[ "to" ]])
+            ele$sendKeysToElement(list(file))
+          } else {
+            ele <- link$findElement("xpath", "//div//span//input[@id='recpdb']")
+            ele$sendKeysToElement(list(layout[[ "to" ]]))
+          }
           ## submit
           ele <- link$findElement("xpath", "//div//input[@type='submit']")
           ele$clickElement()
@@ -432,4 +483,21 @@ vis_pdb.cluspro <- function(pdb, label.a, label.b,
     }
   }
   frbind(res)
+}
+
+.expr_pretty_pdb <- function(label.a, pos.a, label.b, pos.b,
+  a = "chain A", b = "chain B")
+{
+  pos <- function(x) paste0("[", paste0(x, collapse = ","), "]")
+  paste0(
+    " -d \"",
+    "color pink, ", a, "; ",
+    "color yellow, ", b, "; ",
+    "pseudoatom pA, pos = ", pos(pos.a), "; ",
+    "pseudoatom pB, pos = ", pos(pos.b), "; ",
+    "set label_size, 25",
+    "\" ",
+    " -d \"", "label pA, '", label.a, "'", "\" ",
+    " -d \"", "label pB, '", label.b, "'", "\" "
+    )
 }

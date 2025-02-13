@@ -57,14 +57,21 @@ job_limma_normed <- function(data, metadata, genes = NULL) {
   )
 }
 
-setMethod("regroup", signature = c(x = "job_limma"),
+setMethod("regroup", signature = c(x = "job_limma", ref = "missing"),
   function(x, ...){
     modify_job_limma_meta(x, ..., fun = dplyr::mutate)
   })
 
-modify_job_limma_meta <- function (x, ..., fun) {
-  if (!is.null(x@object$samples)) {
-    x@object$samples <- fun(x@object$samples, ...)
+modify_job_limma_meta <- function (x, ..., fun, modify_object = FALSE) {
+  if (modify_object) {
+    if (is(object(x), "EList")) {
+      name <- "targets"
+    } else {
+      name <- "samples"
+    }
+    if (!is.null(object(x)[[ name ]])) {
+      x@object[[ name ]] <- fun(x@object[[ name ]], ...)
+    }
   }
   if (!is.null(x$metadata)) {
     x$metadata <- fun(x$metadata, ...)
@@ -72,14 +79,14 @@ modify_job_limma_meta <- function (x, ..., fun) {
   if (!is.null(x$.metadata)) {
     x$.metadata <- fun(x$.metadata, ...)
   }
-  if (!is.null(x$normed_data$targets)) {
+  if (modify_object && !is.null(x$normed_data$targets)) {
     x$normed_data$targets <- fun(x$normed_data$targets, ...)
   }
   x
 }
 
 setMethod("filter", signature = c(x = "job_limma"),
-  function(x, ..., type = c("gene", "metadata")){
+  function(x, ..., type = c("gene", "metadata"), add_snap = TRUE){
     type <- match.arg(type)
     if (type == "gene") {
       message("Filter genes via `x@object$genes`.")
@@ -91,30 +98,31 @@ setMethod("filter", signature = c(x = "job_limma"),
       message("After Dim: ", paste0(dim(object(x)), collapse = ", "))
       return(x)
     } else if (type == "metadata") {
-      metadata <- if (x$normed) x$metadata else x@object$samples
-      snap <- snap(trace_filter(metadata, ...))
-      x <- modify_job_limma_meta(x, ..., fun = dplyr::filter)
-      if (x@step < 1L) {
-        
-        if (x$normed || is(object(x), "data.frame")) {
-          message(
-            glue::glue("before filter, dim of object(x): {bind(dim(object(x)))}")
-          )
-          object(x) <- object(x)[ , colnames(object(x)) %in% x$metadata$sample ]
-          message(
-            glue::glue("after filter, dim of object(x): {bind(dim(object(x)))}")
-          )
-        } else {
-          message(
-            glue::glue("before filter, dim of object(x)$counts: {bind(dim(object(x)$counts))}")
-          )
-          object(x)$counts <- object(x)$counts[ , colnames(object(x)$counts) %in% object(x)$samples$sample ]
-          message(
-            glue::glue("after filter, dim of object(x)$counts: {bind(dim(object(x)$counts))}")
-          )
-        }
+      if (add_snap) {
+        metadata <- .get_meta(x)
+        snap <- snap(trace_filter(metadata, ...))
       }
-      x <- snapAdd(x, "{snap}", add = FALSE)
+      x <- modify_job_limma_meta(x, ..., fun = dplyr::filter)
+      if (x@step <= 1L) {
+        message(
+          glue::glue("before filter, dim of object(x): {bind(dim(object(x)))}")
+        )
+        object(x) <- object(x)[ , colnames(object(x)) %in% .get_meta(x, "sample") ]
+        if (!is.null(x$normed_data)) {
+          if (!is(x$normed_data, "EList")) {
+            x$normed_data <- new_from_package("EList", "limma", x$normed_data)
+          }
+          x$normed_data <- x$normed_data[ , colnames(x$normed_data) %in% .get_meta(x, "sample") ]
+        }
+        message(
+          glue::glue("after filter, dim of object(x): {bind(dim(object(x)))}")
+        )
+      } else {
+        stop("need: x@step <= 1L")
+      }
+      if (add_snap) {
+        x <- snapAdd(x, "{snap}", add = FALSE)
+      }
       return(x)
     }
   })
@@ -136,8 +144,14 @@ setMethod("step0", signature = c(x = "job_limma"),
     )
   })
 
-.get_meta <- function(x, what) {
-  if (x$normed) x$metadata[[ what ]] else x@object$samples[[ what ]]
+.get_meta <- function(x, what, params = TRUE) {
+  metadata <- if (x$normed || params) x$metadata %||% x$.metadata
+    else x@object$samples %||% x@object$targets
+  if (missing(what)) {
+    metadata
+  } else {
+    metadata[[ what ]]
+  }
 }
 
 .guess_symbol <- function(x) {
@@ -159,6 +173,17 @@ setMethod("step0", signature = c(x = "job_limma"),
   } else if (!is.null(batch) && !is.null(pairs)) {
     "~ 0 + group + batch + pairs"
   }
+}
+
+set_design <- function(x, formula = .guess_formula(), 
+  group = .get_meta(x, "group"), batch = .get_meta(x, "batch"),
+  pairs = .get_meta(x, "pairs"))
+{
+  x$design <- mx(
+    as.formula(formula), 
+    data = tibble::tibble(group = group, batch = batch, pairs = pairs)
+  )
+  return(x)
 }
 
 setMethod("step1", signature = c(x = "job_limma"),

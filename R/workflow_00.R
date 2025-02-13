@@ -210,6 +210,7 @@ setValidity("feature_list",
 
 setMethod("[[", signature = c(x = "feature"),
   function(x, i, ...) {
+    name <- names(x@.Data[[ i ]])
     x@.Data <- x@.Data[[ i ]]
     if (is(x, "feature_list") && is(x@.Data, "character")) {
       new <- .feature_char()
@@ -218,14 +219,15 @@ setMethod("[[", signature = c(x = "feature"),
       }
       x <- new
     }
-    names(x) <- names(x@.Data)
+    names(x) <- name
     return(x)
   })
 
 setMethod("[", signature = c(x = "feature"),
   function(x, i, ...){
+    name <- names(x)[ i ]
     x@.Data <- x@.Data[ i ]
-    names(x) <- names(x)[ i ]
+    names(x) <- name
     return(x)
   })
 
@@ -303,6 +305,20 @@ setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
     snap(x) <- glue::glue("来自于{analysis}{sig}")
     return(x)
   })
+
+set_independence <- function(x) {
+  if (!is(x, "job")) {
+   stop('!is(x, "job").')
+  }
+  fun_new_env <- function(meth) {
+    meth@.xData <- as.environment(as.list(meth@.xData))
+    return(meth)
+  }
+  message("Set independence for `snap` and `meth` for `x`.")
+  x@meth <- fun_new_env(x@meth)
+  x@snap <- fun_new_env(x@snap)
+  return(x)
+}
 
 setGeneric("snap",
   function(x, ref, ...) standardGeneric("snap"))

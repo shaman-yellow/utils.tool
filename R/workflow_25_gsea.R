@@ -23,7 +23,7 @@ setGeneric("asjob_gsea", group = list("asjob_series"),
 
 setMethod("asjob_gsea", signature = c(x = "job_limma"),
   function(x, key = 1L, annotation = NULL,
-    filter = NULL, from = colnames(data)[ grp(colnames(data), "_symbol")[1] ],
+    filter = NULL, from = colnames(data)[ grp(colnames(data), "_symbol|gene_name")[1] ],
     data = NULL)
   {
     if (is.null(data)) {
@@ -33,7 +33,7 @@ setMethod("asjob_gsea", signature = c(x = "job_limma"),
           'is.null(attr(x@tables$step2$tops[[ key ]], "all")), can not found all gene set.'
         )
       }
-      resolve_feature_snapAdd_onExit("x", feature(x)[ key ])
+      resolve_feature_snapAdd_onExit("x", as_feature(data[[ from ]], x))
     }
     if (!is.null(filter)) {
       data <- dplyr::filter(data, !!rlang::sym(from) %in% dplyr::all_of(filter))
@@ -221,6 +221,9 @@ setMethod("step2", signature = c(x = "job_gsea"),
     highlight = key[1], use = "res.kegg", ...)
   {
     step_message("GSEA visualization for specific pathway")
+    if (is.null(key)) {
+      return(x)
+    }
     obj <- x@params[[ use ]]
     p.code <- wrap(e(enrichplot::gseaplot2(obj, key, pvalue_table = FALSE)), 7.5, 6)
     p.code <- .set_lab(p.code, sig(x), "GSEA plot of the pathways")
@@ -253,7 +256,7 @@ setMethod("step2", signature = c(x = "job_gsea"),
 
 setMethod("step3", signature = c(x = "job_gsea"),
   function(x, db, cutoff = .05, map = NULL, pvalue = FALSE, 
-    db_anno = NULL, mode = c(
+    db_anno = NULL, db_filter = NULL, mode = c(
       "curated gene sets" = "C2",
       "hallmark gene sets" = "H",
       "positional gene sets" = "C1",
@@ -268,6 +271,11 @@ setMethod("step3", signature = c(x = "job_gsea"),
     if (missing(db)) {
       mode <- match.arg(mode)
       db_anno <- e(msigdbr::msigdbr(species = "Homo sapiens", category = mode))
+      if (!is.null(db_filter)) {
+        db_anno <- dplyr::filter(
+          db_anno, grpl(gs_description, db_filter, TRUE)
+        )
+      }
       db <- dplyr::select(db_anno, gs_id, symbol = gene_symbol)
       x <- methodAdd(x, "以 R 包 `msigdbr` ({packageVersion('msigdbr')}) 获取 MSigDB 数据库基因集，用于 clusterProfiler GSEA 富集分析。")
       x <- snapAdd(x, "以 `msigdbr` 获取 {mode} ({names(mode)}) 基因集。")
@@ -290,8 +298,20 @@ setMethod("step3", signature = c(x = "job_gsea"),
     }
     if (!is.null(map)) {
       alls <- table_gsea$ID
-      map <- alls[ grepl(map, alls) ]
-      p.code <- wrap(e(enrichplot::gseaplot2(res.gsea, map, pvalue_table = pvalue)), 7.5, 6)
+      whichMapped <- which(grepl(map, table_gsea$Description, ignore.case = TRUE))
+      map <- alls[ whichMapped ]
+      if (!length(map)) {
+        message(crayon::red("Not match any pathway, skip plot of 'p.code'."))
+        p.code <- NULL
+      } else {
+        p.code <- wrap(e(
+            enrichplot::gseaplot2(
+              res.gsea, map, pvalue_table = pvalue,
+              title = bind(
+                stringr::str_wrap(table_gsea$Description[whichMapped], 80),
+                co = "\n"
+              ))), 7.5, 6)
+      }
     } else {
       p.code <- NULL
     }
@@ -302,6 +322,7 @@ setMethod("step3", signature = c(x = "job_gsea"),
     )
     x@params$res.gsea <- res.gsea
     x@params$db.gsea <- db
+    x$db_anno <- db_anno
     x@tables[[ 3 ]] <- namel(table_gsea)
     p.code <- .set_lab(p.code, sig(x), "GSEA plot of pathway")
     x@plots[[ 3 ]] <- namel(p.code)
