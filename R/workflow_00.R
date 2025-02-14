@@ -1171,18 +1171,24 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
     return(x)
   })
 
-.lab_out <- function(x) {
+.lab_out <- function(x, ref = TRUE) {
   if (requireNamespace("nvimcom")) {
     x <- lab(x)
     if (is.null(x)) {
       x <- getOption("autor_unnamed_number", 1)
       options(autor_unnamed_number = x + 1)
-      label <- paste0("#| Unnamed-", x)
+      label <- paste0("Unnamed-", x)
+      line_label <- paste0("#| ", label)
     } else {
       label <- as_chunk_label(x)
-      label <- paste0("#| ", label)
+      line_label <- paste0("#| ", label)
     }
-    .C("nvimcom_msg_to_nvim", glue::glue('append(line(".") - 1, "{label}")'), PACKAGE = "nvimcom")
+    .C("nvimcom_msg_to_nvim", glue::glue('append(line(".") - 1, "{line_label}")'), PACKAGE = "nvimcom")
+    if (ref) {
+      line_ref <- glue::glue("`r ref(\"{label}\")`")
+      print(line_ref)
+      .C("nvimcom_msg_to_nvim", glue::glue("Add_auto_label_ref('{line_ref}')"), PACKAGE = "nvimcom")
+    }
   }
 }
 
