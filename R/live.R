@@ -2693,6 +2693,30 @@ setMethod("as_tibble", signature = c(x = "df"),
 # for fast combine object
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+frame_wrap <- function(objects, weights, fun = c("frame_col", 
+  "frame_row"), label = TRUE)
+{
+  objects <- lapply(objects, 
+    function(x) {
+      if (is(x, "wrap")) {
+        x@data
+      } else {
+        x
+      }
+    })
+  if (label) {
+    objects <- mapply(objects, names(objects),
+      FUN = function(object, name) {
+        into(grecti2(name), object)
+      }, SIMPLIFY = FALSE)
+  }
+  if (missing(weights)) {
+    weights <- nl(names(objects), rep(1, length(objects)), FALSE)
+  }
+  fun <- match.fun(match.arg(fun))
+  wrap(fun(weights, objects))
+}
+
 xf <- function(..., DATA_object = list(), Env = parent.frame(1)) {
   DATA_object <- get_from_env(weight <- list(...), DATA_object, Env)
   frame_col(weight, DATA_object)

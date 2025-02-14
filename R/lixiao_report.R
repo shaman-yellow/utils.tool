@@ -750,18 +750,24 @@ get_all_tags <- function(rm = NULL, jobs = .get_job_list()) {
       function(x) {
         tags <- ""
         if (is(x, "character")) {
+          message(glue::glue("Deparse job: {x}"))
           x <- get(x, envir = .GlobalEnv)
         }
         if (is(x, "job")) {
+          message("Deparse internal job.")
           if (!is.null(rm)) {
             if (class(x) %in% rm) {
               return("")
             }
           }
           if (inherits(try(validObject(x), TRUE), "try-error")) {
-            x <- upd(x)
+            x <- try(upd(x), TRUE)
           }
-          tags <- x@tag
+          if (inherits(x, "try-error")) {
+            tags <- ""
+          } else {
+            tags <- x@tag
+          }
         }
         tags
       })
@@ -790,7 +796,7 @@ items <- function(
   score = od_get_score(),
   member = "黄礼闯",
   save = ".items.rds",
-  tags = get_all_tags(),
+  tags = suppressMessages(get_all_tags()),
   note = character(1),
   class = "生信分析",
   isLatest = FALSE,

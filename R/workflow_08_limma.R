@@ -608,7 +608,7 @@ setMethod("map", signature = c(x = "job_limma"),
       object <- object[ !duplicated(rownames(object)), ]
     }
     if (!is.null(which)) {
-      top <- x@tables$step2$tops[[ which ]]
+      top <- attr(x@tables$step2$tops[[ which ]], "all")
       top <- dplyr::filter(top, !!rlang::sym(ref.use) %in% ref)
       if (!nrow(top)) {
         stop('!nrow(top), no significant data.')
@@ -623,31 +623,19 @@ setMethod("map", signature = c(x = "job_limma"),
     }
     if (!is.null(group)) {
       object <- object[, object$targets[[ group.use ]] %in% group]
-    }  
+    }
     data <- tibble::as_tibble(t(object$E))
     data$group <- object$targets$group
     data <- tidyr::gather(data, var, value, -group)
+    if (!is.null(group)) {
+      data <- dplyr::mutate(data, group = factor(group, levels = !!group))
+    }
     p <- .map_boxplot2(data, pvalue)
     if (is.null(which)) {
       legend <- "以 wilcox.test 检验少量基因 ({bind(ref)}) 的表达。"
     } else {
-      for (i in seq_along(p$layers)) {
-        if (is(p$layers[[i]], "GeomText")) {
-          break
-        }
-      }
-      if (!any(colnames(p$layers[[i]]$data) == "labs")) {
-        stop('!any(colnames(p$layers[[i]]$data) == labs), may be ggplot2 version not match?')
-      }
       use <- match.arg(use)
-      top <- dplyr::mutate(
-        top, labs = paste0(
-          "italic(", use, ") == \"", signif(!!rlang::sym(use), 3), "\""
-        )
-      )
-      p$layers[[i]]$data <- map(
-        p$layers[[i]]$data, "var", top, ref.use, "labs", col = "labs"
-      )
+      p <- .set_significant_mapping(p, top, ref.use, use)
       legend <- "基因 {bind(ref)} 表达水平，以及对应的 limma 差异分析显著水平。"
     }
     scale <- sqrt(length(ref)) * 3
@@ -672,6 +660,26 @@ setMethod("map", signature = c(x = "job_limma"),
     }
     return(x)
   })
+
+.set_significant_mapping <- function(p, top, ref.use, use) {
+  for (i in seq_along(p$layers)) {
+    if (is(p$layers[[i]], "GeomText")) {
+      break
+    }
+  }
+  if (!any(colnames(p$layers[[i]]$data) == "labs")) {
+    stop('!any(colnames(p$layers[[i]]$data) == labs), may be ggplot2 version not match?')
+  }
+  top <- dplyr::mutate(
+    top, labs = paste0(
+      "italic(", use, ") == \"", signif(!!rlang::sym(use), 3), "\""
+    )
+  )
+  p$layers[[i]]$data <- map(
+    p$layers[[i]]$data, "var", top, ref.use, "labs", col = "labs"
+  )
+  return(p)
+}
 
 .map_boxplot2 <- function(data, pvalue, x = "group", y = "value",
   xlab = "Group", ylab = "Value", ids = "var", test = "wilcox.test", 

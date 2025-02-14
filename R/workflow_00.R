@@ -1376,7 +1376,7 @@ setReplaceMethod("Legend", signature = c(x = "ANY"),
     return(x)
   })
 
-set_lab_legend <- function(object, lab, legend, labs = NULL, ...) {
+set_lab_legend <- function(object, lab, legend = lab, labs = NULL, ...) {
   object <- .set_lab(object, lab, labs)
   object <- setLegend(object, legend)
   object
@@ -2982,7 +2982,7 @@ menuThat <- function(qs, x, ...) {
     )
     .C("nvimcom_msg_to_nvim", glue::glue('RSelect({choices})'), PACKAGE = "nvimcom")
   }
-  menu(qs, x, ...)
+  menu(qs, title = x, ...)
 }
 
 sureThat <- function(x, yes = c("Yes", "Sure", "Yup",

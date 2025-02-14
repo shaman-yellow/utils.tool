@@ -142,9 +142,14 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
         }
       } else {
         guess <- grpf(colnames(genes), "^gene", ignore.case = TRUE)
-        message("All available:\n\t", paste0(guess, collapse = ", "))
-        message("Use the firist.")
-        guess <- guess[[ 1 ]]
+        if (length(guess)) {
+          message("All available:\n\t", paste0(guess, collapse = ", "))
+          message("Use the firist.")
+          guess <- guess[[ 1 ]]
+        } else {
+          which <- menuThat(colnames(genes), "Use which as gene ID?")
+          guess <- colnames(genes)[which]
+        }
         keep <- !is.na(genes[[ guess ]]) & genes[[ guess ]] != "" & !duplicated(genes[[ guess ]])
         ## format
         genes <- dplyr::mutate(genes, rownames = !!rlang::sym(guess))
@@ -159,6 +164,16 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
     } else {
       genes <- dplyr::relocate(genes, rownames, hgnc_symbol = !!rlang::sym(use.col))
     }
+    if (any(colnames(genes) == "gene_assignment")) {
+      genes <- dplyr::mutate(
+        genes, GENE_SYMBOL = strx(
+          gene_assignment, "(?<=// )[^/ ]+(?= //)"
+        ), .before = 2
+      )
+    }
+    message(
+      glue::glue("Gene annotation:\n{showStrings(colnames(genes), trunc = FALSE)}")
+    )
     if (normed) {
       counts <- dplyr::select(counts, -1)
       counts <- data.frame(counts)
