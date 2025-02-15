@@ -155,7 +155,24 @@ setMethod("step0", signature = c(x = "job_limma"),
 }
 
 .guess_symbol <- function(x) {
-  if (x$isTcga) "gene_name" else if (x$rna) "hgnc_symbol" else "GENE_SYMBOL"
+  symbol <- if (x$isTcga) {
+    "gene_name" 
+  } else if (x$rna) {
+    "hgnc_symbol"
+  } else {
+    "GENE_SYMBOL"
+  }
+  genes <- object(x)$genes %||% x$normed_data$genes
+  if (!any(colnames(genes) == symbol)) {
+    pattern <- "gene.name|symbol"
+    symbol <- grpf(colnames(genes), pattern)
+    if (!length(symbol)) {
+      available <- showStrings(colnames(genes), trunc = FALSE)
+      message(glue::glue("Can not match symbol, all available:\n{available}"))
+      stop("Please manual specify the symbol.")
+    }
+  }
+  return(symbol)
 }
 
 .guess_formula <- function(envir = parent.frame(1)) {
@@ -576,6 +593,24 @@ setMethod("clear", signature = c(x = "job_limma"),
       saveRDS(x, paste0(substitute(x, parent.frame(1)), x@step, suffix, ".rds"))
     object(x) <- NULL
     x@params$normed_data <- NULL
+    return(x)
+  })
+
+setMethod("focus", signature = c(x = "job_limma"),
+  function(x, ref, ref.use = .guess_symbol(x), which = 1L, 
+    .name = NULL, ...)
+  {
+    x <- map(x, ref, ref.use, which = which, ...)
+    data <- attr(x@tables$step2$tops[[ which ]], "all")
+    data <- dplyr::filter(data, !!rlang::sym(ref.use) %in% ref)
+    data <- set_lab_legend(data, "Statistic of Focused genes",
+      "为聚焦分析的基因的统计附表。")
+    lst <- namel(p.BoxPlotOfDEGs = x@plots$step2$p.BoxPlotOfDEGs, data = data)
+    if (!is.null(.name)) {
+      x[[ paste0("focusedDegs_", .name) ]] <- lst
+    } else {
+      x$focusedDegs <- lst
+    }
     return(x)
   })
 
