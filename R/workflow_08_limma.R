@@ -165,7 +165,7 @@ setMethod("step0", signature = c(x = "job_limma"),
   genes <- object(x)$genes %||% x$normed_data$genes
   if (!any(colnames(genes) == symbol)) {
     pattern <- "gene.name|symbol"
-    symbol <- grpf(colnames(genes), pattern)
+    symbol <- grpf(colnames(genes), pattern, TRUE)
     if (!length(symbol)) {
       available <- showStrings(colnames(genes), trunc = FALSE)
       message(glue::glue("Can not match symbol, all available:\n{available}"))
@@ -278,6 +278,7 @@ setMethod("step1", signature = c(x = "job_limma"),
     } else {
       message("Data from Microarray.")
       if (!x$normed && no.array_norm == "guess") {
+        message("Guess whether data need normalization")
         range <- range(object(x)$counts)
         if (all(range > 0) && range[2] > 100) {
           message("May be raw expression dataset.")
@@ -603,7 +604,7 @@ setMethod("focus", signature = c(x = "job_limma"),
     x <- map(x, ref, ref.use, which = which, ...)
     data <- attr(x@tables$step2$tops[[ which ]], "all")
     data <- dplyr::filter(data, !!rlang::sym(ref.use) %in% ref)
-    data <- set_lab_legend(data, "Statistic of Focused genes",
+    data <- set_lab_legend(tibble::as_tibble(data), "Statistic of Focused genes",
       "为聚焦分析的基因的统计附表。")
     lst <- namel(p.BoxPlotOfDEGs = x@plots$step2$p.BoxPlotOfDEGs, data = data)
     if (!is.null(.name)) {
@@ -891,10 +892,20 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_limma"),
 setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
   function(x, y, from, to, names = NULL, use = .guess_symbol(x),
     theme = NULL, HLs = NULL, mode = c("heatmap", "linear"), 
-    cut.cor = .3, cut.p = .05, gname = TRUE)
+    cut.cor = .3, cut.p = .05, gname = TRUE, group = NULL)
   {
     mode <- match.arg(mode)
-    data <- as_tibble(x@params$normed_data$E)
+    data <- x@params$normed_data$E
+    if (!is.null(group)) {
+      metadata <- x@params$normed_data$targets
+      data <- data[, metadata$group == group]
+      message(
+        glue::glue(
+          "Filter by group ({bind(group)}), Dim: {bind(dim(data[, -1]))}"
+        )
+      )
+    }
+    data <- as_tibble(data)
     anno <- as_tibble(x@params$normed_data$genes)
     from <- resolve_feature(from)
     to <- resolve_feature(to)
@@ -936,19 +947,20 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
         unique(to), names, HLs = HLs, fast = FALSE, gname = gname
       )
       lst$sig.corp <- dplyr::filter(lst$corp, cor >= cut.cor, pvalue < cut.p)
-      if (!nrow(lst$sig.corp)) {
-        stop('!nrow(lst$sig.corp), no any significant results in this cutoff.')
+      if (nrow(lst$sig.corp)) {
+        lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), "significant correlation analysis data")
+        lst$sig.corp <- setLegend(
+          lst$sig.corp, "为关联分析统计附表 (P-value cutoff: {cut.p}, Cor (关联系数) cutoff: {cut.cor})。"
+        )
+        lst$p.sig.corp <- vis(.corp(lst$sig.corp))
+        lst$p.sig.corp <- .set_lab(lst$p.sig.corp, sig(x), "significant correlation plots")
+        lst$p.sig.corp <- setLegend(lst$p.sig.corp, "为显著关联的基因的线型回归图。")
+        snapAdd_onExit(
+          "x", "共得到 {nrow(lst$sig.corp)} 个显著的基因对 (P &lt; {cut.p}, |Cor| &gt; {cut.cor})。"
+        )
+      } else {
+        message(crayon::red('!nrow(lst$sig.corp), no any significant results in this cutoff.'))
       }
-      lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), "significant correlation analysis data")
-      lst$sig.corp <- setLegend(
-        lst$sig.corp, "为关联分析统计附表 (P-value cutoff: {cut.p}, Cor (关联系数) cutoff: {cut.cor})。"
-      )
-      lst$p.sig.corp <- vis(.corp(lst$sig.corp))
-      lst$p.sig.corp <- .set_lab(lst$p.sig.corp, sig(x), "significant correlation plots")
-      lst$p.sig.corp <- setLegend(lst$p.sig.corp, "为显著关联的基因的线型回归图。")
-      snapAdd_onExit(
-        "x", "共得到 {nrow(lst$sig.corp)} 个显著的基因对 (P &lt; {cut.p}, |Cor| &gt; {cut.cor})。"
-      )
     }
     x <- .job(
       params = list(res = lst), 

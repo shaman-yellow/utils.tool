@@ -117,8 +117,8 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
   })
 
 setMethod("asjob_survival", signature = c(x = "job_limma"),
-  function(x, genes_surv, use = "gene_name",
-    time = "days_to_last_follow_up", 
+  function(x, genes_surv, use = .guess_symbol(x),
+    time = "days_to_last_follow_up", scale = TRUE,
     status = "vital_status", base_method = c("surv_cutpoint", "median"))
   {
     project <- x$project
@@ -137,15 +137,29 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     object <- object(x)
     counts <- object$E
     if (any(duplicated(names <- object$genes[[ use ]]))) {
-      message("As name duplicated, mutate with number.")
-      whichDup <- duplicated(names)
-      names[ whichDup ] <- paste0(
-        names[ whichDup ], "_", seq_along(names[ whichDup ])
-      )
+      if (TRUE) {
+        message("As name duplicated, distinct these..")
+        counts <- counts[!duplicated(names), , drop = FALSE]
+        names <- names[!duplicated(names)]
+      } else {
+        message("As name duplicated, mutate with number.")
+        whichDup <- duplicated(names)
+        names[ whichDup ] <- paste0(
+          names[ whichDup ], "_", seq_along(names[ whichDup ])
+        )
+      }
     }
     rownames(counts) <- names
-    data <- as_tibble(t(counts))
-    data <- dplyr::bind_cols(data, dplyr::select(as_tibble(object$targets), -1))
+    data <- t(counts)
+    if (scale) {
+      data <- scale(data)
+    }
+    data <- as_tibble(data)
+    metadata <- tibble::as_tibble(object$targets)
+    if (any(colnames(metadata) == "rownames")) {
+      metadata <- dplyr::select(metadata, -rownames)
+    }
+    data <- dplyr::bind_cols(data, metadata)
     data[[ time ]] <- .mutate_last_follow_up_time(data[[ time ]])
     data <- relocate(data, 1, !!rlang::sym(time), !!rlang::sym(status))
     base_method <- match.arg(base_method)
@@ -168,10 +182,15 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
       }
       snapAdd_onExit("x", "按中位风险评分，将样本分为 Low 和 High 风险组。")
     }
-    methodAdd_onExit("x", meth(x)[[1]])
+    if (length(meth(x))) {
+      methodAdd_onExit("x", meth(x)[[1]])
+      methodAdd_onExit("x", "使用标准化过的基因表达数据。")
+      snapAdd_onExit("x", "生存数据为{project}，使用标准化过的基因表达数据。")
+    } else {
+      methodAdd_onExit("x", "生存数据为{project}，使用该基因表达数据。")
+      snapAdd_onExit("x", "生存数据为{project}，使用该基因表达数据。")
+    }
     x <- .job_survival(object = data)
-    methodAdd_onExit("x", "使用标准化过的基因表达数据。")
-    snapAdd_onExit("x", "生存数据为{project}，使用标准化过的基因表达数据。")
     snapAdd_onExit("x", "根据元数据信息 (即临床数据) ，去除了生存状态未知的样例。")
     x$time <- time
     x$status <- status
@@ -233,7 +252,7 @@ setMethod("step0", signature = c(x = "job_survival"),
 
 setMethod("step1", signature = c(x = "job_survival"),
   function(x, genes_surv = x$genes_surv, fun_group = x$fun_group,
-    fun_status = x$fun_status, time = x$time, status = x$status, only_keep_sig = TRUE,
+    fun_status = x$fun_status, time = x$time, status = x$status, only_keep_sig = "guess",
     roc_time = c(1, 3, 5))
   {
     step_message("Survival test.")
@@ -254,7 +273,7 @@ setMethod("step1", signature = c(x = "job_survival"),
     lst <- pbapply::pbsapply(genes_surv, simplify = FALSE,
       function(genes) {
         data <- dplyr::select(
-          data, sample = rownames, time, o_status, !!!rlang::syms(genes)
+          data, sample, time, o_status, !!!rlang::syms(genes)
         )
         data_group <- data <- dplyr::mutate(
           data, status = fun_status(o_status),
@@ -326,6 +345,9 @@ setMethod("step1", signature = c(x = "job_survival"),
         分别为 {bind(t.SignificantSurvivalPValue$name)}。")
     }
     x$models <- lapply(lst, function(x) list(fit = x$fit, roc = x$roc, diff = x$diff))
+    if (identical(only_keep_sig, "guess")) {
+      only_keep_sig <- length(genes_surv) > 5
+    }
     if (only_keep_sig) {
       plots <- lapply(plots,
         function(x) {

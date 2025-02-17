@@ -2693,6 +2693,24 @@ setMethod("as_tibble", signature = c(x = "df"),
 # for fast combine object
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+search_job_frame_wrap <- function(pattern, fun_extract, 
+  exclude = NULL, env = .GlobalEnv)
+{
+  names <- ls(pattern = pattern, envir = env)
+  if (!is.null(exclude)) {
+    names <- names[ -exclude ]
+  }
+  fun <- function(names) {
+    sapply(names, simplify = FALSE,
+      function(x) {
+        x <- get(x, envir = .GlobalEnv)
+        fun_extract(x)
+      })
+  }
+  objects <- fun(names)
+  frame_wrap(objects)
+}
+
 frame_wrap <- function(objects, weights, fun = c("frame_col", 
   "frame_row"), label = TRUE)
 {

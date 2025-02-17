@@ -115,7 +115,7 @@ setMethod("meta", signature = c(x = "job_geo"),
   })
 
 setMethod("asjob_limma", signature = c(x = "job_geo"),
-  function(x, metadata, use = 1L, normed = FALSE, use.col = NULL)
+  function(x, metadata, use = 1L, normed = "guess", use.col = NULL)
   {
     rna <- x$rna
     project <- object(x)
@@ -174,6 +174,16 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
     message(
       glue::glue("Gene annotation:\n{showStrings(colnames(genes), trunc = FALSE)}")
     )
+    if (identical(normed, "guess")) {
+      message("Guess whether data has been normed.")
+      if (all(range(counts[, -1]) > 0)) {
+        message('all(range(counts[, -1]) > 0), the data has not been normed.')
+        normed <- FALSE
+      } else {
+        message('all(range(counts[, -1]) > 0) == FALSE, the data has been normed.')
+        normed <- TRUE
+      }
+    }
     if (normed) {
       counts <- dplyr::select(counts, -1)
       counts <- data.frame(counts)
