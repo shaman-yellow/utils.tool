@@ -28,7 +28,7 @@ setClassUnion("job_PUBLISH", c("job_geo", "job_publish"))
 
 job_geo <- function(id)
 {
-  .job_geo(object = id)
+  .job_geo(object = strx(id, "GSE[0-9]+"))
 }
 
 setMethod("step0", signature = c(x = "job_geo"),
@@ -85,9 +85,32 @@ setMethod("step2", signature = c(x = "job_geo"),
         message("Is this a Microarray dataset?")
         return()
       }
-      x$about[[1]] <- e(GEOquery::getRNASeqData(object(x)))
-      message("Replace data in `x$about[[1]]`.")
-      x <- methodAdd(x, "以 `GEOquery::getRNASeqData` 获取 RNA count 数据以及基因注释。")
+      if (TRUE) {
+        quantifications <- e(GEOquery:::getRNASeqQuantResults(object(x)))
+        se <- e(SummarizedExperiment::SummarizedExperiment(
+            assays = list(counts = quantifications$quants),
+            rowData = quantifications$annotation
+            ))
+        supp <- ""
+        if (any(isThat <- !x$guess$rownames %in% colnames(se))) {
+          x$ncbiNotGot <- notGot <- x$guess$rownames[isThat]
+          message(
+            glue::glue('any(!x$guess$rownames %in% colnames(se)): Not got: {bind(notGot)}')
+          )
+          supp <- glue::glue("缺失样本: {bind(notGot)} ('NCBI-generated data' 缺失样本计数数据的原因包括运行未通过 50% 的对齐率或由于技术原因处理失败)")
+        }
+        x <- methodAdd(
+          x, "以 `GEOquery:::getRNASeqQuantResults` 获取 RNA count 数据
+          (NCBI-generated data, 参考 <https://www.ncbi.nlm.nih.gov/geo/info/rnaseqcounts.html>)
+          {supp} 以及基因注释。"
+        )
+        x$about[[1]] <- se
+      } else {
+        ## as this some times error, due to sample missing.
+        x$about[[1]] <- e(GEOquery::getRNASeqData(object(x)))
+        message("Replace data in `x$about[[1]]`.")
+        x <- methodAdd(x, "以 `GEOquery::getRNASeqData` 获取 RNA count 数据 (NCBI-generated data) 以及基因注释。")
+      }
       x$rna <- TRUE
     } else {
       if (!dir.exists(baseDir)) {
@@ -102,6 +125,15 @@ setMethod("step2", signature = c(x = "job_geo"),
         e(GEOquery::getGEOSuppFiles(object(x), filter_regex = filter_regex,
             baseDir = baseDir))
         x$dir <- dir
+        files <- list.files(dir, "\\.tar", full.names = TRUE)
+        if (length(files)) {
+          lapply(files, 
+            function(file) {
+              utils::untar(file, exdir = normalizePath(dir))
+            })
+        }
+        files <- list.files(dir, ".", full.names = TRUE)
+        x$dir_files <- files
       }
     }
     return(x)
@@ -136,9 +168,10 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
     }
     if (is.null(use.col)) {
       if (any(colnames(genes) == "rownames")) {
-        if (any(grpl(colnames(genes), "Gene Symbol"))) {
-          message("Rename 'Gene Symbol' as: hgnc_symbol")
-          genes <- dplyr::relocate(genes, rownames, hgnc_symbol = `Gene Symbol`)
+        if (any(isThat <- grpl(colnames(genes), "Gene Symbol"))) {
+          oname <- colnames(genes)[ isThat ][1]
+          message(glue::glue("Rename '{oname}' as: hgnc_symbol:\n{showStrings(genes[[oname]])}"))
+          genes <- dplyr::relocate(genes, rownames, hgnc_symbol = !!rlang::sym(oname))
         }
       } else {
         guess <- grpf(colnames(genes), "^gene", ignore.case = TRUE)
@@ -170,19 +203,32 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
           gene_assignment, "(?<=// )[^/ ]+(?= //)"
         ), .before = 2
       )
+    } else if (any(colnames(genes) == "SPOT_ID.1")) {
+      genes <- dplyr::mutate(
+        genes, GENE_SYMBOL = gs(
+          SPOT_ID.1, "[^/]+// RefSeq // [^(]+\\(([^)]+)\\).*", "\\1"
+        ),
+        .before = 2
+      )
     }
     message(
       glue::glue("Gene annotation:\n{showStrings(colnames(genes), trunc = FALSE)}")
     )
-    if (identical(normed, "guess")) {
+    if (!rna && identical(normed, "guess")) {
       message("Guess whether data has been normed.")
-      if (all(range(counts[, -1]) > 0)) {
+      if (all(range(counts[, -1], na.rm = TRUE) >= 0)) {
         message('all(range(counts[, -1]) > 0), the data has not been normed.')
         normed <- FALSE
       } else {
         message('all(range(counts[, -1]) > 0) == FALSE, the data has been normed.')
         normed <- TRUE
       }
+    } else {
+      normed <- FALSE
+    }
+    if (!is.null(x$ncbiNotGot)) {
+      message(glue::glue("Filter out NCBI generated data (Missing samples): {bind(x$ncbiNotGot)}"))
+      metadata <- dplyr::filter(metadata, !rownames %in% x$ncbiNotGot)
     }
     if (normed) {
       counts <- dplyr::select(counts, -1)

@@ -150,7 +150,12 @@ setMethod("step0", signature = c(x = "job_limma"),
   if (missing(what)) {
     metadata
   } else {
-    metadata[[ what ]]
+    types <- metadata[[ what ]]
+    if (is.factor(types)) {
+      droplevels(types)
+    } else {
+      types
+    }
   }
 }
 
@@ -171,6 +176,9 @@ setMethod("step0", signature = c(x = "job_limma"),
       message(glue::glue("Can not match symbol, all available:\n{available}"))
       stop("Please manual specify the symbol.")
     }
+  }
+  if (length(symbol) > 1) {
+    symbol <- symbol[1]
   }
   return(symbol)
 }
@@ -1172,8 +1180,8 @@ diff_test <- function(x, design, contr = NULL, block = NULL, trend = FALSE)
     cor <- NULL
   }
   if (is(x, "DGEList")) {
-    x <- new(
-      "EList", list(E = x$counts, targets = x$samples, genes = x$genes)
+    x <- new_from_package(
+      "EList", "limma", list(E = x$counts, targets = x$samples, genes = x$genes)
     )
   }
   fit <- e(limma::lmFit(x, design, block = block, correlation = cor))

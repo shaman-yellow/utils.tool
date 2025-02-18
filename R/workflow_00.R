@@ -1012,6 +1012,8 @@ setGeneric("object",
 setGeneric("less",
   function(x, ...) standardGeneric("less"))
 
+setGeneric("collate",
+  function(x, ...) standardGeneric("collate"))
 setGeneric("label",
   function(x, ...) standardGeneric("label"))
 setGeneric("pg",
@@ -1048,6 +1050,22 @@ setGeneric("ref",
   function(x, ...) standardGeneric("ref"))
 setGeneric("transmute",
   function(x, ref, ...) standardGeneric("transmute"))
+
+setMethod("collate", signature = c(x = "character"),
+  function(x, fun_extract, exclude = NULL, env = .GlobalEnv){
+    names <- ls(pattern = x, envir = env)
+    if (!is.null(exclude)) {
+      names <- names[ -exclude ]
+    }
+    fun <- function(names) {
+      sapply(names, simplify = FALSE,
+        function(x) {
+          x <- get(x, envir = .GlobalEnv)
+          fun_extract(x)
+        })
+    }
+    fun(names)
+  })
 
 setMethod("less", signature = c(x = "numeric_or_character"),
   function(x, n = 3, ..., quote = NULL){

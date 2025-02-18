@@ -3,6 +3,10 @@ gs <- function(x, pattern, replace, ...) {
   gsub(pattern, replace, x, ...)
 }
 
+s <- function(x, pattern, replace, ...) {
+  sub(pattern, replace, x, ...)
+}
+
 n.l <- function(name, object) {
   object <- list(object)
   names(object) <- name
