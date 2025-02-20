@@ -67,6 +67,7 @@
     `surv` = "生存分析[rna-method]",
     `wgcna` = "WGCNA 共表达分析[rna-method]",
     `filter:lasso` = "构建 LASSO-COX 预后模型[rna-method]",
+    `filter:diag` = "构建诊断模型[rna-method]",
     `rna:raw` = "从头开始的 RNA-seq 数据分析:从 fastq 开始质控、注释等[raw-rna]",
     `rna:diff` = "limma, edgeR 差异分析[rna-method]",
     `gene:anno` = "biomaRt 基因注释、信息获取[rna-method]",

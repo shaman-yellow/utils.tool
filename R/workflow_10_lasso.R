@@ -22,7 +22,7 @@ setGeneric("asjob_lasso", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_lasso"))
 
 setMethod("asjob_lasso", signature = c(x = "job_limma"),
-  function(x, use.filter = NULL, use = "gene_name", from_normed = TRUE,
+  function(x, use.filter = NULL, use = .guess_symbol(x), from_normed = TRUE,
     fun_scale = function(x) scale(x, TRUE, TRUE),
     dup_method = c("max", "min", "mean"), use.format = TRUE)
   {
@@ -41,7 +41,7 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
       if (!is.null(use.filter)) {
         if (is(use.filter, "feature")) {
           message("Detected feature input.")
-          snap <- glue::glue("将{snap(use.filter)}用于 COX 回归分析。")
+          snap <- glue::glue("将{snap(use.filter)}用于模型建立。")
           use.filter <- unlist(use.filter@.Data, use.names = FALSE)
         }
         if (use.format) {
@@ -134,9 +134,14 @@ setMethod("step1", signature = c(x = "job_lasso"),
   {
     step_message("Data preparation.")
     set.seed(seed)
-    x$metadata[[ time ]] <- .mutate_last_follow_up_time(x$metadata[[ time ]])
+    if (!is.null(time)) {
+      x$metadata[[ time ]] <- .mutate_last_follow_up_time(x$metadata[[ time ]])
+    }
     if (TRUE) {
-      keep <- (x$metadata[[ target ]] %in% levels) & (x$metadata[[ time ]] > 0)
+      keep <- (x$metadata[[ target ]] %in% levels)
+      if (!is.null(time)) {
+        keep <- keep & (x$metadata[[ time ]] > 0)
+      }
       x$metadata <- x$metadata[keep, ]
       object(x) <- object(x)[keep, ]
     }
@@ -154,8 +159,12 @@ setMethod("step1", signature = c(x = "job_lasso"),
       data <- object(x)[wh, ]
       types <- x$metadata[[ x$target ]][ wh ]
       event <- ifelse(types == x$levels[1], 0L, 1L)
-      time <- x$metadata[[ time ]][ wh ]
-      surv <- survival::Surv(time = time, event = event)
+      if (!is.null(time)) {
+        time <- x$metadata[[ time ]][ wh ]
+        surv <- survival::Surv(time = time, event = event)
+      } else {
+        time <- surv <- NULL
+      }
       namel(data, event, types, time, surv)
     }
     p.all <- gtitle(new_pie(x$get("a")$types)@data, "All")
@@ -196,6 +205,7 @@ setMethod("step2", signature = c(x = "job_lasso"),
 setMethod("step3", signature = c(x = "job_lasso"),
   function(x, use_data = x$use_data, family = "cox", use_tops = FALSE, cutoff = .05)
   {
+    step_message("Univariate COX.")
     lst <- x$get(use_data)
     data <- lst$data
     if (family == "cox") {

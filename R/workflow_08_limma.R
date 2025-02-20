@@ -612,6 +612,9 @@ setMethod("focus", signature = c(x = "job_limma"),
     x <- map(x, ref, ref.use, which = which, ...)
     data <- attr(x@tables$step2$tops[[ which ]], "all")
     data <- dplyr::filter(data, !!rlang::sym(ref.use) %in% ref)
+    data <- dplyr::relocate(
+      data, !!rlang::sym(ref.use), logFC, adj.P.Val, P.Value
+    )
     data <- set_lab_legend(tibble::as_tibble(data), "Statistic of Focused genes",
       "为聚焦分析的基因的统计附表。")
     lst <- namel(p.BoxPlotOfDEGs = x@plots$step2$p.BoxPlotOfDEGs, data = data)
@@ -626,13 +629,33 @@ setMethod("focus", signature = c(x = "job_limma"),
 setMethod("map", signature = c(x = "job_limma"),
   function(x, ref, ref.use = .guess_symbol(x),
     group = NULL, group.use = "group", pvalue = TRUE, 
-    which = 1L, use = c("adj.P.Val", "P.Value"), name = NULL)
+    which = 1L, use = c("adj.P.Val", "P.Value"), 
+    name = NULL, dedup_by_rank = TRUE)
   {
     object <- x@params$normed_data
     if (identical(class(object), "list")) {
       object <- new_from_package("EList", "limma", object)
     }
     message(glue::glue("Use name of {ref.use}."))
+    if (!is.null(which) && dedup_by_rank) {
+      top <- attr(x@tables$step2$tops[[ which ]], "all")
+      if (!is.null(top$rownames)) {
+        rownames_keep <- top$rownames[!duplicated(top[[ ref.use ]])]
+      } else {
+        rownames_keep <- rownames(top)[!duplicated(top[[ ref.use ]])]
+      }
+      if (!is.null(object$genes$rownames)) {
+        keep <- object$genes$rownames %in% rownames_keep
+      } else {
+        keep <- rownames(object$genes) %in% rownames_keep
+      }
+      if (!any(keep)) {
+        stop('!any(keep), the "rownames" is not the ID columns?')
+      }
+      object <- e(
+        limma::`[.EList`(object, keep,)
+      )
+    }
     object <- e(
       limma::`[.EList`(object,
         !duplicated(object$genes[[ ref.use ]]) & !is.na(object$genes[[ ref.use ]]),)

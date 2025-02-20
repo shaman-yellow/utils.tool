@@ -146,6 +146,27 @@ setMethod("meta", signature = c(x = "job_geo"),
     namel(counts, genes)
   })
 
+setMethod("map", signature = c(x = "job_limma", ref = "job_geo"),
+  function(x, ref, which = 1L, type = "pipe", ...)
+  {
+    message("Get extra annotation (Symbol) if possible.")
+    if (!any(colnames(object(x)$genes) == "ID")) {
+      stop('!any(colnames(object(x)$genes) == "ID").')
+    }
+    gpl <- ref@params$about[[which]]@annotation
+    file_anno <- paste0(gpl, "_", type, ".rda")
+    if (!file.exists(file_anno)) {
+      anno <- e(AnnoProbe::idmap(gpl, type = type))
+    } else {
+      name <- load(file_anno)
+      anno <- get(name)
+    }
+    object(x)$genes <- map(
+      object(x)$genes, "ID", anno, "probe_id", "symbol", col = "symbol"
+    )
+    return(x)
+  })
+
 setMethod("asjob_limma", signature = c(x = "job_geo"),
   function(x, metadata, use = 1L, normed = "guess", use.col = NULL)
   {
