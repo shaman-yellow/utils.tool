@@ -10,7 +10,7 @@ summary_month.bosai <- function(data, time = Sys.Date(),
     time, orders = data, templ_dir = .prefix("summary/"), templ_file = "summary_month.xlsx",
     dir_prefix = "summary_month_", dir_suffix = paste0(
       lubridate::year(time), "_", lubridate::month(time)
-    ), mode = "month"
+    ), mode = "month", ...
   )
   register_data <- upd
   return(data)
@@ -100,7 +100,9 @@ register_data <- function(data, rds_records, no_to_stop = TRUE,
 {
   if (file.exists(rds_records)) {
     records <- readRDS(rds_records)
-    data <- dplyr::anti_join(data, records)
+    data <- dplyr::anti_join(
+      data, records, by = c(".dir", "save")
+    )
   } else {
     records <- tibble::tibble()
   }
@@ -149,7 +151,7 @@ summary_week.bosai <- function(
   dir <- file.path(path, paste0(dir_prefix, dir_suffix))
   targets <- c(ass = templ_file)
   if (rm) {
-    unlink(list.files(dir, full.names = TRUE, all.files = TRUE, recursive = TRUE), TRUE, TRUE)
+    unlink(dir, TRUE, TRUE)
     dir.create(dir)
     file.copy(file.path(templ_dir, targets), dir)
   }
@@ -165,7 +167,7 @@ summary_week.bosai <- function(
     from <- time - wday
     to <- time + 7 - wday
     orders <- dplyr::filter(orders,
-      is.na(finish) | (finish >= !!from & finish <= !!to) |
+      is.na(finish) | (finish >= !!from) |
         id %in% must_include
     )
   }

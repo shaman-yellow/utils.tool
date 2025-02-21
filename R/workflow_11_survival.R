@@ -53,9 +53,18 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
     if (is.null(fea_coefs)) {
       stop("`fea_coefs` should be specified.")
     }
+    data <- as_tibble(x$get(use_data)$data)
+    if (is.null(fea_coefs$coef)) {
+      message("Check `fea_coefs`.")
+      fea_coefs$coef <- fea_coefs[[ grp(
+        colnames(fea_coefs), lambda
+        ) ]]
+      needLess <- fea_coefs$feature[ fea_coefs$coef == 0 ]
+      data <- data[, !colnames(data) %in% needLess]
+      fea_coefs <- dplyr::filter(fea_coefs, !feature %in% needLess)
+    }
     message("Check genes.")
     use_genes <- fea_coefs$feature
-    data <- as_tibble(x$get(use_data)$data)
     if (any(!use_genes %in% colnames(data))) {
       not_cover <- use_genes[ !use_genes %in% colnames(data) ]
       message(glue::glue("Genes not cover: {crayon::red(bind(not_cover))}."))
@@ -74,7 +83,9 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
           sum(fea_coefs$coef * exprs)
         })
     )
+    message("Set cutoff point.")
     if (base_method == "median") {
+      message("Use Median cutoff point.")
       data <- dplyr::mutate(data,
         score_group = ifelse(risk_score > median(risk_score), "High", "Low")
       )
@@ -273,7 +284,7 @@ setMethod("step1", signature = c(x = "job_survival"),
     lst <- pbapply::pbsapply(genes_surv, simplify = FALSE,
       function(genes) {
         data <- dplyr::select(
-          data, sample, time, o_status, !!!rlang::syms(genes)
+          data, sample = rownames, time, o_status, !!!rlang::syms(genes)
         )
         data_group <- data <- dplyr::mutate(
           data, status = fun_status(o_status),
@@ -287,7 +298,7 @@ setMethod("step1", signature = c(x = "job_survival"),
           ggtheme = theme_bw()
         )
         p.surv$table <- p.surv$table + labs(x = "time (month)")
-        p.surv <- wrap(p.surv, 6.5, 5)
+        p.surv <- wrap(p.surv, 5.5, 5)
         p.surv <- .set_lab(p.surv, sig(x), "survival curve of", title)
         p.surv <- setLegend(p.surv, "为 {title} 生存曲线。")
         # timeROC

@@ -2845,6 +2845,7 @@ new_venn <- function(..., lst = NULL, wrap = TRUE, fun_pre = rm.no, force_upset 
   if (is.null(lst)) {
     lst <- list(...)
   }
+  lst <- lst_clear0(lst)
   lst <- lapply(lst, function(x) as.character(fun_pre(x)))
   if (force_upset) {
     p <- ggVennDiagram::ggVennDiagram(lst, force_upset = TRUE)

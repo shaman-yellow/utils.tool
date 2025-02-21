@@ -2,26 +2,26 @@
 # workflow of lst_diag
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-.job_lst_diag <- setClass("job_diag", 
+.job_diag <- setClass("job_diag", 
   contains = c("job_lasso"),
   prototype = prototype(
     pg = "lst_diag",
     info = c("..."),
     cite = "",
     method = "",
-    tag = "filter:lst_diag",
+    tag = "filter:diag",
     analysis = "Lasso 诊断模型建立"
     ))
 
 job_diag <- function()
 {
-  .job_lst_diag()
+  .job_diag()
 }
 
-setGeneric("asjob_lst_diag", group = list("asjob_series"),
-   function(x, ...) standardGeneric("asjob_lst_diag"))
+setGeneric("asjob_diag", group = list("asjob_series"),
+   function(x, ...) standardGeneric("asjob_diag"))
 
-setMethod("asjob_lst_diag", signature = c(x = "job_limma"),
+setMethod("asjob_diag", signature = c(x = "job_limma"),
   function(x, use.filter = NULL, use = .guess_symbol(x), from_normed = TRUE,
     fun_scale = function(x) scale(x, TRUE, TRUE),
     dup_method = c("max", "min", "mean"), 
@@ -29,8 +29,8 @@ setMethod("asjob_lst_diag", signature = c(x = "job_limma"),
   {
     args <- as.list(environment())
     x <- do.call(asjob_lasso, args)
-    ref <- .job_lst_diag()
-    x <- .job_lst_diag(
+    ref <- .job_diag()
+    x <- .job_diag(
       x, tag = ref@tag, analysis = ref@analysis, cite = ref@cite, 
       info = ref@info, method = ref@method
     )
@@ -43,12 +43,13 @@ setMethod("step0", signature = c(x = "job_diag"),
   })
 
 setMethod("step1", signature = c(x = "job_diag"),
-  function(x, target = "group", levels = "guess", n.train = .8, seed = 555)
+  function(x, target = "group", levels = "guess", pattern_control = "control|ctrl|normal",
+    n.train = .8, seed = 555)
   {
     if (identical(levels, "guess")) {
       allLevels <- unique(x$metadata$group)
       if (length(allLevels) == 2) {
-        if (any(isThat <- grpl(allLevels, "control|ctrl|normal", TRUE))) {
+        if (any(isThat <- grpl(allLevels, pattern_control, TRUE))) {
           if (length(which(isThat)) == 1) {
             levels <- c(allLevels[isThat], allLevels[!isThat])
           } else {
@@ -63,6 +64,7 @@ setMethod("step1", signature = c(x = "job_diag"),
     }
     x <- callNextMethod(x, target = target, levels = levels,
       time = NULL, n.train = .8, seed = 555)
+    x@snap$step1 <- ""
     return(x)
   })
 
@@ -122,15 +124,15 @@ setMethod("step4", signature = c(x = "job_diag"),
           model, s = c(lambda.min = model$lambda.min, lambda.1se = model$lambda.1se)
         )
         x$sig.diag <- sig.diag <- dplyr::rename(
-          as_tibble(as.matrix(lst_diag$coef)),
+          as_tibble(as.matrix(lst_diag$coef[-1, ])),
           feature = 1, coef.lambda.min = 2, coef.lambda.1se = 3
         )
-        if (all(!lst_diag$coef[, 2])) {
+        if (all(!lst_diag$coef[-1, 2])) {
           message(crayon::red("lambda.1se has non coeffients, use Lambda.min (-> coef)."))
         }
-        s.com <- vapply(1:2, 
+        s.com <- vapply(1:2,
           function(x) {
-            n <- lst_diag$coef[, x]
+            n <- lst_diag$coef[-1, x]
             length(n[ n != 0 ])
           }, integer(1))
         x$nfeature_lambdas <- s.com
@@ -170,3 +172,51 @@ setMethod("step4", signature = c(x = "job_diag"),
     x$fun_model <- fun_model
     return(x)
   })
+
+setMethod("map", signature = c(x = "job_diag", ref = "job_diag"),
+  function(x, ref, lambda = c("min", "1se"))
+  {
+    message("Validate the model using external dataset.")
+    if (x@step < 1L) {
+      stop('x@step < 1L.')
+    }
+    if (ref@step < 4L) {
+      stop('ref@step < 4L.')
+    }
+    model <- ref@params$lst_diag$model
+    used_vars <- rownames(coefficients(model))[-1]
+    valid_lst <- x$get("all")
+    if (!identical(used_vars, colnames(valid_lst$data))) {
+      message(glue::glue('!identical(used_vars, colnames(valid_lst$data)), try match...'))
+      matched <- match(used_vars, colnames(valid_lst$data))
+      if (any(is.na(matched))) {
+        notGot <- used_vars[ !used_vars %in% colnames(valid_lst$data) ]
+        sigCoeff <- dplyr::filter(
+          ref@params$sig.diag, dplyr::if_any(dplyr::where(is.double), ~ . != 0)
+        )
+        if (all(!notGot %in% sigCoeff$feature)) {
+          fun_color <- crayon::yellow
+          supp <- matrix(
+            0, nrow = dim(valid_lst$data)[1], dimnames = list(rownames(valid_lst$data), notGot)
+          )
+          valid_lst$data <- cbind(valid_lst$data, supp)
+        } else {
+          fun_color <- crayon::red
+        }
+        message(fun_color(glue::glue("Some var can not match ({bind(notGot)})")))
+      } else {
+        valid_lst$data <- valid_lst$data[, matched]
+      }
+    }
+    valid <- valid_lst$data
+    lambdas <- paste0("lambda.", lambda)
+    x$valid_results <- sapply(lambdas, simplify = FALSE,
+      function(lam) {
+        preds <- e(stats::predict(model, newx = valid, s = model[[ lam ]]))
+        roc <- e(pROC::roc(valid_lst$types, as.numeric(preds), plot = FALSE, levels = x$levels))
+        namel(preds, roc)
+      })
+    x$.map_heading <- "使用外部数据验证"
+    return(x)
+  })
+

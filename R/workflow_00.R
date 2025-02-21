@@ -650,10 +650,14 @@ get_meth <- function(x, setHeader = TRUE) {
       header <- paste("## ", x@analysis, sig)
     }
   }
-  if (setHeader) {
-    c("", header, "", meth(x, TRUE))
+  if (length(meth <- meth(x, TRUE))) {
+    if (setHeader) {
+      c("", header, "", meth)
+    } else {
+      c("", meth, "")
+    }
   } else {
-    c("", meth(x, TRUE), "")
+    ""
   }
 }
 
@@ -1052,7 +1056,8 @@ setGeneric("transmute",
   function(x, ref, ...) standardGeneric("transmute"))
 
 setMethod("collate", signature = c(x = "character"),
-  function(x, fun_extract, exclude = NULL, env = .GlobalEnv){
+  function(x, fun_extract, exclude = NULL, env = .GlobalEnv, reg = "(?<=\\.).*")
+  {
     names <- ls(pattern = x, envir = env)
     if (!is.null(exclude)) {
       names <- names[ -exclude ]
@@ -1064,7 +1069,11 @@ setMethod("collate", signature = c(x = "character"),
           fun_extract(x)
         })
     }
-    fun(names)
+    res <- fun(names)
+    if (!is.null(reg)) {
+      names(res) <- strx(names(res), reg)
+    }
+    return(res)
   })
 
 setMethod("less", signature = c(x = "numeric_or_character"),
@@ -2048,12 +2057,14 @@ writeAllCompletion <- function(jobs = .get_job_list(extra = NULL)) {
   invisible()
 }
 
-updAlls <- function(names = .get_job_list(extra = NULL), envir = .GlobalEnv) {
+updAlls <- function(names = .get_job_list(extra = NULL), 
+  envir = .GlobalEnv, force = FALSE)
+{
   lapply(names,
     function(x) {
       obj <- get(x, envir = envir)
       if (is(obj, "job")) {
-        if (inherits(try(validObject(obj), TRUE), "try-error")) {
+        if (inherits(try(validObject(obj), TRUE), "try-error") || force) {
           message(glue::glue("Object invalid, update that: {x}"))
           obj <- upd(obj)
           assign(x, obj, envir = envir)

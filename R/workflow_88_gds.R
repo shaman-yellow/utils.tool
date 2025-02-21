@@ -381,7 +381,9 @@ batch_geo <- function(gses, getGPL = FALSE, cl = 1L,
       res <- NULL
       while((is.null(res) || inherits(res, "try-error")) && times <= 5L) {
         times <- times + 1L
-        res <- try(suppressMessages(step1(job_geo(x), getGPL = getGPL)), FALSE)
+        res <- try(
+          suppressMessages(step1(job_geo(x), getGPL = getGPL, dir_cache = NULL)), FALSE
+        )
         if (times > 1) {
           cli::cli_alert_info("Got error, try again in 3 second.")
           Sys.sleep(3)

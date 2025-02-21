@@ -13,9 +13,13 @@
     analysis = "Venn 交集"
     ))
 
-job_venn <- function(...)
+job_venn <- function(..., lst = NULL)
 {
-  object <- list(...)
+  if (is.null(lst)) {
+    object <- list(...)
+  } else {
+    object <- lst
+  }
   if (all(vapply(object, is, logical(1), "feature"))) {
     snaps <- paste0("- ", vapply(object, snap, character(1)))
     snapAdd_onExit("x", "以下取交集：\n{bind(snaps, co = '\n')}")

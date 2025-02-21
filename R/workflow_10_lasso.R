@@ -311,15 +311,15 @@ setMethod("step4", signature = c(x = "job_lasso"),
           model, s = c(lambda.min = model$lambda.min, lambda.1se = model$lambda.1se)
         )
         x$sig.mul_cox <- sig.mul_cox <- dplyr::rename(
-          as_tibble(as.matrix(multi_cox$coef)),
+          as_tibble(as.matrix(multi_cox$coef[-1, ])),
           feature = 1, coef.lambda.min = 2, coef.lambda.1se = 3
         )
-        if (all(!multi_cox$coef[, 2])) {
+        if (all(!multi_cox$coef[-1, 2])) {
           message(crayon::red("lambda.1se has non coeffients, use Lambda.min (-> coef)."))
         }
-        s.com <- vapply(1:2, 
+        s.com <- vapply(1:2,
           function(x) {
-            n <- multi_cox$coef[, x]
+            n <- multi_cox$coef[-1, x]
             length(n[ n != 0 ])
           }, integer(1))
         x$nfeature_lambdas <- s.com

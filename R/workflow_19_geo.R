@@ -39,9 +39,25 @@ setMethod("step0", signature = c(x = "job_geo"),
   })
 
 setMethod("step1", signature = c(x = "job_geo"),
-  function(x, getGPL = TRUE){
+  function(x, getGPL = TRUE, dir_cache = .prefix("GEO", "db"))
+  {
     step_message("Get GEO metadata and information.")
-    about <- e(GEOquery::getGEO(object(x), getGPL = getGPL))
+    if (!is.null(dir_cache)) {
+      dir.create(dir_cache, FALSE)
+      file_cache <- file.path(
+        dir_cache, paste0(object(x), "_", getGPL, ".rds")
+      )
+      if (file.exists(file_cache)) {
+        message(glue::glue('file.exists(file_cache): {file_cache}'))
+        about <- readRDS(file_cache)
+      } else {
+        message(glue::glue("Download {object(x)}..."))
+        about <- e(GEOquery::getGEO(object(x), getGPL = getGPL))
+        saveRDS(about, file_cache)
+      }
+    } else {
+      about <- e(GEOquery::getGEO(object(x), getGPL = getGPL))
+    }
     metas <- get_metadata.geo(about)
     prods <- get_prod.geo(metas)
     ## add GSE number

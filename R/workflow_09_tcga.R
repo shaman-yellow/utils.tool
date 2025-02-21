@@ -154,7 +154,16 @@ setMethod("step3", signature = c(x = "job_tcga"),
       stop("is.null(lst.query)")
     x@params$queries <- object(x)
     if (query != "clinical") {
-      obj <- e(TCGAbiolinks::GDCprepare(query = lst.query, directory = x$dir))
+      hash <- digest::digest(lst.query, "md5")
+      file <- file.path(
+        x$dir, paste0(x$project, "_", query, "_", hash, ".rds")
+      )
+      if (file.exists(file)) {
+        obj <- readRDS(file)
+      } else {
+        obj <- e(TCGAbiolinks::GDCprepare(query = lst.query, directory = x$dir))
+        saveRDS(obj, file)
+      }
     } else {
       obj <- NULL
     }
