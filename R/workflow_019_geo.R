@@ -102,7 +102,11 @@ setMethod("step2", signature = c(x = "job_geo"),
         return()
       }
       if (TRUE) {
-        quantifications <- e(GEOquery:::getRNASeqQuantResults(object(x)))
+        if (TRUE) {
+          quantifications <- getRNASeqQuantResults_custom(object(x))
+        } else {
+          quantifications <- e(GEOquery:::getRNASeqQuantResults(object(x)))
+        }
         se <- e(SummarizedExperiment::SummarizedExperiment(
             assays = list(counts = quantifications$quants),
             rowData = quantifications$annotation
@@ -503,4 +507,18 @@ get_prod.geo <- function(lst) {
     res <- lapply(res, bind, co = " ### ")
   }
   .lich(res)
+}
+
+getRNASeqQuantResults_custom <- function(gse) {
+  if (length(gse) != 1 || !grpl(gse, "^GSE")) {
+    stop('length(gse) != 1 || !grpl(gse, "^GSE").')
+  }
+  strs <- RCurl::getURL(glue::glue("https://www.ncbi.nlm.nih.gov/geo/download/?acc={gse}"))
+  Terror <<- xmls <- XML::htmlParse(strs)
+  fun_get <- function(x, xpath) {
+    res <- XML::xpathApply(x, xpath)
+    XML::xmlGetAttr(res[[1]], "href")
+  }
+  url_data <- fun_get(xmls, "//a[@id='download_raw_counts']")
+  url_anno <- fun_get(xmls, "//h2[text()='Human gene annotation table']/..//a")
 }

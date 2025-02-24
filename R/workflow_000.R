@@ -829,6 +829,22 @@ setMethod("upd", signature = c(x = "db_expect"),
     return(x)
   })
 
+expect_local_data <- function(dir, name, fun, args) {
+  hash <- digest::digest(args, "md5")
+  file <- file.path(
+    dir, paste0(name, "_", hash, ".rds")
+  )
+  if (file.exists(file)) {
+    message(glue::glue('file.exists(file): {file}'))
+    obj <- readRDS(file)
+  } else {
+    cli::cli_alert_info("do.call(fun, args)")
+    obj <- do.call(fun, args)
+    saveRDS(obj, file)
+  }
+  return(obj)
+}
+
 setGeneric("expect",
   function(x, ref, ...) standardGeneric("expect"))
 
@@ -3124,3 +3140,21 @@ genes <- function(x) {
   }
   x
 }
+
+valid_job_list <- function(x, class, step = 0L) {
+  if (!is(x, "list")) {
+    stop('!is(x, "list").')
+  }
+  n <- 0L
+  lapply(x, 
+    function(object) {
+      n <<- n + 1L
+      if (!is(object, class)) {
+        stop('!is(object, class): {n}')
+      }
+      if (object@step < step) {
+        stop('object@step < step')
+      }
+    })
+}
+

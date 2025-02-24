@@ -148,7 +148,7 @@
     `gwas` = "GWAS 数据获取和分析[snp-method]",
     `mix` = "多数据库获取疾病靶点 (__dep__)",
     `mass` = "质谱数据分析:原始数据预处理、特征峰解卷积等[mb-method]",
-    `unitmp` = "跨膜蛋白数据获取[gene]",
+    `unitmp`= "跨膜蛋白数据获取[gene]",
     `prr` = "药物临床化疗反应预测、耐药性预测[pharm]",
     `musite` = "蛋白转录后修饰位点预测 (PTMs)[rna-method]",
     `epi` = "表观遗传调控因子数据获取 (数据库)[gene]",

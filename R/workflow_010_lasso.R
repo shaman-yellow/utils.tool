@@ -381,13 +381,26 @@ setMethod("step5", signature = c(x = "job_lasso"),
     return(x)
   })
 
-plot_roc <- function(roc) {
-  wrap(as_grob(
-      expression({
-        plot(roc)
-        text(.1, .1, paste0("AUC: ", round(roc$auc[[1]], 2)), cex = 1.2)
-      }),
-    environment()), 6, 6)
+plot_roc <- function(roc, cols = ggsci::pal_npg()(9)) {
+  if (is(roc, "list")) {
+    pos <- seq(.1, .2, length.out = length(roc))
+    expr <- expression({
+      lapply(seq_along(roc), 
+        function(n) {
+          plot(roc[[n]], col = cols[n], add = n > 1)
+          graphics::text(
+            .7, pos[n], paste0(names(roc)[n], " AUC: ", signif(roc[[n]]$auc[[1]], 2)),
+            cex = 1.2, col = cols[n], adj = c(0, 0)
+          )
+        })
+    })
+  } else {
+    expr <- expression({
+      plot(roc)
+      text(.1, .1, paste0("AUC: ", round(roc$auc[[1]], 2)), cex = 1.2)
+    })
+  }
+  wrap(as_grob(expr, environment()), 6, 6)
 }
 
 plot_sig <- function(data, x = colnames(data)[1], y = colnames(data)[2],
@@ -402,7 +415,7 @@ plot_sig <- function(data, x = colnames(data)[1], y = colnames(data)[2],
     coord_flip() +
     guides(color = "none") +
     theme()
-  wrap(p, 6, 3 + nrow(data) * .2)
+  wrap(p, 6, 1 + nrow(data) * .15)
 }
 
 plot_colStack.efs <- function(raw, top = 30,

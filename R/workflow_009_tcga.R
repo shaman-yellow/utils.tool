@@ -66,7 +66,10 @@ setMethod("step1", signature = c(x = "job_tcga"),
     if (is.null(x@tables$step1)) {
       object(x) <- pbapply::pblapply(object(x),
           function(args) {
-            do.call(TCGAbiolinks::GDCquery, args)
+            expect_local_data(
+              .prefix("GDCdata", "db"), 
+              "GDCquery", TCGAbiolinks::GDCquery, args
+            )
           })
       res_query <- sapply(names(object(x)), simplify = FALSE,
         function(name) {
@@ -173,11 +176,12 @@ setMethod("step3", signature = c(x = "job_tcga"),
     } else if (query == "protein") {
       obj <- as_tibble(obj)
     }
-    if (!is.null(object(x)[[ "clinical" ]])) {
+    if (!is.null(object(x)[[ "clinical" ]]) && !grpl(x$project, "^TARGET")) {
       clinical.info <- match.arg(clinical.info)
       x$metadata <- e(TCGAbiolinks::GDCprepare_clinic(
           query = object(x)[[ "clinical" ]],
           clinical.info = clinical.info, directory = x$dir))
+      message("Got clinical data.")
       x$metadata <- as_tibble(x$metadata)
     }
     if (!is.null(obj)) {

@@ -28,12 +28,19 @@ setMethod("asjob_diag", signature = c(x = "job_limma"),
     use.format = TRUE, ...)
   {
     args <- as.list(environment())
-    x <- do.call(asjob_lasso, args)
+    x.lasso <- do.call(asjob_lasso, args)
+    p.hp <- NULL
+    if (!is.null(use.filter)) {
+      use.filter <- resolve_feature_snapAdd_onExit("x", use.filter)
+      p.hp <- plot_genes_heatmap.elist(x$normed_data, use.filter, use)
+      p.hp <- set_lab_legend(wrap(p.hp), "heatmap of input genes", "为输入基因的表达热图。")
+    }
     ref <- .job_diag()
     x <- .job_diag(
-      x, tag = ref@tag, analysis = ref@analysis, cite = ref@cite, 
-      info = ref@info, method = ref@method
+      x.lasso, tag = ref@tag, analysis = ref@analysis, cite = ref@cite,
+      info = ref@info, method = ref@method, meth = ref@meth, snap = ref@snap
     )
+    x$p.hp <- p.hp
     return(x)
   })
 
@@ -43,7 +50,7 @@ setMethod("step0", signature = c(x = "job_diag"),
   })
 
 setMethod("step1", signature = c(x = "job_diag"),
-  function(x, target = "group", levels = "guess", pattern_control = "control|ctrl|normal",
+  function(x, pattern_control = "control|ctrl|normal", target = "group", levels = "guess",
     n.train = .8, seed = 555)
   {
     if (identical(levels, "guess")) {
@@ -107,6 +114,7 @@ setMethod("step4", signature = c(x = "job_diag"),
       lst_diag$model <- model <- e(glmnet::cv.glmnet(data, target,
           alpha = alpha, family = family, nfold = nfold, type.measure = type.measure, ...))
       p.lasso_model <- wrap(as_grob(expression(plot(model)), environment()), 6, 6, showtext = TRUE)
+      p.lasso_model <- setLegend(p.lasso_model, "为模型的交叉验证曲线 (cross-validation curve)。")
       lambdas <- c("lambda.min", "lambda.1se")
       res <- sapply(lambdas, simplify = FALSE,
         function(lam) {
@@ -123,10 +131,12 @@ setMethod("step4", signature = c(x = "job_diag"),
         lst_diag$coef <- coefficients(
           model, s = c(lambda.min = model$lambda.min, lambda.1se = model$lambda.1se)
         )
-        x$sig.diag <- sig.diag <- dplyr::rename(
+        sig.diag <- dplyr::rename(
           as_tibble(as.matrix(lst_diag$coef[-1, ])),
           feature = 1, coef.lambda.min = 2, coef.lambda.1se = 3
         )
+        sig.diag <- setLegend(sig.diag, "为模型的系数附表。")
+        x$sig.diag <- sig.diag
         if (all(!lst_diag$coef[-1, 2])) {
           message(crayon::red("lambda.1se has non coeffients, use Lambda.min (-> coef)."))
         }
@@ -145,6 +155,7 @@ setMethod("step4", signature = c(x = "job_diag"),
             plot_roc(roc)
           })
         names(p.lasso_ROC) <- lambdas
+        p.lasso_ROC <- setLegend(p.lasso_ROC, glue::glue("为 {names(p.lasso_ROC)} 下，模型预测 (以内部数据) 的 ROC 曲线。"))
       }
       if (TRUE) {
         coef <- as_tibble(Matrix::as.matrix(lst_diag$coef))
@@ -157,6 +168,9 @@ setMethod("step4", signature = c(x = "job_diag"),
             coef <- dplyr::arrange(coef, dplyr::desc(abs(!!rlang::sym(lam))))
             plot_sig(dplyr::filter(coef, !grepl("Inter", variable)), y = lam)
           }
+        )
+        p.lasso_coeffients <- setLegend(
+          p.lasso_coeffients, glue::glue("为 {names(p.lasso_coeffients)} 下各变量的系数。")
         )
       }
       x <- plotsAdd(x, p.lasso_model, p.lasso_ROC, p.lasso_coeffients)
@@ -186,14 +200,14 @@ setMethod("map", signature = c(x = "job_diag", ref = "job_diag"),
     model <- ref@params$lst_diag$model
     used_vars <- rownames(coefficients(model))[-1]
     valid_lst <- x$get("all")
+    sigCoeff <- dplyr::filter(
+      ref@params$sig.diag, dplyr::if_any(dplyr::where(is.double), ~ . != 0)
+    )
     if (!identical(used_vars, colnames(valid_lst$data))) {
       message(glue::glue('!identical(used_vars, colnames(valid_lst$data)), try match...'))
       matched <- match(used_vars, colnames(valid_lst$data))
       if (any(is.na(matched))) {
         notGot <- used_vars[ !used_vars %in% colnames(valid_lst$data) ]
-        sigCoeff <- dplyr::filter(
-          ref@params$sig.diag, dplyr::if_any(dplyr::where(is.double), ~ . != 0)
-        )
         if (all(!notGot %in% sigCoeff$feature)) {
           fun_color <- crayon::yellow
           supp <- matrix(
@@ -216,6 +230,11 @@ setMethod("map", signature = c(x = "job_diag", ref = "job_diag"),
         roc <- e(pROC::roc(valid_lst$types, as.numeric(preds), plot = FALSE, levels = x$levels))
         namel(preds, roc)
       })
+    p.hp_valid <- plot_genes_heatmap(
+      t(x@object[, colnames(x@object) %in% sigCoeff$feature]), x$metadata
+    )
+    x$p.hp_valid <- wrap(p.hp_valid, 7, 2 + nrow(sigCoeff) * .15)
+    x$p.hp_valid <- set_lab_legend(x$p.hp_valid, "feature heatmap in validation dataset", "为特征基因在验证数据集的表达热图。")
     x$.map_heading <- "使用外部数据验证"
     return(x)
   })
