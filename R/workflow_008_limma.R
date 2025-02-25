@@ -96,6 +96,10 @@ setMethod("filter", signature = c(x = "job_limma"),
       keep <- dplyr::filter(data, ...)$...seq
       object(x) <- object(x)[keep, ]
       message("After Dim: ", paste0(dim(object(x)), collapse = ", "))
+      if (add_snap) {
+        symbol <- .guess_symbol(x)
+        x <- snapAdd(x, "筛选数据集中的基因，以{less(object(x)$genes[[symbol]])}差异分析。", add = FALSE)
+      }
       return(x)
     } else if (type == "metadata") {
       if (add_snap) {
@@ -606,18 +610,43 @@ setMethod("clear", signature = c(x = "job_limma"),
   })
 
 setMethod("focus", signature = c(x = "job_limma"),
-  function(x, ref, ref.use = .guess_symbol(x), which = 1L, 
-    .name = NULL, ...)
+  function(x, ref, ref.use = .guess_symbol(x), which = 1L,
+    use = c("adj.P.Val", "P.Value"), .name = NULL, sig = FALSE, ...)
   {
-    x <- map(x, ref, ref.use, which = which, ...)
+    if (is(ref, "feature")) {
+      x <- snapAdd(
+        x, "聚焦于{snap(ref)}的差异表达 ({names(x@tables$step2$tops)[which]})。", 
+        add = FALSE, step = if (is.null(.name)) "m" else .name
+      )
+      ref <- resolve_feature(ref)
+    }
     data <- attr(x@tables$step2$tops[[ which ]], "all")
     data <- dplyr::filter(data, !!rlang::sym(ref.use) %in% ref)
     data <- dplyr::relocate(
       data, !!rlang::sym(ref.use), logFC, adj.P.Val, P.Value
     )
-    data <- set_lab_legend(tibble::as_tibble(data), "Statistic of Focused genes",
-      "为聚焦分析的基因的统计附表。")
-    lst <- namel(p.BoxPlotOfDEGs = x@plots$step2$p.BoxPlotOfDEGs, data = data)
+    if (sig) {
+      use <- match.arg(use)
+      data <- dplyr::filter(data, !!rlang::sym(use) < .05)
+      ref <- ref[ ref %in% data[[ ref.use ]] ]
+      if (!length(ref)) {
+        stop('!length(ref), no significant.')
+      }
+    }
+    x <- map(
+      x, ref, ref.use, use = use, which = which, name = .name, ...
+    )
+    data <- set_lab_legend(
+      tibble::as_tibble(data), paste("Statistic of Focused genes", .name),
+      "为聚焦分析的基因的统计附表。"
+    )
+    if (!is.null(.name)) {
+      lst <- namel(
+        p.BoxPlotOfDEGs = x@plots$step2[[ paste0("p.BoxPlotOfDEGs_", .name) ]], data = data
+      )
+    } else {
+      lst <- namel(p.BoxPlotOfDEGs = x@plots$step2$p.BoxPlotOfDEGs, data = data)
+    }
     if (!is.null(.name)) {
       x[[ paste0("focusedDegs_", .name) ]] <- lst
     } else {
@@ -703,7 +732,7 @@ setMethod("map", signature = c(x = "job_limma"),
     } else {
       use <- match.arg(use)
       p <- .set_significant_mapping(p, top, ref.use, use)
-      legend <- "基因 {bind(ref)} 表达水平，以及对应的 limma 差异分析显著水平。"
+      legend <- "基因 {bind(unique(ref))} 表达水平，以及对应的 limma 差异分析显著水平。"
     }
     scale <- sqrt(length(ref)) * 3
     just <- 1L
@@ -715,7 +744,9 @@ setMethod("map", signature = c(x = "job_limma"),
         just <- just / 15 * .5 * scale
       }
     }
-    p <- setLegend(wrap(p, scale, scale + just), legend)
+    p <- setLegend(
+      wrap(p, min(scale, 14), min(scale + just, 10)), legend
+    )
     feature(p) <- ref
     if (is.null(name)) {
       x <- plotsAdd(x, p.BoxPlotOfDEGs = p, reset = FALSE, step = 2L)
@@ -739,7 +770,9 @@ setMethod("map", signature = c(x = "job_limma"),
   }
   top <- dplyr::mutate(
     top, labs = paste0(
-      "italic(", use, ") == \"", signif(!!rlang::sym(use), 3), "\""
+      "italic(", s(
+        use, "\\.Val.*", ""
+      ), ") == \"", signif(!!rlang::sym(use), 3), "\""
     )
   )
   p$layers[[i]]$data <- map(
@@ -966,6 +999,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
         lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
         lst$hp <- setLegend(lst$hp, "为关联分析 ({bind(names)}) 热图。")
         lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), theme, "significant correlation")
+        lst$sig.corp <- dplyr::arrange(lst$sig.corp, dplyr::desc(cor))
         lst$sig.corp <- setLegend(
           lst$sig.corp, "为关联分析统计附表 (P-value cutoff: 0.05)。"
         )
@@ -978,6 +1012,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
         unique(to), names, HLs = HLs, fast = FALSE, gname = gname
       )
       lst$sig.corp <- dplyr::filter(lst$corp, cor >= cut.cor, pvalue < cut.p)
+      lst$sig.corp <- dplyr::arrange(lst$sig.corp, dplyr::desc(cor))
       if (nrow(lst$sig.corp)) {
         lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), "significant correlation analysis data")
         lst$sig.corp <- setLegend(
@@ -1085,7 +1120,7 @@ setMethod("vis", signature = c(x = "corp"),
       layout <- dplyr::filter(p$layout, grpl(name, "^panel"))
       f.w <- max(as.integer(strx(layout$name, "[0-9]+")))
       f.h <- max(as.integer(strx(layout$name, "[0-9]+$")))
-      wrap(p, 4 * f.w, 4 * f.h)
+      wrap(p, min(4 * f.w, 14), min(4 * f.h, 10))
     }
     if (!is.null(group)) {
       lst.p <- lapply(split(x, x[[group]]), fun_plot)

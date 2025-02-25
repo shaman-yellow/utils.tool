@@ -58,65 +58,63 @@ setMethod("step1", signature = c(x = "job_seurat"),
     object(x)[[ "percent.mt" ]] <- e(Seurat::PercentageFeatureSet(
       object(x), pattern = "^MT-"
     ))
-    p.qc <- plot_qc.seurat(x)
-    p.qc <- .set_lab(p.qc, sig(x), "Quality", "Control")
-    x@plots[[ 1 ]] <- list(p.qc = p.qc)
+    p.qc_pre <- plot_qc.seurat(x)
+    p.qc_pre <- .set_lab(p.qc_pre, sig(x), "Pre-Quality control")
+    p.qc_pre <- setLegend(p.qc_pre, "为 QC (质量控制) 图 (数据过滤前) 。")
+    x$p.qc_pre <- p.qc_pre
     message("Dim: ", paste0(dim(object(x)), collapse = ", "))
+    x <- methodAdd(x, "使用 Seurat R 包 ({packageVersion('Seurat')}) 进行单细胞数据质量控制 (QC) 和下游分析。依据 <{x@info}> 为指导对单细胞数据预处理。")
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_seurat"),
   function(x, min.features, max.features, max.percent.mt = 5, nfeatures = 2000,
-    use = "nFeature_RNA")
+    use = "nFeature_RNA", sct = FALSE, ndims = 20)
   {
-    step_message("This contains several execution: Subset the data,
-      Normalization, Feature selection, Scale the data, Linear dimensional
-      reduction, Select dimensionality.
-      red{{`min.features`}} and red{{`max.features`}} were needed for subset.
-      Then `object(x)` were performed with:
-      `Seurat::SCTransform`;
-      `Seurat::RunPCA`.
-      All plots were in `x@plots[[ 2 ]]`
+    step_message("This contains several execution: Subset the data...
       NOTE: inspect the plots and red{{Determined dims}} for downstream analysis. "
     )
-    if (missing(min.features) | missing(max.features))
+    if (missing(min.features) | missing(max.features)) {
       stop("missing(min.features) | missing(max.features)")
+    }
     object(x) <- e(SeuratObject:::subset.Seurat(
         object(x), subset = !!rlang::sym(use) > min.features &
           !!rlang::sym(use) < max.features & percent.mt < max.percent.mt
         ))
-    object(x) <- e(Seurat::SCTransform(
-        object(x), method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = TRUE,
-        assay = SeuratObject::DefaultAssay(object(x))
-        ))
+    x <- methodAdd(x, "一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。")
+    x <- snapAdd(x, "前期质量控制，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。")
+    p.qc_aft <- plot_qc.seurat(x)
+    p.qc_aft <- .set_lab(p.qc_aft, sig(x), "After Quality control")
+    p.qc_aft <- setLegend(p.qc_aft, "为数据过滤后的 QC 图。")
+    x$p.qc_aft <- p.qc_aft
+    if (sct) {
+      object(x) <- e(Seurat::SCTransform(
+          object(x), method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = TRUE,
+          assay = SeuratObject::DefaultAssay(object(x))
+          ))
+    } else {
+      object(x) <- e(Seurat::NormalizeData(object(x)))
+      object(x) <- e(Seurat::FindVariableFeatures(object(x)))
+      object(x) <- e(Seurat::ScaleData(object(x)))
+    }
     object(x) <- e(Seurat::RunPCA(
         object(x), features = SeuratObject::VariableFeatures(object(x))
         ))
-    x@plots[[ 2 ]] <- plot_pca.seurat(object(x))
-    x@plots[[ 2 ]]$p.pca_rank <- .set_lab(
-      x@plots[[ 2 ]]$p.pca_rank, sig(x), "Ranking of principle components")
-    meth(x)$step1 <- glue::glue("使用 Seurat R 包 ({packageVersion('Seurat')}) 进行单细胞数据质量控制 (QC) 和下游分析。依据 <{x@info}> 为指导对单细胞数据预处理。一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。建议线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。使用 Seurat::SCTransform 函数对数据标准化。再PCA降维。")
+    p.pca_rank <- e(Seurat::ElbowPlot(object(x), ndims))
+    p.pca_rank <- wrap(pretty_elbowplot(p.pca_rank), 4, 4)
+    p.pca_rank <- .set_lab(p.pca_rank, sig(x), "Standard deviations of PCs")
+    p.pca_rank <- setLegend(p.pca_rank, "为主成分 (PC) 的 Standard deviations。")
+    x@plots[[ 2 ]] <- namel(p.pca_rank)
+    x <- methodAdd(x, "执行标准 Seurat 分析工作流 (`NormalizeData`, `FindVariableFeatures`, `ScaleData`, `RunPCA`)。以 `ElbowPlot` 判断后续分析的 PC 维度。")
+    x <- snapAdd(x, "数据归一化，PCA 聚类 (Seurat 标准工作流，见方法章节) 后，绘制 PC standard deviations 图。")
     message("Dim: ", paste0(dim(object(x)), collapse = ", "))
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_seurat"),
-  function(x, dims = 1:15, resolution = 1.2, reduction = "pca", force = FALSE){
-    step_message("This contains several execution: Cluster the cells, UMAP
-      reduction, Cluster biomarker (Differential analysis). Object were
-      performed with:
-      `Seurat::FindNeighbors`;
-      `Seurat::FindClusters` grey{{(clusters can be accessed by `SeuratObject::Idents`)}};
-      yellow{{The parameter `resolution` between 0.4-1.2 typically returns good results for
-      single-cell datasets of around 3000 cells (ncol). Optimal resolution
-      often increases for larger datasets.}}
-      grey{{Consider use Seurat::FindMarkers Seurat::FindAllMarkers(..., test.use = 'roc') for
-      customize differential analysis.}}
-      grey{{Consider use `Seurat::VlnPlot` or `Seurat::FeaturePlot`}} for
-      customize mapping of features."
-    )
-    if (missing(dims) | missing(resolution))
-      stop("missing(dims) | missing(resolution)")
+  function(x, dims = 1:15, resolution = 1.2, reduction = "pca", force = FALSE)
+  {
+    step_message("This contains several execution: Cluster the cells, UMAP...")
     if (!force) {
       if (ncol(object(x)) > 3000 & resolution < 1.2) {
         stop("ncol(object(x)) > 3000 but resolution < 1.2. ",
@@ -133,7 +131,9 @@ setMethod("step3", signature = c(x = "job_seurat"),
     p.umap <- wrap(p.umap, 6, 5)
     p.umap <- .set_lab(p.umap, sig(x), "UMAP", "Clustering")
     x@plots[[ 3 ]] <- namel(p.umap)
-    meth(x)$step3 <- glue::glue("在 1-{max(dims)} PC 维度下，以 Seurat::FindNeighbors 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 Seurat::FindClusters 函数识别细胞群并以 Seurat::RunUMAP 进行 UMAP 聚类。")
+
+    x <- snapAdd(x, "在 1-{max(dims)} PC 维度，{resolution} 分辨率下，对细胞群 UMAP 聚类。")
+    x <- methodAdd(x, "在 1-{max(dims)} PC 维度下，以 Seurat::FindNeighbors 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 Seurat::FindClusters 函数识别细胞群并以 Seurat::RunUMAP 进行 UMAP 聚类。")
     return(x)
   })
 
@@ -629,20 +629,22 @@ setMethod("vis", signature = c(x = "job_seurat"),
     palette = x$palette, reduction = "umap", type_pattern = "_[^_]+$", ...)
   {
     mode <- match.arg(mode)
+    if (is.null(palette)) {
+      palette <- wgcna_colors()[-c(1, 5)]
+    }
     if (mode == "cell") {
-      if (is.null(palette)) {
-        palette <- color_set()
-      }
     } else if (mode == "type") {
       groups <- unique(object(x)@meta.data[[ group.by ]])
       patterns <- gs(groups, type_pattern, "")
-      palette <- pattern_gradientColor(patterns, groups)
+      palette <- pattern_gradientColor(patterns, groups, palette)
     } else if (mode == "sample") {
       x <- mutate(x, Cell_Sample = paste0(!!rlang::sym(group.by), "_", orig.ident))
       groups <- unique(object(x)@meta.data[[ group.by ]])
       patterns <- paste0("^", gs(groups, "[()]", "."), "_")
       Cell_Samples <- unique(object(x)@meta.data[[ "Cell_Sample" ]])
-      palette <- pattern_gradientColor(patterns, Cell_Samples)
+      palette <- pattern_gradientColor(
+        patterns, Cell_Samples, palette
+      )
       group.by <- "Cell_Sample"
     }
     p <- wrap(as_grob(e(Seurat::DimPlot(
@@ -759,8 +761,8 @@ prepare_10x <- function(target, pattern, single = FALSE, col.gene = 1, check = T
     data <- as.matrix(data[, -1])
     rownames(data) <- features
     require(Matrix)
-    mtx <- as(data, "Matrix")
-    DropletUtils::write10xCounts(dir, mtx)
+    data <- as(data, "sparseMatrix")
+    DropletUtils::write10xCounts(dir, data)
     return(dir)
   }
 }

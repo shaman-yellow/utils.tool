@@ -214,7 +214,8 @@ pgc <- pattern_gradientColor <- function(pattern, names,
     function(pt) {
       n <<- n + 1L
       x <- sort(names[ grpl(names, pt, ...) ])
-      colors <- colorRampPalette(c("white", colors[n]))(length(x) + 2)[-(1:2)]
+      colors <- colorRampPalette(c("white", colors[n]))(length(x) + 2)
+      colors <- colors[-c(1, length(x) - 1)]
       names(colors) <- x
       return(colors)
     })

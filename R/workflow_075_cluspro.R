@@ -19,8 +19,14 @@
     analysis = "ClusPro 蛋白质-蛋白质对接预测"
     ))
 
+setGeneric("asjob_cluspro", group = list("asjob_series"),
+   function(x, ...) standardGeneric("asjob_cluspro"))
+
 job_cluspro <- function(symbols, .layout = NULL)
 {
+  if (is(symbols, "feature")) {
+    symbols <- resolve_feature_snapAdd_onExit("x", symbols, fun_generator = asjob_cluspro)
+  }
   if (!is.null(.layout)) {
     message("Use columns of `.layout` as 'from' and 'to'.")
     .layout <- .layout[, 1:2]
@@ -31,7 +37,8 @@ job_cluspro <- function(symbols, .layout = NULL)
     .layout <- data.frame(t(combn(symbols, 2)))
     names(.layout) <- c("from", "to")
   }
-  .job_cluspro(object = list(hgnc_symbols = rm.no(symbols)), params = list(.layout = .layout))
+  x <- .job_cluspro(object = list(hgnc_symbols = rm.no(symbols)), params = list(.layout = .layout))
+  return(x)
 }
 
 setMethod("step0", signature = c(x = "job_cluspro"),

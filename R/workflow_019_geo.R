@@ -510,15 +510,24 @@ get_prod.geo <- function(lst) {
 }
 
 getRNASeqQuantResults_custom <- function(gse) {
-  if (length(gse) != 1 || !grpl(gse, "^GSE")) {
-    stop('length(gse) != 1 || !grpl(gse, "^GSE").')
+  fun_download <- function(gse) {
+    if (length(gse) != 1 || !grpl(gse, "^GSE")) {
+      stop('length(gse) != 1 || !grpl(gse, "^GSE").')
+    }
+    strs <- e(RCurl::getURL(glue::glue("https://www.ncbi.nlm.nih.gov/geo/download/?acc={gse}")))
+    xmls <- XML::htmlParse(strs)
+    fun_get <- function(x, xpath) {
+      res <- XML::xpathApply(x, xpath)
+      paste0("https://www.ncbi.nlm.nih.gov", XML::xmlGetAttr(res[[1]], "href"))
+    }
+    url_data <- fun_get(xmls, "//a[@id='download_raw_counts']")
+    url_anno <- fun_get(xmls, "//h2[text()='Human gene annotation table']/..//a")
+    quants <- e(GEOquery:::readRNAQuantRawCounts(url_data))
+    annotation <- e(GEOquery:::readRNAQuantAnnotation(url_anno))
+    list(quants = quants, annotation = annotation)
   }
-  strs <- RCurl::getURL(glue::glue("https://www.ncbi.nlm.nih.gov/geo/download/?acc={gse}"))
-  Terror <<- xmls <- XML::htmlParse(strs)
-  fun_get <- function(x, xpath) {
-    res <- XML::xpathApply(x, xpath)
-    XML::xmlGetAttr(res[[1]], "href")
-  }
-  url_data <- fun_get(xmls, "//a[@id='download_raw_counts']")
-  url_anno <- fun_get(xmls, "//h2[text()='Human gene annotation table']/..//a")
+  dir.create(dir <- .prefix("GEO", "db"), FALSE)
+  expect_local_data(
+    dir, paste0("rnaQuant_", gse), fun_download, list(gse = gse)
+  )
 }

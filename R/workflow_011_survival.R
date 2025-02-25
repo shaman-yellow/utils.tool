@@ -172,7 +172,7 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     }
     data <- dplyr::bind_cols(data, metadata)
     data[[ time ]] <- .mutate_last_follow_up_time(data[[ time ]])
-    data <- relocate(data, 1, !!rlang::sym(time), !!rlang::sym(status))
+    data <- dplyr::relocate(data, 1, !!rlang::sym(time), !!rlang::sym(status))
     base_method <- match.arg(base_method)
     if (base_method == "surv_cutpoint") {
       message("Use `survminer::surv_cutpoint` to found cutoff.")
@@ -301,6 +301,7 @@ setMethod("step1", signature = c(x = "job_survival"),
         p.surv <- wrap(p.surv, 5.5, 5)
         p.surv <- .set_lab(p.surv, sig(x), "survival curve of", title)
         p.surv <- setLegend(p.surv, "为 {title} 生存曲线。")
+        lab(p.surv) <- paste(sig(x), "survival curve of alls")
         # timeROC
         if (length(genes) == 1) {
           require(survival)

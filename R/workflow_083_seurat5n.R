@@ -125,8 +125,8 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
     p.umapInt <- setLegend(p.umapInt, "为 去除批次效应之后的 UMAP 聚类图。")
     plots <- namel(p.umapUint, p.umapInt)
     x@plots[[ 3 ]] <- c(x@plots[[ 3 ]], plots)
-    x <- methodAdd(x, "以 `Seurat::IntegrateLayers` 集成数据，去除批次效应 (使用 {use} 方法)。在 1-{max(dims)} PC 维度下，以 `Seurat::FindNeighbors` 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 `Seurat::FindClusters` 函数识别细胞群并以 `Seurat::RunUMAP` 进行 UMAP 聚类。")
-    x <- snapAdd(x, "去除批次效应后 (详见方法章节) ，在 1-{max(dims)} PC 维度，{resolution} 分辨率下，对细胞群 UMAP 聚类。")
+    x <- methodAdd(x, "以 `Seurat::IntegrateLayers` 集成数据，去除批次效应 (使用 {use} 方法)。在 1-{max(dims)} PC 维度下，以 `Seurat::FindNeighbors` 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 `Seurat::FindClusters` 函数识别细胞群并以 `Seurat::RunUMAP` 进行 UMAP 聚类。", add = FALSE)
+    x <- snapAdd(x, "去除批次效应后 (详见方法章节) ，在 1-{max(dims)} PC 维度，{resolution} 分辨率下，对细胞群 UMAP 聚类。", add = FALSE)
     x$JoinLayers <- TRUE
     return(x)
   })

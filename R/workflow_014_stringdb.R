@@ -43,8 +43,11 @@ setMethod("asjob_stringdb", signature = c(x = "character"),
   })
 
 setMethod("asjob_stringdb", signature = c(x = "feature"),
-  function(x){
+  function(x, extra = NULL){
     x <- resolve_feature_snapAdd_onExit("x", x)
+    if (!is.null(extra)) {
+      x <- c(x, extra)
+    }
     x <- job_stringdb(unlist(x))
     return(x)
   })
@@ -128,13 +131,13 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     graph_mcc <- get_subgraph.mcc(res.str$graph, hub_genes, top = tops)
     x$graph_mcc <- graph_mcc <- fast_layout(graph_mcc, layout = "linear", circular = TRUE)
     x$graph_mcc <- .set_lab(x$graph_mcc, sig(x), "graph MCC layout data")
-    x$graph_mcc <- setLegend(x$graph_mcc,
-      "PPI (带有 Cytohubba {cite_show('CytohubbaIdenChin2014')} MCC 得分) 附表")
+    snap.mcc <- if (MCC) "(带有 Cytohubba {cite_show('CytohubbaIdenChin2014')} MCC 得分)" else ""
+    x$graph_mcc <- setLegend(x$graph_mcc, "PPI {snap.mcc}附表")
     p.mcc <- plot_networkFill.str(
       graph_mcc, label = "Symbol", HLs = HLs, netType = network_type
     )
     p.mcc <- .set_lab(wrap(p.mcc), sig(x), paste0("Top", tops, " MCC score"))
-    p.mcc <- setLegend(p.mcc, "PPI (带有 Cytohubba {cite_show('CytohubbaIdenChin2014')} MCC 得分) 网络图")
+    p.mcc <- setLegend(p.mcc, "PPI {snap.mcc}网络图")
     x@plots[[1]] <- namel(p.ppi, p.mcc)
     x@tables[[1]] <- c(list(mapped = relocate(res.str$mapped, Symbol, STRING_id)),
       namel(hub_genes)
@@ -238,9 +241,10 @@ setMethod("filter", signature = c(x = "job_stringdb"),
       namel(p.mcc, nodes, edges, p.top_in)
     }
     p.mcc <- fun_tops()
-    namel(p.ppi, nodes, edges = edges, p.top_in = p.mcc$p.top_in,
+    x$filter_results <- namel(p.ppi, nodes, edges = edges, p.top_in = p.mcc$p.top_in,
       p.mcc = p.mcc$p.mcc, nodes_mcc = p.mcc$nodes, edges_mcc = p.mcc$edges
     )
+    return(x)
   })
 
 setMethod("asjob_enrich", signature = c(x = "job_stringdb"),
@@ -429,6 +433,9 @@ plot_networkFill.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   if (!is.null(HLs)) {
     data <- dplyr::filter(dataNodes, name %in% !!HLs)
     p <- p + geom_point(data = data, aes(x = x, y = y), shape = 21, color = "red", size = 20)
+  }
+  if (fill == "MCC_score" && all(dataNodes[[ fill ]] %in% c(NA, 0))) {
+    p <- p + guides(fill = "none")
   }
   p
 } 

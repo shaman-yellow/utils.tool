@@ -19,9 +19,14 @@
     analysis = "MusiteDeep 蛋白质转录后修饰位点预测"
     ))
 
+setGeneric("asjob_musite", group = list("asjob_series"),
+   function(x, ...) standardGeneric("asjob_musite"))
+
 job_musite <- function(symbols)
 {
-  .job_musite(object = symbols)
+  symbols <- resolve_feature_snapAdd_onExit("x", symbols, fun_generator = asjob_musite)
+  x <- .job_musite(object = symbols)
+  return(x)
 }
 
 setMethod("step0", signature = c(x = "job_musite"),

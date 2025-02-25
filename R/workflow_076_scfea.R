@@ -23,11 +23,9 @@ setGeneric("asjob_scfea", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_scfea"))
 
 setMethod("asjob_scfea", signature = c(x = "job_seurat"),
-  function(x, cells = NULL, org = c("mouse", "human"), assay = "RNA", dir = "scfea", ...)
+  function(x, cells = NULL, groups = NULL, group.by = x$group.by,
+    org = c("human", "mouse"), assay = "RNA", dir = "scfea", ...)
   {
-    if (!is(x, "job_seurat5n")) {
-      stop('!is(x, "job_seurat5n")')
-    }
     org <- match.arg(org)
     message("Use org: ", org)
     if (org == "mouse") {
@@ -58,6 +56,13 @@ setMethod("asjob_scfea", signature = c(x = "job_seurat"),
     data <- data[ rownames(data) %in% refs, ]
     metadata <- meta(x)
     message("Subset by `cells`.")
+    if (!is.null(groups)) {
+      if (is.null(group.by)) {
+        stop('is.null(group.by).')
+      }
+      cells <- metadata[[ group.by ]] %in% groups
+      snapAdd_onExit("x", "将 `Seurat` ({bind(groups)} 细胞) 以 `scFEA` 预测代谢通量。")
+    }
     if (!is.null(cells)) {
       data <- data[, cells]
       metadata <- metadata[cells, ]
