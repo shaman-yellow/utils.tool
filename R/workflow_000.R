@@ -58,9 +58,9 @@ setMethod("show", signature = c(object = "expect_col"),
   contains = c("list"),
   representation = representation(
     global = "function_or_NULL", uniqueness = "character",
-    db_file = "character"
+    db_file = "character", default = "logical"
   ),
-  prototype = prototype(global = NULL))
+  prototype = prototype(global = NULL, default = FALSE))
 
 setMethod("show", signature = c(object = "expect_cols"),
   function(object){
@@ -1076,7 +1076,11 @@ setMethod("collate", signature = c(x = "character"),
   {
     names <- ls(pattern = x, envir = env)
     if (!is.null(exclude)) {
-      names <- names[ -exclude ]
+      if (is.numeric(exclude)) {
+        names <- names[ -exclude ]
+      } else if (is.character(exclude)) {
+        names <- names[ !names %in% exclude ]
+      }
     }
     fun <- function(names) {
       sapply(names, simplify = FALSE,

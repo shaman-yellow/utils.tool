@@ -153,6 +153,7 @@ setMethod("step2", signature = c(x = "job_geo"),
             })
         }
         files <- list.files(dir, ".", full.names = TRUE)
+        files <- files[ !grpl(files, "\\.tar$") ]
         x$dir_files <- files
       }
     }
@@ -295,7 +296,7 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
   })
 
 setMethod("expect", signature = c(x = "job_geo", ref = "ANY"),
-  function(x, ref, force = FALSE, id = x@object, ret = c("meta", "job")){
+  function(x, ref, force = ref@default, id = x@object, ret = c("meta", "job")){
     ret <- match.arg(ret)
     if (missing(ref)) {
       ref <- geo_cols()
@@ -391,7 +392,7 @@ preset_group_string <- function(x) {
       knit_strings(paste0(ch, collapse = " "))
     }, character(1)
   )
-  x <- gs(x, " |-", "_")
+  x <- gs(x, "[ ,-]", "_")
   message(crayon::yellow("[Function: preset_group_string] Final results:\n"), showStrings(x))
   return(x)
 }
@@ -436,6 +437,11 @@ geo_cols <- function(
   global = function(x) dplyr::relocate(x, sample, group),
   uniqueness = "rownames")
 {
+  if (!missing(group) || !missing(sample)) {
+    default <- TRUE
+  } else {
+    default <- FALSE
+  }
   cols <- list(
     .expect_col_geo_sample(
       pattern_find = sample, fun_mutate = sample_mutate, 
@@ -447,7 +453,8 @@ geo_cols <- function(
     )
   )
   .expect_cols_geo(
-    cols, db_file = db_file, global = global, uniqueness = uniqueness
+    cols, db_file = db_file, global = global, uniqueness = uniqueness,
+    default = default
   )
 }
 

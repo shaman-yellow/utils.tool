@@ -225,6 +225,15 @@ setMethod("step2", signature = c(x = "job_scfea"),
     return(x)
   })
 
+setMethod("vis", signature = c(x = "job_scfea"),
+  function(x, feature, group){
+    data <- x@tables$step2$t.flux
+    anno <- x@tables$step2$t.anno
+    data <- tidyr::pivot_longer(data, -V1, names_to = "Module", values_to = "Flux")
+    data <- map(data, "Module", anno, "V1", "name", col = "name")
+    data
+  })
+
 setMethod("map", signature = c(x = "job_seurat", ref = "job_scfea"),
   function(x, ref, dims = 1:5)
   {
@@ -329,6 +338,9 @@ setMethod("asjob_limma", signature = c(x = "job_scfea"),
       message("Use first column of `metadata` as sample name (cell name).")
       metadata <- dplyr::filter(metadata, !!rlang::sym(colnames(metadata)[1]) %in% !!colnames(counts))
       if (!all(c("sample", "group") %in% colnames(metadata))) {
+        if (any(colnames(metadata) == "group")) {
+          metadata <- metadata[, colnames(metadata) != "group"]
+        }
         metadata <- dplyr::rename(
           metadata, sample = !!rlang::sym(colnames(metadata)[1]),
           group = !!rlang::sym(group)

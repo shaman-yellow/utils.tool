@@ -91,14 +91,23 @@ setMethod("filter", signature = c(x = "job_limma"),
     if (type == "gene") {
       message("Filter genes via `x@object$genes`.")
       message("Before Dim: ", paste0(dim(object(x)), collapse = ", "))
-      data <- object(x)$genes
+      if (x$normed) {
+        data <- x$genes
+      } else {
+        data <- object(x)$genes
+      }
       data$...seq <- seq_len(nrow(data))
       keep <- dplyr::filter(data, ...)$...seq
       object(x) <- object(x)[keep, ]
+      if (x$normed) {
+        x$genes <- x$genes[keep, ]
+      }
       message("After Dim: ", paste0(dim(object(x)), collapse = ", "))
       if (add_snap) {
         symbol <- .guess_symbol(x)
-        x <- snapAdd(x, "筛选数据集中的基因，以{less(object(x)$genes[[symbol]])}差异分析。", add = FALSE)
+        x <- snapAdd(
+          x, "筛选数据集中的基因，以{less(data[keep, ][[symbol]])}差异分析。", add = FALSE
+        )
       }
       return(x)
     } else if (type == "metadata") {
@@ -164,14 +173,16 @@ setMethod("step0", signature = c(x = "job_limma"),
 }
 
 .guess_symbol <- function(x) {
-  symbol <- if (x$isTcga) {
+  symbol <- if (!is.null(x$from_scfea) && x$from_scfea) {
+    "name"
+  } else if (x$isTcga) {
     "gene_name" 
   } else if (x$rna) {
     "hgnc_symbol"
   } else {
     "GENE_SYMBOL"
   }
-  genes <- object(x)$genes %||% x$normed_data$genes
+  genes <- object(x)$genes %||% x$normed_data$genes %||% x$genes
   if (!any(colnames(genes) == symbol)) {
     pattern <- "gene.name|symbol"
     symbol <- grpf(colnames(genes), pattern, TRUE)
@@ -241,7 +252,7 @@ setMethod("step1", signature = c(x = "job_limma"),
     message(glue::glue("Use formula: {formula}"))
     data_type <- match.arg(data_type)
     plots <- list()
-    s.com <- try_snap(if (x$normed) x$metadata else object(x)$sample, "group", "sample")
+    s.com <- try_snap(group)
     if (nchar(s.com) < 50) {
       x <- snapAdd(x, "样本分组：{s.com}。", FALSE)
     }
@@ -453,6 +464,24 @@ setMethod("step2", signature = c(x = "job_limma"),
     x@plots[[ 2 ]] <- plots
     return(x)
   })
+
+collate_dataset_DEGs <- function(x, fun_extract = function(x) x@tables$step2$tops[[1]][, 1:3],
+  exclude = NULL, ...)
+{
+  data <- collate(x, fun_extract, exclude, ...)
+  data <- lapply(
+    data, dplyr::select, symbol = 1, 2:3
+  )
+  data <- lapply(data, 
+    function(x) {
+      if (!nrow(x)) {
+        dplyr::add_row(x, symbol = NA)
+      } else x
+    })
+  data <- do.call(
+    dplyr::bind_rows, c(data, .id = "Dataset")
+  )
+}
 
 pattern_contrasts <- function(group, formula, pattern = paste0(signature, "$"),
   signature, as.list = FALSE)

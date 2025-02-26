@@ -301,7 +301,6 @@ setMethod("step1", signature = c(x = "job_survival"),
         p.surv <- wrap(p.surv, 5.5, 5)
         p.surv <- .set_lab(p.surv, sig(x), "survival curve of", title)
         p.surv <- setLegend(p.surv, "为 {title} 生存曲线。")
-        lab(p.surv) <- paste(sig(x), "survival curve of alls")
         # timeROC
         if (length(genes) == 1) {
           require(survival)
@@ -347,7 +346,6 @@ setMethod("step1", signature = c(x = "job_survival"),
       function(name) {
         lapply(lst, function(x) x[[ name ]])
       })
-    plots <- .set_lab(plots, sig(x), c("Survival", "ROC", "Boxplot"), "plots")
     t.SurvivalPValue <- tibble::tibble(
       name = names(lst), pvalue = vapply(lst, function(x) x$diff$pvalue, double(1))
     )
@@ -371,6 +369,7 @@ setMethod("step1", signature = c(x = "job_survival"),
       x$models <- x$models[ names(x$models) %in% t.SignificantSurvivalPValue$name ]
     }
     if (length(plots)) {
+      plots <- .set_lab(plots, sig(x), c("Survival", "ROC", "Boxplot"), "plots")
       x@plots[[1]] <- plots
     }
     feature(x) <- t.SignificantSurvivalPValue$name
