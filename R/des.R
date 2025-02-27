@@ -125,6 +125,7 @@
     `link:genes(rna)+eqtl` = "基因 (RNA) 和 eQTL 关联性挖掘:通过公共数据 (文献的补充材料)(__dep__)",
     `link:eqtl+snp` = "eQTL 和 SNP 关联性挖掘:通过公共数据 (__dep__)",
     `link:snp+meta` = "SNP 和代谢物之间的关联性挖掘:通过公共数据 (文献的补充材料) (__dep__)",
+    `ideal` = "汇总多个数据集的差异分析和生存分析 (__dep__)",
     `dock:protein+protein` = "ClusPro 蛋白质与蛋白质之间的对接模拟[rna-method]",
     `db:plant` = "从 Plantaedb 数据库获取植物成分信息 (作为中药数据库缺失记录的补充)[pharm]",
     `fe` = "铁死亡相关基因挖掘[gene]",

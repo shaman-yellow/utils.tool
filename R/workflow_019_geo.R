@@ -538,3 +538,52 @@ getRNASeqQuantResults_custom <- function(gse) {
     dir, paste0("rnaQuant_", gse), fun_download, list(gse = gse)
   )
 }
+
+read_genes_from_files <- function(files, id = 1L, expr = "guess")
+{
+  data <- ftibble(files, nrows = 10L)
+  if (length(unique(lengths(data))) != 1) {
+   stop('length(unique(lengths(data))) != 1, ')
+  }
+  if (identical(expr, "guess")) {
+    classes <- vapply(data[[1]], class, character(1))
+    for (i in c("integer", "double", "numeric")) {
+      if (any(which <- classes == i)) {
+        expr <- which(which)[1]
+        break
+      }
+    }
+  }
+  message("Collate all data.")
+  data <- ftibble(files)
+  samples <- tools::file_path_sans_ext(basename(files))
+  cols <- vapply(data, function(x) colnames(x)[expr], character(1))
+  if (any(duplicated(cols))) {
+    message(glue::glue('any(duplicated(cols)), so use filenames as sample names.'))
+    n <- 0L
+    data <- lapply(data, 
+      function(x) {
+        n <<- n + 1L
+        colnames(x)[ expr ] <- samples[n]
+        return(x)
+      })
+  }
+  annotation <- lapply(data, 
+    function(x) {
+      x[, id, drop = TRUE]
+    })
+  if (length(unique(annotation)) != 1) {
+    stop('length(unique(annotation)) != 1.')
+  }
+  ids <- annotation[[1]]
+  if (any(duplicated(ids))) {
+    stop('any(duplicated(ids)).')
+  }
+  annotation <- data[[1]][, -expr, drop = FALSE]
+  data <- lapply(data, function(x) x[, expr, drop = FALSE])
+  data <- do.call(dplyr::bind_cols, data)
+  message(glue::glue("Data value range: {bind(range(data))}"))
+  data <- dplyr::mutate(data, ID = ids, .before = 1)
+  namel(data, annotation)
+}
+

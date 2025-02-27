@@ -38,6 +38,7 @@ setMethod("step1", signature = c(x = "job_venn"),
   function(x, ...){
     step_message("Intersection.")
     p.venn <- new_venn(lst = object(x), ...)
+    lab(p.venn) <- paste(sig(x), lab(p.venn))
     x@plots[[ 1L ]] <- namel(p.venn)
     x$.append_heading <- FALSE
     if (identical(parent.frame(1), .GlobalEnv)) {

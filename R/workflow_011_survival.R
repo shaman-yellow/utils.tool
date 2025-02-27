@@ -347,7 +347,9 @@ setMethod("step1", signature = c(x = "job_survival"),
         lapply(lst, function(x) x[[ name ]])
       })
     t.SurvivalPValue <- tibble::tibble(
-      name = names(lst), pvalue = vapply(lst, function(x) x$diff$pvalue, double(1))
+      name = names(lst), 
+      pvalue = vapply(lst, function(x) x$diff$pvalue, double(1)),
+      group_low_survival = vapply(lst, function(x) .get_group_mortality.survdiff(x$diff), character(1))
     )
     t.SignificantSurvivalPValue <- dplyr::filter(t.SurvivalPValue, pvalue < .05)
     if (length(genes_surv) > 1) {
@@ -377,4 +379,36 @@ setMethod("step1", signature = c(x = "job_survival"),
     x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。")
     return(x)
   })
+
+collate_dataset_survival <- function(x, name = "survival",
+  fun_extract = function(x) x@tables$step1$t.SignificantSurvivalPValue, exclude = NULL, ...)
+{
+  data <- collate(x, fun_extract, exclude, ...)
+  data <- rbind_list(data, .id = "Dataset")
+  if (!is.null(name)) {
+    if (!any(colnames(data) == "name")) {
+      stop('!any(colnames(data) == "name").')
+    }
+    data <- set_lab_legend(
+      data, glue::glue("Genes of {name} in datasets"),
+      glue::glue("为基因集 ({less(unique(data$name))}) 在多个数据集中的 {name} 统计。")
+    )
+    attr(data, "__COLLATE_NAME__") <- name
+  }
+  return(data)
+}
+
+
+.get_group_mortality.survdiff <- function(object, value = FALSE) {
+  if (!is(object, "survdiff")) {
+    stop('!is(object, "survdiff").')
+  }
+  groups <- s(names(object$n), "group=", "")
+  mortality <- object$obs / object$n
+  if (value) {
+    mortality
+  } else {
+    if (mortality[1] > mortality[2]) groups[1] else groups[2]
+  }
+}
 

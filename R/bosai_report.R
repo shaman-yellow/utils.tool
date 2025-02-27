@@ -2,9 +2,9 @@
 summary_month.bosai <- function(data, time = Sys.Date(),
   back_dir = .prefix("summary", "wd"),
   .time = if (is(time, "Date")) time else as.Date(time, tryFormats = "%Y-%m-%d"), 
-  upd = FALSE, ...)
+  upd = FALSE, must_include = "__must_include__", ...)
 {
-  data <- dplyr::filter(data, finish <= !!time)
+  data <- dplyr::filter(data, finish <= !!time | id %in% must_include)
   data <- register_data(data, file.path(back_dir, "month_records.rds"))
   summary_week.bosai(
     time, orders = data, templ_dir = .prefix("summary/"), templ_file = "summary_month.xlsx",

@@ -794,3 +794,16 @@ collate_common_function <- function(package, freq = 10) {
   return(lst)
 }
 
+rbind_list <- function(lst, .id = NULL, keep_missing = TRUE) {
+  data <- lapply(lst,
+    function(x) {
+      if (!nrow(x)) {
+        dplyr::add_row(x)
+      } else x
+    })
+  data <- do.call(
+    dplyr::bind_rows, c(data, .id = .id)
+  )
+  data
+}
+

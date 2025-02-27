@@ -34,6 +34,14 @@ job_limma_normed <- function(data, metadata, genes = NULL) {
     }
   }
   data <- dplyr::select(data, dplyr::all_of(metadata$sample))
+  ranges <- range(data)
+  if (ranges[1] >= 0 && ranges[2] >= 100) {
+    message(
+      glue::glue('ranges[1] >= 0 && ranges[2] >= 100, log2 transmute the data.')
+    )
+    data <- log2(data + 1)
+    snapAdd_onExit("x", "将归一化过的数据以 log~2~ 转换 (log~2~(expr + 1))。")
+  }
   if (!identical(colnames(data), metadata$sample)) {
     stop("!identical(colnames(data), metadata$sample)")
   }
@@ -49,12 +57,13 @@ job_limma_normed <- function(data, metadata, genes = NULL) {
     )
   }
   message(glue::glue("Metdata Dim: {bind(dim(metadata))}\nData Dim: {bind(dim(data))}"))
-  .job_limma(
+  x <- .job_limma(
     object = data, params = list(
       metadata = metadata, isTcga = FALSE, normed = TRUE, 
       genes = genes, rna = TRUE
     )
   )
+  return(x)
 }
 
 setMethod("regroup", signature = c(x = "job_limma", ref = "missing"),
@@ -465,22 +474,29 @@ setMethod("step2", signature = c(x = "job_limma"),
     return(x)
   })
 
-collate_dataset_DEGs <- function(x, fun_extract = function(x) x@tables$step2$tops[[1]][, 1:3],
-  exclude = NULL, ...)
+collate_dataset_DEGs <- function(x, name = "guess",
+  fun_extract = function(x) x@tables$step2$tops[[1]][, 1:3], exclude = NULL, ...)
 {
   data <- collate(x, fun_extract, exclude, ...)
+  if (identical(name, "guess")) {
+    names <- collate(
+      x, function(x) names(x@tables$step2$tops)[1], exclude, ...
+    )
+    names <- unlist(names)
+    name <- s(names[which.min(nchar(names))], "\\s-\\s", "_vs_")
+  }
   data <- lapply(
     data, dplyr::select, symbol = 1, 2:3
   )
-  data <- lapply(data, 
-    function(x) {
-      if (!nrow(x)) {
-        dplyr::add_row(x, symbol = NA)
-      } else x
-    })
-  data <- do.call(
-    dplyr::bind_rows, c(data, .id = "Dataset")
-  )
+  data <- rbind_list(data, .id = "Dataset")
+  if (!is.null(name)) {
+    data <- set_lab_legend(
+      data, glue::glue("DEGs of {name} in datasets"),
+      glue::glue("为 {name} 在多个数据集中的表达统计。")
+    )
+    attr(data, "__COLLATE_NAME__") <- name
+  }
+  return(data)
 }
 
 pattern_contrasts <- function(group, formula, pattern = paste0(signature, "$"),
@@ -644,10 +660,15 @@ setMethod("focus", signature = c(x = "job_limma"),
   {
     if (is(ref, "feature")) {
       x <- snapAdd(
-        x, "聚焦于{snap(ref)}的差异表达 ({names(x@tables$step2$tops)[which]})。", 
+        x, "(Dataset: {sig(x)}) 聚焦于{snap(ref)}的差异表达 ({names(x@tables$step2$tops)[which]})。", 
         add = FALSE, step = if (is.null(.name)) "m" else .name
       )
       ref <- resolve_feature(ref)
+    } else {
+      x <- snapAdd(
+        x, "(Dataset: {sig(x)}) 聚焦于{less(ref)}的差异表达 ({names(x@tables$step2$tops)[which]})。", 
+        add = FALSE, step = if (is.null(.name)) "m" else .name
+      )
     }
     data <- attr(x@tables$step2$tops[[ which ]], "all")
     data <- dplyr::filter(data, !!rlang::sym(ref.use) %in% ref)
@@ -666,7 +687,8 @@ setMethod("focus", signature = c(x = "job_limma"),
       x, ref, ref.use, use = use, which = which, name = .name, ...
     )
     data <- set_lab_legend(
-      tibble::as_tibble(data), paste("Statistic of Focused genes", .name),
+      tibble::as_tibble(data), 
+      paste(sig(x), "Statistic of Focused genes", .name),
       "为聚焦分析的基因的统计附表。"
     )
     if (!is.null(.name)) {
@@ -1028,7 +1050,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
         lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
         lst$hp <- setLegend(lst$hp, "为关联分析 ({bind(names)}) 热图。")
         lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), theme, "significant correlation")
-        lst$sig.corp <- dplyr::arrange(lst$sig.corp, dplyr::desc(cor))
+        lst$sig.corp <- dplyr::arrange(lst$sig.corp, dplyr::desc(abs(cor)))
         lst$sig.corp <- setLegend(
           lst$sig.corp, "为关联分析统计附表 (P-value cutoff: 0.05)。"
         )
@@ -1041,7 +1063,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
         unique(to), names, HLs = HLs, fast = FALSE, gname = gname
       )
       lst$sig.corp <- dplyr::filter(lst$corp, cor >= cut.cor, pvalue < cut.p)
-      lst$sig.corp <- dplyr::arrange(lst$sig.corp, dplyr::desc(cor))
+      lst$sig.corp <- dplyr::arrange(lst$sig.corp, dplyr::desc(abs(cor)))
       if (nrow(lst$sig.corp)) {
         lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), "significant correlation analysis data")
         lst$sig.corp <- setLegend(

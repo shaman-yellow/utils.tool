@@ -405,9 +405,10 @@ setMethod("step3", signature = c(x = "job_vina"),
           names <- unlist(lapply(unname(contentPdb), fun_extract_cpdName))
           message(glue::glue("PDB: {pdb.files[[ pdb ]]} has multiple compounds: {bind(names)}."))
           if (any(nchar(names(names)) > 1)) {
-            stop(
+            message(
               glue::glue('Chain names not in expection: {bind(names(names), co = " | ")}')
             )
+            return(file)
           }
           chains <- names(names)
           newfiles <- add_filename_suffix(file, tolower(chains))

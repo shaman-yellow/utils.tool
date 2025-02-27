@@ -1399,11 +1399,11 @@ setMethod("cal_corp", signature = c(x = "df", y = "df"),
         function(i) {
           group <- apply(y, 2, simplify = FALSE,
             function(j) {
-              fit <- lm(j ~ i)
+              res <- cor.test(j, i)
               tibble::tibble(
-                cor = fit$coefficients[[2]],
-                pvalue = signif(summary(fit)$coefficients[2, 4], 5),
-                model = list(fit$model)
+                cor = res$estimate,
+                pvalue = signif(res$p.value, 5),
+                model = list(data.frame(j = j, i = i))
               )
             })
           names(group) <- colnames(y)

@@ -1072,7 +1072,7 @@ setGeneric("transmute",
   function(x, ref, ...) standardGeneric("transmute"))
 
 setMethod("collate", signature = c(x = "character"),
-  function(x, fun_extract, exclude = NULL, env = .GlobalEnv, reg = "(?<=\\.).*")
+  function(x, fun_extract, exclude = NULL, job = TRUE, env = .GlobalEnv, reg = "(?<=\\.).*")
   {
     names <- ls(pattern = x, envir = env)
     if (!is.null(exclude)) {
@@ -1086,10 +1086,15 @@ setMethod("collate", signature = c(x = "character"),
       sapply(names, simplify = FALSE,
         function(x) {
           x <- get(x, envir = .GlobalEnv)
-          fun_extract(x)
+          if (job && !is(x, "job")) {
+            NULL
+          } else {
+            fun_extract(x)
+          }
         })
     }
     res <- fun(names)
+    res <- res[ !vapply(res, is.null, logical(1)) ]
     if (!is.null(reg)) {
       names(res) <- strx(names(res), reg)
     }
