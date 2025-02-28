@@ -481,17 +481,24 @@ get_pdb_from_alphaFold <- function(symbols, dir = "protein_pdb")
         url <- glue::glue("https://alphafold.ebi.ac.uk/files/AF-{id}-F1-model_v4.pdb")
         save <- file.path(dir, paste0(id, ".pdb"))
         if (!file.exists(save)) {
-          download.file(url, save)
+          res <- try(download.file(url, save))
+          if (inherits(res, "try-error")) {
+            message(glue::glue("Download Failed of {id}, skip."))
+            return(NULL)
+          }
         }
         nl(vec[[ "Entry" ]], save, FALSE)
       } else {
         NULL
       }
     }, simplify = FALSE)
-  list(
-    files = unlist(files), 
+  files <- unlist(files)
+  info <- dplyr::filter(info, Entry %in% names(files))
+  lst <- list(
+    files = files, 
     info = info, used_pdbs = nl(info$From, info$Entry, FALSE)
   )
+  lst
 }
 
 setMethod("filter", signature = c(x = "job_vina"),

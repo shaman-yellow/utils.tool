@@ -43,6 +43,8 @@ setMethod("step1", signature = c(x = "job_ideal"),
     args <- list(...)
     validCollates(args)
     names(args) <- vapply(args, function(x) attr(x, "__COLLATE_NAME__"), character(1))
+    t.collated_DEGs <- rbind_list(args)
+    t.collated_DEGs <- setLegend(t.collated_DEGs, "为差异分析 DEGs 以及数据集来源汇总。")
     refs <- lapply(
       args, function(x) s(unique(x$Dataset), pattern_dataset, "\\1")
     )
@@ -56,6 +58,7 @@ setMethod("step1", signature = c(x = "job_ideal"),
       })
     all_degs_symbols <- lapply(all_degs, function(x) gname(x$symbol))
     x$res_degs <- namel(all_degs, all_degs_symbols, refs)
+    x <- tablesAdd(x, t.collated_DEGs)
     return(x)
   })
 
@@ -95,8 +98,11 @@ setMethod("step3", signature = c(x = "job_ideal"),
       survs <- x$res_surv$all_genes_symbols
       names(survs) <- paste0(sign, names(survs))
     }
-    lst <- unlist(list(degs, survs), recursive = FALSE)
+    lst <- c(degs, survs)
     p.venn <- new_venn(lst = lst, force_upset = length(lst) >= 3)
+    refs <- lapply(c(x$res_degs$refs, x$res_surv$refs), bind)
+    names(refs) <- paste0("Refer_dataset_", names(refs))
+    p.venn$lich <- .lich(c(p.venn$lich, refs))
     x <- plotsAdd(x, p.intersectionOfConditionalGenes = p.venn)
     sign <- switch(x$mode, high = "高表达", low = "低表达")
     x <- snapAdd(x, "筛选{sign}差异基因 ({bind(names(degs))})，且生存分析为{sign}预后不良。")

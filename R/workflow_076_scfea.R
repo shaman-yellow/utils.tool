@@ -226,12 +226,73 @@ setMethod("step2", signature = c(x = "job_scfea"),
   })
 
 setMethod("vis", signature = c(x = "job_scfea"),
-  function(x, feature, group){
+  function(x, group, feature, order = TRUE, cutoff = "tail", mag = 100){
+    if (missing(group)) {
+      stop('missing(group), group of Cell Type can not be missing.')
+    }
+    if (missing(feature)) {
+      stop(
+        'missing(feature), name of feature (e.g., Glucose -> G6P) can not be missing.'
+      )
+    }
     data <- x@tables$step2$t.flux
     anno <- x@tables$step2$t.anno
     data <- tidyr::pivot_longer(data, -V1, names_to = "Module", values_to = "Flux")
     data <- map(data, "Module", anno, "V1", "name", col = "name")
-    data
+    data <- dplyr::filter(data, name %in% !!feature)
+    if (!nrow(data)) {
+      stop('!nrow(data), can not match any feature.')
+    }
+    data <- map(data, "V1", x$metadata, "rownames", group, col = "group")
+    if (order) {
+      data <- dplyr::mutate(data, name = factor(name, levels = !!rev(feature)))
+    }
+    if (identical(cutoff, "tail")) {
+      message("Cut the tailing low value.")
+      density <- density(data$Flux)
+      seqs <- seq(min(density$x), max(density$x), length.out = 10)
+      valueCutOff <- max(density$y) / mag
+      for (i in seqs) {
+        if (all(density$y[ density$x > i ] < valueCutOff)) {
+          data <- dplyr::filter(data, Flux < i)
+          message(glue::glue("Cut the Flux by {i}"))
+          break
+        }
+      }
+    }
+    p.flux <- ggplot(data, aes(x = Flux, y = name, fill = group)) +
+      ggridges::geom_density_ridges() +
+      facet_wrap(~ group, nrow = 1) +
+      guides(fill = "none") +
+      ggridges::theme_ridges()
+    p.flux <- wrap(
+      p.flux, min(20, length(unique(data$group)) * 4), 
+      min(10, length(feature) * .4 + 1)
+    )
+    p.flux <- set_lab_legend(p.flux, "Cell flux ridge plot", "为细胞的代谢通量山脊图。")
+    x$p.flux <- p.flux
+    return(x)
+  })
+
+setMethod("map", signature = c(x = "job_scfea", ref = "job_limma"),
+  function(x, ref, group = ref$group.by, feature = NULL, 
+    which = 1L, ...)
+  {
+    if (ref@step < 2L) {
+      stop('ref@step < 2L.')
+    }
+    if (x@step < 2L) {
+      stop('x@step < 2L.')
+    }
+    if (is.null(group)) {
+      stop('is.null(group).')
+    }
+    if (is.null(feature)) {
+      top <- ref@tables$step2$tops[[which]]
+      feature <- top$name
+    }
+    message(glue::glue("The top has: {nrow(top)}."))
+    vis(x, group = group, feature = feature)
   })
 
 setMethod("map", signature = c(x = "job_seurat", ref = "job_scfea"),
@@ -355,6 +416,7 @@ setMethod("asjob_limma", signature = c(x = "job_scfea"),
     x@analysis <- "Limma 代谢通量差异分析"
     x$from_scfea <- TRUE
     x$compounds_annotation <- compounds_annotation
+    x$group.by <- group
     return(x)
   })
 

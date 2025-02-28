@@ -415,7 +415,7 @@ map_gene <- function(data, col,
   from_bm = "entrezgene_id", to_bm = "hgnc_symbol", try_bm = FALSE,
   get = to, OrgDb = org.Hs.eg.db::org.Hs.eg.db, gname = TRUE)
 {
-  if (gname) {
+  if (gname && is.character(data[[ col ]])) {
     data[[ get ]] <- gname(data[[ col ]])
   } else {
     data[[ get ]] <- data[[ col ]]

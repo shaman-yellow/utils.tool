@@ -146,6 +146,7 @@ setMethod("step2", signature = c(x = "job_musite"),
     lab(p.tops) <- paste0(sig(x), " ", "All PTM score")
     x@plots[[ 2 ]] <- namel(p.tops, p.PTMsNumber, p.hasPTMs)
     x@tables[[ 2 ]] <- namel(t.data, t.cutoff)
+    feature(x) <- unique(t.cutoff$Sequence_name)
     x <- methodAdd(x, "以 Python 工具 `MusiteDeep` {cite_show('MusitedeepADWang2020')} 预测 {bind(x$type)} 修饰位点，设定 PTM 得分截断为 {cutoff}。")
     x <- snapAdd(x, "以 `MusiteDeep` 预测 {bind(x$type)} 修饰位点。")
     return(x)
