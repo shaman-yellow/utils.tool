@@ -29,6 +29,8 @@ setMethod("asjob_diag", signature = c(x = "job_limma"),
   {
     args <- as.list(environment())
     x.lasso <- do.call(asjob_lasso, args)
+    x <- dedup_by_rank.job_limma(x, ref.use = use, ...)
+    project <- x$project
     p.hp <- NULL
     if (!is.null(use.filter)) {
       use.filter <- resolve_feature_snapAdd_onExit("x", use.filter)
@@ -41,6 +43,7 @@ setMethod("asjob_diag", signature = c(x = "job_limma"),
       info = ref@info, method = ref@method, meth = ref@meth, snap = ref@snap
     )
     x$p.hp <- p.hp
+    x$project <- project
     return(x)
   })
 
@@ -50,7 +53,8 @@ setMethod("step0", signature = c(x = "job_diag"),
   })
 
 setMethod("step1", signature = c(x = "job_diag"),
-  function(x, pattern_control = "control|ctrl|normal", target = "group", levels = "guess",
+  function(x, pattern_control = x$pattern_control %||% "control|ctrl|normal|healthy",
+    target = "group", levels = "guess",
     n.train = .8, seed = 555)
   {
     if (identical(levels, "guess")) {
@@ -187,6 +191,17 @@ setMethod("step4", signature = c(x = "job_diag"),
     return(x)
   })
 
+setMethod("map", signature = c(x = "job_diag", ref = "job_diagn"),
+  function(x, ref, lambda = c("min", "1se"))
+  {
+    if (is.null(ref$projModel)) {
+      stop('is.null(ref$projModel).')
+    }
+    x <- map(x, ref@object[[ ref$projModel ]], lambda = lambda)
+    x$.map_heading <- "使用外部数据验证"
+    return(x)
+  })
+
 setMethod("map", signature = c(x = "job_diag", ref = "job_diag"),
   function(x, ref, lambda = c("min", "1se"))
   {
@@ -228,13 +243,17 @@ setMethod("map", signature = c(x = "job_diag", ref = "job_diag"),
       function(lam) {
         preds <- e(stats::predict(model, newx = valid, s = model[[ lam ]]))
         roc <- e(pROC::roc(valid_lst$types, as.numeric(preds), plot = FALSE, levels = x$levels))
-        namel(preds, roc)
+        p.roc <- plot_roc(roc)
+        p.roc <- .set_lab(p.roc, sig(x), lam, "ROC")
+        p.roc <- setLegend(p.roc, glue::glue("为 {lam} ROC 曲线。"))
+        namel(preds, roc, p.roc)
       })
     p.hp_valid <- plot_genes_heatmap(
       t(x@object[, colnames(x@object) %in% sigCoeff$feature]), x$metadata
     )
     x$p.hp_valid <- wrap(p.hp_valid, 7, 2 + nrow(sigCoeff) * .15)
     x$p.hp_valid <- set_lab_legend(x$p.hp_valid, "feature heatmap in validation dataset", "为特征基因在验证数据集的表达热图。")
+    x <- snapAdd(x, "以外部数据集 {x$project} 进行验证。")
     x$.map_heading <- "使用外部数据验证"
     return(x)
   })

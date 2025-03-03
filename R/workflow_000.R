@@ -1071,6 +1071,11 @@ setGeneric("ref",
 setGeneric("transmute",
   function(x, ref, ...) standardGeneric("transmute"))
 
+.list_collate <- setClass(".list_collate",
+  contains = c("list"),
+  representation = representation(object_names = "character"),
+  prototype = NULL)
+
 setMethod("collate", signature = c(x = "character"),
   function(x, fun_extract, exclude = NULL, job = TRUE, env = .GlobalEnv, reg = "(?<=\\.).*")
   {
@@ -1098,6 +1103,8 @@ setMethod("collate", signature = c(x = "character"),
     if (!is.null(reg)) {
       names(res) <- strx(names(res), reg)
     }
+    res <- .list_collate(res)
+    res@object_names <- names
     return(res)
   })
 

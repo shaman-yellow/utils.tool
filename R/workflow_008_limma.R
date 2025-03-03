@@ -477,7 +477,7 @@ setMethod("step2", signature = c(x = "job_limma"),
 collate_dataset_DEGs <- function(x, name = "guess",
   fun_extract = function(x) x@tables$step2$tops[[1]][, 1:3], exclude = NULL, ...)
 {
-  data <- collate(x, fun_extract, exclude, ...)
+  collates <- collate(x, fun_extract, exclude, ...)
   if (identical(name, "guess")) {
     names <- collate(
       x, function(x) names(x@tables$step2$tops)[1], exclude, ...
@@ -486,8 +486,12 @@ collate_dataset_DEGs <- function(x, name = "guess",
     name <- s(names[which.min(nchar(names))], "\\s-\\s", "_vs_")
   }
   data <- lapply(
-    data, dplyr::select, symbol = 1, 2:3
+    collates, dplyr::select, symbol = 1, 2:3
   )
+  data <- mapply(data, collates@object_names, SIMPLIFY = FALSE,
+    FUN = function(x, object_name) {
+      dplyr::mutate(x, object = !!object_name)
+    })
   data <- rbind_list(data, .id = "Dataset")
   if (!is.null(name)) {
     data <- set_lab_legend(
@@ -620,6 +624,9 @@ plot_genes_heatmap.elist <- function(normed_data, degs, use = "hgnc_symbol") {
     normed_data <- new_from_package("EList", "limma", normed_data)
   }
   normed_data <- normed_data[ normed_data$genes[[ use ]] %in% degs, ]
+  if (any(duplicated(normed_data$genes[[ use ]]))) {
+    stop('any(duplicated(normed_data$genes[[ use ]])), gene names duplicated.')
+  }
   rownames(normed_data) <- normed_data$genes[[ use ]]
   metadata <- dplyr::select(as_tibble(normed_data$targets), sample, group)
   p.hp <- plot_genes_heatmap(normed_data$E, metadata)
@@ -718,23 +725,8 @@ setMethod("map", signature = c(x = "job_limma"),
     }
     message(glue::glue("Use name of {ref.use}."))
     if (!is.null(which) && dedup_by_rank) {
-      top <- attr(x@tables$step2$tops[[ which ]], "all")
-      if (!is.null(top$rownames)) {
-        rownames_keep <- top$rownames[!duplicated(top[[ ref.use ]])]
-      } else {
-        rownames_keep <- rownames(top)[!duplicated(top[[ ref.use ]])]
-      }
-      if (!is.null(object$genes$rownames)) {
-        keep <- object$genes$rownames %in% rownames_keep
-      } else {
-        keep <- rownames(object$genes) %in% rownames_keep
-      }
-      if (!any(keep)) {
-        stop('!any(keep), the "rownames" is not the ID columns?')
-      }
-      object <- e(
-        limma::`[.EList`(object, keep,)
-      )
+      x <- dedup_by_rank.job_limma(x, ref.use, which = which)
+      object <- x$normed_data
     }
     object <- e(
       limma::`[.EList`(object,
@@ -809,6 +801,41 @@ setMethod("map", signature = c(x = "job_limma"),
     }
     return(x)
   })
+
+dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x), which = 1L)
+{
+  if (x@step < 2L || is.null(x@tables$step2$tops)) {
+    message(
+      glue::glue('x@step < 2L || is.null(x@tables$step2$tops), no DEGs data found.')
+    )
+    return(x)
+  }
+  object <- x@params$normed_data
+  if (identical(class(object), "list")) {
+    object <- new_from_package("EList", "limma", object)
+  }
+  top <- attr(x@tables$step2$tops[[ which ]], "all")
+  if (!is.null(top$rownames)) {
+    rownames_keep <- top$rownames[!duplicated(top[[ ref.use ]])]
+  } else {
+    rownames_keep <- rownames(top)[!duplicated(top[[ ref.use ]])]
+  }
+  if (!is.null(object$genes$rownames)) {
+    keep <- object$genes$rownames %in% rownames_keep
+  } else {
+    keep <- rownames(object$genes) %in% rownames_keep
+  }
+  if (!any(keep)) {
+    stop('!any(keep), the "rownames" is not the ID columns?')
+  }
+  message(glue::glue("Before dedup_by_rank, dim: {bind(dim(object$E))}"))
+  object <- e(
+    limma::`[.EList`(object, keep,)
+  )
+  message(glue::glue("After dedup_by_rank, dim: {bind(dim(object$E))}"))
+  x@params$normed_data <- object
+  return(x)
+}
 
 .set_significant_mapping <- function(p, top, ref.use, use) {
   for (i in seq_along(p$layers)) {

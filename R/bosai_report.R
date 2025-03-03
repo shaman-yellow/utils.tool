@@ -19,19 +19,48 @@ summary_month.bosai <- function(data, time = Sys.Date(),
 
 summary_assess.bosai <- function(data, time = Sys.Date(),
   back_dir = .prefix("summary", "wd"),
-  .time = if (is(time, "Date")) time else as.Date(time, tryFormats = "%Y-%m-%d"))
+  .time = if (is(time, "Date")) time else as.Date(time, tryFormats = "%Y-%m-%d"),
+  templ_file = "assess_formal.xlsx",
+  upd = FALSE)
 {
   data <- dplyr::filter(data, finish <= !!time)
   data <- register_data(data, file.path(back_dir, "records.rds"))
+  if (TRUE) {
+    targets <- list(ass = file.path(back_dir, templ_file))
+    wb <- openxlsx2::wb_load(targets[[ "ass" ]])
+  }
   export <- file.path(
-    back_dir, paste0("summary_", Sys.Date(), ".csv")
+    back_dir, paste0("summary_", Sys.Date(), ".xlsx")
   )
-  data <- dplyr::mutate(data, cost = ifelse(type == "思路设计", 3, NA))
-  data <- dplyr::select(data, type, id, title, cost, finish)
-  data <- dplyr::mutate(data, name = paste0(id, ", ", title))
-  data <- dplyr::select(data, type, name, cost, finish)
-  data.table::fwrite(data, export)
-  register_data <- TRUE
+  data <- dplyr::mutate(
+    data, note = paste0(
+      type, "；", note
+    ), cost = ifelse(type == "思路设计", 3, NA)
+  )
+  data <- dplyr::select(data, id, title, note, type)
+  # data <- dplyr::mutate(data, name = paste0(id, ", ", title))
+  data <- dplyr::mutate(
+    data, assess_score = NA, assess_rem = NA, .after = title
+  )
+  data <- dplyr::select(
+    data, id, title, assess_score, assess_rem, note, type
+  )
+  fun <- function(wb, data) {
+    openxlsx2::wb_add_data(
+      wb, 1, data[, 1:5], col_names = FALSE,
+      dims = do.call(openxlsx2::wb_dims, pos.data_ass), na.strings = ""
+    )
+  }
+  # mission
+  pos.data_ass <- list(3, 2)
+  wb <- fun(wb, dplyr::filter(data, type != "模块开发"))
+  # workflow
+  pos.data_ass <- list(30, 2)
+  wb <- fun(wb, dplyr::filter(data, type == "模块开发"))
+  # data.table::fwrite(data, export)
+  openxlsx2::wb_save(wb, export)
+  register_data <- upd
+  gett(normalizePath(export))
   browseURL(normalizePath(export))
 }
 

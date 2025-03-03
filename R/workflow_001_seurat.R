@@ -656,7 +656,12 @@ setMethod("vis", signature = c(x = "job_seurat"),
   })
 
 setMethod("focus", signature = c(x = "job_seurat"),
-  function(x, features, group.by = x@params$group.by, sp = FALSE, ...){
+  function(x, features, group.by = x@params$group.by, 
+    sp = FALSE, name = "genes", ...)
+  {
+    if (is(features, "feature")) {
+      features <- resolve_feature(features)
+    }
     if (sp) {
       return(focus(.job_seuratSp(object = object(x)), features, ...))
     }
@@ -671,7 +676,8 @@ setMethod("focus", signature = c(x = "job_seurat"),
         )))
     p.dim <- .set_lab(p.dim, sig(x), "dimension plot of expression level of the genes")
     p.dim <- setLegend(p.dim, "基因 {less(features)} 表达水平的 Dimension reduction plot.")
-    namel(p.vln, p.dim)
+    x[[ paste0("focus_", name) ]] <- namel(p.vln, p.dim)
+    return(x)
   })
 
 setMethod("map", signature = c(x = "job_seurat", ref = "character"),

@@ -2838,55 +2838,6 @@ new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = TRU
   }
 }
 
-new_venn <- function(..., lst = NULL, wrap = TRUE, fun_pre = rm.no, force_upset = FALSE) {
-  if (!is.null(lst) && length(list(...))) {
-    lst <- c(lst, list(...))
-  }
-  if (is.null(lst)) {
-    lst <- list(...)
-  }
-  lst <- lst_clear0(lst)
-  lst <- lapply(lst, function(x) as.character(fun_pre(x)))
-  if (force_upset) {
-    p <- ggVennDiagram::ggVennDiagram(lst, force_upset = TRUE)
-    p$plotlist[[2]]$layers[[1]]$geom_params$width <- .4
-    p$plotlist[[3]]$layers[[1]]$geom_params$width <- .7
-  } else {
-    p <- ggVennDiagram::ggVennDiagram(lst, label_percent_digit = 1) +
-      scale_fill_gradient(low = "grey95", high = sample(color_set(), 1)) +
-      theme_void() +
-      guides(fill = "none") +
-      theme(axis.text = element_blank(),
-        axis.title = element_blank(),
-        axis.ticks = element_blank()) +
-      theme()
-    for (i in rev(seq_along(p$layers))) {
-      if (is(p$layers[[i]]$geom, "GeomLabel")) {
-        which <- i
-      } else if (is(p$layers[[i]]$geom, "GeomText")) {
-        whichText <- i
-        break
-      }
-    }
-    shouldChange <- !grpl(p$layers[[which]]$data$id, "/")
-    p$layers[[which]]$data[shouldChange, ] <- dplyr::mutate(
-      p$layers[[which]]$data[shouldChange, ], both = paste0(name, "\n", count, " (", percent, ")")
-    )
-    p$layers[[which]]$data[!shouldChange, ] <- dplyr::mutate(
-      p$layers[[which]]$data[!shouldChange, ], both = paste0(count, " (", percent, ")")
-    )
-    p$layers[[whichText]] <- NULL
-  }
-  if (wrap) {
-    p <- wrap(p, if (force_upset) 5 else 2, 3)
-  }
-  attr(p, "ins") <- ins <- ins(lst = lst)
-  attr(p, "lich") <- new_lich(list(All_intersection = ins))
-  lab(p) <- paste0("Intersection of ", paste0(names(lst), collapse = " with "))
-  p <- setLegend(p, "将{bind(names(lst))} 取交集。")
-  p
-}
-
 setdev <- function(width, height) {
   name <- names(dev.cur())
   if (name == "null device")

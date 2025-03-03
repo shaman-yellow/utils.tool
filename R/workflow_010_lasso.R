@@ -24,9 +24,11 @@ setGeneric("asjob_lasso", group = list("asjob_series"),
 setMethod("asjob_lasso", signature = c(x = "job_limma"),
   function(x, use.filter = NULL, use = .guess_symbol(x), from_normed = TRUE,
     fun_scale = function(x) scale(x, TRUE, TRUE),
-    dup_method = c("max", "min", "mean"), use.format = TRUE)
+    dup_method = c("max", "min", "mean"), 
+    use.format = TRUE, ...)
   {
     step_message("The default, 'job_limma' from 'job_tcga' were adapted to convertion.")
+    x <- dedup_by_rank.job_limma(x, ref.use = use, ...)
     dup_method <- match.arg(dup_method)
     project <- x$project
     if (x$normed) {
@@ -383,7 +385,7 @@ setMethod("step5", signature = c(x = "job_lasso"),
 
 plot_roc <- function(roc, cols = ggsci::pal_npg()(9)) {
   if (is(roc, "list")) {
-    pos <- seq(.1, .2, length.out = length(roc))
+    pos <- seq(.05, .3, length.out = length(roc))
     expr <- expression({
       lapply(seq_along(roc), 
         function(n) {
