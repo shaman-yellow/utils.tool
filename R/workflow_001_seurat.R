@@ -393,10 +393,20 @@ as_type_group <- function(type, group) {
 }
 
 setMethod("diff", signature = c(x = "job_seurat"),
-  function(x, group.by, contrasts, name = "contrasts", cut.fc = 1, cut.p = .5, force = TRUE)
+  function(x, group.by, contrasts, name = "contrasts", cut.fc = 1, cut.p = .5, force = FALSE)
   {
+    message("Differential analysis for cells.")
+    if (is.null(object(x)@meta.data[[ group.by ]])) {
+      stop('is.null(object(x)@meta.data[[ group.by ]]).')
+    }
+    if (!all(unlist(contrasts) %in% ids(x, group.by))) {
+      stop('!all(unlist(contrasts) %in% ids(x, group.by)).')
+    }
     if (is.data.frame(contrasts)) {
       contrasts <- apply(contrasts, 1, c, simplify = FALSE)
+    }
+    if (is(contrasts, "list") && !all(lengths(contrasts) == 2)) {
+      stop('is(contrasts, "list") && !all(lengths(contrasts) == 2).')
     }
     numCells <- table(x@object@meta.data[[ group.by ]])
     cellsFew <- numCells[ numCells <= 3 ]
@@ -423,12 +433,15 @@ setMethod("diff", signature = c(x = "job_seurat"),
       res <- setLegend(
         res, "细胞群差异表达基因附表 (其中 'contrast' 列为比较的两类细胞) (|log~2~(FC)| &gt; {cut.fc}, P-Adjust &lt; {cut.p})。"
       )
-      init(snap(x)) <- TRUE
-      x <- snapAdd(x, "对细胞群差异分析 (依据 {group.by})，筛选差异表达基因。", step = "d")
       x@params[[ name ]] <- res
     } else {
       res <- x@params[[ name ]]
     }
+    init(snap(x)) <- TRUE
+    snap <- vapply(contrasts, bind, character(1), co = " vs ")
+    x <- snapAdd(
+      x, "对细胞群差异分析 (依据 {group.by}, 分析 {less(snap)})，筛选差异表达基因。", step = "d"
+    )
     ## contrast intersection
     tops <- split(res, ~ contrast)
     use.gene <- "gene"
@@ -440,6 +453,7 @@ setMethod("diff", signature = c(x = "job_seurat"),
         lst <- list(up = up, down = down)
         lapply(lst, fun_filter)
       })
+    feature(x) <- tops
     tops <- unlist(tops, recursive = FALSE)
     x[[ paste0(name, "_intersection") ]] <- tops
     p.sets_intersection <- new_upset(lst = tops, trunc = NULL)

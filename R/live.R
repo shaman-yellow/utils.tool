@@ -2760,9 +2760,9 @@ get_from_env <- function (weight, data = list(), env = parent.frame(1)){
 # ROC
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-plot_roc <- function(roc) {
-  plot(1- x$specificities, x$sensitivities)
-}
+# plot_roc <- function(roc) {
+#   plot(1- x$specificities, x$sensitivities)
+# }
 
 # ==========================================================================
 # upset plot

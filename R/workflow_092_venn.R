@@ -17,12 +17,12 @@
 
 job_vennDEGs <- function(pattern, exclude = NULL,
   mode = c("raw", "pro"), name = "guess", ...,
-  pattern_dataset = ".*(GSE[0-9]+).")
+  pattern_dataset = ".*(GSE[0-9]+).*", gp = NULL)
 {
   mode <- match.arg(mode)
   if (mode == "raw") {
     fun_extract <- function(x) x@tables$step2$tops[[1]][, 1:3]
-    snapAdd_onExit("x", "取不同数据集的差异表达基因的交集。")
+    snapAdd_onExit("x", "不同数据集的差异表达基因的交集。")
   } else {
     stop(glue::glue("..."))
   }
@@ -40,6 +40,17 @@ job_vennDEGs <- function(pattern, exclude = NULL,
   names(degs) <- s(names(degs), pattern_dataset, "\\1")
   x <- .job_vennDEGs(job_venn(lst = degs))
   x$degs_versus <- degs_versus
+  if (!is.null(gp)) {
+    metadata <- as_df.lst(x$degs_versus, "project", "versus")
+    groups <- group_strings(unlist(x$degs_versus), gp, "versus")
+    x$metadata <- map(
+      metadata, "versus", groups, "versus", "group", col = "group"
+    )
+    x$metadata <- set_lab_legend(
+      x$metadata, "metadata of mutiple datasets", "为多个数据集的元数据信息 (分组信息) "
+    )
+    x$groups <- nl(x$metadata$project, x$metadata$group)
+  }
   x$projects <- projects
   return(x)
 }
@@ -53,7 +64,7 @@ job_venn <- function(..., lst = NULL)
   }
   if (all(vapply(object, is, logical(1), "feature"))) {
     snaps <- paste0("- ", vapply(object, snap, character(1)))
-    snapAdd_onExit("x", "以下取交集：\n{bind(snaps, co = '\n')}")
+    snapAdd_onExit("x", "数据集为：\n{bind(snaps, co = '\n')}")
     object <- lapply(object, function(x) unlist(x@.Data))
   }
   x <- .job_venn(object = object)
@@ -75,7 +86,7 @@ setMethod("step1", signature = c(x = "job_venn"),
     if (identical(parent.frame(1), .GlobalEnv)) {
       job_append_heading(
         x, heading = glue::glue(
-          "交集: ", bind(names(object(x)), co = " + ")
+          "汇总: ", bind(names(object(x)), co = " + ")
         )
       )
     }
@@ -139,7 +150,7 @@ new_venn <- function(..., lst = NULL, wrap = TRUE,
   attr(p, "ins") <- ins <- ins(lst = lst)
   attr(p, "lich") <- new_lich(list(All_intersection = ins))
   lab(p) <- paste0("Intersection of ", paste0(names(lst), collapse = " with "))
-  p <- setLegend(p, "将{bind(names(lst))} 取交集。")
+  p <- setLegend(p, "为 {bind(names(lst))} 各自交集。")
   p
 }
 

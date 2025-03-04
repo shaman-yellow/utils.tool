@@ -16,8 +16,9 @@ sortSugi <- function(values, dec = TRUE) {
   num
 }
 
-as_network <- function(lst, layout = 'sugiyama', seed = 100)
+as_network <- function(lst, layout = 'sugiyama', seed = 100, env = parent.frame(1))
 {
+  lst <- lapply(lst, function(x) glue::glue(x, .envir = env))
   lst <- vapply(lst, function(ch) gsub(" ", "", ch), character(1))
   if (any(grepl("::", lst))) {
     lst <- unlist(lapply(lst,

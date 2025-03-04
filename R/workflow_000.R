@@ -273,14 +273,16 @@ setGeneric("as_feature",
   function(x, ref, ...) standardGeneric("as_feature"))
 
 setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
-  function(x, ref, nature = c("genes", "compounds", "feature"),
+  function(x, ref, nature = c("genes", "compounds", "feature", "flux"),
     type = "disease", analysis = NULL)
   {
     if (is.null(sig(ref))) {
       stop('is.null(sig(ref)), no "sig" in that "job".')
     }
     nature <- match.arg(nature)
-    nature <- switch(nature, "genes" = "基因集", "compounds" = "化合物", "feature" = "特征集")
+    nature <- switch(
+      nature, "genes" = "基因集", "compounds" = "化合物", "feature" = "特征集", "flux" = "代谢通量"
+    )
     type <- dplyr::recode(type, "disease" = "疾病", .default = type)
     if (is(x, "character")) {
       x <- .feature_char(x, type = type, nature = nature)
@@ -1106,6 +1108,11 @@ setMethod("collate", signature = c(x = "character"),
     res <- .list_collate(res)
     res@object_names <- names
     return(res)
+  })
+
+setMethod("less", signature = c(x = "feature"),
+  function(x, ...){
+    less(unlist(x), ...)
   })
 
 setMethod("less", signature = c(x = "numeric_or_character"),

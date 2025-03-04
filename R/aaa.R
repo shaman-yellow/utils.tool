@@ -807,3 +807,22 @@ rbind_list <- function(lst, .id = NULL, keep_missing = TRUE) {
   data
 }
 
+ors <- function(lst) {
+  .operator_for_list(lst, `|`)
+}
+
+ands <- function(lst) {
+  .operator_for_list(lst, `&`)
+}
+
+.operator_for_list <- function(lst, fun) {
+  if (!length(lst)) {
+    stop('!length(lst).')
+  }
+  res <- lst[[1]]
+  for (i in lst[-1]) {
+    res <- fun(res, i)
+  }
+  res
+}
+

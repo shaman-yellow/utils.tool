@@ -383,9 +383,19 @@ setMethod("step5", signature = c(x = "job_lasso"),
     return(x)
   })
 
-plot_roc <- function(roc, cols = ggsci::pal_npg()(9)) {
+plot_roc <- function(roc, cols = ggsci::pal_npg()(9), groups = NULL) {
   if (is(roc, "list")) {
     pos <- seq(.05, .3, length.out = length(roc))
+    if (!is.null(groups)) {
+      if (!all(names(roc) %in% names(groups))) {
+        stop('!all(names(roc) %in% names(groups)).')
+      }
+      names(roc) <- paste0(
+        vapply(names(roc), function(name) groups[[ name ]], character(1)),
+        "_", names(roc)
+      )
+      roc <- sort_by(roc, names(roc))
+    }
     expr <- expression({
       lapply(seq_along(roc), 
         function(n) {

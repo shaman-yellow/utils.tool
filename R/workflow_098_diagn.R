@@ -18,10 +18,11 @@ setGeneric("asjob_diagn", group = list("asjob_series"),
 
 setMethod("asjob_diagn", signature = c(x = "job_vennDEGs"),
   function(x, genes = feature(x), names = x$degs_versus@object_names,
-    pattern_control = "guess", env = .GlobalEnv)
+    pattern_control = "guess", env = .GlobalEnv, hasAll = TRUE)
   {
     objects <- lapply(names, get, envir = env)
-    y <- job_diagn(objects, genes = genes)
+    genes <- resolve_feature(genes)
+    y <- job_diagn(objects, genes = genes, hasAll = hasAll)
     y@analysis <- "Lasso 诊断模型建立"
     if (identical(pattern_control, "guess")) {
       versus <- strsplit(unlist(x$degs_versus), "\\s?-\\s?")
@@ -29,13 +30,25 @@ setMethod("asjob_diagn", signature = c(x = "job_vennDEGs"),
       names(versus) <- names(object(y))
       y$pattern_control <- versus
     }
+    y$degs_versus <- x$degs_versus
+    y$groups <- x$groups
     return(y)
   })
 
-job_diagn <- function(x, genes = NULL, ...)
+job_diagn <- function(x, genes = NULL, hasAll = TRUE, ...)
 {
   valid_job_list(x, "job_limma", 1L)
   projects <- vapply(x, function(x) x$project, character(1))
+  if (hasAll) {
+    haveThats <- lapply(x, 
+      function(x) {
+        dbGenes <- x$normed_data$genes %||% x$genes
+        genes %in% dbGenes[[ .guess_symbol(x) ]]
+      })
+    haveThats <- ands(haveThats)
+    notCovered <- genes[ !haveThats ]
+    genes <- genes[ haveThats ]
+  }
   jobs <- lapply(x,
     function(x) {
       asjob_diag(x, genes, ...)
@@ -44,6 +57,9 @@ job_diagn <- function(x, genes = NULL, ...)
   x <- .job_diagn(object = jobs)
   x$projects <- projects
   x$genes <- genes
+  if (hasAll) {
+    message(glue::glue("Not covered: {bind(notCovered)}"))
+  }
   return(x)
 }
 
@@ -148,21 +164,29 @@ setMethod("step5", signature = c(x = "job_diagn"),
   })
 
 setMethod("step6", signature = c(x = "job_diagn"),
-  function(x, mode = c("maxSamples")){
+  function(x, mode = c("maxSamples", "custom"), project = NULL, self = TRUE){
     step_message("")
     mode <- match.arg(mode)
     t.res <- x@tables$step5$t.allDatasetModels
     map_res <- list()
-    if (mode == "maxSamples") {
-      projModel <- t.res$project[ which.max(t.res$n) ]
+    if (mode == "maxSamples" || mode == "custom") {
+      projModel <- project
+      if (is.null(projModel)) {
+        projModel <- t.res$project[ which.max(t.res$n) ]
+      }
+      if (length(projModel) != 1) {
+        stop('length(projModel) != 1.')
+      }
       y <- set_independence(x)
       ref <- object(x)[[ projModel ]]
-      object(y) <- object(y)[ names(object(y)) != projModel ]
+      if (!self) {
+        object(y) <- object(y)[ names(object(y)) != projModel ]
+      }
       y <- map(y, ref)
       map_res <- y@params[ names(y@params) %in% c("p.hps", "p.rocs", "rocs") ]
       x$projModel <- projModel
       x <- methodAdd(x, "{ref@meth$step4}")
-      x <- snapAdd(x, "以 {projModel} 创建诊断模型。{ref@snap$step4}{y@snap$stepm}")
+      x <- snapAdd(x, "以 {projModel} ({x$degs_versus[[projModel]]}) 创建诊断模型。{ref@snap$step4}{y@snap$stepm}")
       if (TRUE) {
         z <- set_independence(ref)
         coefs <- ref@tables$step4$t.sigCoefficients
@@ -175,6 +199,7 @@ setMethod("step6", signature = c(x = "job_diagn"),
         feature(x) <- features
         z <- map(z, ref)
         x$self_res <- c(list(p.hp = z@params$p.hp_valid), ref@plots$step4)
+        x$self_res$p.hp <- setLegend(x$self_res$p.hp, "为特征基因在训练数据集 ({projModel}) 的表达热图。")
       }
     }
     x$map_res <- map_res
@@ -196,11 +221,18 @@ setMethod("map", signature = c(x = "job_diagn", ref = "job_diag"),
             object[[ lam ]]$roc
           })
       })
-    p.rocs <- lapply(rocs, plot_roc)
+    p.rocs <- lapply(rocs, plot_roc, groups = x$groups)
     p.rocs <- .set_lab(p.rocs, sig(x), names(p.rocs), "ROC")
     p.rocs <- setLegend(p.rocs, glue::glue("为 {names(p.rocs)} ROC 曲线。"))
+    snap <- names(object(x))
+    if (!is.null(x$groups)) {
+      snap <- vapply(snap,
+        function(name) {
+          glue::glue("{name} ({x$groups[[name]]})")
+        }, character(1))
+    }
     x <- snapAdd(
-      x, "使用数据集 {bind(names(object(x)))} 验证。", add = FALSE, step = "m"
+      x, "使用数据集 {bind(snap)} 验证。", add = FALSE, step = "m"
     )
     x$p.hps <- lapply(object(x), function(x) x$p.hp_valid)
     x$p.hps <- .set_lab(x$p.hps, sig(x), names(x$p.hps), "feature heatmap in validation dataset")

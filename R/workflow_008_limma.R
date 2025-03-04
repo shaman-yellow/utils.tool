@@ -615,6 +615,9 @@ setMethod("step3", signature = c(x = "job_limma"),
       p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "Difference", "intersection")
       x@plots[[ 3 ]] <- namel(p.sets_intersection, p.hp)
     }
+    if (x$from_scfea) {
+      feature(x) <- as_feature(x$.feature, x, nature = "flux")
+    }
     return(x)
   })
 
@@ -987,6 +990,9 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_limma"),
     theme = NULL, HLs = NULL, mode = c("heatmap", "linear"), gname = TRUE)
   {
     message("Filter out others.")
+    rawFromTo <- namel(from, to)
+    from <- resolve_feature(from)
+    to <- resolve_feature(to)
     eval(use)
     sigs <- c(x@sig, y@sig)
     x <- x$normed_data
@@ -1023,10 +1029,10 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_limma"),
     )
     newjob <- .job_limma(params = list(normed_data = x))
     x <- cal_corp(
-      newjob, NULL, from, to, names, "NAME", theme, HLs, mode, gname = gname
+      newjob, NULL, rawFromTo$from, rawFromTo$to, names, "NAME", theme, HLs, mode, gname = gname
     )
     message("Reset snap.")
-    snap(x)[[ "step0" ]] <- glue::glue("将两组相同样品来源的数据集 (dataset: {bind(sigs)})) 关联分析。")
+    # snap(x)[[ "step0" ]] <- glue::glue("将两组相同样品来源的数据集 (dataset: {bind(sigs)})) 关联分析。")
     x$.cal_corp_heading <- c("关联分析")
     x
   })
@@ -1049,13 +1055,17 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
     }
     data <- as_tibble(data)
     anno <- as_tibble(x@params$normed_data$genes)
+    if (is(from, "feature") && is(to, "feature")) {
+      snapAdd_onExit("x", "将 ({snap(from)}) 与 ({snap(to)}) 关联分析。")
+    } else {
+      if (identical(from, to)) {
+        snapAdd_onExit("x", "将基因集 ({less(from)}) 相互关联分析。")
+      } else {
+        snapAdd_onExit("x", "将基因 ({less(from)} -> {less(to)}) 关联分析。")
+      }
+    }
     from <- resolve_feature(from)
     to <- resolve_feature(to)
-    if (identical(from, to)) {
-      snapAdd_onExit("x", "将基因集 ({less(from)}) 相互关联分析。")
-    } else {
-      snapAdd_onExit("x", "将基因 ({less(from)} -> {less(to)}) 关联分析。")
-    }
     if (!any(colnames(anno) == use)) {
       if (!is.null(x$genes)) {
         if (any(colnames(x$genes) == use)) {
