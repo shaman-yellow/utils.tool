@@ -32,6 +32,7 @@ setMethod("asjob_diagn", signature = c(x = "job_vennDEGs"),
     }
     y$degs_versus <- x$degs_versus
     y$groups <- x$groups
+    y <- snapAdd(y, "选定{snap(genes)}。")
     return(y)
   })
 
@@ -242,5 +243,13 @@ setMethod("map", signature = c(x = "job_diagn", ref = "job_diag"),
     return(x)
   })
 
-
-
+setMethod("map", signature = c(x = "job_diag", ref = "job_diagn"),
+  function(x, ref, lambda = c("min", "1se"))
+  {
+    if (is.null(ref$projModel)) {
+      stop('is.null(ref$projModel).')
+    }
+    x <- map(x, ref@object[[ ref$projModel ]], lambda = lambda)
+    x$.map_heading <- "使用外部数据验证"
+    return(x)
+  })

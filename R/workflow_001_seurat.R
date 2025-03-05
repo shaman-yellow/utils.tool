@@ -82,7 +82,7 @@ setMethod("step2", signature = c(x = "job_seurat"),
           !!rlang::sym(use) < max.features & percent.mt < max.percent.mt
         ))
     x <- methodAdd(x, "一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。")
-    x <- snapAdd(x, "前期质量控制，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。")
+    x <- snapAdd(x, "前期质量控制，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。过滤后，数据集共包含 {dim(x@object)[1]} 个基因，{dim(x@object)[2]} 个细胞。")
     p.qc_aft <- plot_qc.seurat(x)
     p.qc_aft <- .set_lab(p.qc_aft, sig(x), "After Quality control")
     p.qc_aft <- setLegend(p.qc_aft, "为数据过滤后的 QC 图。")
@@ -309,21 +309,8 @@ setMethod("step6", signature = c(x = "job_seurat"),
           p.markers <- e(Seurat::DoHeatmap(object(x), features = excluOverMarkers,
               group.by = "ChatGPT_cell", raster = TRUE, group.colors = color_set(), label = FALSE))
         } else if (hp_type == "pretty") {
-          avgExpr <- Seurat::AverageExpression(
-            object(x), features = excluOverMarkers,
-            assays = object(x)@active.assay,
-            group.by = "ChatGPT_cell", slot = "data"
-          )
-          avgExpr <- data.frame(avgExpr[[ 1 ]], check.names = FALSE)
-          avgExpr <- dplyr::rename(as_tibble(avgExpr), Gene = rownames)
-          avgExpr <- tidyr::pivot_longer(avgExpr, -Gene, names_to = "Cell", values_to = "Expression")
-          avgExpr <- dplyr::mutate(
-            avgExpr, Expression = log2(Expression + 1), 
-            Gene = factor(Gene, levels = excluOverMarkers)
-          )
-          p.markers <- tidyHeatmap::heatmap(
-            avgExpr, Gene, Cell, Expression, cluster_columns = FALSE, 
-            cluster_rows = FALSE
+          p.markers <- .plot_marker_heatmap(
+            x, excluOverMarkers, "ChatGPT_cell"
           )
         }
         p.markers <- .set_lab(
@@ -1028,6 +1015,26 @@ prepare_GPTmessage_for_celltypes <- function(tissue, marker_list, n = 10, toClip
     gett(query)
   }
   return(list(query = query, message = message, ncluster = ncluster))
+}
+
+.plot_marker_heatmap <- function(x, markers, group.by) {
+  avgExpr <- Seurat::AverageExpression(
+    object(x), features = markers,
+    assays = object(x)@active.assay,
+    group.by = group.by, slot = "data"
+  )
+  avgExpr <- data.frame(avgExpr[[ 1 ]], check.names = FALSE)
+  avgExpr <- dplyr::rename(as_tibble(avgExpr), Gene = rownames)
+  avgExpr <- tidyr::pivot_longer(avgExpr, -Gene, names_to = "Cell", values_to = "Expression")
+  avgExpr <- dplyr::mutate(
+    avgExpr, Expression = log2(Expression + 1), 
+    Gene = factor(Gene, levels = markers)
+  )
+  p.markers <- tidyHeatmap::heatmap(
+    avgExpr, Gene, Cell, Expression, cluster_columns = FALSE, 
+    cluster_rows = FALSE
+  )
+  p.markers
 }
 
 plot_cells_proportion <- function(metadata, sample = "orig.ident", cell = "ChatGPT_cell") {

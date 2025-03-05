@@ -191,17 +191,6 @@ setMethod("step4", signature = c(x = "job_diag"),
     return(x)
   })
 
-setMethod("map", signature = c(x = "job_diag", ref = "job_diagn"),
-  function(x, ref, lambda = c("min", "1se"))
-  {
-    if (is.null(ref$projModel)) {
-      stop('is.null(ref$projModel).')
-    }
-    x <- map(x, ref@object[[ ref$projModel ]], lambda = lambda)
-    x$.map_heading <- "使用外部数据验证"
-    return(x)
-  })
-
 setMethod("map", signature = c(x = "job_diag", ref = "job_diag"),
   function(x, ref, lambda = c("min", "1se"))
   {

@@ -141,6 +141,7 @@
     `link:meta+genes+0` = "蛋白质或基因和代谢物数据联合分析:通过公共数据挖掘建立联系 (__dep__)",
     `lcms` = "从头开始的 LC-MS/MS 数据处理:数据格式转换、峰检测、化合物鉴定等[raw-mb]",
     `lcms:sirius` = "LC-MS/MS 数据以尖端预测工具鉴定更多化合物 (费时)[mb-method]",
+    `markers` = "获取 CellMarker 数据库中的 Marker 用于单细胞数据的注释和验证 (__dep__)",
     `lcms:deep` = "LC-MS/MS 数据深入分析:差异代谢物筛选、分子网络可视化、富集分析等[mb-method]",
     `ocr` = "批量 OCR 识别图片中文字并整理结果[other]",
     `fastq` = "fastq 文件预处理、对齐参考基因[raw-rna]",

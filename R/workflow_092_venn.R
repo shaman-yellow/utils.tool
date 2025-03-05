@@ -46,6 +46,7 @@ job_vennDEGs <- function(pattern, exclude = NULL,
     x$metadata <- map(
       metadata, "versus", groups, "versus", "group", col = "group"
     )
+    x$metadata <- tibble::as_tibble(x$metadata)
     x$metadata <- set_lab_legend(
       x$metadata, "metadata of mutiple datasets", "为多个数据集的元数据信息 (分组信息) "
     )
@@ -154,4 +155,44 @@ new_venn <- function(..., lst = NULL, wrap = TRUE,
   p
 }
 
+setMethod("meta", signature = c(x = "job_vennDEGs"),
+  function(x, group = NULL, bind = TRUE, arrange = TRUE, get = "project")
+  {
+    if (is.null(x$metadata)) {
+      stop('is.null(x$metadata).')
+    }
+    if (arrange) {
+      x$metadata <- dplyr::arrange(x$metadata, group)
+    }
+    if (!is.null(group)) {
+      res <- dplyr::filter(x$metadata, group %in% !!group)
+      if (!nrow(res)) {
+        stop('!nrow(res). No any results.')
+      }
+      res <- res[[ get ]]
+    } else {
+      res <- x$metadata[[ get ]]
+    }
+    if (bind) {
+      bind(res)
+    } else {
+      res
+    }
+  })
+
+setMethod("feature", signature = c(x = "job_vennDEGs"),
+  function(x, group, intersect = TRUE){
+    if (missing(group)) {
+      callNextMethod(x)
+    } else {
+      projects <- meta(x, group, bind = FALSE)
+      sets <- object(x)[ names(object(x)) %in% projects ]
+      if (intersect) {
+        sets <- ins(lst = sets)
+      }
+      as_feature(
+        sets, x, analysis = " Venn 交集 ({bind(group)}: {bind(projects)})"
+      )
+    }
+  })
 
