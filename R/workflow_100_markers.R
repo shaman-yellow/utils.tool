@@ -28,7 +28,9 @@ job_markers <- function(tissue = NULL, org = c("Human", "Mouse"),
     db <- dplyr::filter(db, grpl(tissueType, !!tissue, TRUE))
   }
   db <- dplyr::filter(db, speciesType == org)
-  db <- dplyr::relocate(db, cellType, cellName, geneSymbol)
+  db <- dplyr::relocate(
+    db, cellType, cellName, geneSymbol, cellMarker
+  )
   if (distinct) {
     db <- dplyr::arrange(
       db, cellName, dplyr::desc(nchar(geneSymbol))
