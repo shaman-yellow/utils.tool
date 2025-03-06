@@ -10,11 +10,11 @@
     cite = "[@CellMarker_a_m_Zhang_2019]",
     method = "",
     tag = "markers",
-    analysis = "CellMarker 细胞注释的Marker验证"
+    analysis = "CellMarker 细胞注释的Marker"
     ))
 
 job_markers <- function(tissue = NULL, org = c("Human", "Mouse"), 
-  db_dir = .prefix("cellMarker", "db"), distinct = TRUE)
+  db_dir = .prefix("cellMarker", "db"), distinct = FALSE)
 {
   org <- match.arg(org)
   dir.create(db_dir, FALSE)
@@ -55,20 +55,71 @@ setMethod("step0", signature = c(x = "job_markers"),
 setMethod("step1", signature = c(x = "job_markers"),
   function(x, cells = NULL, basic = c(
       "^T cell$", "^B cell$", "^Dendritic cell$", "^Monocyte$", "^Natural killer cell$"
-    ))
+    ), gather = TRUE, duplicated = FALSE, least = 2L)
   {
     step_message("Try get Cell Markers by cell names (pattern).")
     if (!is.null(basic)) {
       message(glue::glue('!is.null(basic). Merge default cells: {bind(basic)}'))
-      cells <- c(cells, basic)
+      cells <- sort(c(cells, basic))
     }
     data <- dplyr::filter(
       x$db, grpl(cellName, paste0(cells, collapse = "|"))
     )
+    notGot <- lapply(cells,
+      function(pat) {
+        if (!any(grpl(data$cellName, pat, TRUE))) {
+          pat
+        } else NULL
+      })
+    notGot <- unlist(notGot)
     if (nrow(data) < length(cells)) {
       message(glue::glue('nrow(data) < length(cells). Not got enough data.'))
     }
     print(data)
     x$data <- data
+    features <- strsplit(gs(x$data$geneSymbol, "\\[|\\]| ", ""), ",")
+    features <- nl(x$data$cellName, features)
+    if (gather) {
+      features <- data.frame(
+        cell = rep(names(features), lengths(features)),
+        marker = unlist(features, use.names = FALSE)
+      )
+      features <- split(features$marker, features$cell)
+    }
+    if (duplicated) {
+      features <- sort_by(features, lengths(features))
+      features <- tibble::tibble(
+        cell = rep(names(features), lengths(features)),
+        marker = unlist(features, use.names = FALSE),
+        n = unlist(lapply(lengths(features), seq_len))
+      )
+      features <- features[ !duplicated(features$marker) | features$n <= least, ]
+      features <- split(features$marker, features$cell)
+    }
+    x$.feature <- features
+    message(glue::glue("Not got markers of cells: {crayon::red(bind(notGot))}"))
+    return(x)
+  })
+
+setMethod("map", signature = c(x = "job_seurat", ref = "job_markers"),
+  function(x, ref, extra = NULL, extra.after = NULL, 
+    max = 2, soft = TRUE, group.by = x$group.by,
+    markers = feature(ref))
+  {
+    if (ref@step < 1L) {
+      stop('ref@step < 1L.')
+    }
+    if (x@step < 3L) {
+      stop('x@step < 3L.')
+    }
+    p.cellMarker <- .plot_marker_heatmap(
+      x, markers, group.by, extra, extra.after, max = max, soft = soft
+    )
+    p.cellMarker <- set_lab_legend(
+      wrap(p.cellMarker, 7, 7),
+      paste(sig(x), "CellMarker Validation"),
+      "为使用 CellMarker 数据库中的特异性 Marker 对单细胞注释结果的验证热图。"
+    )
+    x$p.cellMarker <- p.cellMarker
     return(x)
   })

@@ -31,7 +31,7 @@ inclu.fig <- function(image, land = FALSE, saveDir = "thesis_fig", dpi = 300,
   }
   ## trim the border
   if (!need_trim) {
-    gc()
+    # gc()
     pic_trim(savename)
   }
   ## record image info

@@ -1017,7 +1017,28 @@ prepare_GPTmessage_for_celltypes <- function(tissue, marker_list, n = 10, toClip
   return(list(query = query, message = message, ncluster = ncluster))
 }
 
-.plot_marker_heatmap <- function(x, markers, group.by) {
+.plot_marker_heatmap <- function(x, markers, group.by,
+  extra = NULL, extra.after = NULL,
+  order.by = c("raw", "smart"), max = 2, soft = TRUE)
+{
+  if ((is(markers, "list") || is(markers, "feature")) && !is.null(max)) {
+    lst <- markers
+    markers <- unlist(markers)
+  } else {
+    max <- NULL
+  }
+  if (!is.null(extra)) {
+    if (!is(extra, "list")) {
+      extra <- list(Extra = extra)
+    }
+    if (!is.null(extra.after)) {
+      lst <- append(lst, extra, after = extra.after)
+      markers <- unlist(lst)
+    } else {
+      markers <- c(markers, extra[[1]])
+      lst <- c(lst, extra)
+    }
+  }
   avgExpr <- Seurat::AverageExpression(
     object(x), features = markers,
     assays = object(x)@active.assay,
@@ -1027,14 +1048,63 @@ prepare_GPTmessage_for_celltypes <- function(tissue, marker_list, n = 10, toClip
   avgExpr <- dplyr::rename(as_tibble(avgExpr), Gene = rownames)
   avgExpr <- tidyr::pivot_longer(avgExpr, -Gene, names_to = "Cell", values_to = "Expression")
   avgExpr <- dplyr::mutate(
-    avgExpr, Expression = log2(Expression + 1), 
-    Gene = factor(Gene, levels = markers)
+    avgExpr, Expression = log2(Expression + 1)
   )
+  if (!is.null(max)) {
+    exprCutoff <- fivenum(avgExpr$Expression)[4]
+    marker_keep <- lapply(lst,
+      function(gene) {
+        if (length(gene) <= max) {
+          return(gene)
+        }
+        data <- dplyr::filter(avgExpr, Gene %in% !!gene)
+        data <- dplyr::group_by(data, Gene)
+        data <- dplyr::summarise(
+          data, score = .calculate_deviation_score(Expression), 
+          maxExpr = max(Expression)
+        )
+        data <- dplyr::arrange(data, dplyr::desc(score))
+        if (soft) {
+          testData <- dplyr::filter(data, maxExpr >= exprCutoff)
+          if (nrow(testData) > max) {
+            data <- testData
+          } else {
+            nkeep <- max
+            for (i in seq(max, nrow(data))) {
+              if (any(data$maxExpr[seq_len(i)] >= exprCutoff)) {
+                nkeep <- i
+                break
+              }
+            }
+            max <- nkeep
+          }
+        }
+        head(data$Gene, n = max)
+      })
+    avgExpr <- dplyr::filter(avgExpr, Gene %in% unlist(marker_keep))
+  }
+  order.by <- match.arg(order.by)
+  if (order.by == "raw") {
+    avgExpr <- dplyr::mutate(
+      avgExpr, Gene = factor(Gene, levels = unique(markers))
+    )
+  } else if (order.by == "smart") {
+    stop('order.by == "smart".')
+    avgExpr <- dplyr::mutate(avgExpr, Gene = factor(Gene, levels = glevels))
+  }
   p.markers <- tidyHeatmap::heatmap(
     avgExpr, Gene, Cell, Expression, cluster_columns = FALSE, 
     cluster_rows = FALSE
   )
   p.markers
+}
+
+.calculate_deviation_score <- function(x) {
+  max <- max(x)
+  skewness <- e1071::skewness(x)
+  dispersion <- max / median(x)
+  gap <- (max - sort(x, decreasing = TRUE)[2]) / max
+  skewness + dispersion + gap
 }
 
 plot_cells_proportion <- function(metadata, sample = "orig.ident", cell = "ChatGPT_cell") {

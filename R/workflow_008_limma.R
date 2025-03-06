@@ -615,7 +615,7 @@ setMethod("step3", signature = c(x = "job_limma"),
       p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "Difference", "intersection")
       x@plots[[ 3 ]] <- namel(p.sets_intersection, p.hp)
     }
-    if (x$from_scfea) {
+    if (!is.null(x$from_scfea) && x$from_scfea) {
       feature(x) <- as_feature(x$.feature, x, nature = "flux")
     }
     return(x)
