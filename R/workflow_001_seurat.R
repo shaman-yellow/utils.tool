@@ -219,10 +219,13 @@ setMethod("step5", signature = c(x = "job_seurat"),
   })
 
 setMethod("step6", signature = c(x = "job_seurat"),
-  function(x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = 1.5, filter.pct = .7,
+  function(x, tissue, ref.markers = NULL, type = c("Normal cell"),
+    filter.p = 0.01, filter.fc = 1.5, filter.pct = .7,
     org = c("Human", "Mouse"),
     cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_cell",
-    method = c("gpt", "scsa"), keep_markers = 2,
+    method = c("cellMarker", "gpt", "scsa"), exclude = NULL,
+    exclude_pattern = "derived|progenitor|Treg|Naive|helper|Transitional|Memory|switch|white blood cell",
+    toClipboard = TRUE, post_modify = FALSE, keep_markers = 2,
     n = 30, variable = FALSE, hp_type = c("pretty", "seurat"))
   {
     method <- match.arg(method)
@@ -237,8 +240,10 @@ setMethod("step6", signature = c(x = "job_seurat"),
           all_markers, gene %in% SeuratObject::VariableFeatures(object(x))
         )
       }
-      query <- prepare_GPTmessage_for_celltypes(tissue, all_markers, n = n)
-      if (usethis::ui_yeah("Get results from clipboard?")) {
+      query <- prepare_GPTmessage_for_celltypes(
+        tissue, all_markers, n = n, toClipboard = toClipboard
+      )
+      if (sureThat("Get results from clipboard?")) {
         feedback <- get_clipboard()
         if (length(feedback) != query$ncluster) {
           stop(glue::glue("The res number ({nrow(res)}) not match cluster number ({query$ncluster})."))
@@ -246,71 +251,22 @@ setMethod("step6", signature = c(x = "job_seurat"),
         res <- parse_GPTfeedback(feedback)
         seqs <- match(object(x)@meta.data[[ "seurat_clusters"]], 0:(query$ncluster - 1))
         object(x)@meta.data[[ "ChatGPT_cell"]] <- res$cells[ seqs ]
-        ## is High discriminative genes?
-        all_markers$cells <- res$cells[match(all_markers$cluster, 0:(query$ncluster - 1))]
-        all_markers <- dplyr::filter(all_markers, gene %in% res$markers)
-        numInMarkers <- vapply(res$markers,
-          function(marker) {
-            cells <- unique(dplyr::filter(all_markers, gene == !!marker)$cells)
-            length(cells)
-          }, integer(1))
-        isPrimMarkers <- numInMarkers <= 2L
-        notDiscMarkers <- res$markers[!isPrimMarkers]
-        message(
-          glue::glue(
-            "Total not discriminative markers {length(notDiscMarkers)} / {length(res$markers)}:
-            \t{bind(notDiscMarkers)}"
+        if (post_modify) {
+          x <- .modify_gpt_marker_and_cell(
+            x, all_markers, query, res, keep_markers
           )
-        )
-        cell_markers <- reframe_col(res$data, "markers", unlist)
-        cell_markers$num <- numInMarkers[ match(cell_markers$markers, res$markers) ]
-        cell_markers <- dplyr::arrange(cell_markers, num)
-        ## keep 2-3 markers, for each cells.
-        cell_markers <- split_lapply_rbind(
-          cell_markers, ~ cells, head, n = keep_markers
-        )
-        x$hp_cell_markers <- cell_markers
-        excluOverMarkers <- unique(cell_markers$markers)
-        message(
-          glue::glue(
-            "Markers excluded overlaps: {length(excluOverMarkers)}
-            (Not discriminative {length(which(excluOverMarkers %in% notDiscMarkers))})"
-          )
-        )
-        gptCells <- object(x)@meta.data[["ChatGPT_cell"]]
-        allCells <- unique(cell_markers$cells)
-        cells_filter <- c()
-        for (i in allCells) {
-          dat <- dplyr::filter(cell_markers, cells == i)
-          if (all(dat$num > 3)) {
-            gptCells <- ifelse(gptCells == i, "Unknown", gptCells)
-            cells_filter <- c(cells_filter, i)
-            next
-          } else if (all(dat$num > 1)) {
-            dat_overlap <- dplyr::filter(cell_markers, markers %in% dat$markers)
-            maybeParent <- dat_overlap$cells[ which.min(nchar(dat_overlap$cells)) ]
-            if (maybeParent != i && grpl(i, maybeParent, TRUE)) {
-              message(glue::glue("Re assign cells: {i} -> {maybeParent}"))
-              gptCells <- ifelse(gptCells == i, maybeParent, gptCells)
-              cells_filter <- c(cells_filter, i)
-            }
-          }
+          validMarkers <- x$gpt_excluOverMarkers
+        } else {
+          validMarkers <- unique(reframe_col(res$data, "markers", unlist)$markers)
         }
-        if (length(cells_filter)) {
-          cell_markers <- dplyr::filter(cell_markers, !cells %in% cells_filter)
-        }
-        cell_markers <- dplyr::arrange(cell_markers, cells)
-        excluOverMarkers <- unique(cell_markers$markers)
-        message(glue::glue("Post Markers excluded overlaps: {length(excluOverMarkers)}"))
-        object(x)@meta.data[["ChatGPT_cell"]] <- gptCells
         ## heatmap
         hp_type <- match.arg(hp_type)
         if (hp_type == "seurat") {
-          p.markers <- e(Seurat::DoHeatmap(object(x), features = excluOverMarkers,
+          p.markers <- e(Seurat::DoHeatmap(object(x), features = validMarkers,
               group.by = "ChatGPT_cell", raster = TRUE, group.colors = color_set(), label = FALSE))
         } else if (hp_type == "pretty") {
           p.markers <- .plot_marker_heatmap(
-            x, excluOverMarkers, "ChatGPT_cell"
+            x, validMarkers, "ChatGPT_cell"
           )
         }
         p.markers <- .set_lab(
@@ -319,8 +275,8 @@ setMethod("step6", signature = c(x = "job_seurat"),
         p.markers <- setLegend(p.markers, "为 ChatGPT 注释细胞群使用的首要 Marker 热图。")
         attr(p.markers, "lich") <- new_lich(
           namel(
-            ChatGPT_Query = gs(query$query, "\n", ". "), 
-            gs(feedback, "\n", ". ")
+            ChatGPT_Query = gs(query$query, "\n", "\t\t\n"), 
+            ChatGPT_feedback = bind(feedback, co = "\t\t\n")
           ), sep = "\n"
         )
         t.gptRes <- setLegend(res$data, "为 ChatGPT-4 对细胞类型的注释。")
@@ -339,7 +295,9 @@ setMethod("step6", signature = c(x = "job_seurat"),
         p.props_gpt <- .set_lab(p.props_gpt, sig(x), "ChatGPT4 Cell Proportions in each sample")
         p.props_gpt <- setLegend(p.props_gpt, "为 ChatGPT-4 注释的细胞群在各个样本中的占比。")
         x@plots[[ 6 ]] <- namel(p.map_gpt, p.markers, p.props_gpt)
-        x <- snapAdd(x, "根据细胞群 Markers (检出率至少为 {filter.pct}，选取 Top {n}) ，让 ChatGPT-4 对细胞类型注释。")
+        x <- snapAdd(
+          x, "根据细胞群 Markers (检出率至少为 {filter.pct}，选取 Top {n}) ，让 ChatGPT-4 对细胞类型注释。"
+        )
         x <- methodAdd(
           x, "以 ChatGPT-4 注释细胞类型 {cite_show('Assessing_GPT_4_Hou_W_2024')}。将每一个细胞群的 Top {n} 基因提供给 ChatGPT，使其注释细胞类型。询问信息为：\n\n{text_roundrect(query$message, 'docx')}"
         )
@@ -347,13 +305,61 @@ setMethod("step6", signature = c(x = "job_seurat"),
       } else {
         stop("Terminated.")
       }
-    } else {
+    } else if (method == "scsa" || method == "cellMarker") {
       step_message("Use SCSA to annotate cell types (<https://github.com/bioinfo-ibms-pumc/SCSA>).")
-      lst <- do.call(scsa_annotation, as.list(environment()))
+      # lst <- do.call(scsa_annotation, as.list(environment()))
+      if (method == "cellMarker" && is.null(ref.markers)) {
+        job_markers <- job_markers(
+          tissue, type = type, use_numbering = FALSE, 
+          org = org
+        )
+        tissue <- bind(unique(job_markers$db$tissueType))
+        ref.markers <- ref(job_markers)
+        if (!is.null(exclude_pattern) || !is.null(exclude)) {
+          exclude_pattern <- paste0(exclude_pattern, "|", exclude)
+          ref.markers <- dplyr::filter(
+            ref.markers, !grpl(cell, exclude_pattern, TRUE)
+          )
+        }
+      } else {
+        job_markers <- NULL
+      }
+      lst <- scsa_annotation(
+        x = x, tissue = if (method == "scsa") tissue else "All",
+        ref.markers = ref.markers, filter.p = filter.p,
+        filter.fc = filter.fc, org = org,
+        cmd = cmd, db = db, res.col = res.col
+      )
       x <- lst$x
       x@tables[[ 6 ]] <- list(scsa_res_all = lst$scsa_res_all)
       x@params$group.by <- lst$res.col
-      x@plots[[ 6 ]] <- list(p.map_scsa = lst$p.map_scsa)
+      p.props_scsa <- plot_cells_proportion(
+        object(x)@meta.data, "orig.ident", "scsa_cell"
+      )
+      p.props_scsa <- .set_lab(p.props_scsa, sig(x), "SCSA Cell Proportions in each sample")
+      p.props_scsa <- setLegend(p.props_scsa, "为 SCSA 注释的细胞群在各个样本中的占比。")
+      if (method == "cellMarker") {
+        ## .plot_marker_heatmap
+        validMarkers <- dplyr::filter(ref.markers, cell %in% lst$scsa_res$Cell.Type)
+        x <- map(
+          x, job_markers, markers = split(
+            validMarkers$markers, validMarkers$cell
+          ), group.by = "scsa_cell", max = 2
+        )
+      }
+      x@plots[[ 6 ]] <- list(p.map_scsa = lst$p.map_scsa, p.props_scsa = p.props_scsa)
+      if (method == "scsa") {
+        x <- snapAdd(x, "以 SCSA 对细胞群注释。")
+        x <- methodAdd(
+          x, "以 Python 工具 `SCSA` ({cite_show('ScsaACellTyCaoY2020')}) (<https://github.com/bioinfo-ibms-pumc/SCSA>) 对细胞群注释。"
+        )
+      } else if (method == "cellMarker") {
+        x$job_markers <- job_markers
+        x <- snapAdd(x, "使用 CellMarker 数据库的 Marker 基因 (Tissue: {tissue})，以 SCSA 对细胞群注释。")
+        x <- methodAdd(
+          x, "以 Python 工具 `SCSA` ({cite_show('ScsaACellTyCaoY2020')}) (<https://github.com/bioinfo-ibms-pumc/SCSA>)，结合 CellMarker 数据库 ({cite_show('CellMarker_a_m_Zhang_2019')})，对细胞群注释。"
+        )
+      }
     }
     return(x)
   })
@@ -912,10 +918,11 @@ identify.mouseMacroPhe <- function(x, use = "scsa_cell",
 }
 
 scsa_annotation <- function(
-  x, tissue, ref.markers = NULL, filter.p = 0.01, filter.fc = .5,
+  x, tissue, ref.markers = NULL, onlyUseRefMarkers = !is.null(ref.markers),
+  filter.p = 0.01, filter.fc = .5,
   org = c("Human", "Mouse"),
   cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_annotation",
-  onlyUseRefMarkers = FALSE, ...)
+  cache = "scsa", ...)
 {
   if (grpl(tissue, "(?<!\\\\)\\s", perl = TRUE)) {
     tissue <- gs(tissue, "\\s", "\\\\ ")
@@ -930,31 +937,46 @@ scsa_annotation <- function(
       }
     }  
   }
-  if (!is.null(ref.markers)) {
-    .check_columns(ref.markers, c("cell", "markers"))
-    ref.markers <- dplyr::relocate(ref.markers, cell, markers)
-    ref.markers_file <- tempfile("ref.markers_file", fileext = ".tsv")
-    write_tsv(ref.markers, ref.markers_file, col.names = FALSE)
-    x@params$ref.markers_file <- ref.markers_file
-    ref.markers.cmd <- paste0(" -M ", ref.markers_file)
-  } else {
-    ref.markers.cmd <- ""
-  }
-  marker_file <- tempfile("marker_file", fileext = ".csv")
-  result_file <- tempfile("result_file")
-  all_markers <- dplyr::rename(x@tables$step5$all_markers_no_filter, avg_logFC = avg_log2FC)
-  all_markers <- dplyr::select(all_markers, -rownames)
-  all_markers <- dplyr::mutate(all_markers, gene = gs(gene, "\\.[0-9]*", ""))
-  data.table::fwrite(all_markers, marker_file)
-  cli::cli_alert_info(cmd)
-  cdRun(cmd,
-    " -s seurat", " -i ", marker_file,
-    " -k ", tissue, " -d ", db, " ", ref.markers.cmd,
-    " -p ", filter.p, " -f ", filter.fc,
-    " -E -g ", org, " -m txt",
-    if (onlyUseRefMarkers) " -N " else NULL,
-    " -o ", result_file, " > /tmp/log_scsa.txt"
+  ## cache
+  hash <- e(
+    digest::digest(
+      list(x@sig, tissue, ref.markers, onlyUseRefMarkers, filter.p, filter.fc, org), "md5"
+    )
   )
+  message(glue::glue("Got hash: {hash}"))
+  cache <- paste0(cache, "_", hash)
+  dir.create(cache, FALSE)
+  mkfile <- function(name, fileext = NULL) {
+    file.path(cache, paste0(name, fileext))
+  }
+  ## results file
+  marker_file <- mkfile("marker_file", fileext = ".csv")
+  result_file <- mkfile("result_file")
+  if (!file.exists(result_file)) {
+    if (!is.null(ref.markers)) {
+      .check_columns(ref.markers, c("cell", "markers"))
+      ref.markers <- dplyr::relocate(ref.markers, cell, markers)
+      ref.markers_file <- mkfile("ref.markers_file", fileext = ".tsv")
+      write_tsv(ref.markers, ref.markers_file, col.names = FALSE)
+      x@params$ref.markers_file <- ref.markers_file
+      ref.markers.cmd <- paste0(" -M ", ref.markers_file)
+    } else {
+      ref.markers.cmd <- ""
+    }
+    all_markers <- dplyr::rename(x@tables$step5$all_markers_no_filter, avg_logFC = avg_log2FC)
+    all_markers <- dplyr::select(all_markers, -rownames)
+    all_markers <- dplyr::mutate(all_markers, gene = gs(gene, "\\.[0-9]*", ""))
+    data.table::fwrite(all_markers, marker_file)
+    cli::cli_alert_info(cmd)
+    cdRun(cmd,
+      " -s seurat", " -i ", marker_file,
+      " -k ", tissue, " -d ", db, " ", ref.markers.cmd,
+      " -p ", filter.p, " -f ", filter.fc,
+      " -E -g ", org, " -m txt",
+      if (onlyUseRefMarkers) " -N " else NULL,
+      " -o ", result_file, " > /tmp/log_scsa.txt"
+    )
+  }
   scsa_res <- dplyr::rename_all(ftibble(result_file), make.names)
   scsa_res <- scsa_res_all <- dplyr::arrange(scsa_res, Cluster, dplyr::desc(Z.score))
   ## add into seurat object
@@ -973,7 +995,7 @@ scsa_annotation <- function(
   p.map_scsa <- .set_lab(p.map_scsa, sig(x), "SCSA", "Cell type annotation")
   .add_internal_job(.job(method = "`SCSA` (python) used for cell type annotation",
       cite = "[@ScsaACellTyCaoY2020]"))
-  namel(x, p.map_scsa, res.col, scsa_res_all)
+  namel(x, p.map_scsa, res.col, scsa_res_all, scsa_res)
 }
 
 matchCellMarkers <- function(lst.markers, ref, least = 2) {
@@ -998,7 +1020,9 @@ parse_GPTfeedback <- function(feedback) {
   namel(markers, cells, data)
 }
 
-prepare_GPTmessage_for_celltypes <- function(tissue, marker_list, n = 10, toClipboard = TRUE)
+prepare_GPTmessage_for_celltypes <- function(tissue, 
+  marker_list, n = 10, toClipboard = TRUE, save = !toClipboard,
+  save_name = "query_message_for_gpt.txt")
 {
   message <- glue::glue("Identify cell types of {tissue} cells using the following markers separately for each row. Only provide the cell type name (for each row). Show numbers before the name. Some can be a mixture of multiple cell types (separated by '; ', end with '. '). Then, provide at least 1 and at most 5 markers  that distinguish the cell type from other cells (separated by '; ').  (e.g., 1. X Cell; Y Cell. Marker1; Marker2; Marker3)")
   message("`marker_list` should be table output from seurat (column: cluster, gene)")
@@ -1013,13 +1037,79 @@ prepare_GPTmessage_for_celltypes <- function(tissue, marker_list, n = 10, toClip
   query <- paste0(message, "\n", markers)
   if (toClipboard) {
     gett(query)
+  } else {
+    writeLines(query, save_name)
   }
   return(list(query = query, message = message, ncluster = ncluster))
 }
 
+.modify_gpt_marker_and_cell <- function(x, all_markers, 
+  query, res, keep_markers)
+{
+  ## is High discriminative genes?
+  all_markers$cells <- res$cells[match(all_markers$cluster, 0:(query$ncluster - 1))]
+  all_markers <- dplyr::filter(all_markers, gene %in% res$markers)
+  numInMarkers <- vapply(res$markers,
+    function(marker) {
+      cells <- unique(dplyr::filter(all_markers, gene == !!marker)$cells)
+      length(cells)
+    }, integer(1))
+  isPrimMarkers <- numInMarkers <= 2L
+  notDiscMarkers <- res$markers[!isPrimMarkers]
+  message(
+    glue::glue(
+      "Total not discriminative markers {length(notDiscMarkers)} / {length(res$markers)}:
+      \t{bind(notDiscMarkers)}"
+    )
+  )
+  cell_markers <- reframe_col(res$data, "markers", unlist)
+  cell_markers$num <- numInMarkers[ match(cell_markers$markers, res$markers) ]
+  cell_markers <- dplyr::arrange(cell_markers, num)
+  ## keep 2-3 markers, for each cells.
+  cell_markers <- split_lapply_rbind(
+    cell_markers, ~ cells, head, n = keep_markers
+  )
+  x$hp_cell_markers <- cell_markers
+  excluOverMarkers <- unique(cell_markers$markers)
+  message(
+    glue::glue(
+      "Markers excluded overlaps: {length(excluOverMarkers)}
+      (Not discriminative {length(which(excluOverMarkers %in% notDiscMarkers))})"
+    )
+  )
+  gptCells <- object(x)@meta.data[["ChatGPT_cell"]]
+  allCells <- unique(cell_markers$cells)
+  cells_filter <- c()
+  for (i in allCells) {
+    dat <- dplyr::filter(cell_markers, cells == i)
+    if (all(dat$num > 3)) {
+      gptCells <- ifelse(gptCells == i, "Unknown", gptCells)
+      cells_filter <- c(cells_filter, i)
+      next
+    } else if (all(dat$num > 1)) {
+      dat_overlap <- dplyr::filter(cell_markers, markers %in% dat$markers)
+      maybeParent <- dat_overlap$cells[ which.min(nchar(dat_overlap$cells)) ]
+      if (maybeParent != i && grpl(i, maybeParent, TRUE)) {
+        message(glue::glue("Re assign cells: {i} -> {maybeParent}"))
+        gptCells <- ifelse(gptCells == i, maybeParent, gptCells)
+        cells_filter <- c(cells_filter, i)
+      }
+    }
+  }
+  if (length(cells_filter)) {
+    cell_markers <- dplyr::filter(cell_markers, !cells %in% cells_filter)
+  }
+  cell_markers <- dplyr::arrange(cell_markers, cells)
+  excluOverMarkers <- unique(cell_markers$markers)
+  message(glue::glue("Post Markers excluded overlaps: {length(excluOverMarkers)}"))
+  object(x)@meta.data[["ChatGPT_cell"]] <- gptCells
+  x$gpt_excluOverMarkers <- excluOverMarkers
+  return(x)
+}
+
 .plot_marker_heatmap <- function(x, markers, group.by,
   extra = NULL, extra.after = NULL,
-  order.by = c("raw", "smart"), max = 2, soft = TRUE)
+  order.by = c("smart", "raw"), max = 2, soft = TRUE)
 {
   if ((is(markers, "list") || is(markers, "feature")) && !is.null(max)) {
     lst <- markers
@@ -1089,14 +1179,50 @@ prepare_GPTmessage_for_celltypes <- function(tissue, marker_list, n = 10, toClip
       avgExpr, Gene = factor(Gene, levels = unique(markers))
     )
   } else if (order.by == "smart") {
-    stop('order.by == "smart".')
+    allMarkers <- unique(avgExpr$Gene)
+    cutoff <- mean(range(avgExpr$Expression))
+    dat <- lapply(split(avgExpr, ~ Cell),
+      function(x) {
+        x <- dplyr::arrange(x, dplyr::desc(Expression))
+        dplyr::mutate(x,
+          isOutlier = Expression >= find_outliers_iqr(Expression),
+          isHigh = Expression >= cutoff
+        )
+      })
+    dat <- dplyr::arrange(
+      rbind_list(dat), dplyr::desc(isOutlier)
+    )
+    glevels <- unique(dat$Gene)
     avgExpr <- dplyr::mutate(avgExpr, Gene = factor(Gene, levels = glevels))
   }
   p.markers <- tidyHeatmap::heatmap(
     avgExpr, Gene, Cell, Expression, cluster_columns = FALSE, 
+    palette_value = fun_color(
+      values = avgExpr$Expression, category = "seq", rev = FALSE
+    ),
     cluster_rows = FALSE
   )
   p.markers
+}
+
+find_outliers_gap <- function(x) {
+  sorted_x <- sort(x)
+  diffs <- diff(sorted_x)
+  max_gap_index <- which.max(diffs)
+  if (max_gap_index < length(sorted_x)) {
+    outliers <- sorted_x[(max_gap_index + 1):length(sorted_x)]
+  } else {
+    outliers <- numeric(0)
+  }
+  min(outliers)
+}
+
+find_outliers_iqr <- function(x, coef = 1.5) {
+  q <- quantile(x, probs = c(0.25, 0.75), na.rm = TRUE)
+  iqr <- q[2] - q[1]
+  upper_bound <- q[2] + coef * iqr
+  outliers <- x[x > upper_bound]
+  min(outliers)
 }
 
 .calculate_deviation_score <- function(x) {

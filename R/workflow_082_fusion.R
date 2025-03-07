@@ -268,7 +268,9 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_fusion"),
     if (is.null(degs <- x[[ use ]])) {
       stop('is.null(x[[ use ]]), no this DEGs list computed by `diff`?')
     }
-    x <- snapAdd(x, "分析{snap(feature(ref))}是否在各个细胞群中差异表达。")
+    x <- snapAdd(
+      x, "分析{snap(feature(ref))}是否在各个细胞群中差异表达。", step = "fusion"
+    )
     x$.map_heading <- "Seurat 细胞群中的 TWAS 风险相关基因"
     fusion_degsAll <- degs <- tbmerge(degs, twas, by.x = "gene", by.y = "SYMBOL")
     fusion_degsAll <- .set_lab(fusion_degsAll, sig(x), "TWAS associated genes of Cell Cluster DEGs")
@@ -286,7 +288,8 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_fusion"),
     degs <- .set_lab(degs, sig(x), "Filtered TWAS associated genes of Cell Cluster DEGs")
     degs <- setLegend(degs, "TWAS 风险相关的{cell} DEGs {filter}。")
     x <- snapAdd(
-      x, "筛选 TWAS 风险相关的 DEGs {filter}：{try_snap(degs, 'contrast', 'gene')}。"
+      x, "筛选 TWAS 风险相关的 DEGs {filter}：{try_snap(degs, 'contrast', 'gene')}。",
+      step = "fusion"
     )
     x$fusion_degs <- degs
     if (plot_heatmap) {

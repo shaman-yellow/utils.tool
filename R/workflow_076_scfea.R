@@ -298,9 +298,6 @@ setMethod("map", signature = c(x = "job_scfea", ref = "job_limma"),
 setMethod("map", signature = c(x = "job_seurat", ref = "job_scfea"),
   function(x, ref, dims = 1:5)
   {
-    x <- snapAdd(
-      x, "将 `scFEA` 的代谢通量预测，输入 `Seurat` 数据对象中，按标准工作流分析，以细胞群聚类。", step = "m"
-    )
     data_flux <- ref@tables$step2$t.flux
     data_flux <- data.frame(
       data_flux[, -1], row.names = data_flux[[1]], check.names = FALSE
@@ -341,6 +338,10 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_scfea"),
       x, seurat_clusters_FLUX = seurat_clusters,
       seurat_clusters = seurat_clusters_RNA,
       .after = seurat_clusters
+    )
+    x <- snapAdd(
+      x, "将 `scFEA` 的代谢通量预测，输入 `Seurat` 数据对象中，按标准工作流分析，以细胞群聚类。",
+      step = "scfea"
     )
     return(x)
   })

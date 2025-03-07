@@ -13,9 +13,11 @@
     analysis = "CellMarker 细胞注释的Marker"
     ))
 
-job_markers <- function(tissue = NULL, org = c("Human", "Mouse"), 
+job_markers <- function(tissue = NULL, type = c("Normal cell", "Cancer cell"),
+  use_numbering = FALSE, org = c("Human", "Mouse"),
   db_dir = .prefix("cellMarker", "db"), distinct = FALSE)
 {
+  type <- match.arg(type, several.ok = TRUE)
   org <- match.arg(org)
   dir.create(db_dir, FALSE)
   url <- "http://xteam.xbio.top/CellMarker/download/all_cell_markers.txt"
@@ -31,6 +33,10 @@ job_markers <- function(tissue = NULL, org = c("Human", "Mouse"),
   db <- dplyr::relocate(
     db, cellType, cellName, geneSymbol, cellMarker
   )
+  db <- dplyr::filter(db, cellType %in% !!type)
+  if (!use_numbering) {
+    db <- dplyr::filter(db, !grpl(cellName, "[0-9]"))
+  }
   if (distinct) {
     db <- dplyr::arrange(
       db, cellName, dplyr::desc(nchar(geneSymbol))
@@ -101,12 +107,27 @@ setMethod("step1", signature = c(x = "job_markers"),
     return(x)
   })
 
+setMethod("ref", signature = c(x = "job_markers"),
+  function(x, from = c("db", "data")){
+    from <- match.arg(from)
+    data <- x[[ from ]]
+    if (is.null(data)) {
+      stop('is.null(data)')
+    }
+    data <- dplyr::select(data, cell = cellName, markers = geneSymbol)
+    data <- dplyr::mutate(
+      data, markers = strsplit(gs(markers, "\\[|\\]| ", ""), ",")
+    )
+    data <- reframe_col(data, "markers", unlist)
+    dplyr::distinct(data)
+  })
+
 setMethod("map", signature = c(x = "job_seurat", ref = "job_markers"),
   function(x, ref, extra = NULL, extra.after = NULL, 
     max = 2, soft = TRUE, group.by = x$group.by,
     markers = feature(ref))
   {
-    if (ref@step < 1L) {
+    if (missing(markers) && ref@step < 1L) {
       stop('ref@step < 1L.')
     }
     if (x@step < 3L) {

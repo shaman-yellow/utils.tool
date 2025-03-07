@@ -687,14 +687,17 @@ color_gradient <- function() {
 }
 
 fun_color <- function(from = -1, to = 1, sample = TRUE, category = c("div", "seq"),
-  values = NULL)
+  values = NULL, rev = TRUE)
 {
+  category <- match.arg(category)
   if (!is.null(values)) {
     from <- -max(ceiling(abs(range(values))))
     to <- -from
+    if (category == "seq") {
+      from <- min(values)
+    }
   }
   if (sample) {
-    category <- match.arg(category)
     pals <- dplyr::filter(RColorBrewer::brewer.pal.info, category == !!category)
     which <- sample(seq_len(nrow(pals)), 1)
     pal <- rownames(pals)[ which ]
@@ -703,7 +706,10 @@ fun_color <- function(from = -1, to = 1, sample = TRUE, category = c("div", "seq
     pal <- "RdBu"
     max <- 11L
   }
-  colors <- rev(RColorBrewer::brewer.pal(max, pal))
+  colors <- RColorBrewer::brewer.pal(max, pal)
+  if (rev) {
+    colors <- rev(colors)
+  }
   circlize::colorRamp2(seq(from, to, length.out = max), colors)
 }
 

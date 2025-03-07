@@ -34,7 +34,7 @@ job_limma_normed <- function(data, metadata, genes = NULL) {
     }
   }
   data <- dplyr::select(data, dplyr::all_of(metadata$sample))
-  ranges <- range(data)
+  ranges <- range(data, na.rm = TRUE)
   if (ranges[1] >= 0 && ranges[2] >= 100) {
     message(
       glue::glue('ranges[1] >= 0 && ranges[2] >= 100, log2 transmute the data.')
