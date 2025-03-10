@@ -644,8 +644,10 @@ plot_genes_heatmap <- function(data, metadata) {
   )
   maxBreak <- max(ceiling(abs(range(data$expression))))
   # ComplexHeatmap::Heatmap
-  tidyHeatmap::heatmap(dplyr::group_by(data, group), genes, sample, expression,
+  p <- tidyHeatmap::heatmap(dplyr::group_by(data, group), genes, sample, expression,
     palette_value = fun_color(-maxBreak, maxBreak), show_column_names = FALSE)
+  p@arguments <- list()
+  p
 }
 
 .guess_intersect <- function(tops) {

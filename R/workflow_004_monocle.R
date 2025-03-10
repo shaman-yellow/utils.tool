@@ -659,6 +659,7 @@ plot_pseudo_heatmap.seurat <- function(dat, enrich = NULL,
     show_column_names = FALSE,
     ...
   )
+  p.hp@arguments <- list()
   maxBreak <- max(ceiling(abs(range(dat$Pseudo_Time))))
   # p.hp <- tidyHeatmap::annotation_line(p.hp, Pseudo_Time, show_annotation_name = FALSE)
   p.hp <- tidyHeatmap::annotation_tile(p.hp, Pseudo_Time, show_annotation_name = FALSE)

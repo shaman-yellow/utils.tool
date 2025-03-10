@@ -1202,6 +1202,7 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
     ),
     cluster_rows = FALSE
   )
+  p.markers@arguments <- list()
   p.markers
 }
 

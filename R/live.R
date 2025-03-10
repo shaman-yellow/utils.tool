@@ -805,6 +805,7 @@ new_hp.cor <- function(data, ..., sig = TRUE, fontsize = 6, names = c("From", "T
     row_names_gp = gpar(fontsize = fontsize),
     ...
   )
+  p.hp@arguments <- list()
   if (sig) {
     p.hp <- tidyHeatmap::layer_star(p.hp, pvalue < .05)
   }

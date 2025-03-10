@@ -82,13 +82,15 @@ setMethod("step1", signature = c(x = "job_vina"),
   } else {
     mart <- x$mart
   }
-  x$targets_annotation <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
-    object(x)$hgnc_symbols, distinct = FALSE)
-  if (nrow(x$targets_annotation)) {
-    x <- methodAdd(x, "以 R 包 `biomaRt` ({packageVersion('biomaRt')}) {cite_show('MappingIdentifDurinc2009')} 获取基因 Symbol 对应的蛋白结构 PDB (<https://www.rcsb.org/>) 数据库 ID。")
-    x <- snapAdd(x, "以 `biomaRt` 获取基因 Symbol 对应的蛋白结构 (PDB，详见方法章节)。")
-    x$targets_annotation <- dplyr::filter(x$targets_annotation, pdb != "")
-    x$targets_annotation <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = TRUE)
+  if (is.null(x$targets_annotation)) {
+    x$targets_annotation <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
+      object(x)$hgnc_symbols, distinct = FALSE)
+    if (nrow(x$targets_annotation)) {
+      x <- methodAdd(x, "以 R 包 `biomaRt` ({packageVersion('biomaRt')}) {cite_show('MappingIdentifDurinc2009')} 获取基因 Symbol 对应的蛋白结构 PDB (<https://www.rcsb.org/>) 数据库 ID。")
+      x <- snapAdd(x, "以 `biomaRt` 获取基因 Symbol 对应的蛋白结构 (PDB，详见方法章节)。")
+      x$targets_annotation <- dplyr::filter(x$targets_annotation, pdb != "")
+      x$targets_annotation <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = TRUE)
+    }
   }
   if (!is.null(custom_pdbs)) {
     custom_pdbs <- list(hgnc_symbol = names(custom_pdbs), pdb = unname(custom_pdbs))
@@ -148,10 +150,13 @@ setMethod("step1", signature = c(x = "job_vina"),
 }
 
 setMethod("step2", signature = c(x = "job_vina"),
-  function(x, try_cluster_random = TRUE, nGroup = 100, nMember = 3, cl = 10, sdf.3d = NULL)
+  function(x, try_cluster_random = TRUE, nGroup = 100, nMember = 3, cl = 5, sdf.3d = NULL)
   {
     step_message("Download sdf files and convert as pdbqt for ligands.")
-    sdfFile <- query_sdfs(unique(names(x$dock_layout)), curl_cl = cl)
+    sdfFile <- query_sdfs(
+      unique(names(x$dock_layout)), 
+      curl_cl = cl, filename = add_filename_suffix("all_compounds.sdf", x@sig)
+    )
     x <- methodAdd(x, "以 PubChem API
       (<https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest>) 获取化合物 SDF
       结构文件。"
@@ -204,7 +209,7 @@ setMethod("step2", signature = c(x = "job_vina"),
     }
     if (is.null(sdf.3d)) {
       message("Overwrite exists 3D SDF file.")
-      guess_sdf.3d <- gs(sdfFile, "\\.sdf$", "_3D.sdf")
+      guess_sdf.3d <- add_filename_suffix(sdfFile, "3D")
       if (file.exists(guess_sdf.3d)) {
         if (sureThat("File exists: {guess_sdf.3d}, use it?")) {
           sdfFile <- guess_sdf.3d
@@ -212,7 +217,7 @@ setMethod("step2", signature = c(x = "job_vina"),
           sdfFile <- cal_3d_sdf(sdfFile)
         }
       } else {
-        sdfFile <- cal_3d_sdf(sdfFile)
+        sdfFile <- cal_3d_sdf(sdfFile, cl = cl)
       }
       x <- methodAdd(x, "使用 `openbabel` 的工具 (`obgen`) 计算 SDF 文件的 3D 构象 (转化为 3D SDF文件)。")
       x <- snapAdd(x, "以 `openbabel` 计算化合物的 3D 构象。")
@@ -886,7 +891,13 @@ ld_cutRead <- function(file, cols, abnum = TRUE, sep = "\t", tmp = "/tmp/ldtmp.t
   } else {
     pos <- cols
   }
-  cdRun("cut -f ", paste0(pos, collapse = ","), " ", file, " > ", tmp)
+  if (!file.exists(tmp)) {
+    if (tools::file_ext(file) == "gz") {
+      cdRun(glue::glue("zcat {file} | cut -f {paste0(pos, collapse = ',')} > {tmp}"))
+    } else {
+      cdRun(glue::glue("cut -f {paste0(pos, collapse = ',')} {file} > {tmp}"))
+    }
+  }
   ftibble(tmp)
 }
 
@@ -956,14 +967,53 @@ setMethod("set_remote", signature = c(x = "job_vina"),
     return(x)
   })
 
-cal_3d_sdf <- function(sdf) {
-  output <- gs(sdf, "\\.sdf$", "_3D.sdf")
-  isThat <- TRUE
+cal_3d_sdf <- function(sdf, group = 10, cl = NULL) {
+  output <- add_filename_suffix(sdf, "3D")
   if (file.exists(output)) {
     isThat <- usethis::ui_yeah("Overwrite the exists file?")
+    if (!isThat) {
+      return(output)
+    }
   }
-  if (isThat) {
+  db <- sep_list(readLines(sdf), sep = "^\\$\\$\\$\\$")
+  valid <- TRUE
+  db <- lapply(db,
+    function(lines) {
+      if (lines[1] == "") {
+        valid <<- FALSE
+        for (i in seq_along(lines)) {
+          if (lines[i] != "") {
+            break
+          }
+        }
+        lines <- lines[-seq_len(i - 1)]
+      }
+      lines
+    })
+  if (!valid) {
+    writeLines(unlist(db), sdf)
+  }
+  if (length(db) <= group) {
     cdRun(pg("obgen"), " ", sdf, " -ff UFF > ", output)
+  } else {
+    groupSeqs <- grouping_vec2list(seq_along(db), group, TRUE)
+    file_groups <- add_filename_suffix(
+      sdf, seq_along(groupSeqs)
+    )
+    N <- 0L
+    lapply(groupSeqs,
+      function(ns) {
+        N <<- N + 1L
+        writeLines(unlist(db[ns]), file_groups[N])
+      })
+    output_groups <- add_filename_suffix(output, seq_len(N))
+    pg <- pg('obgen')
+    pbapply::pblapply(seq_len(N), cl = cl,
+      function(n) {
+        cdRun(glue::glue("{pg} {file_groups[n]} -ff UFF > {output_groups[n]} 2>/dev/null"))
+      })
+    lines <- unlist(lapply(output_groups, readLines))
+    writeLines(lines, output)
   }
   output
 }

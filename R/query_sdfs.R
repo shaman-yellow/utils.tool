@@ -18,7 +18,8 @@ NULL
 #' @aliases query_sdfs
 #' @description \code{query_sdfs}: ...
 #' @rdname query_sdfs
-query_sdfs <- function(cid, dir = "SDFs", curl_cl = NULL, group_number = 50, ...)
+query_sdfs <- function(cid, dir = "SDFs", curl_cl = NULL, 
+  group_number = 50, filename = "all_compounds.sdf", ...)
 {
   dir.create(dir, FALSE)
   group <- grouping_vec2list(cid, group_number = group_number, TRUE)
@@ -27,7 +28,7 @@ query_sdfs <- function(cid, dir = "SDFs", curl_cl = NULL, group_number = 50, ...
   lines <- lapply(files, readLines)
   lines <- lapply(lines, function(ls) c(ls, ""))
   lines <- unlist(lines)
-  writeLines(lines, file <- paste0(dir, "/all_compounds.sdf"))
+  writeLines(lines, file <- file.path(dir, filename))
   file.remove(files)
   file
 }
