@@ -70,10 +70,16 @@ job_gds <- function(keys,
   if (!is.null(org)) {
     extra <- paste(extra, glue::glue("AND ({org}[Organism])"))
   }
-  object <- edirect_db("gds", c(query, extra), elements, ...)
-  object <- dplyr::mutate(object, GSE = paste0("GSE", GSE))
-  object <- .set_lab(object, keys[1], "EDirect query")
-  x <- .job_gds(object = object, params = namel(query, elements, org, n))
+  object <- try(
+    edirect_db("gds", c(query, extra), elements, ...), TRUE
+  )
+  if (!inherits(object, "try-error")) {
+    object <- dplyr::mutate(object, GSE = paste0("GSE", GSE))
+    object <- .set_lab(object, keys[1], "EDirect query")
+  } else {
+    snapAdd_onExit("x", "未发现合适数据集。")
+  }
+  x <- .job_gds(object = NULL, params = list(query = query, elements = elements, org = org, n = n))
   x <- methodAdd(x, "使用 Entrez Direct (EDirect) <https://www.ncbi.nlm.nih.gov/books/NBK3837/> 搜索 GEO 数据库 (`esearch -db gds`)，查询信息为: ({paste0(paste0('(', query, ''), collapse = ' AND ')}) AND ({extra})。")
   x <- snapAdd(x, "以 Entrez Direct (EDirect) 搜索 GEO 数据库 (检索条件见方法章节) 。")
   x

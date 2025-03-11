@@ -30,6 +30,16 @@ job_vina <- function(cids, hgnc_symbols, .layout = NULL)
   x
 }
 
+.select_pdb <- setClass("select_pdb",
+  representation = representation(
+    id = "character", chain = "character", resi = "integer"
+  ),
+  prototype = NULL)
+
+select_pdb <- function(id, chain, resi) {
+  .select_pdb(id = id, chain = chain, resi = resi)
+}
+
 setGeneric("asjob_vina", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_vina"))
 
@@ -247,37 +257,55 @@ setMethod("step2", signature = c(x = "job_vina"),
 
 setMethod("step3", signature = c(x = "job_vina"),
   function(x, cl = 10, pattern = NULL, extra_pdb.files = NULL, extra_layouts = NULL,
-    filter = TRUE, use_complex = TRUE, exclude_nonStd = c(
+    filter = TRUE, use_complex = TRUE, select = .select_pdb(), exclude_nonStd = c(
       "NAG", "BMA", "FUL"
-    ), tryGetFromAlphaFold = TRUE)
+      ), tryAF = TRUE, forceAF = FALSE)
   {
     step_message("Dowload pdb files for Receptors.")
     res <- .get_pdb_files(
       x, cl = cl, pattern = pattern, extra_pdb.files = extra_pdb.files, 
       extra_layouts = extra_layouts,
-      tryGetFromAlphaFold = tryGetFromAlphaFold
+      tryAF = tryAF, forceAF = forceAF
     )
     x <- res$x
     pdb.files <- res$pdb.files
     used_pdbs <- x$used_pdbs
-    if (!is.null(exclude_nonStd)) {
+    if (!is.null(exclude_nonStd) || !is.null(select)) {
       pattern <- paste0(
         paste0("\\b", exclude_nonStd, "\\b"), collapse = "|"
       )
       files_nonStds <- pdb.files[select_files_by_grep(pdb.files, pattern)]
-      cmdRmd <- paste0(
+      cmdRmd_nonStds <- paste0(
         "remove ", paste0(
           glue::glue("resn {exclude_nonStd}"), collapse = " or "
-        )
+          ), ";"
       )
-      lapply(files_nonStds, 
+      files_select <- pdb.files[ names(pdb.files) %in% select@id ]
+      cmdRmd_select <- glue::glue(
+        "remove not (chain {select@chain} and resi {bind(range(select@resi), co = '-')});"
+      )
+      lapply(pdb.files,
         function(file) {
-          cdRun(glue::glue("{pg('pymol')} -c -Q -d 'load {file}; {cmdRmd}; save {file}; quit'"))
+          cmdRmd <- NULL
+          if (any(files_select == file)) {
+            cmdRmd <- paste0(cmdRmd, cmdRmd_select)
+          }
+          if (any(files_nonStds == file)) {
+            cmdRmd <- paste0(cmdRmd, cmdRmd_nonStds)
+          }
+          if (!is.null(cmdRmd)) {
+            cdRun(glue::glue("{pg('pymol')} -c -Q -d 'load {file}; {cmdRmd} save {file}; quit'"))
+          }
         })
       writeLines(exclude_nonStd, file.path("protein_pdb", ".pymol_cleaned"))
     }
     if (file.exists(file.path("protein_pdb", ".pymol_cleaned"))) {
       x <- methodAdd(x, "以 `pymol` {cite_show('LigandDockingSeelig2010')} 删除受体 PDB 文件中的非标准残基 (例如 {bind(exclude_nonStd)})。")
+      if (length(select@id)) {
+        x <- snapAdd(
+          x, "以 `pymol` 选择 {select@id} 蛋白结构中的 chain {select@chain} 的氨基酸残基 {bind(range(select@resi), co = '-')}，去除其余部分。"
+        )
+      }
       x <- snapAdd(x, "以 `pymol` 去除非标准残基 ({bind(exclude_nonStd)})。")
     }
     dir.create(cpdir <- "protein_clean_pdb", FALSE)
@@ -334,7 +362,7 @@ setMethod("step3", signature = c(x = "job_vina"),
 
 .get_pdb_files <- function(x, cl = 10, pattern = NULL, 
   extra_pdb.files = NULL, extra_layouts = NULL,
-  tryGetFromAlphaFold = TRUE)
+  tryAF = TRUE, forceAF = FALSE)
 {
   if (!is(x, "job")) {
     stop('!is(x, "job").')
@@ -343,7 +371,7 @@ setMethod("step3", signature = c(x = "job_vina"),
     stop('is.null(x$dock_layout).')
   }
   ids <- rm.no(unlist(x$dock_layout, use.names = FALSE))
-  if (length(ids)) {
+  if (length(ids) && !forceAF) {
     # The returned files is got by list.files
     pdb.files <- get_pdb(ids, cl = cl, mkdir.pdb = "protein_pdb")
     pdb.files <- pdb.files[ names(pdb.files) %in% tolower(x$used_pdbs) ]
@@ -352,10 +380,17 @@ setMethod("step3", signature = c(x = "job_vina"),
   } else {
     pdb.files <- NULL
   }
-  if (length(x$pdb_notGot) && tryGetFromAlphaFold) {
-    res_af <- get_pdb_from_alphaFold(x$pdb_notGot, "protein_pdb")
-    x <- methodAdd(x, "以 R 包 `UniProt.ws` ({packageVersion('UniProt.ws')}) 获取基因 (symbol) 的 `UniProtKB-Swiss-Prot` ID (Entry ID)，随后，以 Entry ID 从数据库 `AlphaFold` (<https://alphafold.ebi.ac.uk/>) 获取数据库 `PDB` 中不包含的蛋白结构 (预测的结构)。")
-    x <- snapAdd(x, "对于未从 `PDB` 数据库找到结构文件的，从数据库 `AlphaFold` 获取 {less(x$pdb_notGot)} 预测的蛋白结构 (根据 `UniProtKB-Swiss-Prot` ID，详见方法章节)。")
+  if (forceAF || (length(x$pdb_notGot) && tryAF)) {
+    if (forceAF) {
+      dir.create("protein_pdb", FALSE)
+      genes_touch_AF <- unique(x@object$hgnc_symbols)
+      x$used_pdbs <- NULL
+    } else {
+      genes_touch_AF <- x$pdb_notGot
+    }
+    res_af <- get_pdb_from_alphaFold(genes_touch_AF, "protein_pdb")
+    x <- methodAdd(x, "以 R 包 `UniProt.ws` ({packageVersion('UniProt.ws')}) 获取基因 (symbol) 的 `UniProtKB-Swiss-Prot` ID (Entry ID)，随后，以 Entry ID 从数据库 `AlphaFold` (<https://alphafold.ebi.ac.uk/>) 获取{if (forceAF) '' else '数据库 `PDB` 中不包含的'}蛋白结构 (预测的结构)。")
+    x <- snapAdd(x, "{if (forceAF) '' else '对于未从 `PDB` 数据库找到结构文件的，'}从数据库 `AlphaFold` 获取 {less(genes_touch_AF)} 预测的蛋白结构 (根据 `UniProtKB-Swiss-Prot` ID，详见方法章节)。")
     x$pdb_notGot_uniprot <- res_af$info
     # extra_pdb.files: hgnc_symbol = file
     if (!is.null(extra_pdb.files)) {
@@ -387,7 +422,9 @@ setMethod("step3", signature = c(x = "job_vina"),
     }
     x$dock_layout <- c(x$dock_layout, extra_layouts)
   } else if (layoutNeedRevise) {
-    x$dock_layout %<>% lapply(function(x) c(x, unname(used_pdbs_extra)))
+    x$dock_layout <- lapply(
+      x$dock_layout, function(x) c(x, unname(used_pdbs_extra))
+    )
   }
   if (!is.null(x$pdb_MultiChains)) {
     pdb_MultiChains <- tolower(unique(x$pdb_MultiChains))
@@ -526,7 +563,8 @@ setMethod("filter", signature = c(x = "job_vina"),
   })
 
 setMethod("step4", signature = c(x = "job_vina"),
-  function(x, time = 3600 * 2, savedir = "vina_space", log = "/tmp/res.log", save.object = "vn3.rds")
+  function(x, time = 3600 * 2, savedir = "vina_space",
+    log = "/tmp/res.log", save.object = "vn3.rds", ...)
   {
     step_message("Run vina ...")
     runs <- tibble::tibble(
@@ -550,16 +588,35 @@ setMethod("step4", signature = c(x = "job_vina"),
       message('any(grpl(names(x$res.receptor), "[A-Z]")), convert to lower case.')
       names(x$res.receptor) <- tolower(names(x$res.receptor) )
     }
-    pbapply::pblapply(x$runs,
+    if (is.remote(x)) {
+      .script <- file.path(savedir, "script_remote.sh")
+      scriptPrefix <- scriptPrefix(x)
+      if (is.null(scriptPrefix)) {
+        cat("", file = .script)
+      } else {
+        writeLines(scriptPrefix, .script)
+      }
+    } else {
+      .script <- NULL
+    }
+    res <- pbapply::pblapply(x$runs,
       function(v) {
         lig <- x$res.ligand[[ v[1] ]]
         recep <- x$res.receptor[[ tolower(v[2]) ]]
         n <<- n + 1
         if (!is.null(lig) & !is.null(recep)) {
-          vina_limit(lig, recep, time, dir = savedir, x = x)
+          vina_limit(
+            lig, recep, time, dir = savedir, x = x, 
+            .script = .script, ...
+          )
+        } else {
+          NULL
         }
       }
     )
+    if (is.remote(x)) {
+      x$remote_operation <- dplyr::bind_rows(res)
+    }
     x <- methodAdd(
       x, "运行 AutoDock-Vina {cite_show('AutodockVina1Eberha2021')} (parameters: scoring = ad4; exhaustiveness = 32)。"
     )
@@ -659,6 +716,12 @@ setMethod("step6", signature = c(x = "job_vina"),
     if (unique) {
       data <- dplyr::distinct(data, hgnc_symbol, .keep_all = TRUE)
     }
+    if (is.null(top) && nrow(data) > 20) {
+      message(
+        glue::glue("Too many data for manually drawingl, switch to 10.")
+      )
+      top <- 10L
+    }
     if (!is.null(top)) {
       data <- head(data, n = top)
     }
@@ -700,6 +763,70 @@ setMethod("step7", signature = c(x = "job_vina"),
     return(x)
   })
 
+setMethod("upload", signature = c(x = "job_vina"),
+  function(x, ..., testFinish = TRUE){
+    if (!is.remote(x)) {
+      stop('!is.remote(x).')
+    }
+    if (x@step < 4L) {
+      stop('x@step < 4L.')
+    }
+    if (!is.null(x$.upload) && x$.upload) {
+      stop('!is.null(x$.upload). The job has been upload?')
+    }
+    if (is.null(x$remote_operation)) {
+      stop('is.null(x$remote_operation).')
+    }
+    data <- x$remote_operation
+    script <- unique(data$script)
+    if (length(script) != 1) {
+      stop('length(script) != 1.')
+    }
+    .run_script_in_remote(script, x$wd, remote = x$remote, ...)
+    if (testFinish) {
+      expectFile <- paste0(
+        tail(data$remote_wd, n = 1), "/", tail(data$output, n = 1)
+      )
+      testRem_file.exists(x, expectFile, x$wait)
+    }
+    x$.upload <- TRUE
+    return(x)
+  })
+
+setMethod("pull", signature = c(x = "job_vina"),
+  function(x, force = FALSE){
+    if (!is.remote(x)) {
+      stop('!is.remote(x).')
+    }
+    if (x@step < 4L) {
+      stop('x@step < 4L.')
+    }
+    if (is.null(x$.upload) || !x$.upload) {
+      stop('is.null(x$.upload) || !x$.upload.')
+    }
+    if (is.null(x$remote_operation)) {
+      stop('is.null(x$remote_operation).')
+    }
+    data <- x$remote_operation
+    continue <- TRUE
+    gotThat <- pbapply::pbapply(data, 1, simplify = FALSE,
+      function(args) {
+        if ((notfirst <- !file.exists(args[[ "to" ]])) && continue) {
+          try(get_file_from_remote(
+            args[[ "output" ]], args[[ "remote_wd" ]], args[[ "to" ]], remote = x$remote
+          ))
+        }
+        second <- file.exists(args[[ "to" ]])
+        if (notfirst && !second && !force) {
+          continue <<- FALSE
+        }
+        second
+      })
+    gotThat <- unlist(gotThat)
+    message(glue::glue("Got results: {length(which(gotThat))} / {length(gotThat)}"))
+    return(x)
+  })
+
 pretty_docking <- function(protein, ligand, path,
   save = "annotation.png",
   script = paste0(.expath, "/pretty_docking.pymol"))
@@ -726,8 +853,8 @@ vina_limit <- function(lig, recep, timeLimit = 120, dir = "vina_space", ...) {
 }
 
 vina <- function(lig, recep, dir = "vina_space",
-  exhaustiveness = 32, scoring = "ad4", stout = "/tmp/res.log", timeLimit = 60,
-  excludes.atom = c("G0", "CG0"), x)
+  exhaustiveness = 32, scoring = "ad4", stout = "~/vina.log", timeLimit = 60,
+  excludes.atom = c("G0", "CG0"), .script, x, remoteTest = FALSE)
 {
   remote <- FALSE
   if (!missing(x)) {
@@ -742,9 +869,15 @@ vina <- function(lig, recep, dir = "vina_space",
   wd <- paste0(dir, "/", subdir)
   if (!file.exists(paste0(wd, "/", subdir, "_out.pdbqt"))) {
     dir.create(wd, FALSE)
-    file.copy(c(recep, lig), wd)
+    if (!remoteTest) {
+      file.copy(c(recep, lig), wd)
+    }
     .message_info("Generating affinity maps", subdir)
-    .cdRun <- function(...) cdRun(..., path = wd)
+    .cdRun <- function(...) {
+      if (!remoteTest) {
+        cdRun(..., path = wd)
+      }
+    }
     files <- basename(c(lig, recep))
     .cdRun(pg("prepare_gpf.py"), " -l ", files[1], " -r ", files[2], " -y")
     if (!is.null(excludes.atom)) {
@@ -758,18 +891,22 @@ vina <- function(lig, recep, dir = "vina_space",
     .cdRun(pg("autogrid4"), " -p ", reals[2], ".gpf ", " -l ", reals[2], ".glg")
     if (remote) {
       message("Run in remote server.")
-      cdRun("scp -r ", subdir, " ", x$remote, ":", x$wd, path = dir)
+      if (!remoteTest) {
+        cdRun("scp -r ", subdir, " ", x$remote, ":", x$wd, path = dir)
+      }
       remoteWD <- x$wd
       x$wd <- paste0(x$wd, "/", subdir)
       output <- paste0(subdir, "_out.pdbqt")
-      rem_run("timeout ", timeLimit, 
-        " vina  --ligand ", files[1],
+      rem_run("timeout ", timeLimit, " ",
+        pg("vina", TRUE), " --ligand ", files[1],
         " --maps ", reals[2],
         " --scoring ", scoring,
         " --exhaustiveness ", exhaustiveness,
         " --out ", output, 
-        " >> ", stout)
-      try(get_file_from_remote(output, x$wd, paste0(wd, "/", output)))
+        " >> ", stout, .script = .script, .append = TRUE)
+      return(
+        namel(script = .script, output, remote_wd = x$wd, to = file.path(wd, output))
+      )
     } else {
       cat("\n$$$$\n", date(), "\n", subdir, "\n\n", file = stout, append = TRUE)
       try(.cdRun("timeout ", timeLimit, 
@@ -819,7 +956,7 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
         " ", pg("pymol"), " ",
         " -d \"load ", out, ";",
         " load ", recep, ";",
-        " ray;", expr, "\" "), TRUE)
+        " ray; zoom; ", expr, "\" "), TRUE)
   }
   if (is.character(backup)) {
     dir.create(backup, FALSE)
@@ -961,8 +1098,12 @@ prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {
 }
 
 setMethod("set_remote", signature = c(x = "job_vina"),
-  function(x, wd)
+  function(x, wd = "~/vina_space")
   {
+    if (!grpl(wd, "^[~/]")) {
+      stop('!grpl(wd, "^[~/]").')
+    }
+    rem_dir.create(wd)
     x$wd <- wd
     return(x)
   })

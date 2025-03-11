@@ -78,7 +78,10 @@ setMethod("step1", signature = c(x = "job_bindingdb"),
       res <- dplyr::filter(object(x), UniProt %in% x$map_uniprot$Entry)
       x$res_filter <- res
       object(x) <- NULL
+      methodAdd_onExit("x", "以 R 包 `UniProt.ws` ({packageVersion('UniProt.ws')}) 将基因名 (symbol) 获取 UniprotKB 数据库的 Entry ID。根据 Entry ID 检索 BindingDB 数据中，与该蛋白结合的化合物信息。")
+      snapAdd_onExit("x", "在 BindingDB 数据中，检索与 {less(symbol)} 相关的化合物结合数据。")
     }
+    x <- methodAdd(x, "获取 BindingDB 数据库化合物与靶点蛋白结合数据 (<https://www.bindingdb.org/rwd/bind/chemsearch/marvin/Download.jsp>) {cite_show('BindingdbIn20Gilson2016')}。")
     return(x)
   })
 
@@ -101,6 +104,8 @@ setMethod("step2", signature = c(x = "job_bindingdb"),
     x$annotation <- map(
       x$annotation, "UniProt", x$map_uniprot, "Entry", "From", col = "symbol"
     )
+    x$annotation <- .set_lab(x$annotation, sig(x), "bindingdb annotation data")
+    x$annotation <- setLegend(x$annotation, glue::glue("为 BindingDB 记录的化合物与蛋白结合信息附表。"))
     return(x)
   })
 
@@ -136,6 +141,7 @@ setMethod("asjob_vina", signature = c(x = "job_bindingdb"),
     targets_annotation <- reframe_col(
       targets_annotation, "PDB", function(x) unlist(strsplit(x, ","))
     )
+    targets_annotation <- dplyr::distinct(targets_annotation)
     targets_annotation <- dplyr::rename(
       targets_annotation, hgnc_symbol = symbol, pdb = PDB
     )

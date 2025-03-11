@@ -1378,6 +1378,8 @@ pg_local_recode <- function() {
 pg_remote_recode <- function() {
   conda_remote <- getOption("conda_remote", "~/miniconda3")
   lst <- list(
+    # vina = "{conda_remote}/bin/conda run -n vina vina",
+    vina = "vina",
     qiime = "{conda_remote}/bin/conda run -n qiime2 qiime",
     fastp = "{conda_remote}/bin/conda run -n base fastp",
     bcftools = "{conda_remote}/bin/conda run -n base bcftools",

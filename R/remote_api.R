@@ -2,7 +2,7 @@
 # for remote files operation
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-rem_run <- function(...) {
+rem_run <- function(..., .script = NULL, .append = FALSE) {
   x <- get("x", envir = parent.frame(1))
   if (is.null(x$wd)) {
     message("Use `x$wd` as '.'")
@@ -13,13 +13,14 @@ rem_run <- function(...) {
   } else {
     remoteRun(..., path = x$wd, tmpdir = x$tmpdir,
       remote = x$remote, postfix = x$postfix,
-      run_after_cd = x$run_after_cd, x = x
+      run_after_cd = x$run_after_cd, x = x, .script = .script, .append = .append
     )
   }
 }
 
 remoteRun <- function(..., path, run_after_cd = NULL,
-  postfix = NULL, remote = "remote", tmpdir = NULL, x)
+  postfix = NULL, remote = "remote", tmpdir = NULL, 
+  .script = NULL, .append = FALSE, x)
 {
   expr <- paste0(unlist(list(...)), collapse = "")
   if (missing(x)) {
@@ -52,10 +53,26 @@ remoteRun <- function(..., path, run_after_cd = NULL,
   if (!is.null(heading)) {
     expr <- c(heading, "", expr)
   }
-  script <- tempfile("remote_Script_", fileext = ".sh")
-  writeLines(expr, script)
+  if (is.null(.script)) {
+    script <- tempfile("remote_Script_", fileext = ".sh")
+  } else {
+    script <- .script
+  }
+  if (.append) {
+    cat(expr, "\n\n", sep = "\n", file = script, append = TRUE)
+  } else {
+    writeLines(expr, script)
+  }
   writeLines(crayon::yellow(paste0("The script file for remote is: ", script)))
-  remote_script <- file.path(path, basename(script))
+  if (!.append) {
+    .run_script_in_remote(script, path, remote = remote)
+  }
+  script
+}
+
+.run_script_in_remote <- function(script, path,
+  remote_script = file.path(path, basename(script)), remote = "remote")
+{
   system(paste0("scp ", script, " ", remote, ":", remote_script))
   cmd <- paste0("ssh ", remote, " '", getOption("remoteRun", "bash"), " ", remote_script, "'")
   cli::cli_alert_info(cmd)
@@ -106,7 +123,7 @@ scriptPrefix <- function(x) {
   if (is.null(prefix)) {
     return(NULL)
   } else {
-    return(paste0(prefix, " "))
+    return(paste0(prefix, "\n\n"))
   }
 }
 

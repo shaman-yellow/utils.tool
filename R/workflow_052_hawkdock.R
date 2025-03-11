@@ -193,7 +193,7 @@ vis_pdb <- function(file, expr = NULL, save = NULL, command = pg("pymol"))
   if (!is.null(save)) {
     saveExpr <- paste0(" png ", save, ",2500,2000,dpi=300")
     gett(saveExpr)
-    expr <- paste0(expr, " -d \"ray; ", saveExpr, "\"")
+    expr <- paste0(expr, " -d \"ray; zoom; ", saveExpr, "\"")
   }
   cdRun(command, " ", file, " ", expr)
 }
