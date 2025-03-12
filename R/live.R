@@ -1945,8 +1945,14 @@ set_appendix <- function() {
   }
 }
 
-autor_preset <- function(echo = FALSE, eval = FALSE, autor_relocate = TRUE, ...) {
-  options(autor_unnamed_number = 1, autor_relocate = autor_relocate)
+autor_preset <- function(echo = FALSE, eval = FALSE, 
+  autor_relocate = TRUE, autor_legends_gather = FALSE, ...)
+{
+  options(
+    autor_unnamed_number = 1, autor_relocate = autor_relocate,
+    autoLegendsVisuable = autor_legends_gather,
+    autor_legends_gather = autor_legends_gather
+  )
   knitr::opts_chunk$set(
     echo = echo, eval = eval, message = FALSE, warning = FALSE,
     fig.cap = character(0), collapse = FALSE,
@@ -2098,6 +2104,9 @@ setMethod("autor", signature = c(x = "ANY", name = "missing"),
     }
     knitr::opts_current$set(autor_label = name)
     autor(x, name, ...)
+    if (!getOption("autor_legends_gather", FALSE)) {
+      writeLines(ref(name, legend = TRUE, visuable = TRUE))
+    }
   })
 
 setMethod("autor", signature = c(x = "list", name = "character"),

@@ -134,7 +134,7 @@ setMethod("step1", signature = c(x = "job_batman"),
   })
 
 setMethod("step2", signature = c(x = "job_batman"),
-  function(x, use.predicted = TRUE, cutoff = .9)
+  function(x, use.predicted = TRUE, cutoff = .5)
   {
     step_message("Format target genes symbol")
     compounds_targets <- x@tables$step1$compounds_targets
@@ -304,6 +304,7 @@ setMethod("anno", signature = c(x = "job_batman"),
 setMethod("asjob_vina", signature = c(x = "job_batman"),
   function(x, ref, ...){
     ref <- resolve_feature_snapAdd_onExit("x", ref)
+    ref <- unlist(ref)
     herComTar <- x$easyRead
     # Target.name, symbol, hgnc_symbol or Others?
     herComTar <- dplyr::filter(herComTar, Target.name %in% ref)

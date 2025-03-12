@@ -160,11 +160,13 @@ setMethod("step1", signature = c(x = "job_vina"),
 }
 
 setMethod("step2", signature = c(x = "job_vina"),
-  function(x, try_cluster_random = TRUE, nGroup = 100, nMember = 3, cl = 5, sdf.3d = NULL)
+  function(x, try_cluster_random = TRUE, nGroup = 100, 
+    nMember = 3, cl = 5, sdf.3d = NULL, dir_save = paste0(x@sig, "_cpd"))
   {
     step_message("Download sdf files and convert as pdbqt for ligands.")
     sdfFile <- query_sdfs(
       unique(names(x$dock_layout)), 
+      paste0(dir_save, "_SDF"),
       curl_cl = cl, filename = add_filename_suffix("all_compounds.sdf", x@sig)
     )
     x <- methodAdd(x, "以 PubChem API
@@ -203,7 +205,7 @@ setMethod("step2", signature = c(x = "job_vina"),
           dim(sdfset[[x]][[2]])[2] < 3
         })
       sdfset <- sdfset[which(!MaybeError)]
-      sdfFile <- gs(sdfFile, "\\.sdf$", "_random.sdf")
+      sdfFile <- add_filename_suffix(suffix, "random")
       e(ChemmineR::write.SDF(sdfset, sdfFile))
       Show_filter <- TRUE
       .add_internal_job(.job(method = "R package `ChemmineR` used for similar chemical compounds clustering",
@@ -241,7 +243,7 @@ setMethod("step2", signature = c(x = "job_vina"),
       message("Filter out (Due to Chemmine bug): ", length(which(MaybeError)))
       message("Now, Total docking molecules: ", length(sdfset))
     }
-    res.pdbqt <- mk_prepare_ligand.sdf(sdfFile)
+    res.pdbqt <- mk_prepare_ligand.sdf(sdfFile, paste0(dir_save, "_pdbqt"))
     x <- methodAdd(x, "以 Python `meeko` 包 (`mk_prepare_ligand.py`) 转化 SDF 文件获取配体 PDBQT 用于分子对接。")
     x <- snapAdd(x, "以 `meeko` 从 SDF 转化得到配体的 PDBQT 文件。")
     x$res.ligand <- nl(res.pdbqt$pdbqt.cid, res.pdbqt$pdbqt)
@@ -259,13 +261,14 @@ setMethod("step3", signature = c(x = "job_vina"),
   function(x, cl = 10, pattern = NULL, extra_pdb.files = NULL, extra_layouts = NULL,
     filter = TRUE, use_complex = TRUE, select = .select_pdb(), exclude_nonStd = c(
       "NAG", "BMA", "FUL"
-      ), tryAF = TRUE, forceAF = FALSE)
+      ), tryAF = TRUE, forceAF = FALSE,
+    dir_save = paste0(x@sig, "_protein_pdb"))
   {
     step_message("Dowload pdb files for Receptors.")
     res <- .get_pdb_files(
       x, cl = cl, pattern = pattern, extra_pdb.files = extra_pdb.files, 
       extra_layouts = extra_layouts,
-      tryAF = tryAF, forceAF = forceAF
+      tryAF = tryAF, forceAF = forceAF, dir_save = dir_save
     )
     x <- res$x
     pdb.files <- res$pdb.files
@@ -277,7 +280,8 @@ setMethod("step3", signature = c(x = "job_vina"),
       files_nonStds <- pdb.files[select_files_by_grep(pdb.files, pattern)]
       cmdRmd_nonStds <- paste0(
         "remove ", paste0(
-          glue::glue("resn {exclude_nonStd}"), collapse = " or "
+          glue::glue("resn {exclude_nonStd}"
+      ), collapse = " or "
           ), ";"
       )
       files_select <- pdb.files[ names(pdb.files) %in% select@id ]
@@ -297,9 +301,9 @@ setMethod("step3", signature = c(x = "job_vina"),
             cdRun(glue::glue("{pg('pymol')} -c -Q -d 'load {file}; {cmdRmd} save {file}; quit'"))
           }
         })
-      writeLines(exclude_nonStd, file.path("protein_pdb", ".pymol_cleaned"))
+      writeLines(exclude_nonStd, file.path(dir_save, ".pymol_cleaned"))
     }
-    if (file.exists(file.path("protein_pdb", ".pymol_cleaned"))) {
+    if (file.exists(file.path(dir_save, ".pymol_cleaned"))) {
       x <- methodAdd(x, "以 `pymol` {cite_show('LigandDockingSeelig2010')} 删除受体 PDB 文件中的非标准残基 (例如 {bind(exclude_nonStd)})。")
       if (length(select@id)) {
         x <- snapAdd(
@@ -308,7 +312,7 @@ setMethod("step3", signature = c(x = "job_vina"),
       }
       x <- snapAdd(x, "以 `pymol` 去除非标准残基 ({bind(exclude_nonStd)})。")
     }
-    dir.create(cpdir <- "protein_clean_pdb", FALSE)
+    dir.create(cpdir <- paste0(dir_save, "_clean"), FALSE)
     pdb.files <- lapply(pdb.files, 
       function(file) {
         newfile <- file.path(cpdir, basename(file))
@@ -317,7 +321,7 @@ setMethod("step3", signature = c(x = "job_vina"),
       })
     x <- snapAdd(x, "随后，以 `pymol` 仅保留蛋白结构 (polymer.protein)。")
     x <- methodAdd(x, "以 `pymol` 仅保留蛋白结构 (polymer.protein) (去除了原 PDB 中的配体等其他结构)。")
-    x$res.receptor <- prepare_receptor(pdb.files)
+    x$res.receptor <- prepare_receptor(pdb.files, paste0(dir_save, "qt"))
     x <- methodAdd(x, "以 `ADFR` {cite_show('AutogridfrImpZhang2019')} 工具组的准备受体蛋白的 PDBQT 文件 (以 `prepare_receptor` 添加氢原子，并转化为 PDBQT 文件) 。请参考 <https://autodock-vina.readthedocs.io/en/latest/docking_basic.html>。")
     x <- snapAdd(x, "以 `ADFR` 工具给受体添加氢原子，转化为 PDBQT 文件。")
     names <- names(x$res.receptor)
@@ -362,7 +366,7 @@ setMethod("step3", signature = c(x = "job_vina"),
 
 .get_pdb_files <- function(x, cl = 10, pattern = NULL, 
   extra_pdb.files = NULL, extra_layouts = NULL,
-  tryAF = TRUE, forceAF = FALSE)
+  tryAF = TRUE, forceAF = FALSE, dir_save = "protein_pdb")
 {
   if (!is(x, "job")) {
     stop('!is(x, "job").')
@@ -373,7 +377,7 @@ setMethod("step3", signature = c(x = "job_vina"),
   ids <- rm.no(unlist(x$dock_layout, use.names = FALSE))
   if (length(ids) && !forceAF) {
     # The returned files is got by list.files
-    pdb.files <- get_pdb(ids, cl = cl, mkdir.pdb = "protein_pdb")
+    pdb.files <- get_pdb(ids, cl = cl, mkdir.pdb = dir_save)
     pdb.files <- pdb.files[ names(pdb.files) %in% tolower(x$used_pdbs) ]
     x <- methodAdd(x, "以 RCSB API  (<https://www.rcsb.org/docs/programmatic-access/web-apis-overview>) 获取蛋白 PDB 文件。")
     x <- snapAdd(x, "从 RCSB PDB 获取 PDB 文件。")
@@ -382,13 +386,13 @@ setMethod("step3", signature = c(x = "job_vina"),
   }
   if (forceAF || (length(x$pdb_notGot) && tryAF)) {
     if (forceAF) {
-      dir.create("protein_pdb", FALSE)
+      dir.create(dir_save, FALSE)
       genes_touch_AF <- unique(x@object$hgnc_symbols)
       x$used_pdbs <- NULL
     } else {
       genes_touch_AF <- x$pdb_notGot
     }
-    res_af <- get_pdb_from_alphaFold(genes_touch_AF, "protein_pdb")
+    res_af <- get_pdb_from_alphaFold(genes_touch_AF, dir_save)
     x <- methodAdd(x, "以 R 包 `UniProt.ws` ({packageVersion('UniProt.ws')}) 获取基因 (symbol) 的 `UniProtKB-Swiss-Prot` ID (Entry ID)，随后，以 Entry ID 从数据库 `AlphaFold` (<https://alphafold.ebi.ac.uk/>) 获取{if (forceAF) '' else '数据库 `PDB` 中不包含的'}蛋白结构 (预测的结构)。")
     x <- snapAdd(x, "{if (forceAF) '' else '对于未从 `PDB` 数据库找到结构文件的，'}从数据库 `AlphaFold` 获取 {less(genes_touch_AF)} 预测的蛋白结构 (根据 `UniProtKB-Swiss-Prot` ID，详见方法章节)。")
     x$pdb_notGot_uniprot <- res_af$info
@@ -563,8 +567,8 @@ setMethod("filter", signature = c(x = "job_vina"),
   })
 
 setMethod("step4", signature = c(x = "job_vina"),
-  function(x, time = 3600 * 2, savedir = "vina_space",
-    log = "/tmp/res.log", save.object = "vn3.rds", ...)
+  function(x, time = 3600 * 2, savedir = paste0(x@sig, "_vina_space"),
+    log = "vina.log", save.object = "vn3.rds", ...)
   {
     step_message("Run vina ...")
     runs <- tibble::tibble(
@@ -1098,7 +1102,7 @@ prepare_receptor <- function(files, mkdir.pdbqt = "protein_pdbqt") {
 }
 
 setMethod("set_remote", signature = c(x = "job_vina"),
-  function(x, wd = "~/vina_space")
+  function(x, wd = paste0("~/", x@sig, "_vina_space"))
   {
     if (!grpl(wd, "^[~/]")) {
       stop('!grpl(wd, "^[~/]").')

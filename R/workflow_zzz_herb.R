@@ -113,7 +113,7 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "feature"),
       化合物可分为该中药唯一所含的化合物，或者与其他中药共有的化合物。
       共有的化合物环绕在靶点周围，而唯一的化合物则环绕在中药周围。{s.com}{leg_enrich}"
     )
-    analysis <- glue::glue("中药-成分-{ref@type}-靶点网络")
+    analysis <- glue::glue("中药-成分-{ref@type}-靶点{if (is.null(enrichment)) '' else '-富集通路'}网络")
     data <- setLegend(data, "为用于绘制{analysis}的数据集。")
     if (length(ref)) {
       x[[ paste0("p.pharm2", name) ]] <- .set_lab(

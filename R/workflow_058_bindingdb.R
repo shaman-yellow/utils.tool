@@ -154,6 +154,7 @@ setMethod("asjob_vina", signature = c(x = "job_bindingdb"),
     data <- dplyr::distinct(data)
     x <- job_vina(.layout = data)
     x$targets_annotation <- targets_annotation
+    x <- snapAdd(x, "将 BindingDB 预筛选的化合物与靶点蛋白，用于分子对接。")
     return(x)
   })
 

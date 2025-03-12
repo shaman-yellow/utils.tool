@@ -36,6 +36,18 @@ setMethod("asjob_classyfire", signature = c(x = "job_herb"),
     return(x)
   })
 
+setMethod("asjob_classyfire", signature = c(x = "job_vina"),
+  function(x, which = NULL){
+    cpds <- object(x)$cids
+    if (!is.null(which)) {
+      cpds <- cpds[ which ]
+    }
+    feature <- as_feature(as.character(unlist(cpds)), x, nature = "com")
+    feature <- resolve_feature_snapAdd_onExit("x", feature)
+    x <- job_classyfire(as.integer(feature))
+    return(x)
+  })
+
 job_classyfire <- function(query, type = NULL) {
   query <- unique(query)
   if (is.null(type)) {
@@ -64,6 +76,8 @@ setMethod("step1", signature = c(x = "job_classyfire"),
     db_inchi <- dplyr::filter(db_inchi, !is.na(as.integer(CID)))
     x$db_inchi <- dplyr::mutate(db_inchi,
       inchikey2d = stringr::str_extract(InChIKey, "^[A-Z]+"))
+    x <- methodAdd(x, "使用 PubChem API (<https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest>) 获取化合物 InChIKey。")
+    x <- snapAdd(x, "根据 {x$type} 获取化合物 InChIKey。")
     return(x)
   })
 
@@ -81,6 +95,8 @@ setMethod("step2", signature = c(x = "job_classyfire"),
       query <- unique(x$db_inchi$inchikey2d)
     }
     db_class <- frbind(extract_rdata_list(x$rd.class, query), idcol = "inchikey2d")
+    db_class <- .set_lab(db_class, sig(x), "classification data")
+    db_class <- setLegend(db_class, "为化合物系统分类附表。")
     if (x$type == "cid") {
       db_class <- map(db_class, "inchikey2d", x$db_inchi, "inchikey2d", "CID", col = "cid")
     }
@@ -104,7 +120,7 @@ setMethod("step2", signature = c(x = "job_classyfire"),
         scale_fill_gradientn(colors = color_set()[1:3]) +
         geom_text(aes(x = x, y = y,
             angle = ifelse(freq == max(freq), 0,
-              node_angle(x, y) + sign(node_angle(x, y) - 180) * 90),
+              node_angle(x, y, TRUE, FALSE) + sign(node_angle(x, y, TRUE, FALSE) - 180) * 90),
             label = ifelse(freq < fivenum(freq)[4],
               "", stringr::str_trunc(name, 20)))) +
         theme_minimal() +
@@ -126,6 +142,7 @@ setMethod("step2", signature = c(x = "job_classyfire"),
     }
     p.classes_freq <- plot_fun(x$db_class, pattern_match)
     p.classes_freq <- .set_lab(p.classes_freq, sig(x), "classification hierarchy")
+    p.classes_freq <- setLegend(p.classes_freq, "为化合物的系统分类阶层概览。")
     if (x$type == "inchikey") {
       inchikey2d <- object(x)
     } else if (x$type == "cid") {
@@ -150,5 +167,7 @@ setMethod("step2", signature = c(x = "job_classyfire"),
     }
     x@plots[[ 2 ]] <- namel(p.classes_freq, p.isClassified)
     x@tables[[ 2 ]] <- namel(t.class = db_class, t.match)
+    x <- methodAdd(x, "通过 InChIKey，以 `Classyfire` {cite_show('ClassyfireAutDjoumb2016')} 获取化合物系统分类注释。")
+    x <- snapAdd(x, "以 Classyfire 获取这些 InChIKey 的系统分类学注释。")
     return(x)
   })

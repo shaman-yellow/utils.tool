@@ -19,17 +19,18 @@
     analysis = "UniTmp 跨膜蛋白数据获取"
     ))
 
-job_unitmp <- function(mode = c("htp_all", "htp_exists"), db = .prefix("unitmp", "db"))
+job_unitmp <- function(mode = c("htp_all", "htp_exists"), db = .prefix("unitmp", "db"), version = "d.2.2")
 {
   mode <- match.arg(mode)
-  url <- switch(mode, htp_all = "https://htp.unitmp.org/data/HTP/data/d.2.1/sets/htp_all.xml",
-    htp_exists = "https://htp.unitmp.org/data/HTP/data/d.2.1/sets/Exists.xml"
+  url <- switch(mode, htp_all = "https://htp.unitmp.org/data/HTP/data/{version}/sets/htp_all.xml",
+    htp_exists = "https://htp.unitmp.org/data/HTP/data/{version}/sets/Exists.xml"
   )
-  file <- paste0(db, "/", basename(url))
+  url <- glue::glue(url)
+  dir.create(db, FALSE)
+  file <- file.path(db, basename(url))
   if (!file.exists(file)) {
     message("Download file from URL:", url)
-    xmlStr <- RCurl::getURL(url)
-    writeLines(xmlStr, file)
+    download.file(url, file)
   }
   xml <- XML::xmlParse(file)
   attrs <- XML::xpathApply(xml, "//HtpItem", XML::xmlAttrs)

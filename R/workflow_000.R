@@ -1190,7 +1190,23 @@ setMethod("label", signature = c(x = "ANY"),
   })
 
 setMethod("ref", signature = c(x = "character"),
-  function(x, legend = TRUE, try = FALSE, ...){
+  function(x, legend = NULL, try = FALSE,
+    visuable = getOption("autoLegendsVisuable", TRUE), ...)
+  {
+    if (is.null(legend)) {
+      autor_legend_env <- getOption("autor_legend_env")
+      if (any(names(autor_legend_env) == x)) {
+        # case: manualy cite the figure or table.
+        legend <- FALSE
+      } else {
+        # case: legends show before the figure or tables (gather legends)
+        legend <- TRUE
+      }
+    }
+    if (legend && !visuable) {
+      # in autor_preset, set `autor_legends_gather` ...
+      return("")
+    }
     codes_list <- knitr::knit_code$get()
     if (!length(codes_list)) {
       message("Not in rendering circumstance.")

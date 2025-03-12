@@ -133,6 +133,11 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     x$graph_mcc <- .set_lab(x$graph_mcc, sig(x), "graph MCC layout data")
     snap.mcc <- if (MCC) "(带有 Cytohubba {cite_show('CytohubbaIdenChin2014')} MCC 得分)" else ""
     x$graph_mcc <- setLegend(x$graph_mcc, "PPI {snap.mcc}附表")
+    if (!is.null(tops)) {
+      feature(x) <- head(hub_genes$Symbol, n = tops)
+    } else {
+      feature(x) <- hub_genes$Symbol
+    }
     p.mcc <- plot_networkFill.str(
       graph_mcc, label = "Symbol", HLs = HLs, netType = network_type
     )

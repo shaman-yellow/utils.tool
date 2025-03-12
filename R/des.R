@@ -173,7 +173,8 @@
     `venn` = "取交集[rna-method]",
     `vep` = "变异注释 (SNP 获取 rsID 等注释)[snp-method]",
     `seurat5n` = "单细胞数据分析[rna-method]",
-    `lnctard` = "LncRNA调控靶点[gene]"
+    `lnctard` = "LncRNA调控靶点[gene]",
+    `gtopdb` = "IUPHAR/BPS Guide to PHARMACOLOGY 药理学靶点和配体数据库"
   )
 }
 
