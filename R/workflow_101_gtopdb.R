@@ -22,6 +22,7 @@ job_gtopdb <- function(dir_save = .prefix("gtopdb", "db"))
     download.file(url, file)
   }
   db <- ftibble(file)
+  db <- set_lab_legend(db, "GtoPdb targets and families", "为 GtoPdb 数据库所有 targets and families 条目。")
   .job_gtopdb(object = db)
 }
 
