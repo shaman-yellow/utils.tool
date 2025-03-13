@@ -1278,15 +1278,20 @@ setMethod("draw_sampletree", signature = c(x = "wgcData"),
     return(x)
   })
 
-wrap <- function(data, width = 10, height = 8, showtext = FALSE) {
+wrap <- function(data, width = 10, height = 8, showtext = NULL) {
   if (is(data, "wrap")) {
     data@width <- width
     data@height <- height
-    try(data@showtext <- showtext, showtext)
+    if (!is.null(showtext)) {
+      data@showtext <- showtext
+    }
     data
   } else {
     if (is(data, "gg.obj")) {
       data <- as_grob(data)
+    }
+    if (is.null(showtext)) {
+      showtext <- FALSE
     }
     .wrap(data = data, width = width, height = height, showtext = showtext)
   }
@@ -1970,7 +1975,7 @@ autor_preset <- function(echo = FALSE, eval = FALSE,
 
 ## orinal function, for save file, and return file name
 
-auto_clear <- function(wd = ".", cache = "cache", ft = "Figure+Table",
+auto_clear <- function(wd = ".", cache = "cache", ft = getOption("savedir")$figs %||% "Figure+Table",
   rep = "report_picture", register = TRUE, Inclu_image_info = TRUE)
 {
   fun <- function(dir) {
@@ -2105,7 +2110,9 @@ setMethod("autor", signature = c(x = "ANY", name = "missing"),
     knitr::opts_current$set(autor_label = name)
     autor(x, name, ...)
     if (!getOption("autor_legends_gather", FALSE)) {
-      writeLines(ref(name, legend = TRUE, visuable = TRUE))
+      writeLines(
+        c("", ref(name, legend = TRUE, visuable = TRUE), "")
+      )
     }
   })
 
@@ -2133,6 +2140,11 @@ setMethod("autor", signature = c(x = "can_be_draw", name = "character"),
     file <- autosv(x, name, ...)
     autor(file, name, ...)
   })
+
+suppressMessages(setMethod("autor", signature = c(x = "layout_tbl_graph"),
+  function(x, ...){
+    autor(dplyr::as_tibble(x), ...)
+  }))
 
 ## autor for data.frame
 setMethod("autor", signature = c(x = "df", name = "character"),

@@ -65,7 +65,7 @@ job_venn <- function(..., lst = NULL)
   }
   if (all(vapply(object, is, logical(1), "feature"))) {
     snaps <- paste0("- ", vapply(object, snap, character(1)))
-    snapAdd_onExit("x", "数据集为：\n{bind(snaps, co = '\n')}")
+    snapAdd_onExit("x", "数据集为：\n\n{bind(snaps, co = '\n')}\n\n")
     object <- lapply(object, function(x) unlist(x@.Data))
   }
   x <- .job_venn(object = object)

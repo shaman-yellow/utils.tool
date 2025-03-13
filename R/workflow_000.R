@@ -1228,11 +1228,14 @@ setMethod("ref", signature = c(x = "character"),
     }
     obj <- eval(parse(text = objName), parent.frame(2))
     if (legend) {
+      if (is.null(Legend(obj))) {
+        return("")
+      }
       placeHolder <- glue::glue("<!-- autor_legend:{x} -->")
     } else {
       placeHolder <- ""
     }
-    if (is(obj, "df")) {
+    if (is(obj, "df") || is(obj, "data.frame")) {
       glue::glue("Tab. \\@ref(tab:{x}) {placeHolder}")
     } else if (is(obj, "can_not_be_draw") || is(obj, "can_be_draw") || is(obj, "fig")) {
       glue::glue("Fig. \\@ref(fig:{x}) {placeHolder}")

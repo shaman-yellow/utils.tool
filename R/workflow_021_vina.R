@@ -430,7 +430,7 @@ setMethod("step3", signature = c(x = "job_vina"),
       x$dock_layout, function(x) c(x, unname(used_pdbs_extra))
     )
   }
-  if (!is.null(x$pdb_MultiChains)) {
+  if (!is.null(x$pdb_MultiChains) && !forceAF) {
     pdb_MultiChains <- tolower(unique(x$pdb_MultiChains))
     fun_extract_cpdName <- function(lines) {
       chains <- stringr::str_extract(lines, "(?<=CHAIN: ).*(?=;)")
@@ -507,6 +507,7 @@ setMethod("step3", signature = c(x = "job_vina"),
 get_pdb_from_alphaFold <- function(symbols, dir = "protein_pdb")
 {
   message("Try get from alphaFold database (taxId: 9606, Human)")
+  dir.create(dir, FALSE)
   info <- UniProt.ws::mapUniProt(
     from = "Gene_Name",
     to = "UniProtKB-Swiss-Prot",
@@ -526,7 +527,7 @@ get_pdb_from_alphaFold <- function(symbols, dir = "protein_pdb")
       if (!is.na(id)) {
         url <- glue::glue("https://alphafold.ebi.ac.uk/files/AF-{id}-F1-model_v4.pdb")
         save <- file.path(dir, paste0(id, ".pdb"))
-        if (!file.exists(save)) {
+        if (!file.exists(save) || (file.exists(save) && !file.size(save))) {
           res <- try(download.file(url, save))
           if (inherits(res, "try-error")) {
             message(glue::glue("Download Failed of {id}, skip."))
@@ -568,7 +569,7 @@ setMethod("filter", signature = c(x = "job_vina"),
 
 setMethod("step4", signature = c(x = "job_vina"),
   function(x, time = 3600 * 2, savedir = paste0(x@sig, "_vina_space"),
-    log = "vina.log", save.object = "vn3.rds", ...)
+    log = "~/vina.log", save.object = "vn3.rds", ...)
   {
     step_message("Run vina ...")
     runs <- tibble::tibble(
@@ -580,9 +581,6 @@ setMethod("step4", signature = c(x = "job_vina"),
     x$runs <- runs
     x$savedir <- savedir
     n <- 0
-    if (file.exists(log)) {
-      file.remove("/tmp/res.log")
-    }
     saveRDS(x, save.object)
     message(glue::glue("Save this 'job_vina' as: {save.object}."))
     x <- methodAdd(x, "以 `AutoDock-Vina` 提供的工具 (`prepare_gpf.py`) (<https://github.com/ccsb-scripps/AutoDock-Vina>) 创建 GPF (grid parameter file)。")
@@ -593,6 +591,7 @@ setMethod("step4", signature = c(x = "job_vina"),
       names(x$res.receptor) <- tolower(names(x$res.receptor) )
     }
     if (is.remote(x)) {
+      dir.create(savedir, FALSE)
       .script <- file.path(savedir, "script_remote.sh")
       scriptPrefix <- scriptPrefix(x)
       if (is.null(scriptPrefix)) {
@@ -611,7 +610,7 @@ setMethod("step4", signature = c(x = "job_vina"),
         if (!is.null(lig) & !is.null(recep)) {
           vina_limit(
             lig, recep, time, dir = savedir, x = x, 
-            .script = .script, ...
+            .script = .script, stout = log, ...
           )
         } else {
           NULL
@@ -707,7 +706,7 @@ setMethod("step5", signature = c(x = "job_vina"),
   })
 
 setMethod("step6", signature = c(x = "job_vina"),
-  function(x, time = 30, top = NULL, save = TRUE, unique = FALSE, symbol = NULL, cpd = NULL)
+  function(x, time = 30, top = 3, save = TRUE, unique = FALSE, symbol = NULL, cpd = NULL)
   {
     step_message("Use pymol for all visualization.")
     data <- dplyr::filter(x@tables$step5$res_dock, Affinity < 0)
@@ -731,7 +730,9 @@ setMethod("step6", signature = c(x = "job_vina"),
     }
     figs <- pbapply::pbapply(data, 1, simplify = FALSE,
       function(v) {
-        vinaShow(v[[ "Combn" ]], v[[ "PDB_ID" ]], timeLimit = time, save = save)
+        vinaShow(
+          v[[ "Combn" ]], v[[ "PDB_ID" ]], timeLimit = time, save = save, dir = x$savedir
+        )
       }
     )
     figs <- unlist(figs, recursive = FALSE)
@@ -754,7 +755,9 @@ setMethod("step7", signature = c(x = "job_vina"),
     data <- x@tables$step6$data
     figs <- pbapply::pbapply(data, 1, simplify = FALSE,
       function(v) {
-        vinaShow(v[[ "Combn" ]], v[[ "PDB_ID" ]], save = save, detail = TRUE)
+        vinaShow(
+          v[[ "Combn" ]], v[[ "PDB_ID" ]], save = save, detail = TRUE, dir = x$savedir
+        )
       }
     )
     figs <- unlist(figs, recursive = FALSE)
@@ -927,10 +930,10 @@ vina <- function(lig, recep, dir = "vina_space",
 vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
   timeLimit = 3, backup = NULL, save = TRUE, detail = FALSE)
 {
-  if (!file.exists(path <- paste0(dir, "/", subdir))) {
-    stop("file.exists(path <- paste0(dir, \"/\", subdir))")
+  if (!file.exists(path <- file.path(dir, subdir))) {
+    stop('!file.exists(path <- file.path(dir, subdir)).')
   } 
-  wd <- paste0(dir, "/", subdir)
+  wd <- path
   out <- paste0(Combn, "_out.pdbqt")
   recep <- paste0(recep, ".pdbqt")
   if (!file.exists(recep)) {
