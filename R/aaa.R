@@ -199,7 +199,7 @@ op <- function(file) {
 #' @rdname utilites
 .cairosvg_to_grob <- 
   function(path){
-    grImport2::grobify(grImport2::readPicture(path))
+    grImport2::pictureGrob(grImport2::readPicture(path))
   }
 
 #' @export fill_list
@@ -527,6 +527,7 @@ prefix <- c()
 ex_grob <- function(name, fun = .cairosvg_to_grob){
   file <- file.path(.expathsvg, paste0(name, ".svg"))
   if (file.exists(file)) {
+    message(glue::glue("The file is: {file}"))
     fun(file)
   } else {
     stop("file.exsits(file) == FALSE")

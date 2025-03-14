@@ -55,7 +55,7 @@ setMethod("focus", signature = c(x = "job_gds"),
 job_gds <- function(keys,
   n = "6:1000",
   # Mus musculus, Rattus norvegicus
-  org = "Homo Sapiens",
+  org = "Homo sapiens",
   elements = c("GSE", "title", "summary", "taxon", "gdsType",
     "n_samples", "PubMedIds", "BioProject"),
   ...)
@@ -77,16 +77,20 @@ job_gds <- function(keys,
     object <- dplyr::mutate(object, GSE = paste0("GSE", GSE))
     object <- .set_lab(object, keys[1], "EDirect query")
   } else {
+    object <- NULL
     snapAdd_onExit("x", "未发现合适数据集。")
   }
-  x <- .job_gds(object = NULL, params = list(query = query, elements = elements, org = org, n = n))
+  x <- .job_gds(object = object, params = list(query = query, elements = elements, org = org, n = n))
   x <- methodAdd(x, "使用 Entrez Direct (EDirect) <https://www.ncbi.nlm.nih.gov/books/NBK3837/> 搜索 GEO 数据库 (`esearch -db gds`)，查询信息为: ({paste0(paste0('(', query, ''), collapse = ' AND ')}) AND ({extra})。")
   x <- snapAdd(x, "以 Entrez Direct (EDirect) 搜索 GEO 数据库 (检索条件见方法章节) 。")
   x
 }
 
 setMethod("step1", signature = c(x = "job_gds"),
-  function(x, ..., single_cell = FALSE, clinical = TRUE, rna_or_array = TRUE)
+  function(x, ..., single_cell = FALSE, clinical = TRUE, 
+    rna_or_array = TRUE,
+    excludes = "\\bKO\\b|\\bWT\\b|knock|deficien|SuperSeries|transgenic|regulat|CD[0-9]+",
+    extras = NULL)
   {
     step_message("Statistic.")
     args <- rlang::enquos(...)
@@ -125,6 +129,16 @@ setMethod("step1", signature = c(x = "job_gds"),
           grpl(gdsType, "Expression profiling by high throughput sequencing|Expression profiling by array"))
         methodAdd_onExit("x", "仅获取类型包含 'Expression profiling by high throughput sequencing' 或 'Expression profiling by array' 的数据例。")
       }
+    }
+    if (!is.null(excludes)) {
+      if (!is.null(extras)) {
+        excludes <- paste0(excludes, "|", extras)
+      }
+      object(x) <- dplyr::filter(
+        object(x), !grpl(summary, excludes, TRUE)
+      )
+      x$excludes <- excludes
+      methodAdd_onExit("x", "排除 summary 中包含 '{excludes}' 的数据例。")
     }
     message(glue::glue("dim: {bind(dim(object(x)))}, args ..."))
     if (length(args)) {
@@ -252,7 +266,7 @@ setMethod("anno", signature = c(x = "job_gds"),
 }
 
 setMethod("step3", signature = c(x = "job_gds"),
-  function(x, ref, mode = c("survival"), from_backup = TRUE)
+  function(x, ref, mode = c("survival"), from_backup = TRUE, not = FALSE)
   {
     step_message("Search in metadata.")
     if (missing(ref)) {
@@ -265,8 +279,8 @@ setMethod("step3", signature = c(x = "job_gds"),
       object(x) <- x$backup$object
       x$res$metas <- x$backup$metas
     }
-    which <- which(hunt(x, ref, "which"))
-    x <- methodAdd(x, "从元数据中匹配必要的组别关键词：'{ref}'，共得到 {length(which)} 个数据集。")
+    which <- which(hunt(x, ref, "which", not = not))
+    x <- methodAdd(x, "从元数据中匹配{if (not) '并排除' else ''}包含关键词的数据：'{ref}'，共得到 {length(which)} 个数据集。")
     x$backup <- namel(object = object(x), metas = x$res$metas)
     object(x) <- object(x)[which, ]
     x$res$metas <- x$res$metas[ which ]
@@ -319,7 +333,7 @@ setMethod("active", signature = c(x = "job_gds"),
   })
 
 setMethod("hunt", signature = c(x = "job_gds", ref = "character"),
-  function(x, ref, get = c("meta", "gse", "summary", "which")){
+  function(x, ref, get = c("meta", "gse", "summary", "which"), not = FALSE){
     if (is.null(x$res$metas)) {
       stop('is.null(x$res$metas), has not run "step2" ?')
     }
@@ -333,6 +347,9 @@ setMethod("hunt", signature = c(x = "job_gds", ref = "character"),
             }, logical(1)) | grpl(colnames(data), ref, TRUE))
         } else FALSE
       }, logical(1))
+    if (not) {
+      isThat <- !isThat
+    }
     if (get == "which") {
       return(isThat)
     } else if (get == "meta") {
