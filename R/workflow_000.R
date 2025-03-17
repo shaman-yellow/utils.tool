@@ -208,6 +208,23 @@ setValidity("feature_list",
     is(object@.Data, "list")
   })
 
+.sets_feature <- setClass("sets_feature",
+  contains = c("list"))
+
+setValidity("sets_feature",
+  function(object){
+    all(vapply(object@.Data, is, logical(1), "feature"))
+  })
+
+setMethod("show", signature = c(object = "sets_feature"),
+  function(object){
+    message(glue::glue("A object of 'sets_feature' length: {length(object)}."))
+  })
+
+sfea <- function(...) {
+  .sets_feature(list(...))
+}
+
 setMethod("[[", signature = c(x = "feature"),
   function(x, i, ...) {
     name <- names(x@.Data[[ i ]])
@@ -2436,6 +2453,11 @@ setGeneric("map",
       x
     }
   })
+
+setGeneric("formal_names",
+  function(x, ...) standardGeneric("formal_names"))
+setGeneric("formal_names<-",
+  function(x, value) standardGeneric("formal_names<-"))
 
 setGeneric("gname",
   function(x, ...) standardGeneric("gname"))

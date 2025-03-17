@@ -95,7 +95,7 @@ modify_job_limma_meta <- function (x, ..., fun, modify_object = FALSE) {
 }
 
 setMethod("filter", signature = c(x = "job_limma"),
-  function(x, ..., type = c("gene", "metadata"), add_snap = TRUE){
+  function(x, ..., type = c("gene", "metadata"), add_snap = TRUE, force = FALSE){
     type <- match.arg(type)
     if (type == "gene") {
       message("Filter genes via `x@object$genes`.")
@@ -125,22 +125,26 @@ setMethod("filter", signature = c(x = "job_limma"),
         snap <- snap(trace_filter(metadata, ...))
       }
       x <- modify_job_limma_meta(x, ..., fun = dplyr::filter)
-      if (x@step <= 1L) {
-        message(
-          glue::glue("before filter, dim of object(x): {bind(dim(object(x)))}")
-        )
-        object(x) <- object(x)[ , colnames(object(x)) %in% .get_meta(x, "sample") ]
+      if (x@step <= 1L || force) {
+        if (x@step <= 1L) {
+          message(
+            glue::glue("before filter, dim of object(x): {bind(dim(object(x)))}")
+          )
+          object(x) <- object(x)[ , colnames(object(x)) %in% .get_meta(x, "sample") ]
+        }
         if (!is.null(x$normed_data)) {
           if (!is(x$normed_data, "EList")) {
             x$normed_data <- new_from_package("EList", "limma", x$normed_data)
           }
           x$normed_data <- x$normed_data[ , colnames(x$normed_data) %in% .get_meta(x, "sample") ]
         }
-        message(
-          glue::glue("after filter, dim of object(x): {bind(dim(object(x)))}")
-        )
+        if (x@step <= 1L) {
+          message(
+            glue::glue("after filter, dim of object(x): {bind(dim(object(x)))}")
+          )
+        }
       } else {
-        stop("need: x@step <= 1L")
+        stop("need x@step < 1L")
       }
       if (add_snap) {
         x <- snapAdd(x, "{snap}", add = FALSE)
@@ -184,7 +188,9 @@ setMethod("step0", signature = c(x = "job_limma"),
 .guess_symbol <- function(x) {
   symbol <- if (!is.null(x$from_scfea) && x$from_scfea) {
     "name"
-  } else if (x$isTcga) {
+  } else if (!is.null(x$from_seurat) && x$from_seurat) {
+    "gene"
+  } else if (!is.null(x$isTcga) && x$isTcga) {
     "gene_name" 
   } else if (x$rna) {
     "hgnc_symbol"
@@ -448,7 +454,11 @@ setMethod("step2", signature = c(x = "job_limma"),
       tops <- NULL
     }
     print(glue::glue("use: {label}"))
-    p.volcano <- lapply(tops, plot_volcano, label = label, use = use, fc = cut.fc, seed = x$seed, HLs = HLs)
+    p.volcano <- lapply(
+      tops, plot_volcano, label = label, use = use, 
+      fc = cut.fc, seed = x$seed, HLs = HLs
+    )
+    x$args_volcano <- list(label = label, use = use, fc = cut.fc, seed = x$seed, HLs = HLs)
     p.volcano <- lapply(p.volcano,
       function(p) {
         p <- wrap(p, 5, 4)
@@ -558,7 +568,7 @@ setMethod("step3", signature = c(x = "job_limma"),
   function(x, names = NULL, use = "all", use.gene = .guess_symbol(x),
     fun_filter = rm.no, trunc = NULL,
     signature = if (is.null(x$from_scfea)) "DEGs" else "DMFs",
-    gname = is.null(x$from_scfea))
+    gname = is.null(x$from_scfea), gather_volcano = TRUE)
   {
     step_message("Sets intersection.")
     tops <- x@tables$step2$tops
@@ -587,7 +597,6 @@ setMethod("step3", signature = c(x = "job_limma"),
       x <- snapAdd(x, "上调或下调 {signature} 统计：{try_snap(tops[[1]])}")
       x$.feature <- tops
     } else {
-      names(tops) <- gs(names(tops), "-", "vs")
       x$.feature <- tops
       s.com <- vapply(tops, try_snap, character(1))
       s.com <- paste0("- ", names(s.com), "：", s.com, "。")
@@ -617,6 +626,14 @@ setMethod("step3", signature = c(x = "job_limma"),
     }
     if (!is.null(x$from_scfea) && x$from_scfea) {
       feature(x) <- as_feature(x$.feature, x, nature = "flux")
+    }
+    if (gather_volcano && length(tops <- x@tables$step2$tops) >= 3) {
+      args <- x$args_volcano
+      args$top_table <- rbind_list(tops, .id = ".versus", FALSE)
+      args$keep_cols <- TRUE
+      p.volcano_gather <- do.call(plot_volcano, args)
+      p.volcano_gather <- p.volcano_gather + facet_wrap(~ .versus)
+      x$p.volcano_gather <- wrap(p.volcano_gather)
     }
     return(x)
   })
@@ -894,14 +911,20 @@ dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x), which = 1L)
 
 plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
   fc = .3, seed = 1, HLs = NULL, use.fc = "logFC", label.fc = "log2(FC)",
-  label.p = paste0("-log10(", use, ")"))
+  label.p = paste0("-log10(", use, ")"), keep_cols = FALSE)
 {
   set.seed(seed)
   if (!any(label == colnames(top_table))) {
     if (any("rownames" == colnames(top_table)))
       label <- "rownames"
   }
-  data <- dplyr::select(top_table, !!rlang::sym(label), !!rlang::sym(use.fc), !!rlang::sym(use))
+  if (!keep_cols) {
+    data <- dplyr::select(
+      top_table, !!rlang::sym(label), !!rlang::sym(use.fc), !!rlang::sym(use)
+    )
+  } else {
+    data <- top_table
+  }
   data <- dplyr::mutate(data,
     change = ifelse(!!rlang::sym(use.fc) > abs(fc), "up",
       ifelse(!!rlang::sym(use.fc) < -abs(fc), "down", "stable"))
@@ -995,7 +1018,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_limma"),
     rawFromTo <- namel(from, to)
     from <- resolve_feature(from)
     to <- resolve_feature(to)
-    eval(use)
+    eval({use.x; use.y})
     sigs <- c(x@sig, y@sig)
     x <- x$normed_data
     fun_trans <- function(object) {
@@ -1005,12 +1028,20 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_limma"),
       return(object)
     }
     x <- fun_trans(x)
+    message("Subset datasets for `x`.")
+    if (is.null(x$genes[[ use.x ]])) {
+      stop('is.null(x$genes[[ use.x ]]).')
+    }
     x <- x[x$genes[[ use.x ]] %in% from, ]
     if (!nrow(x)) {
       stop('!nrow(x), No any genes found')
     }
     y <- y$normed_data
     y <- fun_trans(y)
+    message("Subset datasets for `y`.")
+    if (is.null(y$genes[[ use.y ]])) {
+      stop('is.null(y$genes[[ use.y ]]).')
+    }
     y <- y[y$genes[[ use.y ]] %in% to, ]
     if (!nrow(y)) {
       stop('!nrow(y), No any genes found')

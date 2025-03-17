@@ -696,6 +696,114 @@ setMethod("map", signature = c(x = "job_seurat", ref = "character"),
     p.heatmap
   })
 
+setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
+  function(x, ref, datasets = NULL, names = NULL,
+    group.by = x$group.by, sample = "orig.ident",
+    pattern_suffix = "_[^_]+$", props.filter = .5, nlimit = 3)
+  {
+    message("Correlation analysis for two feature sets within each cell group.")
+    if (length(ref) != 2) {
+      stop('length(ref) != 2.')
+    }
+    metadata <- object(x)@meta.data
+    # filter by cells proportion above sample.
+    if (!is.null(props.filter)) {
+      freq <- prop.table(table(metadata[[ group.by ]], metadata[[ sample ]]), 1)
+      groups <- names(which(apply(freq, 1, function(x) entropy_score(freq = x)) > props.filter))
+    } else {
+      groups <- ids(x, group.by)
+    }
+    groups <- groups[ !grpl(groups, "unknown", TRUE) ]
+    fun_formal_name <- function(x) {
+      gs(make.names(x), "[.]+", "_")
+    }
+    ## check validity
+    lapply(ref, 
+      function(fea) {
+        if (is(fea, "feature_list")) {
+          versus_cells <- .get_versus_cell(names(fea))
+          group_names <- fun_formal_name(groups)
+          if (all(!versus_cells %in% group_names)) {
+            stop('all(!versus_cells %in% group_names)')
+          }
+        }
+      })
+    ## set function of get genes for cells.
+    fun_get_genes <- function(fea, group) {
+      if (is(fea, "feature_list")) {
+        cells <- .get_versus_cell(names(fea), pattern_suffix)
+        which <- which(cells == group)
+        if (length(which) != 1) {
+          NULL
+        } else {
+          unlist(fea[[ which ]])
+        }
+      } else if (is(fea, "feature_char")) {
+        fea@.Data
+      }
+    }
+    # set up features for each group (cell)
+    sets <- sapply(groups, simplify = FALSE,
+      function(group) {
+        formalGroup <- fun_formal_name(group)
+        from <- fun_get_genes(ref[[1]], formalGroup)
+        to <- fun_get_genes(ref[[2]], formalGroup)
+        if (length(from) < nlimit || length(to) < nlimit) {
+          NULL
+        } else {
+          namel(from, to)
+        }
+      })
+    sets <- lst_clear0(sets)
+    # set function of getting dataset (job_limma for 'cal_corp')
+    fun_get_datasets <- function(feature, dataset, group) {
+      if (is(dataset, "job_seurat")) {
+        asjob_limma(dataset, feature, cell_groups = group, group.by = group.by)
+      } else if (is(dataset, "job_limma")) {
+        if (is.null(.get_meta(dataset, group.by))) {
+          stop('is.null(.get_meta(dataset, group.by)).')
+        }
+        filter(
+          dataset, type = "metadata", !!rlang::sym(group.by) == !!group, 
+          add_snap = FALSE, force = TRUE
+        )
+      } else {
+        stop("`datasets` should be a list of 'job_seurat' or 'job_limma'")
+      }
+    }
+    # calculate correlation ...
+    res_correlation <- lapply(names(sets),
+      function(group) {
+        cli::cli_h2(glue::glue("Calculating: {group}"))
+        from <- sets[[ group ]]$from
+        to <- sets[[ group ]]$to
+        lm_from <- fun_get_datasets(from, datasets[[1]], group)
+        lm_to <- fun_get_datasets(to, datasets[[2]], group)
+        message("Got datasets.")
+        cp <- cal_corp(lm_from, lm_to, from, to, names = names, gname = FALSE)
+        cp$res
+      })
+    x$res_correlation <- res_correlation
+    return(x)
+  })
+
+
+.get_versus_cell <- function(x, pattern_suffix = "_[^_]+$") {
+  x <- strsplit(x, " - ")
+  x <- lapply(x, function(x) unique(s(x, pattern_suffix, "")))
+  if (any(lengths(x) != 1)) {
+    stop('any(lengths(x) != 1)')
+  }
+  unlist(x)
+}
+
+entropy_score <- function(x, freq = NULL) {
+  if (is.null(freq)) {
+    freq <- prop.table(table(x))
+  }
+  -sum(freq * log(freq)) / log(length(freq))
+}
+
 setMethod("map", signature = c(x = "job_seurat", ref = "job_seurat"),
   function(x, ref, use.x, use.ref, name = "cell_mapped", asIdents = TRUE){
     matched <- match(rownames(object(x)@meta.data), rownames(object(ref)@meta.data))

@@ -197,9 +197,12 @@ op <- function(file) {
 #' @aliases .cairosvg_to_grob
 #' @description \code{.cairosvg_to_grob}: Convert cairo svg to 'grob'.
 #' @rdname utilites
-.cairosvg_to_grob <- 
-  function(path){
-    grImport2::pictureGrob(grImport2::readPicture(path))
+.cairosvg_to_grob <- function(path){
+    grImport2::pictureGrob(
+      grImport2::readPicture(path),
+      width = unit(1, "npc"),
+      height = unit(1, "npc")
+    )
   }
 
 #' @export fill_list
@@ -802,12 +805,16 @@ collate_common_function <- function(package, freq = 10) {
 }
 
 rbind_list <- function(lst, .id = NULL, keep_missing = TRUE) {
-  data <- lapply(lst,
-    function(x) {
-      if (!nrow(x)) {
-        dplyr::add_row(x)
-      } else x
-    })
+  if (keep_missing) {
+    data <- lapply(lst,
+      function(x) {
+        if (!nrow(x)) {
+          dplyr::add_row(x)
+        } else x
+      })
+  } else {
+    data <- lst
+  }
   data <- do.call(
     dplyr::bind_rows, c(data, .id = .id)
   )

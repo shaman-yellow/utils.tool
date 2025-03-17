@@ -18,7 +18,9 @@ sortSugi <- function(values, dec = TRUE) {
 
 as_network <- function(lst, layout = 'sugiyama', seed = 100, env = parent.frame(1))
 {
-  lst <- lapply(lst, function(x) glue::glue(x, .envir = env))
+  lst <- lapply(
+    lst, function(x) glue::glue(gs(x, "\\(.*\\)", ""), .envir = env)
+  )
   lst <- vapply(lst, function(ch) gsub(" ", "", ch), character(1))
   if (any(grepl("::", lst))) {
     lst <- unlist(lapply(lst,
@@ -104,7 +106,7 @@ flowChart <- function(graph, scale.x = 1.2, scale.y = 1.2, node.size = 4,
       data_edge_diagonal <- dplyr::filter(
         data, !isMulti | (abs(levelOutside) > 0) & (abs(levelOutside) < 1)
       )
-      data_edge_bend <- dplyr::anti_join(data, data_edge_diagonal)
+      data_edge_bend <- suppressMessages(dplyr::anti_join(data, data_edge_diagonal))
       data_edge_bend <- split(data_edge_bend, ~ isPack)
       if (!is.null(data_edge_bend[[ "TRUE" ]])) {
         geom_edge_bend_1 <- geom_edge_bend(data = data_edge_bend[[ "TRUE" ]],

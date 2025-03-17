@@ -162,6 +162,7 @@ setMethod("asjob_limma", signature = c(x = "job_seurat"),
     validObject(object)
     x <- .job_limma()
     x$normed_data <- object
+    x$from_seurat <- TRUE
     return(x)
   })
 

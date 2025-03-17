@@ -219,7 +219,7 @@ setMethod("expect", signature = c(x = "job_gds", ref = "ANY"),
   })
 
 setMethod("anno", signature = c(x = "job_gds"),
-  function(x, col = "group") {
+  function(x, col = "group", group_limit = 8) {
     if (x@step < 2L) {
       stop('x@step < 2L, should have metadata of all dataset.')
     }
@@ -243,11 +243,15 @@ setMethod("anno", signature = c(x = "job_gds"),
           stop(glue::glue('is.null(string), can not found "{col}" in metadata of "{id}".'))
         }
         x <- table(string)
-        snap_freqs <- glue::glue("{names(x)} (n = {unname(x)})")
-        snap_freqs <- stringr::str_wrap(
-          paste0("- ", snap_freqs), 100, 4, 4
-        )
-        snap_freqs <- bind(snap_freqs, co = "\n")
+        if (length(x) < group_limit) {
+          snap_freqs <- glue::glue("{names(x)} (n = {unname(x)})")
+          snap_freqs <- stringr::str_wrap(
+            paste0("- ", snap_freqs), 100, 4, 4
+          )
+          snap_freqs <- bind(snap_freqs, co = "\n")
+        } else {
+          snap_freqs <- "..."
+        }
         type <- .mutate_gdsType(type)
         glue::glue("- **{id}**, **Type**: {extype}{type}\n{snap_freqs}")
       }
