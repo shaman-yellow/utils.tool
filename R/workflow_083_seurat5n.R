@@ -166,3 +166,65 @@ setMethod("asjob_limma", signature = c(x = "job_seurat"),
     return(x)
   })
 
+get_high_expressed <- function(x, features, threshold = 0, cutoff = .3,
+  group.by = x$group.by, data = object(x)$RNA$data)
+{
+  if (!is(x, "job_seurat")) {
+    stop('!is(x, "job_seurat").')
+  }
+  if (!is(data, "dgCMatrix")) {
+    stop('!is(data, "dgCMatrix").')
+  }
+  data <- data[ rownames(data) %in% features, ]
+  if (!nrow(data)) {
+    stop('!nrow(data).')
+  }
+  groups <- object(x)@meta.data[[ group.by ]]
+  if (is.null(groups)) {
+    stop('is.null(groups): object(x)@meta.data[[ group.by ]]')
+  }
+  stats <- fast_penetrate_rate(data, groups, threshold)
+  stats$features <- rownames(data)[stats$row]
+  stats <- tibble::as_tibble(stats)
+  if (!is.null(cutoff)) {
+    stats <- dplyr::filter(stats, ratio > !!cutoff)
+  }
+  stats
+}
+
+fast_penetrate_rate <- function(sp_mat, groups, threshold = 0) {
+  if (!is(sp_mat, "dgCMatrix")) {
+    stop('!is(sp_mat, "dgCMatrix").')
+  }
+  require(data.table)
+  # Convert groups into numerical indexes
+  groups <- factor(groups)
+  groupLevels <- levels(groups)
+  group_idx <- as.integer(groups)
+  n_groups <- max(group_idx)
+  
+  # Extract non-zero coordinates and values
+  smry <- Matrix::summary(sp_mat)
+  dt <- data.table(
+    row = smry$i,
+    col = smry$j,
+    val = smry$x,
+    group = group_idx[smry$j]
+  )
+  
+  # Filter expression values that exceed the threshold
+  dt_pass <- dt[val > threshold, .(count = .N), by = .(row, group)]
+  
+  # Calculate the total number of cells in each group
+  group_size <- data.table(group = group_idx)[, .(total = .N), by = group]
+  
+  # Merge calculation of penetration rate
+  result <- dt_pass[
+    group_size, 
+    on = "group", 
+    .(row, group, ratio = count / total)
+  ]
+  result <- result[!is.na(ratio), ]
+  result$group <- groupLevels[ result$group ]
+  result
+}

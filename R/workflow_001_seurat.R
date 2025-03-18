@@ -699,7 +699,8 @@ setMethod("map", signature = c(x = "job_seurat", ref = "character"),
 setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
   function(x, ref, datasets = NULL, names = NULL,
     group.by = x$group.by, sample = "orig.ident",
-    pattern_suffix = "_[^_]+$", props.filter = .5, nlimit = 3)
+    pattern_suffix = "_[^_]+$", cell.props.filter = .5, 
+    feature.nlimit = 3, gene.props.filter = .3, gene.threshold = 0, gene.which = NULL)
   {
     message("Correlation analysis for two feature sets within each cell group.")
     if (length(ref) != 2) {
@@ -707,9 +708,9 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
     }
     metadata <- object(x)@meta.data
     # filter by cells proportion above sample.
-    if (!is.null(props.filter)) {
+    if (!is.null(cell.props.filter)) {
       freq <- prop.table(table(metadata[[ group.by ]], metadata[[ sample ]]), 1)
-      groups <- names(which(apply(freq, 1, function(x) entropy_score(freq = x)) > props.filter))
+      groups <- names(which(apply(freq, 1, function(x) entropy_score(freq = x)) > cell.props.filter))
     } else {
       groups <- ids(x, group.by)
     }
@@ -729,7 +730,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
         }
       })
     ## set function of get genes for cells.
-    fun_get_genes <- function(fea, group) {
+    fun_get_features <- function(fea, group) {
       if (is(fea, "feature_list")) {
         cells <- .get_versus_cell(names(fea), pattern_suffix)
         which <- which(cells == group)
@@ -746,15 +747,45 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
     sets <- sapply(groups, simplify = FALSE,
       function(group) {
         formalGroup <- fun_formal_name(group)
-        from <- fun_get_genes(ref[[1]], formalGroup)
-        to <- fun_get_genes(ref[[2]], formalGroup)
-        if (length(from) < nlimit || length(to) < nlimit) {
+        from <- fun_get_features(ref[[1]], formalGroup)
+        to <- fun_get_features(ref[[2]], formalGroup)
+        if (length(from) < feature.nlimit || length(to) < feature.nlimit) {
           NULL
         } else {
           namel(from, to)
         }
       })
     sets <- lst_clear0(sets)
+    ## filter the genes (if in `ref`) by expression levels (pct)
+    if (!is.null(gene.props.filter)) {
+      fun_get_stats <- function(feature) {
+        feature <- feature@.Data
+        if (all(!feature %in% rownames(object(x)))) {
+          stop('all(!feature %in% rownames(object(x))), the feature is not "genes"?')
+        }
+        stats <- get_high_expressed(
+          x, feature, threshold = gene.threshold,
+          cutoff = gene.props.filter, group.by = group.by
+        )
+        split(stats$features, stats$group)
+      }
+      if (is.null(gene.which)) {
+        seqs <- which(vapply(ref, is, logical(1), "feature_char"))
+      } else {
+        seqs <- gene.which
+      }
+      for (i in seqs) {
+        lst_stats <- fun_get_stats(ref[[i]])
+        n <- 0L
+        sets <- lapply(sets, 
+          function(from_and_to) {
+            n <<- n + 1L
+            isThat <- from_and_to[[i]] %in% lst_stats[[ names(sets)[n] ]]
+            from_and_to[[i]] <- from_and_to[[i]][isThat]
+            from_and_to
+          })
+      }
+    }
     # set function of getting dataset (job_limma for 'cal_corp')
     fun_get_datasets <- function(feature, dataset, group) {
       if (is(dataset, "job_seurat")) {
@@ -772,7 +803,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
       }
     }
     # calculate correlation ...
-    res_correlation <- lapply(names(sets),
+    res_correlation <- sapply(names(sets), simplify = FALSE,
       function(group) {
         cli::cli_h2(glue::glue("Calculating: {group}"))
         from <- sets[[ group ]]$from
@@ -781,15 +812,20 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
         lm_to <- fun_get_datasets(to, datasets[[2]], group)
         message("Got datasets.")
         cp <- cal_corp(lm_from, lm_to, from, to, names = names, gname = FALSE)
+        cp$res$hp <- wrap_scale(
+          cp$res$hp, length(to), length(from), 4.5, 5.5
+        )
         cp$res
       })
+    names(res_correlation) <- fun_formal_name(names(res_correlation))
     x$res_correlation <- res_correlation
     return(x)
   })
 
 
-.get_versus_cell <- function(x, pattern_suffix = "_[^_]+$") {
-  x <- strsplit(x, " - ")
+.get_versus_cell <- function(x, pattern_suffix = "_[^_]+$", split = " - | vs ")
+{
+  x <- strsplit(x, split)
   x <- lapply(x, function(x) unique(s(x, pattern_suffix, "")))
   if (any(lengths(x) != 1)) {
     stop('any(lengths(x) != 1)')
@@ -1355,3 +1391,5 @@ plot_cells_proportion <- function(metadata, sample = "orig.ident", cell = "ChatG
     rstyle("theme")
   wrap(p.props, 7, .4 * ntypes)
 }
+
+

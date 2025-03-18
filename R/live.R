@@ -1278,6 +1278,22 @@ setMethod("draw_sampletree", signature = c(x = "wgcData"),
     return(x)
   })
 
+wrap_scale <- function(data, n_width, n_height, min_width = NULL, min_height = NULL,
+  pre_width = 2, pre_height = 2, max_width = 15, max_height = 12, size = .4, ...)
+{
+  width <- n_width * size + pre_width
+  height <- n_height * size  + pre_height
+  if (!is.null(min_width)) {
+    width <- max(width, min_width)
+  }
+  if (!is.null(min_height)) {
+    height <- max(height, min_height)
+  }
+  wrap(
+    data, min(width, max_width), min(height, max_height), ...
+  )
+}
+
 wrap <- function(data, width = 10, height = 8, showtext = NULL) {
   if (is(data, "wrap")) {
     data@width <- width

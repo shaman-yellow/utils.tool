@@ -1153,7 +1153,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
       params = list(res = lst), 
       analysis = "关联分析", sig = x@sig
     )
-    x$.feature <- list(from = x$res$sig.corp$From, to = x$res$sig.corp$To)
+    x$.feature <- list(from = x$res$sig.corp[[1]], to = x$res$sig.corp[[2]])
     message("return 'job'.")
     return(x)
   })
