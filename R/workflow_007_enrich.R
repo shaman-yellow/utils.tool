@@ -22,9 +22,15 @@ setGeneric("asjob_enrich", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_enrich"))
 
 setMethod("asjob_enrich", signature = c(x = "feature"),
-  function(x, ...){
+  function(x, unlist = TRUE, ...){
+    names <- names(x)
     x <- resolve_feature_snapAdd_onExit("x", x)
-    x <- job_enrich(unlist(x))
+    if (unlist) {
+      x <- job_enrich(unlist(x), ...)
+    } else {
+      names(x) <- names
+      x <- job_enrich(x, ...)
+    }
     return(x)
   })
 

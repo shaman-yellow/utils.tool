@@ -74,7 +74,7 @@ backup_jobs.bosai <- function(data, time = Sys.Date(),
   data <- dplyr::filter(data, finish < !!time)
   if (file.exists(file_records)) {
     records <- readRDS(file_records)
-    data <- dplyr::anti_join(data, records)
+    data <- dplyr::anti_join(data, records, by = c(".dir", "save"))
   } else {
     records <- tibble::tibble()
     data <- data

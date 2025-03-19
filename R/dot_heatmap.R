@@ -158,7 +158,7 @@ dot_heatmap <- function(data, x = "sample", y = ".features_id",
       geom_hline <- geom_hline(yintercept = yintercept, linewidth = 4, color = "darkred", alpha = .3)
     }
   }
-  message("dot_heatmap ...")
+  # message("dot_heatmap ...")
   p <- ggplot(data, aes(x = !!rlang::sym(x), y = !!rlang::sym(y))) +
     geom_hline + geom_vline +
     geom_point +
@@ -171,7 +171,7 @@ dot_heatmap <- function(data, x = "sample", y = ".features_id",
       axis.text = element_text(face = "plain"),
       axis.text.x = element_blank()) +
     guides
-  message("dot_heatmap finished.")
+  # message("dot_heatmap finished.")
   return(p)
 }
 

@@ -1012,7 +1012,8 @@ setMethod("tops", signature = c(x = "job_limma"),
 setMethod("cal_corp", signature = c(x = "job_limma", y = "job_limma"),
   function(x, y, from, to, names = NULL, use.x = .guess_symbol(x), 
     use.y = .guess_symbol(y),
-    theme = NULL, HLs = NULL, mode = c("heatmap", "linear"), gname = TRUE)
+    theme = NULL, HLs = NULL, mode = c("heatmap", "linear"), 
+    gname = TRUE, ...)
   {
     message("Filter out others.")
     rawFromTo <- namel(from, to)
@@ -1062,7 +1063,8 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_limma"),
     )
     newjob <- .job_limma(params = list(normed_data = x))
     x <- cal_corp(
-      newjob, NULL, rawFromTo$from, rawFromTo$to, names, "NAME", theme, HLs, mode, gname = gname
+      newjob, NULL, rawFromTo$from, rawFromTo$to, names, 
+      "NAME", theme, HLs, mode, gname = gname, ...
     )
     message("Reset snap.")
     # snap(x)[[ "step0" ]] <- glue::glue("将两组相同样品来源的数据集 (dataset: {bind(sigs)})) 关联分析。")
@@ -1115,7 +1117,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
         data, anno, use, unique(from), 
         unique(to), names, HLs = HLs, fast = TRUE, gname = gname
       )
-      message("Correlation finished.")
+      # message("Correlation finished.")
       if (length(unique(from)) >= 1 && length(unique(to)) >= 1) {
         lst$hp <- .set_lab(wrap(lst$hp), sig(x), theme, "correlation heatmap")
         lst$hp <- setLegend(lst$hp, "为关联分析 ({bind(names)}) 热图。")
@@ -1154,7 +1156,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
       analysis = "关联分析", sig = x@sig
     )
     x$.feature <- list(from = x$res$sig.corp[[1]], to = x$res$sig.corp[[2]])
-    message("return 'job'.")
+    # message("return 'job'.")
     return(x)
   })
 
@@ -1189,7 +1191,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
   } else {
     corp <- cal_corp(lst[[1]], lst[[2]], names[[1]], names[[2]], trans = TRUE, fast = fast)
   }
-  message("Correlation computation finished.")
+  # message("Correlation computation finished.")
   if (fast) {
     sig.corp <- dplyr::filter(tibble::as_tibble(corp), sign != "-")
     if (length(from) > 1 && length(to) > 1) {

@@ -1136,19 +1136,19 @@ setMethod("callheatmap", signature = c(x = "heatdata"),
     if (any(c(y.reformat, x.reformat)) | is.null(x@main)) {
       x <- standby(x)
     }
-    message("Plot main panel.")
+    # message("Plot main panel.")
     x@gg_main <- do.call(x@fun_plot[[ "main" ]], c(list(x@data_long), x@aesn, list(HLs = HLs)))
-    message("Plot ygroup.")
+    # message("Plot ygroup.")
     if (y.reformat) {
       if (any(colnames(x@ymeta) == x@y_aesn[[ x@aesh ]])) {
         args <- c(list(data = x@ymeta, p = NULL, pal = x@y_pal), x@y_aesn)
         x@gg_ygroup <- do.call(x@fun_plot[[ "ygroup" ]], args)
       }
     }
-    message("Plot tree.")
+    # message("Plot tree.")
     x@gg_xtree <- x@fun_plot[[ "xtree" ]](x@main, x@para[[ "method" ]])
     x@gg_ytree <- x@fun_plot[[ "ytree" ]](x@main, x@para[[ "method" ]])
-    message("Plot xgroup.")
+    # message("Plot xgroup.")
     if (x.reformat) {
       if (any(colnames(x@xmeta) == x@x_aesn[[ x@aesh ]])) {
         args <- c(list(data = x@xmeta, p = NULL, pal = x@x_pal), x@x_aesn)
@@ -1399,12 +1399,12 @@ setMethod("cal_corp", signature = c(x = "df", y = "df"),
     if (is.character(x[[1]])) {
       rownames(x) <- x[[1]]
       x <- x[, -1]
-      message("Set rolnames of x as the first columns.")
+      # message("Set rolnames of x as the first columns.")
     }
     if (is.character(y[[1]])) {
       rownames(y) <- y[[1]]
       y <- y[, -1]
-      message("Set rolnames of y as the first columns.")
+      # message("Set rolnames of y as the first columns.")
     }
     if (trans) {
       x <- t(x)
@@ -1412,9 +1412,9 @@ setMethod("cal_corp", signature = c(x = "df", y = "df"),
     }
     if (fast) {
       cor <- agricolae::correlation(x, y)
-      message("as_data_long ...")
+      # message("as_data_long ...")
       data <- as_data_long(cor$correlation, cor$pvalue, row_var, col_var, "cor", "pvalue")
-      message("as_data_long finished.")
+      # message("as_data_long finished.")
       .corp(add_anno(.corp(data)))
     } else {
       alls <- pbapply::pbapply(x, 2, simplify = FALSE,
@@ -3135,7 +3135,8 @@ new_col <- function(..., lst = NULL, fun = function(x) x[ !is.na(x) & x != ""]) 
 }
 
 new_pie <- function(x, title = NULL, use.ggplot = TRUE, overlap = 30,
-  fun_text = function(...) ggrepel::geom_label_repel(..., max.overlaps = overlap))
+  fun_text = function(...) ggrepel::geom_label_repel(..., max.overlaps = overlap),
+  legend = FALSE)
 {
   x <- split(x, x)
   x <- vapply(x, length, integer(1))
@@ -3158,18 +3159,25 @@ new_pie <- function(x, title = NULL, use.ggplot = TRUE, overlap = 30,
       ggsci::pal_npg()(10)
     p <- ggplot(data, aes(x = 0L, y = value, fill = var)) +
       geom_bar(stat = 'identity', position = 'stack', width = 1) +
-      fun_text(aes(x = lab.x, y = lab.y, label = label)) +
+      fun_text(
+        aes(x = lab.x, y = lab.y, label = if (legend) stringr::str_trunc(label, 20) else label)
+      ) +
       scale_fill_manual(values = palette) +
-      labs(x = '', y = '', title = '') +
+      labs(x = '', y = '', title = '', fill = "Type") +
       coord_polar(theta = 'y') +
       theme_minimal() +
       ggtitle(title) +
-      theme(legend.position = "none",
+      guides(fill = guide_legend(ncol = 1)) +
+      theme(
+        # legend.position = "none",
         plot.title = element_text(size = 15, hjust = .5, vjust = -.5),
         axis.text = element_blank(),
-        plot.margin = margin(if (is.null(title)) -.1 else 0, -.1, -.1, -.1, "npc"),
+        plot.margin = margin(if (is.null(title)) -.05 else 0, -.05, -.05, -.05, "npc"),
         panel.grid = element_blank()) +
       geom_blank()
+    if (!legend) {
+      p <- p + theme(legend.position = "none")
+    }
     wrap(as_grob(p), 5, 4)
   } else {
     grob <- ggplotify::base2grob(expression({

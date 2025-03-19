@@ -197,7 +197,7 @@ setClassUnion("numeric_or_character", c("numeric", "character"))
   contains = c("vector"),
   representation = representation(
     object = "ANY", sig = "character",
-    snap = "character", nature = "character", type = "character"),
+    snap = "character", nature = "character", type = "character", from = "character"),
   prototype = NULL)
 
 .feature_list <- setClass("feature_list", contains = c("feature"))
@@ -227,6 +227,9 @@ sfea <- function(...) {
 
 setMethod("[[", signature = c(x = "feature"),
   function(x, i, ...) {
+    if (is(i, "character")) {
+      i <- which(names(x) == i)
+    }
     name <- names(x@.Data[[ i ]])
     x@.Data <- x@.Data[[ i ]]
     if (is(x, "feature_list") && is(x@.Data, "character")) {
@@ -296,6 +299,9 @@ setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
     if (is.null(sig(ref))) {
       stop('is.null(sig(ref)), no "sig" in that "job".')
     }
+    if (is.null(from <- attr(sig(ref), "name"))) {
+      stop('is.null(from <- attr(sig(ref), "name")).')
+    }
     nature <- match.arg(nature)
     nature <- switch(
       nature, "genes" = "基因集", "compounds" = "化合物", "feature" = "特征集", "flux" = "代谢通量"
@@ -322,6 +328,7 @@ setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
       sig <- ""
     }
     snap(x) <- glue::glue("来自于{analysis}{sig}")
+    x@from <- from
     return(x)
   })
 
@@ -347,6 +354,11 @@ setGeneric("snap<-",
 
 setMethod("snap", signature = c(x = "ANY", ref = "missing"),
   function(x){
+    attr(x, ".SNAP")
+  })
+
+setMethod("snap", signature = c(x = "ANY", ref = "NULL"),
+  function(x, ref){
     attr(x, ".SNAP")
   })
 
@@ -409,7 +421,9 @@ setMethod("snap", signature = c(x = "feature", ref = "logical"),
         str <- bind(str)
       }
       sep <- if (nchar(str)) ", " else ""
-      glue::glue("{x@nature} ({str}{sep}{x@snap}) ")
+      glue::glue(
+        "**{{{x@nature}}}** ({{{str}}}{{{sep}}}{{{x@snap}}}) ", .open = "{{{", .close = "}}}"
+      )
     }
   })
 
@@ -1606,6 +1620,8 @@ setMethod("snapAdd", signature = c(x = "job", from = "character"),
       } else {
         step <- x@step
       }
+    } else {
+      x$.map_snap <- step
     }
     if (missing(add)) {
       if (init(snap(x))) {
@@ -1904,13 +1920,19 @@ setGeneric("step1", group = list("step_series"),
       x$seed <- seed
     }
     x <- checkAddStep(x, 1L)
+    # you can set `x$.append_heading <- FALSE` to cancel that.
     x$.append_heading <- TRUE
+    x$.append_snap <- TRUE
     x <- standardGeneric("step1")
     x <- stepPostModify(x, 1)
     if (legal && x$.append_heading) {
       job_append_heading(x)
     }
+    if (legal && x$.append_snap) {
+      job_append_method(x, oname = attr(sig(x), "name"))
+    }
     x$.append_heading <- NULL
+    x$.append_snap <- NULL
     x
   })
 
@@ -1949,13 +1971,32 @@ findMaxStepMethod <- function(class, max = 12L, inherited = TRUE) {
   return(max(allMax))
 }
 
-job_append_method <- function(x) {
+job_append_method <- function(x, step = NULL, append = FALSE, method = TRUE, oname = NULL)
+{
   if (getOption("job_appending", FALSE)) {
     if (is(x, "job")) {
       if (requireNamespace("nvimcom")) {
-        oname <- substitute(x)
-        max <- findMaxStepMethod(class(x))
-        args <- glue::glue("CheckAndAppendMethod('{oname}', {max})")
+        if (is.null(oname)) {
+          oname <- attr(sig(x), "name")
+          if (is.null(oname)) {
+            oname <- substitute(x)
+          }
+        }
+        if (is.null(step)) {
+          max <- findMaxStepMethod(class(x))
+          step <- glue::glue("0:{max}")
+        } else {
+          if (is(step, "character")) {
+            step <- glue::glue('"{step}"')
+          } else if (is.integer(step)) {
+            step <- paste0(range(step), collapse = ":")
+          } else {
+            stop('`step` should be character or integer.')
+          }
+        }
+        args <- glue::glue(
+          "CheckAndAppendMethod('{oname}', '{step}', '{append}', '{method}')"
+        )
         .C("nvimcom_msg_to_nvim", args, PACKAGE = "nvimcom")
       }
     }
@@ -2061,41 +2102,44 @@ setGeneric("step12", group = list("step_series"),
     stepPostModify(x, 12)
   })
 
-stepPostModify <- function(x, n = NULL) {
+stepPostModify <- function(x, n = NULL, formal = TRUE) {
   cli::cli_h1("Job finished & Start post modify")
   xname <- attr(x@sig, "name")
   news <- c()
-  if (!is.null(n)) {
-    if (getOption("auto_convert_plots", FALSE)) {
-      x <- convertPlots(x, n)
-    }
-    if (length(x@plots) >= n) {
-      if (!is.null(x@plots[[ n ]])) {
-        names(x@plots)[ n ] <- paste0("step", n)
+  if (formal) {
+    if (!is.null(n)) {
+      if (getOption("auto_convert_plots", FALSE)) {
+        x <- convertPlots(x, n)
       }
-      if (!is.null(xname)) {
-        new_plots <- paste0(xname, "@plots$step", x@step, "$", names(x@plots[[ x@step ]]))
-        cli::cli_alert_info("Plot news:")
-        lapply(new_plots, cli::cli_code)
-        news <- c(news, new_plots)
+      if (length(x@plots) >= n) {
+        if (!is.null(x@plots[[ n ]])) {
+          names(x@plots)[ n ] <- paste0("step", n)
+        }
+        if (!is.null(xname)) {
+          new_plots <- paste0(xname, "@plots$step", x@step, "$", names(x@plots[[ x@step ]]))
+          cli::cli_alert_info("Plot news:")
+          lapply(new_plots, cli::cli_code)
+          news <- c(news, new_plots)
+        }
       }
-    }
-    if (length(x@tables) >= n) {
-      if (!is.null(x@tables[[ n ]]))
-        names(x@tables)[ n ] <- paste0("step", n)
-      if (!is.null(xname)) {
-        new_tables <- paste0(xname, "@tables$step", x@step, "$", names(x@tables[[ x@step ]]))
-        cli::cli_alert_info("Table news:")
-        lapply(new_tables, cli::cli_code)
-        news <- c(news, new_tables)
+      if (length(x@tables) >= n) {
+        if (!is.null(x@tables[[ n ]]))
+          names(x@tables)[ n ] <- paste0("step", n)
+        if (!is.null(xname)) {
+          new_tables <- paste0(xname, "@tables$step", x@step, "$", names(x@tables[[ x@step ]]))
+          cli::cli_alert_info("Table news:")
+          lapply(new_tables, cli::cli_code)
+          news <- c(news, new_tables)
+        }
       }
     }
   }
+  nParaNames <- NULL
   if (!is.null(xname)) {
     isNewParams <- !names(x@params) %in% x@others$.oldParams
     if (any(isNewParams)) {
       cli::cli_alert_info("Params news:")
-      new_params <- paste0(xname, "@params$", names(x@params)[ isNewParams ])
+      new_params <- paste0(xname, "@params$", nParaNames <- (names(x@params)[ isNewParams ]))
       lapply(new_params, cli::cli_code)
       news <- c(news, new_params)
     }
@@ -2103,19 +2147,30 @@ stepPostModify <- function(x, n = NULL) {
       assign(xname, x)
       writeJobSlotsAutoCompletion(xname, environment())
     }
-    meth <- meth(x, x@step)
-    if (any(nchar(meth))) {
-      if (length(meth) > 1) {
-        meth <- paste0(meth, collapse = "")
+    if (formal) {
+      meth <- meth(x, x@step)
+      if (any(nchar(meth))) {
+        if (length(meth) > 1) {
+          meth <- paste0(meth, collapse = "")
+        }
+        message("METH:\n", .strwrapCh(meth))
       }
-      message("METH:\n", .strwrapCh(meth))
     }
-    snap <- snap(x, x@step)
+    if (formal) {
+      snap <- snap(x, x@step)
+    } else {
+      snap <- snap(x, x$.map_snap)
+    }
     if (any(nchar(snap))) {
       if (length(snap) > 1) {
         snap <- paste0(snap, collapse = "")
       }
       message("SNAP:\n", .strwrapCh(snap))
+    }
+  }
+  if (!is.null(nParaNames)) {
+    if (any(isThat <- grpl(nParaNames, "^\\.feature"))) {
+      message(glue::glue("Available feature: {crayon::red(bind(nParaNames[ isThat ]))}"))
     }
   }
   x
@@ -2446,9 +2501,16 @@ setGeneric("map",
         if (!is.null(x$.map_heading)) {
           job_append_heading(x, heading = x$.map_heading)
         }
+        if (!is.null(x$.map_snap)) {
+          job_append_method(
+            x, x$.map_snap, TRUE, FALSE, attr(sig(x), "name")
+          )
+        }
       }
+      stepPostModify(x, formal = FALSE)
       x$.map_heading <- NULL
-      stepPostModify(x)
+      x$.map_snap <- NULL
+      x
     } else {
       x
     }

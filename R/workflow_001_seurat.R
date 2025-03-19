@@ -433,7 +433,8 @@ setMethod("diff", signature = c(x = "job_seurat"),
     init(snap(x)) <- TRUE
     snap <- vapply(contrasts, bind, character(1), co = " vs ")
     x <- snapAdd(
-      x, "对细胞群差异分析 (依据 {group.by}, 分析 {less(snap)})，筛选差异表达基因。", step = "d"
+      x, "对细胞群差异分析 (依据 {group.by}, 分析 {less(snap)})，筛选差异表达基因。",
+      step = paste0("diff_", name)
     )
     ## contrast intersection
     tops <- split(res, ~ contrast)
@@ -446,13 +447,18 @@ setMethod("diff", signature = c(x = "job_seurat"),
         lst <- list(up = up, down = down)
         lapply(lst, fun_filter)
       })
-    feature(x) <- tops
+    feature(x) <- as_feature(tops, x, analysis = "Seurat 细胞群差异表达分析")
     tops <- unlist(tops, recursive = FALSE)
     x[[ paste0(name, "_intersection") ]] <- tops
     p.sets_intersection <- new_upset(lst = tops, trunc = NULL)
     p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "contrasts-DEGs-intersection")
     p.sets_intersection <- setLegend(p.sets_intersection, "细胞群差异表达基因的 UpSet 交集图。")
     x[[ paste0("p.", name, "_intersection") ]] <- p.sets_intersection
+    if (identical(parent.frame(2), .GlobalEnv)) {
+      job_append_method(
+        x, paste0("diff_", name), TRUE, FALSE
+      )
+    }
     return(x)
   })
 
@@ -700,7 +706,8 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
   function(x, ref, datasets = NULL, names = NULL,
     group.by = x$group.by, sample = "orig.ident",
     pattern_suffix = "_[^_]+$", cell.props.filter = .5, 
-    feature.nlimit = 3, gene.props.filter = .3, gene.threshold = 0, gene.which = NULL)
+    feature.nlimit = 3, gene.props.filter = .3, gene.threshold = 0, 
+    gene.which = NULL, excludes = "Monocyte", cut.cor = .3, cut.p = .05)
   {
     message("Correlation analysis for two feature sets within each cell group.")
     if (length(ref) != 2) {
@@ -711,10 +718,18 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
     if (!is.null(cell.props.filter)) {
       freq <- prop.table(table(metadata[[ group.by ]], metadata[[ sample ]]), 1)
       groups <- names(which(apply(freq, 1, function(x) entropy_score(freq = x)) > cell.props.filter))
+      x <- snapAdd(x, "以标准化熵筛选于样本中相对均衡分布的细胞 ({bind(groups)}) (cutoff: {cell.props.filter}) \n\n ({.entropy_score_method()})。\n\n", step = class(ref))
     } else {
       groups <- ids(x, group.by)
     }
-    groups <- groups[ !grpl(groups, "unknown", TRUE) ]
+    if (any(isUnknown <- grpl(groups, "unknown", TRUE))) {
+      x <- snapAdd(x, "\n\n去除未知细胞 (unknown)。\n\n", step = class(ref))
+      groups <- groups[ !isUnknown ]
+    }
+    if (!is.null(excludes)) {
+      x <- snapAdd(x, "去除 {bind(excludes)} 细胞。\n\n", step = class(ref))
+      groups <- groups[ !groups %in% excludes ]
+    }
     fun_formal_name <- function(x) {
       gs(make.names(x), "[.]+", "_")
     }
@@ -725,7 +740,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
           versus_cells <- .get_versus_cell(names(fea))
           group_names <- fun_formal_name(groups)
           if (all(!versus_cells %in% group_names)) {
-            stop('all(!versus_cells %in% group_names)')
+            stop('all(!versus_cells %in% group_names), the name of the feature list illegal?')
           }
         }
       })
@@ -743,13 +758,17 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
         fea@.Data
       }
     }
+    x <- snapAdd(
+      x, "\n\n在上述的细胞群中，分析两组 features (即，{snap(ref[[1]])}，与 {snap(ref[[2]])})。\n\n",
+      step = class(ref)
+    )
     # set up features for each group (cell)
     sets <- sapply(groups, simplify = FALSE,
       function(group) {
         formalGroup <- fun_formal_name(group)
         from <- fun_get_features(ref[[1]], formalGroup)
         to <- fun_get_features(ref[[2]], formalGroup)
-        if (length(from) < feature.nlimit || length(to) < feature.nlimit) {
+        if (!length(from) || !length(to)) {
           NULL
         } else {
           namel(from, to)
@@ -774,6 +793,9 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
       } else {
         seqs <- gene.which
       }
+      if (length(seqs)) {
+        x <- snapAdd(x, "\n\n对于基因集，在各组细胞中，以阈值穿透率去除低表达的基因 (例如，去除总体表达为 0 的基因) (阈值：{gene.threshold}，穿透率 cutoff：{gene.props.filter}) ({.fast_penetrate_rate_method()})。\n\n", step = class(ref))
+      }
       for (i in seqs) {
         lst_stats <- fun_get_stats(ref[[i]])
         n <- 0L
@@ -785,6 +807,18 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
             from_and_to
           })
       }
+    }
+    if (!is.null(feature.nlimit)) {
+      sets <- lapply(sets, 
+        function(lst) {
+          if (length(lst$from) < feature.nlimit || length(lst$to) < feature.nlimit) {
+            message('length(lst$from) < feature.nlimit || length(lst$to) < feature.nlimit, skip ...')
+          } else {
+            lst
+          }
+        })
+      sets <- lst_clear0(sets)
+      x <- snapAdd(x, "\n\n如果细胞群中，两组 features 均满足数量大于 {feature.nlimit}，则保留该细胞群，用于后续分析。\n\n", step = class(ref))
     }
     # set function of getting dataset (job_limma for 'cal_corp')
     fun_get_datasets <- function(feature, dataset, group) {
@@ -803,6 +837,9 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
       }
     }
     # calculate correlation ...
+    x <- snapAdd(
+      x, "\n\n分别对各细胞群的两组 features 关联分析。\n\n", step = class(ref)
+    )
     res_correlation <- sapply(names(sets), simplify = FALSE,
       function(group) {
         cli::cli_h2(glue::glue("Calculating: {group}"))
@@ -811,19 +848,46 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
         lm_from <- fun_get_datasets(from, datasets[[1]], group)
         lm_to <- fun_get_datasets(to, datasets[[2]], group)
         message("Got datasets.")
-        cp <- cal_corp(lm_from, lm_to, from, to, names = names, gname = FALSE)
+        cp <- cal_corp(
+          lm_from, lm_to, from, to, names = names, gname = FALSE,
+          cut.cor = cut.cor, cut.p = cut.p, theme = paste(x@sig, fun_formal_name(group))
+        )
         cp$res$hp <- wrap_scale(
           cp$res$hp, length(to), length(from), 4.5, 5.5
         )
         cp$res
       })
+    s.com <- vapply(names(res_correlation),
+      function(name) {
+        n <- nrow(res_correlation[[name]]$sig.corp) %||% 0L
+        glue::glue("{name} ({n})")
+      }, character(1))
+    x <- snapAdd(x, "设定 P 阈值 ({cut.p}) 与关联系数 ({cut.cor}) 阈值，获取各细胞群中的显著关联组。统计为: {bind(s.com)}。", step = class(ref))
     names(res_correlation) <- fun_formal_name(names(res_correlation))
+    features <- sapply(
+      names(res_correlation), simplify = FALSE, 
+        function(name) {
+          data <- res_correlation[[name]]$sig.corp
+          list(from = unique(data[[1]]), to = unique(data[[2]]))
+        }
+    )
+    analysis <- "细胞群 features 关联分析"
+    x$.feature_cfrom <- as_feature(
+      lapply(features, function(x) x$from),
+      x, analysis = analysis
+    )
+    x$.feature_cto <- as_feature(
+      lapply(features, function(x) x$to), 
+      x, analysis = analysis
+    )
     x$res_correlation <- res_correlation
+    x$.map_snap <- "sets_feature"
+    x$.map_heading <- analysis
     return(x)
   })
 
 
-.get_versus_cell <- function(x, pattern_suffix = "_[^_]+$", split = " - | vs ")
+.get_versus_cell <- function(x, pattern_suffix = "_[^_]+$", split = " - | vs |_vs_")
 {
   x <- strsplit(x, split)
   x <- lapply(x, function(x) unique(s(x, pattern_suffix, "")))
@@ -838,6 +902,10 @@ entropy_score <- function(x, freq = NULL) {
     freq <- prop.table(table(x))
   }
   -sum(freq * log(freq)) / log(length(freq))
+}
+
+.entropy_score_method <- function() {
+  "给定离散随机变量 $X$，其取值为 ${x_1, x_2,...,x_K}$，对应概率分布为 $P(X = x_i) = p_i$，则 **归一化香农熵** 定义为：$H_{\\text{norm}}(X) = \\frac{ -\\sum_{i=1}^K p_i \\log p_i }{ \\log K }$，取值范围 $0 \\leq H_{\\text{norm}}(X) \\leq 1$"
 }
 
 setMethod("map", signature = c(x = "job_seurat", ref = "job_seurat"),
@@ -967,6 +1035,31 @@ setMethod("meta", signature = c(x = "job_seurat"),
   function(x){
     as_tibble(object(x)@meta.data)
   })
+
+setMethod("feature", signature = c(x = "job_seurat"),
+  function(x, mode = .all_features(x), ...){
+    if (missing(mode)) {
+      mode <- ".feature"
+    } else {
+      if (!grpl(mode, "^\\.feature")) {
+        mode <- paste0(".feature_", mode)
+      }
+      mode <- match.arg(mode)
+    }
+    feas <- x[[ mode ]]
+    if (!is(feas, "feature")) {
+      feas <- as_feature(feas, x, ...)
+    }
+    feas
+  })
+
+.all_features <- function(x) {
+  if (!is(x, "job")) {
+    stop('!is(x, "job").')
+  }
+  alls <- names(x@params)
+  alls[ grpl(alls, "^\\.feature") ]
+}
 
 applyGptcelltype <- function(input, tissuename, model = c("gpt-3.5-turbo", "gpt-4"),
   topgenenumber = 10)
@@ -1392,4 +1485,74 @@ plot_cells_proportion <- function(metadata, sample = "orig.ident", cell = "ChatG
   wrap(p.props, 7, .4 * ntypes)
 }
 
+get_high_expressed <- function(x, features, threshold = 0, cutoff = .3,
+  group.by = x$group.by, data = object(x)$RNA$data)
+{
+  if (!is(x, "job_seurat")) {
+    stop('!is(x, "job_seurat").')
+  }
+  if (!is(data, "dgCMatrix")) {
+    stop('!is(data, "dgCMatrix").')
+  }
+  data <- data[ rownames(data) %in% features, ]
+  if (!nrow(data)) {
+    stop('!nrow(data).')
+  }
+  groups <- object(x)@meta.data[[ group.by ]]
+  if (is.null(groups)) {
+    stop('is.null(groups): object(x)@meta.data[[ group.by ]]')
+  }
+  stats <- fast_penetrate_rate(data, groups, threshold)
+  stats$features <- rownames(data)[stats$row]
+  stats <- tibble::as_tibble(stats)
+  if (!is.null(cutoff)) {
+    stats <- dplyr::filter(stats, ratio > !!cutoff)
+  }
+  stats
+}
 
+fast_penetrate_rate <- function(sp_mat, groups, threshold = 0) {
+  if (!is(sp_mat, "dgCMatrix")) {
+    stop('!is(sp_mat, "dgCMatrix").')
+  }
+  require(data.table)
+  # Convert groups into numerical indexes
+  groups <- factor(groups)
+  groupLevels <- levels(groups)
+  group_idx <- as.integer(groups)
+  n_groups <- max(group_idx)
+  
+  # Extract non-zero coordinates and values
+  smry <- Matrix::summary(sp_mat)
+  dt <- data.table(
+    row = smry$i,
+    col = smry$j,
+    val = smry$x,
+    group = group_idx[smry$j]
+  )
+  
+  # Filter expression values that exceed the threshold
+  dt_pass <- dt[val > threshold, .(count = .N), by = .(row, group)]
+  
+  # Calculate the total number of cells in each group
+  group_size <- data.table(group = group_idx)[, .(total = .N), by = group]
+  
+  # Merge calculation of penetration rate
+  result <- dt_pass[
+    group_size, 
+    on = "group", 
+    .(row, group, ratio = count / total)
+  ]
+  result <- result[!is.na(ratio), ]
+  result$group <- groupLevels[ result$group ]
+  result
+}
+
+.fast_penetrate_rate_method <- function(feature = "基因", 
+  type = "细胞", level = "表达")
+{
+  glue::glue(
+    "设某{{{feature}}} $g$ 在{{{type}}}群体 $C$ 中的{{{level}}}值集合为 ${e_c | c \\in C}$，给定阈值 $\\tau$，则 **阈值穿透率** 定义为：$\\text{Penetration}(g, C, \\tau) = \\frac{ \\sum_{c \\in C} \\mathbf{1}_{\\{e_c > \\tau\\}} }{ |C| } \\times 100\\%$ ($\\mathbf{1}_{{e_c > \\tau}}$ 是指示函数，当 $e_c > \\tau$ 时为 1，否则为 0)",
+    .open = "{{{", .close = "}}}"
+  )
+}

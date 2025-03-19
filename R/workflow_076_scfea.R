@@ -341,8 +341,9 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_scfea"),
     )
     x <- snapAdd(
       x, "将 `scFEA` 的代谢通量预测，输入 `Seurat` 数据对象中，按标准工作流分析，以细胞群聚类。",
-      step = "scfea"
+      step = "job_scfea"
     )
+    x$.map_snap <- "job_scfea"
     return(x)
   })
 

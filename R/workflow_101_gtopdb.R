@@ -44,7 +44,9 @@ setMethod("step1", signature = c(x = "job_gtopdb"),
       x$db <- set_lab_legend(
         x$db, "GtoPdb family of ion channels", "为 GtoPdb 数据库所有 ion channels family。"
       )
-      p.pie <- wrap(new_pie(x$db$Family_name), 8, 7)
+      p.pie <- wrap(
+        new_pie(x$db$Family_name, overlap = 10, legend = TRUE), 13, 10
+      )
       p.pie <- setLegend(p.pie, "为 GtoPdb 所有 Ion channels 分布饼图。")
       x <- plotsAdd(x, p.distribution_of_ion_channels = p.pie)
       feature(x) <- rm.no(x$db$HGNC_symbol)

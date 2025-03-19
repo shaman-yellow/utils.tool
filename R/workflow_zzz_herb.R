@@ -65,7 +65,8 @@ setMethod("feature", signature = c(x = "JOB_herb"),
 setMethod("map", signature = c(x = "JOB_herb", ref = "feature"),
   function(x, ref, HLs = NULL, levels = NULL, lab.level = "Level", name = "dis", compounds = NULL,
     compounds.keep.intersection = FALSE,
-    syns = NULL, enrichment = NULL, en.top = 10, use.enrich = c("kegg", "go"), ...)
+    syns = NULL, enrichment = NULL, en.top = 10, use.enrich = c("kegg", "go"), 
+    force_upset = NULL, ...)
   {
     message("Filter compounds targets with disease targets.")
     data <- x$data.allu
@@ -82,7 +83,11 @@ setMethod("map", signature = c(x = "JOB_herb", ref = "feature"),
     }
     if (length(ref)) {
       data <- dplyr::filter(data, Target.name %in% !!unlist(ref, use.names = FALSE))
-      p.venn2dis <- new_venn(Diseases = unlist(ref, use.names = FALSE), Targets = rm.no(x$data.allu$Target.name))
+      p.venn2dis <- new_venn(
+        Diseases = unlist(ref, use.names = FALSE), 
+        Targets = rm.no(x$data.allu$Target.name),
+        force_upset = force_upset
+      )
       p.venn2dis <- setLegend(p.venn2dis, "展示了中药的靶点与{ref@type}靶点{snap(ref)}的交集数目。
         两者共含有 {length(p.venn2dis$ins)} 个交集靶点。")
       x[[ paste0("p.venn2", name) ]] <- .set_lab(p.venn2dis, sig(x),

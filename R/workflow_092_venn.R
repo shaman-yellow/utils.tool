@@ -95,7 +95,7 @@ setMethod("step1", signature = c(x = "job_venn"),
     return(x)
   })
 
-new_venn <- function(..., lst = NULL, wrap = TRUE, 
+new_venn <- function(..., lst = NULL, wrap = TRUE,
   fun_pre = rm.no, force_upset = NULL, n = NULL)
 {
   if (!is.null(lst) && length(list(...))) {
@@ -120,7 +120,7 @@ new_venn <- function(..., lst = NULL, wrap = TRUE,
     p$plotlist[[2]]$layers[[1]]$geom_params$width <- .4
     p$plotlist[[3]]$layers[[1]]$geom_params$width <- .7
   } else {
-    p <- ggVennDiagram::ggVennDiagram(lst, label_percent_digit = 1) +
+    p <- ggVennDiagram::ggVennDiagram(lst, label_percent_digit = 1, edge_size = .3) +
       scale_fill_gradient(low = "grey95", high = sample(color_set(), 1)) +
       theme_void() +
       guides(fill = "none") +
@@ -146,7 +146,7 @@ new_venn <- function(..., lst = NULL, wrap = TRUE,
     p$layers[[whichText]] <- NULL
   }
   if (wrap) {
-    p <- wrap(p, if (force_upset) 5 else 2, 3)
+    p <- wrap(p, if (force_upset) 5 else 3, 4)
   }
   attr(p, "ins") <- ins <- ins(lst = lst)
   attr(p, "lich") <- new_lich(list(All_intersection = ins))

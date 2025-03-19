@@ -289,7 +289,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_fusion"),
     degs <- setLegend(degs, "TWAS 风险相关的{cell} DEGs {filter}。")
     x <- snapAdd(
       x, "筛选 TWAS 风险相关的 DEGs {filter}：{try_snap(degs, 'contrast', 'gene')}。",
-      step = "fusion"
+      step = "job_fusion"
     )
     x$fusion_degs <- degs
     if (plot_heatmap) {
