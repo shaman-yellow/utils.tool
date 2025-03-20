@@ -203,6 +203,30 @@ setClassUnion("numeric_or_character", c("numeric", "character"))
 .feature_list <- setClass("feature_list", contains = c("feature"))
 .feature_char <- setClass("feature_char", contains = c("feature"))
 
+setMethod("show", signature = c(object = "feature_list"),
+  function(object){
+    lst <- object@.Data
+    names(lst) <- names(object)
+    n <- 0L
+    fun <- function(x) {
+      if (is(x, "list")) {
+        n <<- n + 1L
+        mapply(x, names(x), SIMPLIFY = FALSE,
+          FUN = function(i, name) {
+            message(stringr::str_pad(" ", (n - 1) * 4),
+              glue::glue("{crayon::yellow(name)}"))
+            fun(i)
+          })
+        n <<- n - 1L
+      } else if (is(x, "character")) {
+        message(showStrings(x, level = n, space = 4))
+      } else {
+        message("...")
+      }
+    }
+    fun(lst)
+  })
+
 setValidity("feature_list",
   function(object){
     is(object@.Data, "list")

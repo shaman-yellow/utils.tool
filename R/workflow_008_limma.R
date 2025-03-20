@@ -514,7 +514,7 @@ collate_dataset_DEGs <- function(x, name = "guess",
 }
 
 pattern_contrasts <- function(group, formula, pattern = paste0(signature, "$"),
-  signature, as.list = FALSE)
+  signature, as.list = FALSE, force = FALSE)
 {
   if (any(duplicated(group))) {
     group <- unique(group)
@@ -539,8 +539,17 @@ pattern_contrasts <- function(group, formula, pattern = paste0(signature, "$"),
   subtypes <- unique(subtypes)
   lhs <- paste0(subtypes, signature[1])
   rhs <- paste0(subtypes, signature[2])
-  if (any(!lhs %in% group) || any(!rhs %in% group)) {
-    stop('any(!lhs %in% group) || any(!rhs %in% group), string executed error.')
+  if ((any(!lhs %in% group) || any(!rhs %in% group))) {
+    message(
+      glue::glue("lhs:\n{showStrings(lhs)}\nrhs:\n{showStrings(rhs)}\ngroup:\n{showStrings(group)}")
+    )
+    if (!force) {
+      stop('any(!lhs %in% group) || any(!rhs %in% group), string executed error.')
+    } else {
+      which <- (lhs %in% group) & (rhs %in% group)
+      lhs <- lhs[which]
+      rhs <- rhs[which]
+    }
   }
   if (as.list) {
     lapply(seq_along(lhs), function(n) c(lhs[n], rhs[n]))

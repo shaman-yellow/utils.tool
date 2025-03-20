@@ -1294,6 +1294,10 @@ wrap_scale <- function(data, n_width, n_height, min_width = NULL, min_height = N
   )
 }
 
+wrap_layout <- function(data, layout, size = calculate_layout_size(layout)$size[1], ...) {
+  wrap(data, size * layout[2], size * layout[1])
+}
+
 wrap <- function(data, width = 10, height = 8, showtext = NULL) {
   if (is(data, "wrap")) {
     data@width <- width
@@ -3136,7 +3140,7 @@ new_col <- function(..., lst = NULL, fun = function(x) x[ !is.na(x) & x != ""]) 
 
 new_pie <- function(x, title = NULL, use.ggplot = TRUE, overlap = 30,
   fun_text = function(...) ggrepel::geom_label_repel(..., max.overlaps = overlap),
-  legend = FALSE)
+  legend = FALSE, legend_ncol = 1)
 {
   x <- split(x, x)
   x <- vapply(x, length, integer(1))
@@ -3157,17 +3161,22 @@ new_pie <- function(x, title = NULL, use.ggplot = TRUE, overlap = 30,
       color_set()
     else
       ggsci::pal_npg()(10)
+    if (is.null(legend_ncol)) {
+      guides <- geom_blank()
+    } else {
+      guides <- guides(fill = guide_legend(ncol = legend_ncol))
+    }
     p <- ggplot(data, aes(x = 0L, y = value, fill = var)) +
       geom_bar(stat = 'identity', position = 'stack', width = 1) +
       fun_text(
         aes(x = lab.x, y = lab.y, label = if (legend) stringr::str_trunc(label, 20) else label)
-      ) +
+        ) +
       scale_fill_manual(values = palette) +
       labs(x = '', y = '', title = '', fill = "Type") +
       coord_polar(theta = 'y') +
       theme_minimal() +
       ggtitle(title) +
-      guides(fill = guide_legend(ncol = 1)) +
+      guides +
       theme(
         # legend.position = "none",
         plot.title = element_text(size = 15, hjust = .5, vjust = -.5),

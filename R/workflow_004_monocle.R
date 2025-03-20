@@ -276,14 +276,27 @@ setMethod("step3", signature = c(x = "job_monocle"),
 
 setMethod("step4", signature = c(x = "job_monocle"),
   function(x, groups = ids(x), genes, group.by = NULL, cutoff = .5,
-    cutoff.den = 1, group.den = "orig.ident")
+    cutoff.den = 1, group.den = "orig.ident", significant = TRUE)
   {
     step_message("Plot genes (in branch) that change as a function of pseudotime.
       red{{`groups`}} and red{{`genes`}} were used to subset the `object(x)`."
     )
     cds <- object(x)
     fun_sub <- selectMethod("[", class(cds))
-    gene.groups <- grouping_vec2list(genes, 10, TRUE)
+    if (is(genes, "feature")) {
+      x <- snapAdd(x, "探究 {snap(genes)} 在拟时轨迹中的表达变化。")
+      genes <- resolve_feature(genes)
+    } else {
+      x <- snapAdd(
+        x, "探究 {less(genes, 5)} 在拟时轨迹中的表达变化。"
+      )
+    }
+    if (significant) {
+      genes <- genes[ genes %in% x@tables$step3$graph_test.sig$gene_id ]
+      x <- snapAdd(x, "这些基因中，共 {length(genes)} 属于 `Moran’s I test (Graph Test)` 差异表达基因。仅分析这些基因。")
+    }
+    genes <- genes[ genes %in% rownames(object(x)) ]
+    gene.groups <- grouping_vec2list(unique(genes), 25, TRUE)
     pblapply <- pbapply::pblapply
     colData <- SummarizedExperiment::colData
     if (is.null(group.by)) {
@@ -299,14 +312,15 @@ setMethod("step4", signature = c(x = "job_monocle"),
           } else {
             cds <- fun_sub(cds, rownames(cds) %in% genes, )
           }
+          layout <- calculate_layout(length(genes))
           p <- monocle3::plot_genes_in_pseudotime(cds,
             label_by_short_name = FALSE,
             color_cells_by = group.by,
-            min_expr = cutoff
+            min_expr = cutoff, nrow = layout[1], ncol = layout[2]
           )
           data <- p$data
-          p <- wrap(p, 6, length(genes) * 1.6)
-          p <- setLegend(p, "为 {bind(genes)} 在拟时 (Pseudotime) 中的表达变化。")
+          p <- wrap_layout(p, layout)
+          p <- setLegend(p, "为 {less(genes)} 在拟时 (Pseudotime) 中的表达变化。")
           namel(p, data)
         }))
     names(genes_in_pseudotime) <- paste0("pseudo", seq_along(genes_in_pseudotime))
@@ -789,6 +803,17 @@ setMethod("asjob_seurat", signature = c(x = "job_monocle"),
     if (reset_palette)
       x$palette <- NULL
     show(vis(x, "regroup.hclust", 1.5))
+    return(x)
+  })
+
+setMethod("focus", signature = c(x = "job_monocle"),
+  function(x, features, group.by = x@params$group.by, name = "genes", ...)
+  {
+    res <- focus(
+      x$sr_sub, features = features, group.by = group.by, 
+      name = name, ..., return_type = "list"
+    )
+    x[[ paste0("focus_", name) ]] <- res
     return(x)
   })
 

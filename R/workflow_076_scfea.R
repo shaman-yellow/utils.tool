@@ -159,23 +159,28 @@ setMethod("step1", signature = c(x = "job_scfea"),
   function(x)
   {
     step_message("Run prediction.")
-    if (!is.remote(x)) {
-      dir.create(file.path(x$wd, "output"))
-    }
-    rem_run(
-      scriptPrefix(x), pg("scfeaPython", is.remote(x)), " ", pg("scfea", is.remote(x)),
-      " --data_dir ", pg("scfea_db", is.remote(x)),
-      " --input_dir ", x$dir,
-      " --test_file ", x$input_file,
-      " --res_dir ", x$dir,
-      " --moduleGene_file ", x$moduleGene_file,
-      " --stoichiometry_matrix ", x$stoichiometry_matrix,
-      " --cName_file ", x$cName_file,
-      " --output_flux_file ", "flux.csv",
-      " --output_balance_file ", "balance.csv"
-    )
     if (is.remote(x)) {
-      testRem_file.exists(x, "flux.csv", x$wait)
+      dir <- x$map_local
+    } else {
+      dir <- x$wd
+      dir.create(file.path(dir, "output"))
+    }
+    if (!file.exists(file.path(dir, "flux.csv"))) {
+      rem_run(
+        scriptPrefix(x), pg("scfeaPython", is.remote(x)), " ", pg("scfea", is.remote(x)),
+        " --data_dir ", pg("scfea_db", is.remote(x)),
+        " --input_dir ", x$dir,
+        " --test_file ", x$input_file,
+        " --res_dir ", x$dir,
+        " --moduleGene_file ", x$moduleGene_file,
+        " --stoichiometry_matrix ", x$stoichiometry_matrix,
+        " --cName_file ", x$cName_file,
+        " --output_flux_file ", "flux.csv",
+        " --output_balance_file ", "balance.csv"
+      )
+      if (is.remote(x)) {
+        testRem_file.exists(x, "flux.csv", x$wait)
+      }
     }
     return(x)
   })
@@ -189,8 +194,8 @@ setMethod("step2", signature = c(x = "job_scfea"),
     } else {
       dir <- x$wd
     }
-    t.balance <- ftibble(paste0(dir, "/", "balance.csv"))
-    t.flux <- ftibble(paste0(dir, "/", "flux.csv"))
+    t.balance <- ftibble(file.path(dir, "balance.csv"))
+    t.flux <- ftibble(file.path(dir, "flux.csv"))
     t.flux <- .set_lab(t.flux, sig(x), "metabolic flux matrix")
     t.flux <- setLegend(t.flux, "为细胞代谢通量矩阵 (各 `M_` 为代谢模块)。")
     fun <- function(file) {
@@ -226,9 +231,11 @@ setMethod("step2", signature = c(x = "job_scfea"),
   })
 
 setMethod("vis", signature = c(x = "job_scfea"),
-  function(x, group, feature, order = TRUE, cutoff = "tail", mag = 100){
-    if (missing(group)) {
-      stop('missing(group), group of Cell Type can not be missing.')
+  function(x, group.by, feature, groups = NULL, order = TRUE,
+    cutoff = "tail", mag = 100, return_type = c("job", "plot"), name = NULL)
+  {
+    if (missing(group.by)) {
+      stop('missing(group.by), group.by of Cell Type can not be missing.')
     }
     if (missing(feature)) {
       stop(
@@ -243,7 +250,7 @@ setMethod("vis", signature = c(x = "job_scfea"),
     if (!nrow(data)) {
       stop('!nrow(data), can not match any feature.')
     }
-    data <- map(data, "V1", x$metadata, "rownames", group, col = "group")
+    data <- map(data, "V1", x$metadata, "rownames", group.by, col = "group.by")
     if (order) {
       data <- dplyr::mutate(data, name = factor(name, levels = !!rev(feature)))
     }
@@ -260,23 +267,33 @@ setMethod("vis", signature = c(x = "job_scfea"),
         }
       }
     }
-    p.flux <- ggplot(data, aes(x = Flux, y = name, fill = group)) +
+    if (!is.null(groups)) {
+      data <- dplyr::filter(data, group.by %in% !!groups)
+    }
+    p.flux <- ggplot(data, aes(x = Flux, y = name, fill = group.by)) +
       ggridges::geom_density_ridges() +
-      facet_wrap(~ group, nrow = 1) +
+      facet_wrap(~ group.by, nrow = 1) +
       guides(fill = "none") +
       ggridges::theme_ridges()
     p.flux <- wrap(
-      p.flux, min(20, length(unique(data$group)) * 4), 
+      p.flux, min(20, length(unique(data$group.by)) * 3 + max(nchar(as.character(unique(data$name)))) * .1), 
       min(10, length(feature) * .4 + 1)
     )
-    p.flux <- set_lab_legend(p.flux, "Cell flux ridge plot", "为细胞的代谢通量山脊图。")
-    x$p.flux <- p.flux
-    return(x)
+    p.flux <- set_lab_legend(
+      p.flux, paste(name, "Cell flux ridge plot"), "为细胞的代谢通量山脊图。"
+    )
+    return_type <- match.arg(return_type)
+    if (return_type == "job") {
+      x$p.flux <- p.flux
+      return(x)
+    } else {
+      return(p.flux)
+    }
   })
 
 setMethod("map", signature = c(x = "job_scfea", ref = "job_limma"),
-  function(x, ref, group = ref$group.by, feature = NULL, 
-    which = 1L, ...)
+  function(x, ref, group.by = ref$group.by, groups = NULL, feature = NULL, 
+    which = NULL, ...)
   {
     if (ref@step < 2L) {
       stop('ref@step < 2L.')
@@ -284,15 +301,33 @@ setMethod("map", signature = c(x = "job_scfea", ref = "job_limma"),
     if (x@step < 2L) {
       stop('x@step < 2L.')
     }
-    if (is.null(group)) {
-      stop('is.null(group).')
+    if (is.null(group.by)) {
+      stop('is.null(group.by).')
     }
-    if (is.null(feature)) {
-      top <- ref@tables$step2$tops[[which]]
-      feature <- top$name
+    if (is.null(which)) {
+      which <- names(ref@tables$step2$tops)
+    } else if (is.numeric(which)) {
+      which <- names(ref@tables$step2$tops)[which]
     }
-    message(glue::glue("The top has: {nrow(top)}."))
-    vis(x, group = group, feature = feature)
+    p.fluxs <- lapply(which, 
+      function(which) {
+        if (is.null(feature)) {
+          top <- ref@tables$step2$tops[[which]]
+          if (!nrow(top)) {
+            return(NULL)
+          }
+          feature <- top$name
+          groups <- .get_versus_cell(which, NULL)
+        }
+        message(glue::glue("The top has: {nrow(top)}."))
+        vis(
+          x, group.by = group.by, feature = feature, groups = groups, 
+          return_type = "plot", name = .get_versus_cell(which)
+        )
+      })
+    names(p.fluxs) <- .get_versus_cell(which)
+    x$p.fluxs <- p.fluxs
+    return(x)
   })
 
 setMethod("map", signature = c(x = "job_seurat", ref = "job_scfea"),

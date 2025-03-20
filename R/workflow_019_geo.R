@@ -309,7 +309,9 @@ setMethod("expect", signature = c(x = "job_geo", ref = "ANY"),
     }
   })
 
-showStrings <- function(x, stat = TRUE, trunc = TRUE) {
+showStrings <- function(x, stat = TRUE, trunc = TRUE, 
+  space = 2, level = 2)
+{
   if (any(duplicated(x))) {
     if (stat) {
       freq <- table(x)
@@ -319,7 +321,7 @@ showStrings <- function(x, stat = TRUE, trunc = TRUE) {
   if (length(x) > 10 && trunc) {
     x <- c(head(x, n = 10), "...")
   }
-  stringr::str_wrap(bind("'", x, "'"), indent = 4, exdent = 4)
+  stringr::str_wrap(bind("'", x, "'"), indent = space * level, exdent = space * level)
 }
 
 preset_group_string <- function(x) {

@@ -154,6 +154,7 @@
     `prr` = "药物临床化疗反应预测、耐药性预测[pharm]",
     `musite` = "蛋白转录后修饰位点预测 (PTMs)[rna-method]",
     `epi` = "表观遗传调控因子数据获取 (数据库)[gene]",
+    `ps` = "PhaSepDB 相分离相关蛋白数据库[gene]",
     `ctd` = "化合物和疾病关联数据获取 (CTD 数据库)[gene]",
     `dl` = "药物 Drug-likeness 预测 (__dep__)",
     `scrna:flux` = "单细胞数据预测代谢通量[scrna-method]",

@@ -220,12 +220,12 @@ setMethod("step5", signature = c(x = "job_seurat"),
 
 setMethod("step6", signature = c(x = "job_seurat"),
   function(x, tissue, ref.markers = NULL, type = c("Normal cell"),
-    filter.p = 0.01, filter.fc = 1.5, filter.pct = .7,
+    filter.p = 0.01, filter.fc = 1, filter.pct = .7,
     org = c("Human", "Mouse"),
     cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_cell",
     method = c("cellMarker", "gpt", "scsa"), exclude = NULL,
     exclude_pattern = "derived|progenitor|Treg|Naive|helper|Transitional|Memory|switch|white blood cell",
-    toClipboard = TRUE, post_modify = FALSE, keep_markers = 2,
+    extra = NULL, toClipboard = TRUE, post_modify = FALSE, keep_markers = 2,
     n = 30, variable = FALSE, hp_type = c("pretty", "seurat"))
   {
     method <- match.arg(method)
@@ -316,7 +316,9 @@ setMethod("step6", signature = c(x = "job_seurat"),
         tissue <- bind(unique(job_markers$db$tissueType))
         ref.markers <- ref(job_markers)
         if (!is.null(exclude_pattern) || !is.null(exclude)) {
-          exclude_pattern <- paste0(exclude_pattern, "|", exclude)
+          exclude_pattern <- paste0(
+            c(exclude_pattern, exclude), collapse = "|"
+          )
           ref.markers <- dplyr::filter(
             ref.markers, !grpl(cell, exclude_pattern, TRUE)
           )
@@ -344,7 +346,7 @@ setMethod("step6", signature = c(x = "job_seurat"),
         x <- map(
           x, job_markers, markers = split(
             validMarkers$markers, validMarkers$cell
-          ), group.by = "scsa_cell", max = 2
+          ), group.by = "scsa_cell", max = 2, extra = extra
         )
       }
       x@plots[[ 6 ]] <- list(p.map_scsa = lst$p.map_scsa, p.props_scsa = p.props_scsa)
@@ -670,7 +672,7 @@ setMethod("vis", signature = c(x = "job_seurat"),
 
 setMethod("focus", signature = c(x = "job_seurat"),
   function(x, features, group.by = x@params$group.by, 
-    sp = FALSE, name = "genes", ...)
+    sp = FALSE, name = "genes", return_type = c("job", "list"), ...)
   {
     if (is(features, "feature")) {
       features <- resolve_feature(features)
@@ -678,19 +680,32 @@ setMethod("focus", signature = c(x = "job_seurat"),
     if (sp) {
       return(focus(.job_seuratSp(object = object(x)), features, ...))
     }
-    p.vln <- wrap(e(Seurat::VlnPlot(
+    layout <- calculate_layout(length(features))
+    ncol <- layout[[ "cols" ]]
+    p.vln <- e(Seurat::VlnPlot(
         object(x), features = features, group.by = group.by,
-        pt.size = 0, alpha = .3, cols = color_set()
-        )))
-    p.vln <- .set_lab(p.vln, sig(x), "violing plot of expression level of the genes")
+        pt.size = 0, alpha = .3, cols = color_set(), combine = FALSE
+        ))
+    p.vln <- lapply(p.vln, function(x) x + theme(legend.position = "none"))
+    p.vln <- wrap_layout(patchwork::wrap_plots(p.vln, ncol = ncol), layout)
+    p.vln <- .set_lab(
+      p.vln, sig(x), paste("violing plot of expression level", name)
+    )
     p.vln <- setLegend(p.vln, "基因 {less(features)} 表达水平的小提琴图。")
-    p.dim <- wrap(e(Seurat::FeaturePlot(
-        object(x), features = features
-        )))
-    p.dim <- .set_lab(p.dim, sig(x), "dimension plot of expression level of the genes")
+    p.dim <- wrap_layout(patchwork::wrap_plots(e(Seurat::FeaturePlot(
+            object(x), features = features, combine = FALSE
+            )), ncol = ncol), layout)
+    p.dim <- .set_lab(
+      p.dim, sig(x), paste("dimension plot of expression level", name)
+    )
     p.dim <- setLegend(p.dim, "基因 {less(features)} 表达水平的 Dimension reduction plot.")
-    x[[ paste0("focus_", name) ]] <- namel(p.vln, p.dim)
-    return(x)
+    return_type <- match.arg(return_type)
+    if (return_type == "job") {
+      x[[ paste0("focus_", name) ]] <- namel(p.vln, p.dim)
+      return(x)
+    } else {
+      return(namel(p.vln, p.dim))
+    }
   })
 
 setMethod("map", signature = c(x = "job_seurat", ref = "character"),
@@ -706,7 +721,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
   function(x, ref, datasets = NULL, names = NULL,
     group.by = x$group.by, sample = "orig.ident",
     pattern_suffix = "_[^_]+$", cell.props.filter = .5, 
-    feature.nlimit = 3, gene.props.filter = .3, gene.threshold = 0, 
+    feature.nlimit = 3, gene.props.filter = .1, gene.threshold = 0, 
     gene.which = NULL, excludes = "Monocyte", cut.cor = .3, cut.p = .05)
   {
     message("Correlation analysis for two feature sets within each cell group.")
@@ -853,7 +868,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
           cut.cor = cut.cor, cut.p = cut.p, theme = paste(x@sig, fun_formal_name(group))
         )
         cp$res$hp <- wrap_scale(
-          cp$res$hp, length(to), length(from), 4.5, 5.5
+          cp$res$hp, length(to), length(from), 4.5, 4 + max(nchar(to)) * .05
         )
         cp$res
       })
@@ -890,9 +905,11 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
 .get_versus_cell <- function(x, pattern_suffix = "_[^_]+$", split = " - | vs |_vs_")
 {
   x <- strsplit(x, split)
-  x <- lapply(x, function(x) unique(s(x, pattern_suffix, "")))
-  if (any(lengths(x) != 1)) {
-    stop('any(lengths(x) != 1)')
+  if (!is.null(pattern_suffix)) {
+    x <- lapply(x, function(x) unique(s(x, pattern_suffix, "")))
+    if (any(lengths(x) != 1)) {
+      stop('any(lengths(x) != 1)')
+    }
   }
   unlist(x)
 }
@@ -1188,12 +1205,15 @@ scsa_annotation <- function(
   }
   ## results file
   marker_file <- mkfile("marker_file", fileext = ".csv")
+  message(glue::glue("Marker file: {marker_file}"))
   result_file <- mkfile("result_file")
+  message(glue::glue("Results file: {result_file}"))
   if (!file.exists(result_file)) {
     if (!is.null(ref.markers)) {
       .check_columns(ref.markers, c("cell", "markers"))
       ref.markers <- dplyr::relocate(ref.markers, cell, markers)
       ref.markers_file <- mkfile("ref.markers_file", fileext = ".tsv")
+      message(glue::glue("Reference markers: {ref.markers_file}"))
       write_tsv(ref.markers, ref.markers_file, col.names = FALSE)
       x@params$ref.markers_file <- ref.markers_file
       ref.markers.cmd <- paste0(" -M ", ref.markers_file)

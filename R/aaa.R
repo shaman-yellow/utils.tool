@@ -840,3 +840,85 @@ ands <- function(lst) {
   res
 }
 
+.show_layers <- function(layers) {
+  cat(crayon::silver("layers of", length(layers), "\n"))
+  mapply(names(layers), seq_along(layers),
+    FUN = function(name, seq){
+      cat(crayon::silver("  +++ layer", seq, ": ", name, "+++\n"))
+      print(layers[[ seq ]])
+      cat("\n")
+    })
+  cat("\n")
+}
+
+calculate_layout <- function(n, max_ratio = 3, prefer_rows = FALSE) {
+  if (n < 1) {
+    stop('n < 1.')
+  }
+  if (max_ratio < 1) {
+    stop('max_ratio < 1.')
+  }
+
+  # Generate candidate layout schemes
+  generate_candidates <- function(n) {
+    candidates <- list()
+    max_dim <- ceiling(sqrt(n) * max_ratio)
+    
+    for (r in 1:max_dim) {
+      c <- ceiling(n / r)
+      ratio <- max(r, c) / min(r, c)
+      
+      if (ratio <= max_ratio && r * c >= n) {
+        candidates[[length(candidates)+1]] <- c(r, c, r*c - n, abs(r - c))
+      }
+    }
+    do.call(rbind, candidates)
+  }
+
+  # Scoring criteria: Blank quantity>Column difference>Aspect ratio
+  evaluate_candidates <- function(candidates) {
+    candidates[order(
+      candidates[,3],
+      candidates[,4],
+      candidates[,2]/candidates[,1]
+    ), ]
+  }
+
+  # Execute the calculation process
+  candidates <- generate_candidates(n)
+  if (nrow(candidates) == 0) {
+    stop('nrow(candidates) == 0.')
+  }
+  
+  sorted <- evaluate_candidates(candidates)
+  best <- sorted[1, 1:2]
+  
+  # Processing direction preference
+  if (!prefer_rows && best[1] > best[2]) best <- rev(best)
+  
+  setNames(as.integer(best), c("rows", "cols"))
+}
+
+calculate_layout_size <- function(layout, base_size = 5, 
+  decay_rate = 0.7, min_size = 1)
+{
+  rows <- layout[[1]]
+  cols <- layout[[2]]
+  layout_complexity <- sqrt(rows + cols)
+
+  # Calculation formula for dynamic attenuation coefficient
+  size <- base_size * (decay_rate ^ (layout_complexity - 1))
+
+  # Apply size limitations and maintain consistent width and height
+  final_size <- max(min_size, min(base_size, size))
+
+  list(
+    dimension = c(rows, cols),
+    size = rep(round(final_size, 1), 2),
+    area_ratio = (final_size^2) / (base_size^2)
+  )
+}
+
+formal_name <- function(x) {
+  gs(make.names(x), "[.]+", "_")
+}
