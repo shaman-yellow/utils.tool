@@ -565,6 +565,11 @@ trace_filter <- function(data, ..., quosures = NULL) {
 setGeneric("try_snap",
   function(x, ...) standardGeneric("try_snap"))
 
+setMethod("try_snap", signature = c(x = "logical"),
+  function(x){
+    try_snap(as.character(x))
+  })
+
 setMethod("try_snap", signature = c(x = "data.frame"),
   function(x, main, sub){
     items <- split(x[[ sub ]], x[[ main ]])

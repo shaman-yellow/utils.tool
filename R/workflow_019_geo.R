@@ -139,7 +139,7 @@ setMethod("step2", signature = c(x = "job_geo"),
       dir <- file.path(baseDir, object(x))
       continue <- 1L
       if (dir.exists(dir)) {
-        continue <- usethis::ui_yeah(glue::glue("File exists ({dir}), continue?"))
+        continue <- sureThat(glue::glue("File exists ({dir}), continue?"))
       }
       if (continue) {
         e(GEOquery::getGEOSuppFiles(object(x), filter_regex = filter_regex,
@@ -152,10 +152,10 @@ setMethod("step2", signature = c(x = "job_geo"),
               utils::untar(file, exdir = normalizePath(dir))
             })
         }
-        files <- list.files(dir, ".", full.names = TRUE)
-        files <- files[ !grpl(files, "\\.tar$") ]
-        x$dir_files <- files
       }
+      files <- list.files(dir, ".", full.names = TRUE)
+      files <- files[ !grpl(files, "\\.tar$") ]
+      x$dir_files <- files
     }
     return(x)
   })

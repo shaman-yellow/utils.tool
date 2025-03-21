@@ -53,7 +53,7 @@ setMethod("focus", signature = c(x = "job_gds"),
   })
 
 job_gds <- function(keys,
-  n = "6:1000",
+  n = "6:300",
   # Mus musculus, Rattus norvegicus
   org = "Homo sapiens",
   elements = c("GSE", "title", "summary", "taxon", "gdsType",
@@ -81,21 +81,37 @@ job_gds <- function(keys,
     snapAdd_onExit("x", "未发现合适数据集。")
   }
   x <- .job_gds(object = object, params = list(query = query, elements = elements, org = org, n = n))
-  x <- methodAdd(x, "使用 Entrez Direct (EDirect) <https://www.ncbi.nlm.nih.gov/books/NBK3837/> 搜索 GEO 数据库 (`esearch -db gds`)，查询信息为: ({paste0(paste0('(', query, ''), collapse = ' AND ')}) AND ({extra})。")
+  x <- methodAdd(x, "使用 Entrez Direct (EDirect) <https://www.ncbi.nlm.nih.gov/books/NBK3837/> 搜索 GEO 数据库 (`esearch -db gds`)，查询信息为: ({paste0(paste0('(', query, ''), collapse = ' AND ')}) AND ({extra})，转化为数据表格。")
   x <- snapAdd(x, "以 Entrez Direct (EDirect) 搜索 GEO 数据库 (检索条件见方法章节) 。")
   x
 }
 
 setMethod("step1", signature = c(x = "job_gds"),
   function(x, ..., single_cell = FALSE, clinical = TRUE, 
-    rna_or_array = TRUE,
-    excludes = "\\bKO\\b|\\bWT\\b|knock|deficien|SuperSeries|transgenic|regulat|CD[0-9]+",
-    extras = NULL)
+    rna_or_array = TRUE, mRNA = TRUE,
+    excludes = paste0(
+      "\\bKO\\b|\\bWT\\b|_WT_|_KO_|wildtype|mutant|knock|deficien|absen",
+      "|SuperSeries|transgenic|CD[0-9]+"
+      ),
+    extras = NULL, deep_inspect = TRUE,
+    control = "normal|control|healthy|ctrl|adjacent|\\bN[0-9]+\\b|\\bC[0-9]+\\b",
+    expects = NULL, cl = 5
+  )
   {
     step_message("Statistic.")
     args <- rlang::enquos(...)
+    fun_expects <- function() {
+      if (!is.null(expects)) {
+        isThat <- expects %in% object(x)$GSE
+        glue::glue("Got expects: {try_snap(isThat)} {if (any(!isThat)) bind(expects[ !isThat ]) else ''}")
+      } else {
+        ""
+      }
+    }
+    fun_elements <- function(x) {
+      gs(strsplit(x, "\\|")[[1]], "\\\\b", "")
+    }
     if (!is.null(single_cell)) {
-      message(glue::glue("dim: {bind(dim(object(x)))}, single_cell == {single_cell}"))
       if (single_cell) {
         object(x) <- dplyr::filter(
           object(x), grpl(paste(title, summary), "single[ -]cell|scRNA", TRUE)
@@ -106,46 +122,95 @@ setMethod("step1", signature = c(x = "job_gds"),
         )
       }
       snap <- if (single_cell) "仅保留" else "滤除"
-      x <- methodAdd(x, "以正则匹配，{snap}包含 'single cell' 或 'scRNA' 的数据例。")
+      x <- methodAdd(x, "以正则匹配，{snap} 'summary' 或 'title' 中包含 'single cell' 或 'scRNA' 的数据例。")
+      message(glue::glue("dim: {bind(dim(object(x)))}, single_cell == {single_cell}. {fun_expects()}"))
     }
     if (!is.null(clinical)) {
-      message(glue::glue("dim: {bind(dim(object(x)))}, clinical == {clinical}"))
       if (clinical) {
+        keyClinical <- "in vitro|cell line|CD[0-9]+|vehicle|vector|DMSO|/ml|\\bnm\\b"
         object(x) <- dplyr::filter(
-          object(x),
-          !grpl(summary, "in vivo|in vitro|cells|cell type|cell line|CD[0-9]+", TRUE)
+          object(x), !grpl(summary, keyClinical, TRUE)
         )
-        # x <- methodAdd(x,
-        #   "仅查询临床样本信息，因此滤除匹配到 'cells', 'cell type' 或 'cell line' 的实验数据例。
-        #   此外，去除了以特定 Marker 细胞类型为研究对象的数据例 (CD4、CD8 T 细胞等，可能是来源于实验室的数据)。
-        #   (注：以上仅为查找合适的 GEO 数据所做的数据筛选，与实际分析无关) 。"
-        # )
+        x <- methodAdd(x,
+          "仅查询临床数据，因此滤除匹配到关键词 {bind(fun_elements(keyClinical))} 的数据例。
+          (注：以上仅为查找合适的 GEO 数据所做的数据筛选，与实际分析无关) 。"
+        )
       }
+      message(glue::glue("dim: {bind(dim(object(x)))}, clinical == {clinical}. {fun_expects()}"))
     }
     if (!is.null(rna_or_array)) {
-      message(glue::glue("dim: {bind(dim(object(x)))}, rna_or_array == {rna_or_array}"))
       if (rna_or_array) {
         object(x) <- dplyr::filter(object(x), 
           grpl(gdsType, "Expression profiling by high throughput sequencing|Expression profiling by array"))
-        methodAdd_onExit("x", "仅获取类型包含 'Expression profiling by high throughput sequencing' 或 'Expression profiling by array' 的数据例。")
+        x <- methodAdd(x, "仅获取类型包含 'Expression profiling by high throughput sequencing' 或 'Expression profiling by array' 的数据例。")
       }
+      message(glue::glue("dim: {bind(dim(object(x)))}, rna_or_array == {rna_or_array}. {fun_expects()}"))
     }
     if (!is.null(excludes)) {
       if (!is.null(extras)) {
         excludes <- paste0(excludes, "|", extras)
       }
       object(x) <- dplyr::filter(
-        object(x), !grpl(summary, excludes, TRUE)
+        object(x),
+        !grpl(summary, excludes, TRUE) & !grpl(title, excludes, TRUE)
       )
       x$excludes <- excludes
-      methodAdd_onExit("x", "排除 summary 中包含 '{excludes}' 的数据例。")
+      EX <- fun_elements(excludes)
+      x <- methodAdd(x, "此外，排除 summary 或 title 中匹配到字符集 EX ({bind(EX)}) 的数据例。")
+      message(glue::glue("dim: {bind(dim(object(x)))}, excludes .... {fun_expects()}"))
     }
-    message(glue::glue("dim: {bind(dim(object(x)))}, args ..."))
+    if (deep_inspect) {
+      if (nrow(object(x)) > 200) {
+        stop(glue::glue('nrow(object(x)) > 200, too many data to fetch ({nrow(object(x))}).'))
+      } else if (!nrow(object(x))) {
+        stop('nrow(object(x)) == FALSE')
+      }
+      others <- expect_geo_extra(object(x)$GSE, cl = cl)
+      object(x) <- tbmerge(object(x), others, by = "GSE", all.x = TRUE)
+      if (!is.null(excludes)) {
+        x <- methodAdd(x, "上述得到 {nrow(object(x))} 个 GSE 数据集。以 R 抓取网页 (例如，`RCurl::getURL` 抓取 <{object(x)$GSE[1]}>)，解析 'Overall design' 和 'Samples' 模块，匹配字符集 EX，排除匹配到的数据例。")
+        object(x) <- dplyr::filter(
+          object(x), !grpl(design, excludes, TRUE) & !grpl(samples, excludes, TRUE)
+        )
+        message(glue::glue("dim: {bind(dim(object(x)))}, deep_inspect, excludes .... {fun_expects()}"))
+      }
+      if (!is.null(clinical) && clinical) {
+        object(x) <- dplyr::filter(
+          object(x), 
+          !grpl(paste0(design, samples), keyClinical, TRUE)
+        )
+        x <- methodAdd(x, "排除 'Overall design' 中包含 {bind(fun_elements(keyClinical))} 的数据例。")
+        message(glue::glue("dim: {bind(dim(object(x)))}, deep_inspect, clinical .... {fun_expects()}"))
+      }
+      if (!is.null(control)) {
+        message(crayon::red("Match control sample by pattern."))
+        object(x) <- dplyr::filter(
+          object(x), 
+          grpl(paste(samples, summary, design), !!control, TRUE) |
+            nchar(paste(summary, design)) < 300
+        )
+        x <- methodAdd(
+          x, "为了获得包含对照样本的数据集，(描述字符过少的例外) 以正则匹配 ('Samples', 'Summary', 'Overall design') 包含 {bind(fun_elements(control))} 的数据例。共 {nrow(object(x))} 个。"
+        )
+        message(glue::glue("dim: {bind(dim(object(x)))}, deep_inspect, match control .... {fun_expects()}"))
+      }
+      if (mRNA) {
+        otherRNA <- "siRNA|miRNA|\\bmiR\\b|lncRNA"
+        object(x) <- dplyr::filter(
+          object(x), !grpl(paste(design, samples), otherRNA, TRUE)
+        )
+        x <- methodAdd(x, "仅获取包含 'protein coding' 测序的数据集，排除 'Samples' 和 'Overall design' 中包含 {bind(fun_elements(otherRNA))} 字符的数据例。余下共 {nrow(object(x))} 个。")
+        message(glue::glue("dim: {bind(dim(object(x)))}, deep_inspect, mRNA .... {fun_expects()}"))
+      }
+    }
     if (length(args)) {
       object(x) <- trace_filter(object(x), quosures = args)
       x <- snapAdd(x, "{snap(object(x))}")
       gses <- bind(head(object(x)$GSE, n = 30))
-      x <- snapAdd(x, "这些数据为：{gses}等。")
+      x <- snapAdd(
+        x, "这些数据为：{less(gses, 10)}等。"
+      )
+      message(glue::glue("dim: {bind(dim(object(x)))}, args .... {fun_expects()}"))
     }
     p.AllGdsType <- wrap(new_pie(object(x)$gdsType), 7, 7)
     x <- plotsAdd(x, p.AllGdsType)
@@ -174,6 +239,30 @@ setMethod("step2", signature = c(x = "job_gds"),
     x$querys <- gses
     snap <- length(which(vapply(x$res$metas, is, logical(1), "df")))
     x <- methodAdd(x, "以 `GEOquery` 获取 GSE 数据集 (n={snap})。")
+    return(x)
+  })
+
+setMethod("step3", signature = c(x = "job_gds"),
+  function(x, ref, mode = c("survival", "control"), from_backup = TRUE, not = FALSE)
+  {
+    step_message("Search in metadata.")
+    if (missing(ref)) {
+      mode <- match.arg(mode)
+      if (mode == "survival") {
+        ref <- "Survival|Event|Dead|Alive|Status|Day|Time"
+      } else if (mode == "control") {
+        ref <- "normal|control|healthy|ctrl|adjacent"
+      }
+    }
+    if (from_backup && !is.null(x$backup)) {
+      object(x) <- x$backup$object
+      x$res$metas <- x$backup$metas
+    }
+    which <- which(hunt(x, ref, "which", not = not))
+    x <- methodAdd(x, "从元数据中匹配{if (not) '并排除' else ''}包含关键词的数据：'{ref}'，共得到 {length(which)} 个数据集。")
+    x$backup <- namel(object = object(x), metas = x$res$metas)
+    object(x) <- object(x)[which, ]
+    x$res$metas <- x$res$metas[ which ]
     return(x)
   })
 
@@ -268,28 +357,6 @@ setMethod("anno", signature = c(x = "job_gds"),
   x <- gs(x, "coding RNA", "coding")
   x
 }
-
-setMethod("step3", signature = c(x = "job_gds"),
-  function(x, ref, mode = c("survival"), from_backup = TRUE, not = FALSE)
-  {
-    step_message("Search in metadata.")
-    if (missing(ref)) {
-      mode <- match.arg(mode)
-      if (mode == "survival") {
-        ref <- "Survival|Event|Dead|Alive|Status|Day|Time"
-      }
-    }
-    if (from_backup && !is.null(x$backup)) {
-      object(x) <- x$backup$object
-      x$res$metas <- x$backup$metas
-    }
-    which <- which(hunt(x, ref, "which", not = not))
-    x <- methodAdd(x, "从元数据中匹配{if (not) '并排除' else ''}包含关键词的数据：'{ref}'，共得到 {length(which)} 个数据集。")
-    x$backup <- namel(object = object(x), metas = x$res$metas)
-    object(x) <- object(x)[which, ]
-    x$res$metas <- x$res$metas[ which ]
-    return(x)
-  })
 
 add_field <- function(keys, field) {
   if (any(which <- !grpl(keys, "\\["))) {
@@ -431,3 +498,82 @@ batch_geo <- function(gses, getGPL = FALSE, cl = 1L,
   metas <- lapply(res, function(x) try(x$guess))
   namel(res, metas)
 }
+
+expect_geo_extra <- function(gses, cl = NULL, nGroup = 20,
+  dir_db = .prefix("GEOquery", "db"))
+{
+  if (any(!grpl(gses, "^GSE[0-9]+"))) {
+    stop('any(!grpl(gses, "^GSE[0-9]+")).')
+  }
+  # IDs: your query, col: the ID column, res: results table
+  dir.create(dir_db, F)
+  db <- new_db(file.path(dir_db, "GEO_extras.rdata"), "GSE")
+  db <- not(db, gses)
+  query <- db@query
+  if (length(query)) {
+    if (length(query) > nGroup) {
+      query <- grouping_vec2list(query, nGroup, TRUE)
+      n <- 0L
+      lapply(query, 
+        function(query) {
+          n <<- n + 1L
+          message(glue::glue("Group: {n}"))
+          res <- .get_geo_extras(query, cl = cl)
+          db <<- upd(db, res, ids = query)
+        })
+    } else {
+      res <- .get_geo_extras(query, cl = cl)
+      db <- upd(db, res)
+    }
+  }
+  res <- dplyr::filter(db@db, GSE %in% !!gses)
+}
+
+.get_geo_extras <- function(gses, cl = NULL, maxTry = 10) {
+  urls <- paste0("https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=", gses)
+  htmls <- pbapply::pblapply(urls, cl = cl, 
+    function(url) {
+      res <- NULL
+      n <- 0L
+      while (is.null(res) ||
+        (n <= maxTry && inherits(res, "try-error") &&
+          grpl(res, "0A000126:SSL routines")))
+      {
+        if (!is.null(res)) {
+          message(glue::glue("\nTry again ({n}): {url}\n"))
+        }
+        n <- n + 1L
+        res <- try(RCurl::getURL(url), TRUE)
+      }
+      if (inherits(res, "try-error")) {
+        print(res)
+        stop('inherits(res, "try-error"), see above. (', n, ')')
+      }
+      res
+    })
+  lst <- lapply(htmls, 
+    function(html) {
+      xml <- XML::htmlParse(html)
+      node_design <- XML::xpathApply(xml, "//table//td[text()='Overall design']/../td[@style]")
+      if (is.null(node_design)) {
+        design <- ""
+      } else if (length(node_design) != 1) {
+        stop('length(node_design) != 1.')
+      } else {
+        design <- XML::xmlValue(node_design)
+      }
+      node_samples <- XML::xpathApply(
+        xml, "//tr[@valign='top']/td[matches(text(), '^Samples')]/..//tr"
+      )
+      samples <- XML::xmlValue(node_samples)
+      samples <- samples[ grpl(samples, "GSM") ]
+      samples <- lapply(
+        strsplit(samples, "\n"), setNames, nm = c("sample", "title")
+      )
+      samples <- dplyr::bind_rows(samples)
+      namel(design, samples = paste0(samples$title, collapse = " // "))
+    })
+  Terror <<- data <- dplyr::bind_rows(lst)
+  dplyr::mutate(data, GSE = !!gses, .before = 1)
+}
+

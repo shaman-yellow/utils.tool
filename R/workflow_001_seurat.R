@@ -225,7 +225,8 @@ setMethod("step6", signature = c(x = "job_seurat"),
     cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_cell",
     method = c("cellMarker", "gpt", "scsa"), exclude = NULL,
     exclude_pattern = "derived|progenitor|Treg|Naive|helper|Transitional|Memory|switch|white blood cell",
-    extra = NULL, toClipboard = TRUE, post_modify = FALSE, keep_markers = 2,
+    include = NULL, extra = NULL, notShow = NULL,
+    toClipboard = TRUE, post_modify = FALSE, keep_markers = 2,
     n = 30, variable = FALSE, hp_type = c("pretty", "seurat"))
   {
     method <- match.arg(method)
@@ -315,6 +316,11 @@ setMethod("step6", signature = c(x = "job_seurat"),
         )
         tissue <- bind(unique(job_markers$db$tissueType))
         ref.markers <- ref(job_markers)
+        if (!is.null(include)) {
+          ref.markers <- dplyr::filter(
+            ref.markers, grpl(cell, include, TRUE)
+          )
+        }
         if (!is.null(exclude_pattern) || !is.null(exclude)) {
           exclude_pattern <- paste0(
             c(exclude_pattern, exclude), collapse = "|"
@@ -346,7 +352,7 @@ setMethod("step6", signature = c(x = "job_seurat"),
         x <- map(
           x, job_markers, markers = split(
             validMarkers$markers, validMarkers$cell
-          ), group.by = "scsa_cell", max = 2, extra = extra
+          ), group.by = "scsa_cell", max = 2, extra = extra, notShow = notShow
         )
       }
       x@plots[[ 6 ]] <- list(p.map_scsa = lst$p.map_scsa, p.props_scsa = p.props_scsa)
@@ -1366,7 +1372,7 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
 
 .plot_marker_heatmap <- function(x, markers, group.by,
   extra = NULL, extra.after = NULL,
-  order.by = c("smart", "raw"), max = 2, soft = TRUE)
+  order.by = c("smart", "raw"), max = 2, soft = TRUE, notShow = NULL)
 {
   if ((is(markers, "list") || is(markers, "feature")) && !is.null(max)) {
     lst <- markers
@@ -1385,6 +1391,13 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
       markers <- c(markers, extra[[1]])
       lst <- c(lst, extra)
     }
+  }
+  if (!is.null(notShow)) {
+    markers <- markers[ !markers %in% notShow ]
+    lst <- lapply(lst, 
+      function(x) {
+        x[ !x %in% notShow ]
+      })
   }
   avgExpr <- Seurat::AverageExpression(
     object(x), features = markers,
@@ -1442,7 +1455,7 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
       function(x) {
         x <- dplyr::arrange(x, dplyr::desc(Expression))
         dplyr::mutate(x,
-          isOutlier = Expression >= find_outliers_iqr(Expression),
+          isOutlier = Expression >= find_outliers(Expression),
           isHigh = Expression >= cutoff
         )
       })
@@ -1463,6 +1476,20 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
   p.markers
 }
 
+find_outliers <- function(x) {
+  iqr <- find_outliers_iqr(x)
+  if (length(iqr)) {
+    min(iqr)
+  } else {
+    gap <- find_outliers_gap(x)
+    if (length(gap)) {
+      min(gap)
+    } else {
+      Inf
+    }
+  }
+}
+
 find_outliers_gap <- function(x) {
   sorted_x <- sort(x)
   diffs <- diff(sorted_x)
@@ -1472,7 +1499,7 @@ find_outliers_gap <- function(x) {
   } else {
     outliers <- numeric(0)
   }
-  min(outliers)
+  outliers
 }
 
 find_outliers_iqr <- function(x, coef = 1.5) {
@@ -1480,7 +1507,7 @@ find_outliers_iqr <- function(x, coef = 1.5) {
   iqr <- q[2] - q[1]
   upper_bound <- q[2] + coef * iqr
   outliers <- x[x > upper_bound]
-  min(outliers)
+  outliers
 }
 
 .calculate_deviation_score <- function(x) {
