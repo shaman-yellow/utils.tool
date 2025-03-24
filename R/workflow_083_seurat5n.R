@@ -89,12 +89,12 @@ setMethod("step2", signature = c(x = "job_seurat5n"),
   })
 
 setMethod("step3", signature = c(x = "job_seurat5n"),
-  function(x, dims = 1:15, resolution = 1.2, use = c("HarmonyIntegration", "CCAIntegration"))
+  function(x, dims = 1:15, resolution = 1.2, use = c("HarmonyIntegration", "CCAIntegration"), ...)
   {
     step_message("Identify clusters of cells")
     if (!is.null(x$JoinLayers) && x$JoinLayers) {
       message("Job is 'job_seurat5n', but 'JoinLayers' has been performed, so `callNextMethod`.")
-      x <- callNextMethod(x, dims, resolution, reduction = "pca")
+      x <- callNextMethod(x, dims, resolution, ...)
       return(x)
     }
     object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims, reduction = "pca"))

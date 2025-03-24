@@ -98,7 +98,8 @@ setMethod("step2", signature = c(x = "job_seurat"),
       object(x) <- e(Seurat::ScaleData(object(x)))
     }
     object(x) <- e(Seurat::RunPCA(
-        object(x), features = SeuratObject::VariableFeatures(object(x))
+        object(x), 
+        features = SeuratObject::VariableFeatures(object(x)), reduction.name = "pca"
         ))
     p.pca_rank <- e(Seurat::ElbowPlot(object(x), ndims))
     p.pca_rank <- wrap(pretty_elbowplot(p.pca_rank), 4, 4)
@@ -112,7 +113,8 @@ setMethod("step2", signature = c(x = "job_seurat"),
   })
 
 setMethod("step3", signature = c(x = "job_seurat"),
-  function(x, dims = 1:15, resolution = 1.2, reduction = "pca", force = FALSE)
+  function(x, dims = 1:15, resolution = 1.2, features = NULL, reset = FALSE,
+    reduction = if (is.null(features)) "pca" else "features_pca", force = FALSE)
   {
     step_message("This contains several execution: Cluster the cells, UMAP...")
     if (!force) {
@@ -121,9 +123,16 @@ setMethod("step3", signature = c(x = "job_seurat"),
           "Please consider higher `resolution`. ")
       }
     }
-    # if (isNamespaceLoaded("future")) {
-      # e(pkgload::unload("future"))
-    # }
+    if (reset) {
+      object(x) <- e(Seurat::FindVariableFeatures(object(x)))
+      object(x) <- e(Seurat::ScaleData(object(x)))
+    }
+    if (!is.null(features)) {
+      message(glue::glue("Run PCA in specified features."))
+      object(x) <- e(
+        Seurat::RunPCA(object(x), features = unique(features), reduction.name = reduction)
+      )
+    }
     object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims, reduction = reduction))
     object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution))
     object(x) <- e(Seurat::RunUMAP(object(x), dims = dims, reduction = reduction))
@@ -188,19 +197,76 @@ setMethod("step4", signature = c(x = "job_seurat"),
   })
 
 setMethod("step5", signature = c(x = "job_seurat"),
-  function(x, workers = NULL, min.pct = .25, logfc.threshold = .25)
+  function(x, workers = NULL, min.pct = .01, logfc.threshold = .25, force = FALSE)
   {
     step_message("Find all Marders for Cell Cluster.")
-    fun <- function(x) {
-      markers <- as_tibble(
-        e(Seurat::FindAllMarkers(object(x), min.pct = min.pct,
-            logfc.threshold = logfc.threshold, only.pos = TRUE))
-      )
-    }
-    if (!is.null(workers)) {
-      markers <- parallel(x, fun, workers)
+    if (is.remote(x)) {
+      file_markers <- file.path(x$map_local, filename_markers <- "markers.csv")
+      if (!file.exists(file_markers) || force) {
+        if (!rem_file.exists(filename_markers) || force) {
+          if (is.null(workers)) {
+            stop('is.null(workers).')
+          }
+          file_obj <- file.path(
+            x$map_local, filename_obj <- paste0("seurat_5.rds")
+          )
+          if (!file.exists(file_obj) || force) {
+            message(glue::glue("Save Seurat object as {file_obj}..."))
+            saveRDS(object(x), file_obj)
+          }
+          if (!rem_file.exists(filename_obj) || force) {
+            cdRun(glue::glue("scp {file_obj} {x$remote}:{x$wd}"))
+          }
+          script <- expression({
+            require(Seurat)
+            require(future)
+            args <- commandArgs(trailingOnly = TRUE)
+            ## args
+            file_rds <- args[1]
+            output <- args[2]
+            workers <- as.integer(args[3])
+            min.pct <- as.double(args[4])
+            logfc.threshold <- as.double(args[5])
+            ## run
+            object <- readRDS(file_rds)
+            options(future.globals.maxSize = Inf)
+            future::plan(future::multicore, workers = workers)
+            markers <- Seurat::FindAllMarkers(object, min.pct = min.pct,
+              logfc.threshold = logfc.threshold, only.pos = TRUE)
+            write.table(
+              markers, output, sep = ",", col.names = TRUE, row.names = FALSE, quote = FALSE
+            )
+          })
+          script <- as.character(script)
+          if (force) {
+            message(glue::glue("force == TRUE, remove remote and local file."))
+            rem_file.remove(filename_markers)
+            file.remove(file_markers)
+          }
+          rem_run(glue::glue(
+              "{pg('Rscript', is.remote(x))} -e '{script}' \\
+              {filename_obj} {filename_markers} {workers} {min.pct} {logfc.threshold}"
+              ))
+          testRem_file.exists(x, filename_markers, 1, later = FALSE)
+        }
+        file_markers <- get_file_from_remote(
+          filename_markers, x$wd, file_markers, x$remote
+        )
+      }
+      markers <- ftibble(file_markers)
+      markers <- dplyr::mutate(markers, rownames = gene, .before = 1)
     } else {
-      markers <- fun(x)
+      fun <- function(x) {
+        markers <- as_tibble(
+          e(Seurat::FindAllMarkers(object(x), min.pct = min.pct,
+              logfc.threshold = logfc.threshold, only.pos = TRUE))
+        )
+      }
+      if (!is.null(workers)) {
+        markers <- parallel(x, fun, workers)
+      } else {
+        markers <- fun(x)
+      }
     }
     all_markers_no_filter <- markers
     markers <- dplyr::filter(markers, p_val_adj < .05)
@@ -220,12 +286,12 @@ setMethod("step5", signature = c(x = "job_seurat"),
 
 setMethod("step6", signature = c(x = "job_seurat"),
   function(x, tissue, ref.markers = NULL, type = c("Normal cell"),
-    filter.p = 0.01, filter.fc = 1, filter.pct = .7,
+    filter.p = 0.01, filter.fc = 1, filter.pct = .3,
     org = c("Human", "Mouse"),
     cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_cell",
     method = c("cellMarker", "gpt", "scsa"), exclude = NULL,
-    exclude_pattern = "derived|progenitor|Treg|Naive|helper|Transitional|Memory|switch|white blood cell",
-    include = NULL, extra = NULL, notShow = NULL,
+    exclude_pattern = "derived|progenitor|Transitional|Memory|switch|white blood cell",
+    include = NULL, extra = NULL, notShow = NULL, reset = NULL,
     toClipboard = TRUE, post_modify = FALSE, keep_markers = 2,
     n = 30, variable = FALSE, hp_type = c("pretty", "seurat"))
   {
@@ -335,7 +401,7 @@ setMethod("step6", signature = c(x = "job_seurat"),
       lst <- scsa_annotation(
         x = x, tissue = if (method == "scsa") tissue else "All",
         ref.markers = ref.markers, filter.p = filter.p,
-        filter.fc = filter.fc, org = org,
+        filter.fc = filter.fc, org = org, reset = reset,
         cmd = cmd, db = db, res.col = res.col
       )
       x <- lst$x
@@ -346,16 +412,25 @@ setMethod("step6", signature = c(x = "job_seurat"),
       )
       p.props_scsa <- .set_lab(p.props_scsa, sig(x), "SCSA Cell Proportions in each sample")
       p.props_scsa <- setLegend(p.props_scsa, "为 SCSA 注释的细胞群在各个样本中的占比。")
-      if (method == "cellMarker") {
+      p.markers <- NULL
+      if (method == "cellMarker" && is.null(ref.markers)) {
         ## .plot_marker_heatmap
         validMarkers <- dplyr::filter(ref.markers, cell %in% lst$scsa_res$Cell.Type)
         x <- map(
           x, job_markers, markers = split(
             validMarkers$markers, validMarkers$cell
-          ), group.by = "scsa_cell", max = 2, extra = extra, notShow = notShow
+          ), group.by = "scsa_cell", max = keep_markers, extra = extra, notShow = notShow
+        )
+        p.markers <- x$p.cellMarker
+      } else if (!is.null(ref.markers)) {
+        p.markers <- .plot_marker_heatmap(
+          x, split(ref.markers$markers, ref.markers$cell), "scsa_cell",
+          extra = extra, max = keep_markers, notShow = notShow
         )
       }
-      x@plots[[ 6 ]] <- list(p.map_scsa = lst$p.map_scsa, p.props_scsa = p.props_scsa)
+      x@plots[[ 6 ]] <- list(
+        p.map_scsa = lst$p.map_scsa, p.props_scsa = p.props_scsa, p.markers = p.markers
+      )
       if (method == "scsa") {
         x <- snapAdd(x, "以 SCSA 对细胞群注释。")
         x <- methodAdd(
@@ -1076,6 +1151,13 @@ setMethod("feature", signature = c(x = "job_seurat"),
     feas
   })
 
+setMethod("set_remote", signature = c(x = "job_seurat"),
+  function(x, wd = glue::glue("~/seurat_{x@sig}")){
+    x$wd <- wd
+    rem_dir.create(wd)
+    return(x)
+  })
+
 .all_features <- function(x) {
   if (!is(x, "job")) {
     stop('!is(x, "job").')
@@ -1179,7 +1261,7 @@ identify.mouseMacroPhe <- function(x, use = "scsa_cell",
 
 scsa_annotation <- function(
   x, tissue, ref.markers = NULL, onlyUseRefMarkers = !is.null(ref.markers),
-  filter.p = 0.01, filter.fc = .5,
+  filter.p = 0.01, filter.fc = .5, reset = NULL,
   org = c("Human", "Mouse"),
   cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_annotation",
   cache = "scsa", ...)
@@ -1244,6 +1326,19 @@ scsa_annotation <- function(
   scsa_res <- scsa_res_all <- dplyr::arrange(scsa_res, Cluster, dplyr::desc(Z.score))
   ## add into seurat object
   scsa_res <- dplyr::distinct(scsa_res, Cluster, .keep_all = TRUE)
+  if (!is.null(reset)) {
+    if (is.null(names(reset))) {
+      stop('is.null(names(reset)).')
+    }
+    if (is.character(reset)) {
+      reset <- as.list(reset)
+    }
+    scsa_res <- dplyr::mutate(
+      scsa_res, Cell.Type = dplyr::recode(
+        Cell.Type, !!!reset, .default = Cell.Type
+      )
+    )
+  }
   clusters <- object(x)@meta.data$seurat_clusters
   cell_types <- scsa_res$Cell.Type[match(clusters, scsa_res$Cluster)]
   cell_types <- ifelse(is.na(cell_types), "Unknown", cell_types)
@@ -1521,7 +1616,7 @@ find_outliers_iqr <- function(x, coef = 1.5) {
 plot_cells_proportion <- function(metadata, sample = "orig.ident", cell = "ChatGPT_cell") {
   ntypes <- length(unique(metadata[[ cell ]]))
   data <- data.frame(
-    prop.table(table(metadata[[ cell ]], metadata[[ sample ]]), 1)
+    prop.table(table(droplevels(metadata[[ cell ]]), metadata[[ sample ]]), 1)
   )
   p.props <- ggplot(data, aes(x = Var1, y = Freq, fill = Var2)) +
     geom_bar(stat = "identity", width = .7, size = .5) +

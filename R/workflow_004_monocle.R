@@ -27,7 +27,7 @@ setMethod("do_monocle", signature = c(x = "job_seurat", ref = "character"),
     x <- getsub(x, cells = grp(x@object@meta.data[[group.by]], ref))
     snapAdd_onExit("x", "从 `Seurat` 数据对象 {group.by} 中提取 {ref} 类型的细胞，对其重新聚类分析。")
     x@step <- 2L
-    sr_sub <- step3(x, dims, resolution)
+    sr_sub <- step3(x, dims, resolution, reset = TRUE)
     methodAdd_onExit("x", "从 `Seurat` 数据对象 {group.by} 中提取 {ref} 类型的细胞，对其重新聚类分析。")
     methodAdd_onExit("x", sr_sub@meth[[ "step3" ]])
     methodAdd_onExit(

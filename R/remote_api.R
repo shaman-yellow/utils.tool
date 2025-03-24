@@ -91,7 +91,7 @@ set_remoteRun <- function(remoteRun = "bash", scriptHeading = NULL, scriptPrefix
 }
 
 testRem_file.exists <- function(x, file, wait = 10,
-  cancel = "testRem", env_cancel = .GlobalEnv)
+  cancel = "testRem", env_cancel = .GlobalEnv, later = TRUE)
 {
   getFun <- function() {
     res <- try(get(cancel, envir = env_cancel), TRUE)
@@ -102,12 +102,18 @@ testRem_file.exists <- function(x, file, wait = 10,
   }
   testFun <- function() {
     if ((notHasThat <- !rem_file.exists(file)) && getFun()) {
-      message(
-        glue::glue(
-          "'!rem_file.exists(file), try again in {wait} minutes,\nUse `{cancel} <- FALSE` to cancel."
+      if (later) {
+        message(
+          glue::glue(
+            "'!rem_file.exists(file), try again in {wait} minutes,\nUse `{cancel} <- FALSE` to cancel."
+          )
         )
-      )
-      later::later(testFun, wait * 60)
+        later::later(testFun, wait * 60)
+      } else {
+        message(glue::glue("'!rem_file.exists(file), try again in {wait} minutes."))
+        Sys.sleep(wait * 60)
+        testFun()
+      }
     } else if (!notHasThat && Sys.which("notify-send") != "") {
       cdRun("notify-send 'Got File: ", x$wd, "/", file, "'")
     }
@@ -153,7 +159,7 @@ rem_readLines <- function(file, ...) {
     readLines(file, ...)
   } else {
     x <- get("x", envir = parent.frame(1))
-    file <- get_file_from_remote(file, x$wd, x$remote)
+    file <- get_file_from_remote(file, x$wd, remote = x$remote)
     readLines(file, ...)
   }
 }

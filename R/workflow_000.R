@@ -1467,6 +1467,7 @@ pg_remote_recode <- function() {
     bowtie2 = "{conda_remote}/bin/conda run -n base bowtie2",
     samtools = "{conda_remote}/bin/conda run -n base samtools",
     metaphlan = "{conda_remote}/bin/conda run -n mpa metaphlan",
+    Rscript = "{conda_remote}/bin/conda run -n r4-base Rscript",
     merge_metaphlan_tables.py = "{conda_remote}/bin/conda run -n mpa merge_metaphlan_tables.py",
     sirius = "~/operation/sirius/bin/sirius",
     scfeaPython = "{conda_remote}/bin/conda run -n scFEA python",
@@ -1834,7 +1835,9 @@ setReplaceMethod("others", signature = c(x = "job"),
 setGeneric("set_remote",
   function(x, ...) {
     x <- set_remote.default(x, tmpdir = getOption("remote_tmpdir", NULL),
-      map_local = paste0(gs(class(x), "^job_", ""), "_local"),
+      map_local = paste0(
+        gs(class(x), "^job_", ""), "_local_", x@sig
+      ),
       remote = "remote"
     )
     standardGeneric("set_remote")
@@ -1845,8 +1848,10 @@ set_remote.default <- function(x, tmpdir, map_local, remote) {
     x$set_remote <- TRUE
   if (is.null(x$remote))
     x$remote <- remote
-  if (is.null(x$map_local))
+  if (is.null(x$map_local)) {
     x$map_local <- map_local
+    dir.create(map_local, FALSE)
+  }
   if (is.null(x$tmpdir))
     x$tmpdir <- tmpdir
   if (is.null(x$wait)) {
