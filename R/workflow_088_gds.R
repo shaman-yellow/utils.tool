@@ -573,7 +573,7 @@ expect_geo_extra <- function(gses, cl = NULL, nGroup = 20,
       samples <- dplyr::bind_rows(samples)
       namel(design, samples = paste0(samples$title, collapse = " // "))
     })
-  Terror <<- data <- dplyr::bind_rows(lst)
+  data <- dplyr::bind_rows(lst)
   dplyr::mutate(data, GSE = !!gses, .before = 1)
 }
 

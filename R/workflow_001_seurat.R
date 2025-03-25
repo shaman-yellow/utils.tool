@@ -197,7 +197,8 @@ setMethod("step4", signature = c(x = "job_seurat"),
   })
 
 setMethod("step5", signature = c(x = "job_seurat"),
-  function(x, workers = NULL, min.pct = .01, logfc.threshold = .25, force = FALSE)
+  function(x, workers = NULL, min.pct = .25, logfc.threshold = .25, 
+    force = FALSE, topn = 5)
   {
     step_message("Find all Marders for Cell Cluster.")
     if (is.remote(x)) {
@@ -272,8 +273,8 @@ setMethod("step5", signature = c(x = "job_seurat"),
     markers <- dplyr::filter(markers, p_val_adj < .05)
     markers <- .set_lab(markers, sig(x), "significant markers of cell clusters")
     markers <- setLegend(markers, "为所有细胞群的 Marker (LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}; 矫正 P 值阈值 {0.05})")
-    tops <- dplyr::slice_max(dplyr::group_by(markers, cluster), avg_log2FC, n = 10)
-    if (FALSE) {
+    if (TRUE) {
+      tops <- dplyr::slice_max(dplyr::group_by(markers, cluster), avg_log2FC, n = topn)
       p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = TRUE))
       p.toph <- wrap(p.toph, 14, 12)
       x@plots[[ 5 ]] <- namel(p.toph)
@@ -286,14 +287,14 @@ setMethod("step5", signature = c(x = "job_seurat"),
 
 setMethod("step6", signature = c(x = "job_seurat"),
   function(x, tissue, ref.markers = NULL, type = c("Normal cell"),
-    filter.p = 0.01, filter.fc = 1, filter.pct = .3,
+    filter.p = 0.01, filter.fc = .5, filter.pct = .3,
     org = c("Human", "Mouse"),
     cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_cell",
     method = c("cellMarker", "gpt", "scsa"), exclude = NULL,
     exclude_pattern = "derived|progenitor|Transitional|Memory|switch|white blood cell",
-    include = NULL, extra = NULL, notShow = NULL, reset = NULL,
+    include = NULL, show = NULL, notShow = NULL, reset = NULL,
     toClipboard = TRUE, post_modify = FALSE, keep_markers = 2,
-    n = 30, variable = FALSE, hp_type = c("pretty", "seurat"))
+    n = 30, variable = FALSE, hp_type = c("pretty", "seurat"), ...)
   {
     method <- match.arg(method)
     if (method == "gpt") {
@@ -419,20 +420,25 @@ setMethod("step6", signature = c(x = "job_seurat"),
         x <- map(
           x, job_markers, markers = split(
             validMarkers$markers, validMarkers$cell
-          ), group.by = "scsa_cell", max = keep_markers, extra = extra, notShow = notShow
+          ), group.by = "scsa_cell", max = keep_markers, show = show, notShow = notShow
         )
         p.markers <- x$p.cellMarker
       } else if (!is.null(ref.markers)) {
         p.markers <- .plot_marker_heatmap(
           x, split(ref.markers$markers, ref.markers$cell), "scsa_cell",
-          extra = extra, max = keep_markers, notShow = notShow
+          show = show, max = keep_markers, notShow = notShow, ...
+        )
+        p.markers <- set_lab_legend(
+          wrap(p.markers, 7, 7),
+          paste(sig(x), "Marker Validation"),
+          "使用特异性 Marker 对细胞注释结果的验证热图。"
         )
       }
       x@plots[[ 6 ]] <- list(
         p.map_scsa = lst$p.map_scsa, p.props_scsa = p.props_scsa, p.markers = p.markers
       )
-      if (method == "scsa") {
-        x <- snapAdd(x, "以 SCSA 对细胞群注释。")
+      if (method == "scsa" || !is.null(ref.markers)) {
+        x <- snapAdd(x, "{if (!is.null(ref.markers)) '使用特异性 Marker，' else ''}以 SCSA 对细胞群注释。")
         x <- methodAdd(
           x, "以 Python 工具 `SCSA` ({cite_show('ScsaACellTyCaoY2020')}) (<https://github.com/bioinfo-ibms-pumc/SCSA>) 对细胞群注释。"
         )
@@ -469,11 +475,15 @@ as_type_group <- function(type, group) {
 }
 
 setMethod("diff", signature = c(x = "job_seurat"),
-  function(x, group.by, contrasts, name = "contrasts", cut.fc = 1, cut.p = .5, force = FALSE)
+  function(x, group.by, contrasts, name = "contrasts",
+    cut.fc = .3, cut.p = .5, min.pct = .25, force = FALSE)
   {
     message("Differential analysis for cells.")
     if (is.null(object(x)@meta.data[[ group.by ]])) {
       stop('is.null(object(x)@meta.data[[ group.by ]]).')
+    }
+    if (is(contrasts, "character")) {
+      contrasts <- .get_versus_cell(contrasts, NULL, unlist = FALSE)
     }
     if (!all(unlist(contrasts) %in% ids(x, group.by))) {
       stop('!all(unlist(contrasts) %in% ids(x, group.by)).')
@@ -495,7 +505,7 @@ setMethod("diff", signature = c(x = "job_seurat"),
       res <- e(lapply(contrasts,
           function(con) {
             data <- Seurat::FindMarkers(object(x),
-              ident.1 = con[1], ident.2 = con[2],
+              ident.1 = con[1], ident.2 = con[2], min.pct = min.pct,
               group.by = group.by
             )
             data$gene <- rownames(data)
@@ -736,7 +746,7 @@ setMethod("vis", signature = c(x = "job_seurat"),
     } else if (mode == "sample") {
       x <- mutate(x, Cell_Sample = paste0(!!rlang::sym(group.by), "_", orig.ident))
       groups <- unique(object(x)@meta.data[[ group.by ]])
-      patterns <- paste0("^", gs(groups, "[()]", "."), "_")
+      patterns <- paste0("^", gs(make.names(groups), "[()]", "."), "_")
       Cell_Samples <- unique(object(x)@meta.data[[ "Cell_Sample" ]])
       palette <- pattern_gradientColor(
         patterns, Cell_Samples, palette
@@ -983,7 +993,8 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
   })
 
 
-.get_versus_cell <- function(x, pattern_suffix = "_[^_]+$", split = " - | vs |_vs_")
+.get_versus_cell <- function(x, pattern_suffix = "_[^_]+$", 
+  split = " - | vs |_vs_", unlist = TRUE)
 {
   x <- strsplit(x, split)
   if (!is.null(pattern_suffix)) {
@@ -992,7 +1003,11 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
       stop('any(lengths(x) != 1)')
     }
   }
-  unlist(x)
+  if (unlist) {
+    unlist(x)
+  } else {
+    x
+  }
 }
 
 entropy_score <- function(x, freq = NULL) {
@@ -1282,7 +1297,10 @@ scsa_annotation <- function(
   ## cache
   hash <- e(
     digest::digest(
-      list(x@sig, tissue, ref.markers, onlyUseRefMarkers, filter.p, filter.fc, org), "md5"
+      list(
+        x@sig, object(x)@meta.data, x@tables$step5$all_markers_no_filter,
+        tissue, ref.markers, onlyUseRefMarkers, filter.p, filter.fc, org
+      ), "md5"
     )
   )
   message(glue::glue("Got hash: {hash}"))
@@ -1342,8 +1360,10 @@ scsa_annotation <- function(
   clusters <- object(x)@meta.data$seurat_clusters
   cell_types <- scsa_res$Cell.Type[match(clusters, scsa_res$Cluster)]
   cell_types <- ifelse(is.na(cell_types), "Unknown", cell_types)
-  object(x)@meta.data[[ res.col ]] <- factor(cell_types,
-    levels = c(unique(scsa_res$Cell.Type), "Unknown"))
+  if (!is.null(reset)) {
+    cell_types <- dplyr::recode(cell_types, !!!reset, .default = cell_types)
+  }
+  object(x)@meta.data[[ res.col ]] <- factor(cell_types)
   ## plot
   p.map_scsa <- e(Seurat::DimPlot(
       object(x), reduction = "umap", label = FALSE, pt.size = .7,
@@ -1351,6 +1371,7 @@ scsa_annotation <- function(
       ))
   p.map_scsa <- wrap(as_grob(p.map_scsa), 7, 4)
   p.map_scsa <- .set_lab(p.map_scsa, sig(x), "SCSA", "Cell type annotation")
+  p.map_scsa <- setLegend(p.map_scsa, "为 SCSA 细胞注释结果的 UMAP 图。")
   .add_internal_job(.job(method = "`SCSA` (python) used for cell type annotation",
       cite = "[@ScsaACellTyCaoY2020]"))
   namel(x, p.map_scsa, res.col, scsa_res_all, scsa_res)
@@ -1466,7 +1487,7 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
 }
 
 .plot_marker_heatmap <- function(x, markers, group.by,
-  extra = NULL, extra.after = NULL,
+  show = NULL, extra.after = NULL,
   order.by = c("smart", "raw"), max = 2, soft = TRUE, notShow = NULL)
 {
   if ((is(markers, "list") || is(markers, "feature")) && !is.null(max)) {
@@ -1475,16 +1496,16 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
   } else {
     max <- NULL
   }
-  if (!is.null(extra)) {
-    if (!is(extra, "list")) {
-      extra <- list(Extra = extra)
+  if (!is.null(show)) {
+    if (!is(show, "list")) {
+      show <- list(Extra = show)
     }
     if (!is.null(extra.after)) {
-      lst <- append(lst, extra, after = extra.after)
+      lst <- append(lst, show, after = extra.after)
       markers <- unlist(lst)
     } else {
-      markers <- c(markers, extra[[1]])
-      lst <- c(lst, extra)
+      markers <- c(markers, show[[1]])
+      lst <- c(lst, show)
     }
   }
   if (!is.null(notShow)) {
@@ -1500,6 +1521,7 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
     group.by = group.by, slot = "data"
   )
   avgExpr <- data.frame(avgExpr[[ 1 ]], check.names = FALSE)
+  colnames(avgExpr) <- sort(unique(object(x)@meta.data[[ group.by ]]))
   avgExpr <- dplyr::rename(as_tibble(avgExpr), Gene = rownames)
   avgExpr <- tidyr::pivot_longer(avgExpr, -Gene, names_to = "Cell", values_to = "Expression")
   avgExpr <- dplyr::mutate(
@@ -1509,7 +1531,7 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
     exprCutoff <- fivenum(avgExpr$Expression)[4]
     marker_keep <- lapply(lst,
       function(gene) {
-        if (length(gene) <= max) {
+        if (soft && length(gene) <= max) {
           return(gene)
         }
         data <- dplyr::filter(avgExpr, Gene %in% !!gene)
@@ -1524,6 +1546,7 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
           if (nrow(testData) > max) {
             data <- testData
           } else {
+            ## if too less, re-search...
             nkeep <- max
             for (i in seq(max, nrow(data))) {
               if (any(data$maxExpr[seq_len(i)] >= exprCutoff)) {
@@ -1571,9 +1594,9 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
   p.markers
 }
 
-find_outliers <- function(x) {
+find_outliers <- function(x, try_gap = TRUE) {
   iqr <- find_outliers_iqr(x)
-  if (length(iqr)) {
+  if (length(iqr) || !try_gap) {
     min(iqr)
   } else {
     gap <- find_outliers_gap(x)
@@ -1697,4 +1720,26 @@ fast_penetrate_rate <- function(sp_mat, groups, threshold = 0) {
     "设某{{{feature}}} $g$ 在{{{type}}}群体 $C$ 中的{{{level}}}值集合为 ${e_c | c \\in C}$，给定阈值 $\\tau$，则 **阈值穿透率** 定义为：$\\text{Penetration}(g, C, \\tau) = \\frac{ \\sum_{c \\in C} \\mathbf{1}_{\\{e_c > \\tau\\}} }{ |C| } \\times 100\\%$ ($\\mathbf{1}_{{e_c > \\tau}}$ 是指示函数，当 $e_c > \\tau$ 时为 1，否则为 0)",
     .open = "{{{", .close = "}}}"
   )
+}
+
+pgc <- pattern_gradientColor <- function(pattern, names,
+  colors = ggsci::pal_rickandmorty()(10), ...)
+{
+  if (length(pattern) > length(colors)) {
+    message("`colors` provided not enough.")
+    colors <- color_set()
+  }
+  names <- as.character(unique(names))
+  colors <- colors[ seq_along(pattern) ]
+  n <- 0L
+  palette <- lapply(pattern,
+    function(pt) {
+      n <<- n + 1L
+      x <- sort(names[ grpl(names, pt, ...) ])
+      colors <- colorRampPalette(c("white", colors[n]))(length(x) + 2)
+      colors <- colors[-c(1, length(x) - 1)]
+      names(colors) <- x
+      return(colors)
+    })
+  unlist(palette)
 }

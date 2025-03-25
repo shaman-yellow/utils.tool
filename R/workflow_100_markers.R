@@ -123,9 +123,9 @@ setMethod("ref", signature = c(x = "job_markers"),
   })
 
 setMethod("map", signature = c(x = "job_seurat", ref = "job_markers"),
-  function(x, ref, extra = NULL, extra.after = NULL, 
+  function(x, ref, show = NULL, extra.after = NULL, 
     max = 2, soft = TRUE, group.by = x$group.by, notShow = NULL,
-    markers = feature(ref))
+    markers = feature(ref), ...)
   {
     if (missing(markers) && ref@step < 1L) {
       stop('ref@step < 1L.')
@@ -134,8 +134,8 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_markers"),
       stop('x@step < 3L.')
     }
     p.cellMarker <- .plot_marker_heatmap(
-      x, markers, group.by, extra, extra.after, max = max, 
-      soft = soft, notShow = notShow
+      x, markers, group.by, show, extra.after, max = max, 
+      soft = soft, notShow = notShow, ...
     )
     p.cellMarker <- set_lab_legend(
       wrap(p.cellMarker, 7, 7),

@@ -74,7 +74,7 @@ setMethod("step1", signature = c(x = "job_tfbs"),
           anno <- pbapply::pbsapply(db@query, simplify = FALSE, cl = cl,
             function(id) {
               url <- paste0("https://tfbsdb.systemsbiology.net/searchtf?searchterm=", id)
-              res <- RCurl::getURL(url)
+              res <- try_get_url(url)
               lst <- suppressMessages(try(get_table.html(res, which = 1:2), TRUE))
               if (inherits(lst, "try-error")) {
                 message("Skip: ", id, " as error occurred.")

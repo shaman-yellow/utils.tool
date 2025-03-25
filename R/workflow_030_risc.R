@@ -200,28 +200,6 @@ setMethod("ids", signature = c(x = "job_risc"),
     ids
   })
 
-pgc <- pattern_gradientColor <- function(pattern, names,
-  colors = ggsci::pal_rickandmorty()(10), ...)
-{
-  if (length(pattern) > length(colors)) {
-    message("`colors` provided not enough.")
-    colors <- color_set()
-  }
-  names <- as.character(unique(names))
-  colors <- colors[ seq_along(pattern) ]
-  n <- 0L
-  palette <- lapply(pattern,
-    function(pt) {
-      n <<- n + 1L
-      x <- sort(names[ grpl(names, pt, ...) ])
-      colors <- colorRampPalette(c("white", colors[n]))(length(x) + 2)
-      colors <- colors[-c(1, length(x) - 1)]
-      names(colors) <- x
-      return(colors)
-    })
-  unlist(palette)
-}
-
 setMethod("asjob_seurat", signature = c(x = "job_risc"),
   function(x, name = "integrated"){
     group.by <- x$group.by

@@ -922,3 +922,17 @@ calculate_layout_size <- function(layout, base_size = 5,
 formal_name <- function(x) {
   gs(make.names(x), "[.]+", "_")
 }
+
+try_get_url <- function(url, maxTry = 10, pattern = "0A000126:SSL routines") {
+  n <- 0L
+  res <- NULL
+  while (is.null(res) || (n <= maxTry && inherits(res, "try-error") && grpl(res, pattern)))
+  {
+    n <- n + 1L
+    res <- try(RCurl::getURL(url), TRUE)
+    if (!is.null(res)) {
+      message(glue::glue("\nTry again ({n}): {url}\n"))
+    }
+  }
+  return(res)
+}
