@@ -3306,7 +3306,6 @@ search.scopus <- function(data, try_format = TRUE, sleep = 3, group.sleep = 5, n
   #######################
   if (nrow(query)) {
     link <- start_drive(port = port)
-    Sys.sleep(3)
     link$open()
     if (is.numeric(n)) {
       group <- grouping_vec2list(seq_len(nrow(query)), n)

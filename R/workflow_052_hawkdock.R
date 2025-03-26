@@ -70,7 +70,6 @@ setMethod("step2", signature = c(x = "job_hawkdock"),
     url <- "http://cadd.zju.edu.cn/hawkdock/"
     layouts <- x$layouts
     link <- start_drive(browser = "firefox", ...)
-    Sys.sleep(3)
     link$open()
     ids <- pbapply::pblapply(names(layouts),
       function(name) {

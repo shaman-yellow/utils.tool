@@ -169,7 +169,6 @@ setMethod("login", signature = c(x = "job_cluspro"),
   function(x, port = 9999, ..., usr = getOption("cluspro_user"), psw = getOption("cluspro_password")){
     message("Login")
     x$link <- start_drive(port = port, ...)
-    Sys.sleep(3)
     x$link$open()
     x$url_home <- "https://cluspro.bu.edu/"
     x$link$navigate(x$url_home)

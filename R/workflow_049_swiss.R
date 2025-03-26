@@ -58,7 +58,6 @@ setMethod("step1", signature = c(x = "job_swiss"),
     db <- not(db, object(x))
     if (length(db@query)) {
       link <- start_drive(download.dir = x$tempdir, port = port)
-      Sys.sleep(3)
       link$open()
       lapply(db@query,
         function(query) {

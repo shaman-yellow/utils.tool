@@ -50,7 +50,6 @@ setMethod("step1", signature = c(x = "job_herb"),
     if (length(db@query)) {
       x$tempdir <- tempdir
       link <- start_drive(browser = "firefox", download.dir = x$tempdir)
-      Sys.sleep(3)
       tryCatch(
         download_herbCompounds(link, db@query, tempdir = x$tempdir),
         finally = end_drive()
@@ -120,7 +119,6 @@ setMethod("step2", signature = c(x = "job_herb"),
       if (length(queries)) {
         queries <- grouping_vec2list(queries, group_number, TRUE)
         link <- start_drive(browser = "firefox")
-        Sys.sleep(3)
         lst <- pbapply::pblapply(queries,
           function(ids) {
             .dir <- "compounds_target"
@@ -380,6 +378,7 @@ start_drive <- function(command = paste0("java -jar ", .prefix("/selenium.jar", 
   port = 4444, extra = NULL, browser = c("firefox", "chrome"), download.dir = "download", ...)
 {
   system(paste(command, "-port", port, extra), wait = FALSE)
+  Sys.sleep(3)
   new_link(port = port, browser = match.arg(browser), download.dir = download.dir, ...)
 }
 

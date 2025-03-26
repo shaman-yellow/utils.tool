@@ -62,7 +62,6 @@ get_from_genecards <- function(query, score = 5, keep_drive = FALSE, restrict = 
   advance = FALSE, term = c("compounds"))
 {
   link <- start_drive(browser = "firefox")
-  Sys.sleep(3)
   link$open()
   query_raw <- query
   if (grpl(query, " ")) {

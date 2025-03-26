@@ -62,7 +62,6 @@ setMethod("step1", signature = c(x = "job_tcmsp"),
         fun <- function(n) is.null(db_file[[ fileid[n] ]])
         if (fun(1) | fun(2) | fun(3)) {
           link <<- start_drive(browser = "firefox")
-          Sys.sleep(3)
           isDriveStarted <<- TRUE
           link$open()
           url <- x$herbs_info$`Latin name.link`[n]
@@ -239,7 +238,6 @@ setMethod("asjob_classyfire", signature = c(x = "job_tcmsp"),
       nl(query, urls)
     }
     link <- start_drive()
-    Sys.sleep(3)
     link$open()
     res <- pbapply::pblapply(fun(),
       function(url) {
@@ -281,7 +279,6 @@ get_tcmsp_data <- function(update = FALSE, savedir = .prefix("tcmsp", "db")) {
       file <- paste0(savedir, "/", name, ".tsv")
       if (!isDriveStarted) {
         link <<- start_drive(browser = "firefox")
-        Sys.sleep(3)
         isDriveStarted <<- TRUE
         link$open()
         # link$setTimeout(type = "page load", milliseconds = 3000000)

@@ -47,7 +47,6 @@ setMethod("step1", signature = c(x = "job_tcmsp2"),
     queries <- dbs[[ "ingredients" ]]@query
     if (length(queries) || forceGetHerbInfo) {
       x$link <- start_drive(port = port, ...)
-      Sys.sleep(3)
       x$link$open()
       x$url_home <- "https://www.tcmsp-e.com/#/"
       x$link$navigate(x$url_home)
