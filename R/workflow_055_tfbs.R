@@ -111,8 +111,9 @@ setMethod("step1", signature = c(x = "job_tfbs"),
   })
 
 setMethod("map", signature = c(x = "job_tfbs", ref = "feature"),
-  function(x, ref, name = "TF"){
+  function(x, ref, name = "TF", region = FALSE){
     data <- x@tables$step1$res
+    init(meth(x)) <- init(snap(x)) <- FALSE
     if (is(ref, "feature_list")) {
       data_ref <- as_df.lst(ref, "target", "TF")
       data <- tbmerge(
@@ -143,7 +144,11 @@ setMethod("map", signature = c(x = "job_tfbs", ref = "feature"),
       ## plot TF motif sequence logo.
       if (!requireNamespace("JASPAR2022", quietly = TRUE)) {
         BiocManager::install(
-          c("JASPAR2022", "DirichletMultinomial", "TFBSTools")
+          c(
+            "JASPAR2022", "DirichletMultinomial", "TFBSTools", 
+            # "BSgenome.Hsapiens.UCSC.hg19", "EnsDb.Hsapiens.v75",
+            "TxDb.Hsapiens.UCSC.hg19.knownGene"
+          )
         )
       }
       tfs <- unique(data$TF_symbol)
@@ -157,9 +162,67 @@ setMethod("map", signature = c(x = "job_tfbs", ref = "feature"),
         })
       p.logos <- setLegend(p.logos, glue::glue("为 {tfs} motif sequence logo。{.seq_logo_legend()}"))
       x[[ glue::glue("p.logos_{name}") ]] <- .set_lab(p.logos, sig(x), names(p.logos), "motif sequence logo")
+      x <- methodAdd(x, "{transmute(ref, '结合位点可视化')}以 R 包 `JASPAR2022` ({packageVersion('JASPAR2022')}) 和 `TFBSTools` ({packageVersion('TFBSTools')}) 绘制 {less(tfs)} Motif sequence logo。")
+    }
+    if (TRUE) {
+      p.tracks <- sapply(seq_len(nrow(data)), simplify = FALSE, 
+        function(n) {
+          data <- data[n, ]
+          range_bindingSite <- as_GRanges(
+            data, col.start = "Start", col.end = "Stop"
+          )
+          range_bindingSite$id <- data$MatchSequence
+          atrack <- Gviz::AnnotationTrack(range_bindingSite)
+          btrack <- e(Gviz::BiomartGeneRegionTrack(
+              genome = "hg19", name = "ENS.", symbol = data$target
+              ))
+          btrack@range <- btrack@range[btrack@range$symbol == data$target, ]
+          otrack <- e(Gviz::OverlayTrack(trackList = list(btrack, atrack)))
+          gtrack <- e(Gviz::GenomeAxisTrack())
+          if (region) {
+            atracks_region <- lapply(c("promoters", "transcripts"),
+              function(type) {
+                fun_get <- get_fun(type, envir = asNamespace("GenomicFeatures"))
+                range <- fun_get(
+                  TxDb.Hsapiens.UCSC.hg19.knownGene::TxDb.Hsapiens.UCSC.hg19.knownGene,
+                  columns = c("gene_id"), filter = list(gene_id = data$target_entrez)
+                )
+                range$id <- Hmisc::capitalize(type)
+                Gviz::AnnotationTrack(range, shape = "box", name = "Region")
+              }
+            )
+            otracks_type <- e(Gviz::OverlayTrack(trackList = atracks_region))
+          }
+          ranges <- lapply(otrack@trackList,
+            function(x) {
+              c(IRanges::start(x), IRanges::end(x))
+            })
+          lim <- e(grDevices::extendrange(range(unlist(ranges)), f = .5))
+          if (region) {
+            Gviz::plotTracks(
+              list(gtrack, otracks_type, otrack),
+              transcriptAnnotation = "symbol", sizes = c(1, 2, 2), 
+              featureAnnotation = "id", fontcolor.feature = 1, 
+              from = lim[1], to = lim[2]
+            )
+          } else {
+            Gviz::plotTracks(
+              list(gtrack, otrack),
+              transcriptAnnotation = "symbol", sizes = c(1, 2), 
+              featureAnnotation = "id", fontcolor.feature = 1, 
+              from = lim[1], to = lim[2]
+            )
+          }
+          wrap(recordPlot(), 11, 2)
+        })
+      names(p.tracks) <- paste0(data$TF_symbol, "_", data$target)
+      p.tracks <- setLegend(p.tracks, glue::glue("为转录因子结合基因启动子示意 ({names(p.tracks)}) (Transcript 源于 BioMart 获取 ENSEMBL 数据库对应基因的注释区域；转录因子结合位点源于 Transcription Factor Target Gene Database)。 "))
+      x[[ glue::glue("p.tracks_{name}") ]] <- .set_lab(
+        p.tracks, sig(x), names(p.tracks), "transcript factor binding Illustrate"
+      )
+      x <- methodAdd(x, "以 R 包 `Gviz` ({packageVersion('Gviz')}) 绘制 ENSEMBL 数据库对应基因的转录子 (transcript)。")
     }
     x[[ glue::glue("map_data_{name}") ]] <- data
-    x <- snapAdd(x, "{transmute(ref, '结合位点可视化')}以 R 包 `JASPAR2022` ({packageVersion('JASPAR2022')}) 和 `TFBSTools` ({packageVersion('TFBSTools')}) 绘制 {less(tfs)} Motif sequence logo。", step = class(ref))
     x$.map_heading <- "TFBS 结合位点可视化"
     return(x)
   })

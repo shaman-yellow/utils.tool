@@ -212,7 +212,9 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
   })
 
 setMethod("regroup", signature = c(x = "job_limma", ref = "job_survival"),
-  function(x, ref, feature = names(ref$data_group), ...){
+  function(x, ref, feature = names(ref$data_group)[which], 
+    which = 1L, ...)
+  {
     if (ref@step < 1L) {
       stop('ref@step < 1L.')
     }
@@ -295,6 +297,8 @@ setMethod("step1", signature = c(x = "job_survival"),
         title <- paste0(genes, collapse = " & ")
         p.surv <- survminer::ggsurvplot(fit, data = data,
           pval = TRUE, conf.int = TRUE, risk.table = TRUE, title = title,
+          risk.table.y.text.col = T,
+          risk.table.y.text = FALSE,
           ggtheme = theme_bw()
         )
         p.surv$table <- p.surv$table + labs(x = "time (month)")

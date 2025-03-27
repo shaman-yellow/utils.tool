@@ -163,6 +163,8 @@ setMethod("filter", signature = c(x = "job_stringdb"),
     arrow = TRUE, ...)
   {
     message("Search and filter: ref.x in from, ref.y in to; or, reverse.")
+    ref.x <- resolve_feature(ref.x)
+    ref.y <- resolve_feature(ref.y)
     use.top <- match.arg(use.top)
     data <- tibble::as_tibble(get_edges()(data), .name_repair = "minimal")
     data <- dplyr::select(data, dplyr::ends_with(use))

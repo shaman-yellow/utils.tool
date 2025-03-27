@@ -23,7 +23,7 @@ setGeneric("asjob_gsea", group = list("asjob_series"),
 
 setMethod("asjob_gsea", signature = c(x = "job_limma"),
   function(x, key = 1L, annotation = NULL,
-    filter = NULL, from = colnames(data)[ grp(colnames(data), "_symbol|gene_name")[1] ],
+    filter = NULL, from = .guess_symbol(x),
     data = NULL)
   {
     if (is.null(data)) {
@@ -211,13 +211,14 @@ setMethod("step1", signature = c(x = "job_gsea"),
     )
     p.kegg <- setLegend(p.kegg, "为 GSEA KEGG 富集分析气泡图。")
     x <- methodAdd(x, "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')} 按 GSVA 算法 (`clusterProfiler::gseGO`, `ClusterProfiler::gseKEGG`)，进行 KEGG 和 GO 富集分析 (P-value Cutoff = 0.05) 。")
+    x <- snapAdd(x, "以 KEGG、GO 数据集，对基因集富集分析。")
     x@plots[[ 1 ]] <- namel(p.go, p.kegg)
     x$org <- org
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_gsea"),
-  function(x, key = head(dplyr::arrange(x@tables$step1$table_kegg, p.adjust)$ID, n = 3),
+  function(x, key = res(x, "id", 1:3),
     highlight = key[1], use = "res.kegg", ...)
   {
     step_message("GSEA visualization for specific pathway")
@@ -225,9 +226,17 @@ setMethod("step2", signature = c(x = "job_gsea"),
       return(x)
     }
     obj <- x@params[[ use ]]
-    p.code <- wrap(e(enrichplot::gseaplot2(obj, key, pvalue_table = FALSE)), 7.5, 6)
+    title <- if (length(key) > 1) {
+      ""
+    } else {
+      dplyr::filter(obj@result, ID == key)$Description
+    }
+    p.code <- wrap(
+      e(enrichplot::gseaplot2(obj, key, pvalue_table = FALSE, title = title)),
+      7.5, 6
+    )
     p.code <- .set_lab(p.code, sig(x), "GSEA plot of the pathways")
-    p.code <- setLegend(p.code, "为 GSEA KEGG 富集条码图 (以 `clusterProfiler` 仿 GSEA 软件绘图)。")
+    p.code <- setLegend(p.code, "为 GSEA KEGG {title} 富集条码图 (以 `clusterProfiler` 仿 GSEA 软件绘图)。")
     if (missing(key)) {
       data <- head(
         dplyr::arrange(x@tables$step1$table_kegg, p.adjust), n = 3
@@ -289,44 +298,80 @@ setMethod("step3", signature = c(x = "job_gsea"),
     ## enrichment
     res.gsea <- e(clusterProfiler::GSEA(object(x)$symbol, TERM2GENE = db,
         pvalueCutoff = cutoff))
-    x <- snapAdd(x, "以 `clusterProfiler::GSEA` 对基因集富集分析。")
+    x <- snapAdd(
+      x, "使用 {mode} 数据集, 以 `clusterProfiler::GSEA` 对 {less(names(object(x)$symbol))} 富集分析。"
+    )
     table_gsea <- dplyr::as_tibble(res.gsea@result)
-    if (!is.null(db_anno) && all(c("gs_id", "gs_description") %in% colnames(db_anno))) {
-      table_gsea <- map(
-        table_gsea, "ID", db_anno, "gs_id", "gs_description", col = "Description"
-      )
-    }
-    if (!is.null(map)) {
-      alls <- table_gsea$ID
-      whichMapped <- which(grepl(map, table_gsea$Description, ignore.case = TRUE))
-      map <- alls[ whichMapped ]
-      if (!length(map)) {
-        message(crayon::red("Not match any pathway, skip plot of 'p.code'."))
-        p.code <- NULL
-      } else {
-        p.code <- wrap(e(
-            enrichplot::gseaplot2(
-              res.gsea, map, pvalue_table = pvalue,
-              title = bind(
-                stringr::str_wrap(table_gsea$Description[whichMapped], 80),
-                co = "\n"
-              ))), 7.5, 6)
-      }
-    } else {
-      p.code <- NULL
-    }
     table_gsea <- dplyr::mutate(table_gsea,
       geneName_list = strsplit(core_enrichment, "/"),
       Count = lengths(geneName_list),
       GeneRatio = round(as.double(stringr::str_extract(leading_edge, "[0-9]+")) / 100, 2)
     )
+    table_gsea <- set_lab_legend(table_gsea, glue::glue("GSEA pathway list of {mode} data"),
+        glue::glue("为 GSEA 按 {mode} ({names(mode)}) 数据集富集附表。")
+    )
+    if (!is.null(db_anno) && all(c("gs_id", "gs_description") %in% colnames(db_anno))) {
+      table_gsea <- map(
+        table_gsea, "ID", db_anno, "gs_id", "gs_description", col = "Description"
+      )
+      p.gsea <- plot_kegg(table_gsea)
+      p.gsea <- .set_lab(p.gsea, sig(x), glue::glue("GSEA pathway list of {mode}"))
+      p.gsea <- setLegend(p.gsea, "为 GSEA 按 {mode} ({names(mode)}) 数据集富集图。")
+    } else {
+      p.gsea <- NULL
+    }
+    if (!is.null(map)) {
+      p.code <- vis(x, map, res.gsea, table_gsea, pvalue = pvalue)
+    } else {
+      p.code <- NULL
+    }
     x@params$res.gsea <- res.gsea
     x@params$db.gsea <- db
     x$db_anno <- db_anno
     x@tables[[ 3 ]] <- namel(table_gsea)
     p.code <- .set_lab(p.code, sig(x), "GSEA plot of pathway")
-    x@plots[[ 3 ]] <- namel(p.code)
+    x@plots[[ 3 ]] <- namel(p.code, p.gsea)
     return(x)
+  })
+
+setMethod("vis", signature = c(x = "job_gsea"),
+  function(x, map, res.gsea = NULL, table_gsea = x@tables$step3$table_gsea, pvalue = FALSE)
+  {
+    if (x@step < 3L) {
+      stop('x@step < 3L.')
+    }
+    if (is.null(res.gsea)) {
+      res.gsea <- x$res.gsea
+    }
+    alls <- table_gsea$ID
+    if (is.null(alls)) {
+      stop('is.null(alls).')
+    }
+    whichMapped <- which(grepl(map, table_gsea$Description, ignore.case = TRUE))
+    map <- alls[ whichMapped ]
+    if (!length(map)) {
+      message(crayon::red("Not match any pathway, skip plot of 'p.code'."))
+      p.code <- NULL
+    } else {
+      p.code <- wrap(e(
+          enrichplot::gseaplot2(
+            x$res.gsea, map, pvalue_table = pvalue,
+            title = bind(
+              stringr::str_wrap(table_gsea$Description[whichMapped], 80),
+              co = "\n"
+              ))), 7.5, 6)
+    }
+    if (length(map) > 1) {
+      title <- ""
+    } else {
+      title <- table_gsea$Description[ whichMapped ]
+    }
+    ids <- table_gsea$ID[whichMapped]
+    p.code <- set_lab_legend(
+      p.code, glue::glue("{sig(x)} GSEA plot {bind(ids, co = '_')}"),
+      glue::glue("为 GSEA plot {bind(ids)} {title}。")
+    )
+    p.code
   })
 
 # setMethod("filter", signature = c(x = "job_gsea"),
@@ -478,8 +523,12 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
   nodes$Symbol <- dplyr::arrange(nodes$Symbol, log2fc)
   nodes$Symbol <- dplyr::mutate(
     nodes$Symbol, x = -max(data$GeneRatio) * (1 + shift),
-    y = seq(1, n, length.out = length(name))
+    y = seq(1, n, length.out = length(name)),
+    hjust = 1
   )
+  if (nrow(nodes$Symbol) > 50) {
+    nodes$Symbol <- dplyr::mutate(nodes$Symbol, hjust = seq_len(nrow(nodes$Symbol)) %% 2)
+  }
   nodes$Description <- dplyr::distinct(nodes$Description, type, name)
   nodes$Description <- dplyr::mutate(
     nodes$Description, x = 0L - shift * max(data$GeneRatio),
@@ -494,8 +543,8 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
       strength = 1, flipped = TRUE, alpha = .25) +
     geom_node_label(
       data = filter(nodes, type == "Symbol"),
-      aes(label = name, x = x, y = y, fill = log2fc),
-      hjust = 1, size = 2) +
+      aes(label = name, x = x, y = y, fill = log2fc, hjust = hjust),
+      size = 2) +
     ## enrichment
     geom_segment(data = data,
       aes(x = 0, xend = GeneRatio, y = path.p, yend = path.p, color = !!rlang::sym(use))) +
@@ -505,17 +554,18 @@ plot_highlight_enrich <- function(table_enrich, highlight, lst_logFC,
       aes(x = - shift * max(GeneRatio) / 2, y = path.p, label = stringr::str_wrap(Description, 50)),
       hjust = 1, size = 4) +
     geom_vline(xintercept = 0L, linetype = 4) +
-    labs(x = "GeneRatio", y = "", edge_width = "|log2(FC)|", fill = "log2(FC)", edge_color = "Highlight Pathways") +
+    labs(x = "GeneRatio", y = "", edge_width = "|log2(FC)|",
+      fill = "log2(FC)", edge_color = "Highlight Pathways") +
     rstyle("theme") +
     theme(axis.text.y = element_blank()) +
     scale_fill_gradient2(low = "#3182BDFF", high = "#A73030FF") +
     scale_edge_color_manual(values = color_set()) +
-    scale_color_gradientn(colours = color_set2()) +
-    scale_x_continuous(breaks = round(seq(0, max(data$GeneRatio), length.out = 4), 3),
-      limits = c(-max(data$GeneRatio) * (1 + shift) * 1.2, max(data$GeneRatio))) +
-    geom_blank()
-  p <- wrap(p, 12, 8)
-  p
+      scale_color_gradientn(colours = color_set2()) +
+      scale_x_continuous(breaks = round(seq(0, max(data$GeneRatio), length.out = 4), 3),
+        limits = c(-max(data$GeneRatio) * (1 + shift) * 1.2, max(data$GeneRatio))) +
+      geom_blank()
+    p <- wrap(p, 12, 8)
+    p
 }
 
 color_set2 <- function() {

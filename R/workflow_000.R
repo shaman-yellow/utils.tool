@@ -1970,6 +1970,12 @@ setGeneric("step1", group = list("step_series"),
     x
   })
 
+setMethod("step1", signature = c(x = "job"),
+  function(x){
+    step_message("Do nothing.")
+    return(x)
+  })
+
 job_append_heading <- function (x, mutate = TRUE, heading = NULL) {
   if (getOption("job_appending", FALSE)) {
     if (is(x, "job")) {

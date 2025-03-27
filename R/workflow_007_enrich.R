@@ -292,7 +292,9 @@ plot_kegg <- function(data, cutoff = .1, maxShow = 10,
   use <- match.arg(use)
   data <- .format_enrich(data, use, cutoff, maxShow, pattern)
   p <- .plot_kegg(data, use, ...)
-  p <- wrap(p, 8, 2 + nrow(data) * .2)
+  p <- wrap_scale(
+    p, max(nchar(data$Description)) / 5, nrow(data)
+  )
   p <- .set_lab(p, "KEGG-enrichment")
   p
 }
@@ -375,7 +377,7 @@ plot_go <- function(data, cutoff = .1, maxShow = 10,
       less <- dplyr::distinct(less)
     }
   }
-  if (!is.null(data$GeneRatio)) {
+  if (!is.null(data$GeneRatio) && !is.double(data$GeneRatio)) {
     less <- dplyr::mutate(less, GeneRatio = as_double.ratioCh(GeneRatio))
     less <- dplyr::arrange(less, GeneRatio)
   }

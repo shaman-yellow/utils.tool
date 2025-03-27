@@ -180,7 +180,7 @@ setMethod("step1", signature = c(x = "job_pathview"),
     p.pathviews <- .pathview_search(
       name, "pathview", x, res.pathviews, snap = snap
     )
-    feature(x) <- lapply(p.pathviews, function(x) x$genes)
+    feature(x) <- lapply(p.pathviews, function(x) unique(x$genes))
     x <- plotsAdd(x, p.pathviews)
     snapAdd_onExit("x", "以 `pathview` 探究基因集在通路 {bind(pathways)} 中的上下游关系。")
     .add_internal_job(.job(method = "R package `pathview` used for KEGG pathways visualization", cite = "[@PathviewAnRLuoW2013]"))

@@ -1143,7 +1143,7 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "NULL"),
         data, anno, use, unique(from), 
         unique(to), names, HLs = HLs, fast = FALSE, gname = gname
       )
-      lst$sig.corp <- dplyr::filter(lst$corp, cor >= cut.cor, pvalue < cut.p)
+      lst$sig.corp <- dplyr::filter(lst$corp, abs(cor) >= cut.cor, pvalue < cut.p)
       lst$sig.corp <- dplyr::arrange(lst$sig.corp, dplyr::desc(abs(cor)))
       if (nrow(lst$sig.corp)) {
         lst$sig.corp <- .set_lab(lst$sig.corp, sig(x), "significant correlation analysis data")
