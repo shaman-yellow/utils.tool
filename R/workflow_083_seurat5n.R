@@ -118,7 +118,9 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
     ## SeuratObject::DefaultDimReduc, search in case of UMAP
     object(x)@reductions$umap_unintegrated <- NULL
     ## method of job_seurat
-    x <- callNextMethod(x, dims, resolution, reduction = use)
+    x <- callNextMethod(
+      x, dims, resolution, reduction = use, ...
+    )
     p.umapInt <-  e(Seurat::DimPlot(object(x),
         group.by = c("orig.ident", "seurat_clusters"), cols = color_set(TRUE)))
     p.umapInt <- .set_lab(wrap(p.umapInt, 10, 5), sig(x), "UMAP Integrated")

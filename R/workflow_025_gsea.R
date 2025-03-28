@@ -219,52 +219,44 @@ setMethod("step1", signature = c(x = "job_gsea"),
 
 setMethod("step2", signature = c(x = "job_gsea"),
   function(x, key = res(x, "id", 1:3),
-    highlight = key[1], use = "res.kegg", ...)
+    highlight = key[1], use = "res.kegg", sig = TRUE, ...)
   {
     step_message("GSEA visualization for specific pathway")
-    if (is.null(key)) {
-      return(x)
+    sets <- x@tables$step1$table_kegg
+    if (sig) {
+      sets <- dplyr::filter(sets, grpl(Description, "signaling"))
+      key <- head(sets$ID, n = length(key))
+      highlight <- key[1]
+    } else {
+      if (is.null(key)) {
+        return(x)
+      }
     }
     obj <- x@params[[ use ]]
-    title <- if (length(key) > 1) {
-      ""
-    } else {
-      dplyr::filter(obj@result, ID == key)$Description
-    }
-    p.code <- wrap(
-      e(enrichplot::gseaplot2(obj, key, pvalue_table = FALSE, title = title)),
-      7.5, 6
+    p.code <- vis(
+      x, map = key, res.gsea = obj, table_gsea = sets, mode = "kegg"
     )
-    p.code <- .set_lab(p.code, sig(x), "GSEA plot of the pathways")
-    p.code <- setLegend(p.code, "为 GSEA KEGG {title} 富集条码图 (以 `clusterProfiler` 仿 GSEA 软件绘图)。")
-    if (missing(key)) {
-      data <- head(
-        dplyr::arrange(x@tables$step1$table_kegg, p.adjust), n = 3
-      )
-      sigPaths <- data$Description
-      x <- snapAdd(
-        x, "按矫正 P 值排序 (BH, p.adjust) ，最显著的三条通路为: {bind(sigPaths)}。"
-      )
-    } else {
-      data <- dplyr::filter(x@tables$step1$table_kegg, ID %in% key)
-    }
+    data <- dplyr::filter(sets, ID %in% key)
     x$.feature <- data$geneName_list
     names(x$.feature) <- key
     if (!is.null(highlight)) {
       p.highlight <- plot_highlight_enrich(
-        x@tables$step1$table_kegg, highlight, object(x)$symbol, ...
+        sets, highlight, object(x)$symbol, ...
       )
       p.highlight <- .set_lab(p.highlight, sig(x), "KEGG enrichment with enriched genes")
       p.highlight <- setLegend(p.highlight, "为通路富集图，兼部分通路的富集基因表达。")
     } else {
       p.highlight <- NULL
     }
-    x@plots[[ 2 ]] <- namel(p.code, p.highlight)
+    if (sig) {
+      x <- tablesAdd(x, t.GSEA_KEGG_signaling_data = sets)
+    }
+    x@plots[[ 2 ]] <- namel(p.highlight, p.code)
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_gsea"),
-  function(x, db, cutoff = .05, map = NULL, pvalue = FALSE, 
+  function(x, db, cutoff = .05, pattern = NULL, pvalue = FALSE, 
     db_anno = NULL, db_filter = NULL, mode = c(
       "curated gene sets" = "C2",
       "hallmark gene sets" = "H",
@@ -320,8 +312,11 @@ setMethod("step3", signature = c(x = "job_gsea"),
     } else {
       p.gsea <- NULL
     }
-    if (!is.null(map)) {
-      p.code <- vis(x, map, res.gsea, table_gsea, pvalue = pvalue)
+    if (!is.null(pattern)) {
+      p.code <- vis(
+        x, pattern, res.gsea = res.gsea, table_gsea = table_gsea, 
+        pvalue = pvalue
+      )
     } else {
       p.code <- NULL
     }
@@ -335,41 +330,62 @@ setMethod("step3", signature = c(x = "job_gsea"),
   })
 
 setMethod("vis", signature = c(x = "job_gsea"),
-  function(x, map, res.gsea = NULL, table_gsea = x@tables$step3$table_gsea, pvalue = FALSE)
+  function(x, pattern, map = NULL, res.gsea = NULL, table_gsea = NULL,
+    mode = c("kegg", "gsea"), pvalue = FALSE)
   {
-    if (x@step < 3L) {
-      stop('x@step < 3L.')
+    if (x@step < 1L) {
+      stop('x@step < 1L.')
     }
+    mode <- match.arg(mode)
     if (is.null(res.gsea)) {
-      res.gsea <- x$res.gsea
+      res.gsea <- x[[ glue::glue("res.{mode}") ]]
+    }
+    if (is.null(table_gsea)) {
+      if (mode == "kegg") {
+        table_gsea <- x@tables$step1$table_kegg
+      } else if (mode == "gsea") {
+        table_gsea <- x@tables$step3$table_gsea
+      }
+    }
+    if (is.null(res.gsea) || is.null(table_gsea)) {
+      stop('is.null(res.gsea) || is.null(table_gsea).')
     }
     alls <- table_gsea$ID
     if (is.null(alls)) {
       stop('is.null(alls).')
     }
-    whichMapped <- which(grepl(map, table_gsea$Description, ignore.case = TRUE))
-    map <- alls[ whichMapped ]
+    if (is.null(map)) {
+      whichMapped <- which(grepl(pattern, table_gsea$Description, ignore.case = TRUE))
+      map <- alls[ whichMapped ]
+    } else {
+      whichMapped <- which(table_gsea$ID %in% map)
+    }
     if (!length(map)) {
       message(crayon::red("Not match any pathway, skip plot of 'p.code'."))
       p.code <- NULL
     } else {
-      p.code <- wrap(e(
-          enrichplot::gseaplot2(
-            x$res.gsea, map, pvalue_table = pvalue,
-            title = bind(
-              stringr::str_wrap(table_gsea$Description[whichMapped], 80),
-              co = "\n"
-              ))), 7.5, 6)
-    }
-    if (length(map) > 1) {
-      title <- ""
-    } else {
-      title <- table_gsea$Description[ whichMapped ]
+      p.code <- sapply(map, simplify = FALSE,
+        function(key) {
+          title <- dplyr::filter(table_gsea, ID == key)$Description
+          grob <- grid.grabExpr(
+            print(enrichplot::gseaplot2(res.gsea, key, pvalue_table = pvalue, title = title))
+          )
+          wrap(grob, 5, 4)
+        })
+      if (length(map) > 1) {
+        layout <- calculate_layout(length(map))
+        p.code <- patchwork::wrap_plots(
+          lapply(p.code, function(x) x@data), ncol = layout[["cols"]]
+        )
+        p.code <- wrap_layout(p.code, layout, 3)
+      } else {
+        p.code <- p.code[[1]]
+      }
     }
     ids <- table_gsea$ID[whichMapped]
     p.code <- set_lab_legend(
       p.code, glue::glue("{sig(x)} GSEA plot {bind(ids, co = '_')}"),
-      glue::glue("为 GSEA plot {bind(ids)} {title}。")
+      glue::glue("为 GSEA {bind(ids)} 富集图。")
     )
     p.code
   })

@@ -111,7 +111,8 @@ setMethod("step1", signature = c(x = "job_tfbs"),
   })
 
 setMethod("map", signature = c(x = "job_tfbs", ref = "feature"),
-  function(x, ref, name = "TF", region = FALSE){
+  function(x, ref, region = FALSE, name = "TF", shifts = c(500, 1000, 5000), details = TRUE)
+  {
     data <- x@tables$step1$res
     init(meth(x)) <- init(snap(x)) <- FALSE
     if (is(ref, "feature_list")) {
@@ -172,48 +173,106 @@ setMethod("map", signature = c(x = "job_tfbs", ref = "feature"),
             data, col.start = "Start", col.end = "Stop"
           )
           range_bindingSite$id <- data$MatchSequence
-          atrack <- Gviz::AnnotationTrack(range_bindingSite)
+          if (details) {
+            strack <- Gviz::SequenceTrack(
+              BSgenome.Hsapiens.UCSC.hg19::Hsapiens, chromosome = data$chr
+            )
+            fun_details <- function(identifier, GdObject.original, ...) {
+              lim <- c(IRanges::start(GdObject.original@range), IRanges::end(GdObject.original@range))
+              lim <- range(lim)
+              lim <- grDevices::extendrange(lim, f = .5)
+              tracks <- list(
+                Gviz::GenomeAxisTrack(scale = .5, size = .05),
+                Gviz::AnnotationTrack(
+                  GdObject.original@range, fill = "darkred"
+                ),
+                strack
+              )
+              Gviz::plotTracks(
+                tracks, add = TRUE, showTitle = FALSE, 
+                from = lim[1], to = lim[2]
+              )
+            }
+            bintrack <- Gviz::AnnotationTrack(
+              range_bindingSite, details.size = .7, 
+              fun = fun_details, name = "Binding Site", fill = "darkred"
+            )
+          } else {
+            bintrack <- Gviz::AnnotationTrack(range_bindingSite)
+          }
           btrack <- e(Gviz::BiomartGeneRegionTrack(
               genome = "hg19", name = "ENS.", symbol = data$target
               ))
           btrack@range <- btrack@range[btrack@range$symbol == data$target, ]
-          otrack <- e(Gviz::OverlayTrack(trackList = list(btrack, atrack)))
-          gtrack <- e(Gviz::GenomeAxisTrack())
+          gtrack <- e(
+            Gviz::GenomeAxisTrack(
+              add53 = TRUE, add35 = TRUE, littleTicks = TRUE
+            )
+          )
           if (region) {
-            atracks_region <- lapply(c("promoters", "transcripts"),
+            region_ranges <- lapply(c("transcripts", "promoters"),
               function(type) {
                 fun_get <- get_fun(type, envir = asNamespace("GenomicFeatures"))
-                range <- fun_get(
+                args <- list(
                   TxDb.Hsapiens.UCSC.hg19.knownGene::TxDb.Hsapiens.UCSC.hg19.knownGene,
                   columns = c("gene_id"), filter = list(gene_id = data$target_entrez)
                 )
-                range$id <- Hmisc::capitalize(type)
-                Gviz::AnnotationTrack(range, shape = "box", name = "Region")
+                if (type == "promoters") {
+                  range <- lapply(shifts,
+                    function(shift) {
+                      args$upstream <- args$downstream <- shift
+                      range <- do.call(fun_get, args)
+                      if (type == "promoters") {
+                        range$group <- range$id <- glue::glue("± {shift} pb")
+                      }
+                      range
+                    })
+                  range <- do.call(c, range)
+                } else {
+                  range <- do.call(fun_get, args)
+                  range$group <- range$id <- Hmisc::capitalize(type)
+                }
+                range
               }
             )
-            otracks_type <- e(Gviz::OverlayTrack(trackList = atracks_region))
+            rtracks <- Gviz::AnnotationTrack(
+              do.call(c, region_ranges),
+              shape = "box", name = "Promoter size"
+            )
+            # otracks_type <- e(Gviz::OverlayTrack(trackList = atracks_region))
+          } else {
+            distance <- min(IRanges::distance(btrack@range, bintrack@range))
+            strands <- BiocGenerics::strand(btrack@range)
+            if (all(strands == "+")) {
+              d_start <- min(IRanges::start(btrack@range))
+              d_end <- d_start + distance
+            } else if (all(strands == "-")) {
+              d_start <- max(IRanges::end(btrack@range))
+              d_end <- d_start + distance
+            } else {
+              stop('Strand not illegal.')
+            }
+            distRange <- GenomicRanges::GRanges(
+              seqnames = data$chr,
+              ranges = IRanges::IRanges(start = d_start, end = d_end),
+            )
+            distRange$id <- glue::glue("{distance} pb")
+            rtracks <- Gviz::AnnotationTrack(
+              distRange, shap = "Box", name = "Distance", fill = "grey"
+            )
           }
-          ranges <- lapply(otrack@trackList,
+          ranges <- lapply(list(btrack, bintrack),
             function(x) {
               c(IRanges::start(x), IRanges::end(x))
             })
           lim <- e(grDevices::extendrange(range(unlist(ranges)), f = .5))
-          if (region) {
-            Gviz::plotTracks(
-              list(gtrack, otracks_type, otrack),
-              transcriptAnnotation = "symbol", sizes = c(1, 2, 2), 
-              featureAnnotation = "id", fontcolor.feature = 1, 
-              from = lim[1], to = lim[2]
-            )
-          } else {
-            Gviz::plotTracks(
-              list(gtrack, otrack),
-              transcriptAnnotation = "symbol", sizes = c(1, 2), 
-              featureAnnotation = "id", fontcolor.feature = 1, 
-              from = lim[1], to = lim[2]
-            )
-          }
-          wrap(recordPlot(), 11, 2)
+          Gviz::plotTracks(
+            list(gtrack, btrack, rtracks, bintrack),
+            transcriptAnnotation = "symbol", sizes = c(2, 1, 1, 4), 
+            featureAnnotation = "id", fontcolor.feature = 1, 
+            from = lim[1], to = lim[2]
+          )
+          wrap(recordPlot(), 11, 5)
         })
       names(p.tracks) <- paste0(data$TF_symbol, "_", data$target)
       p.tracks <- setLegend(p.tracks, glue::glue("为转录因子结合基因启动子示意 ({names(p.tracks)}) (Transcript 源于 BioMart 获取 ENSEMBL 数据库对应基因的注释区域；转录因子结合位点源于 Transcription Factor Target Gene Database)。 "))
