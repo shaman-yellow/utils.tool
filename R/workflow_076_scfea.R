@@ -334,6 +334,9 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_scfea"),
   function(x, ref, dims = 1:5)
   {
     data_flux <- ref@tables$step2$t.flux
+    if (nrow(data_flux) != nrow(x@object@meta.data)) {
+      stop('nrow(data_flux) != nrow(x@object@meta.data).')
+    }
     data_flux <- data.frame(
       data_flux[, -1], row.names = data_flux[[1]], check.names = FALSE
     )
@@ -394,6 +397,16 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_seurat"),
       to <- unique(unlist(to))
     }
     stop("...")
+  })
+
+setMethod("regroup", signature = c(x = "job_scfea", "job_seurat"),
+  function(x, ref){
+    if (is.null(x$metadata$rownames)) {
+      stop('is.null(x$metadata$rownames), no cell names?')
+    }
+    newMeta <- as_tibble(ref@object@meta.data)
+    x$metadata <- newMeta[match(x$metadata$rownames, newMeta$rownames), ]
+    return(x)
   })
 
 setMethod("asjob_limma", signature = c(x = "job_scfea"),

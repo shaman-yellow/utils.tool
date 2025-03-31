@@ -64,7 +64,8 @@ setMethod("step1", signature = c(x = "job_kat"),
         e(pkgload::load_all("~/copykat"))
       }
       full.anno <- dplyr::mutate(
-        copykat::full.anno, hgnc_symbol = gs(hgnc_symbol, "\\.[0-9]*", ""))
+        copykat::full.anno, hgnc_symbol = s(hgnc_symbol, "\\.[0-9]*", "")
+      )
       full.anno <<- full.anno
       cyclegenes <<- copykat::cyclegenes
       DNA.hg20 <<- copykat::DNA.hg20
@@ -77,7 +78,7 @@ setMethod("step1", signature = c(x = "job_kat"),
       )
       try(rm(list = c("full.anno", "cyclegenes", "DNA.hg20"), envir = .GlobalEnv), silent = TRUE)
       x$res_copykat <- res_copykat
-      meth(x)$step1 <- glue::glue("R 包 `CopyKAT` 用于鉴定恶性细胞 {cite_show('DelineatingCopGaoR2021')}。`CopyKAT` 可以区分整倍体与非整倍体，其中非整倍体被认为是肿瘤细胞，而整倍体是正常细胞 {cite_show('CausesAndConsGordon2012')}。")
+      x <- methodAdd(x, "R 包 `CopyKAT` 用于鉴定恶性细胞 {cite_show('DelineatingCopGaoR2021')}。`CopyKAT` 可以区分整倍体与非整倍体，其中非整倍体被认为是肿瘤细胞，而整倍体是正常细胞 {cite_show('CausesAndConsGordon2012')}。")
     }
     return(x)
   })

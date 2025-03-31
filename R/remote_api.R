@@ -91,7 +91,7 @@ set_remoteRun <- function(remoteRun = "bash", scriptHeading = NULL, scriptPrefix
 }
 
 testRem_file.exists <- function(x, file, wait = 10,
-  cancel = "testRem", env_cancel = .GlobalEnv, later = TRUE)
+  cancel = "testRem", env_cancel = .GlobalEnv, later = TRUE, show_queque = TRUE)
 {
   getFun <- function() {
     res <- try(get(cancel, envir = env_cancel), TRUE)
@@ -102,6 +102,9 @@ testRem_file.exists <- function(x, file, wait = 10,
   }
   testFun <- function() {
     if ((notHasThat <- !rem_file.exists(file)) && getFun()) {
+      if (show_queque) {
+        system(glue::glue("ssh {x$remote} 'squeque'"))
+      }
       if (later) {
         message(
           glue::glue(

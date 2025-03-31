@@ -824,16 +824,16 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
     if (!is.null(cell.props.filter)) {
       freq <- prop.table(table(metadata[[ group.by ]], metadata[[ sample ]]), 1)
       groups <- names(which(apply(freq, 1, function(x) entropy_score(freq = x)) > cell.props.filter))
-      x <- snapAdd(x, "以标准化熵筛选于样本中相对均衡分布的细胞 ({bind(groups)}) (cutoff: {cell.props.filter}) \n\n ({.entropy_score_method()})。\n\n", step = class(ref))
+      x <- methodAdd(x, "\n\n以标准化熵筛选于样本中相对均衡分布的细胞 ({bind(groups)}) (cutoff: {cell.props.filter}) \n\n ({.entropy_score_method()})。\n\n", step = class(ref))
     } else {
       groups <- ids(x, group.by)
     }
     if (any(isUnknown <- grpl(groups, "unknown", TRUE))) {
-      x <- snapAdd(x, "\n\n去除未知细胞 (unknown)。\n\n", step = class(ref))
+      x <- methodAdd(x, "\n\n去除未知细胞 (unknown)。\n\n", step = class(ref))
       groups <- groups[ !isUnknown ]
     }
     if (!is.null(excludes)) {
-      x <- snapAdd(x, "去除 {bind(excludes)} 细胞。\n\n", step = class(ref))
+      x <- methodAdd(x, "去除 {bind(excludes)} 细胞。\n\n", step = class(ref))
       groups <- groups[ !groups %in% excludes ]
     }
     fun_formal_name <- function(x) {
@@ -864,7 +864,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
         fea@.Data
       }
     }
-    x <- snapAdd(
+    x <- methodAdd(
       x, "\n\n在上述的细胞群中，分析两组 features (即，{snap(ref[[1]])}，与 {snap(ref[[2]])})。\n\n",
       step = class(ref)
     )
@@ -900,7 +900,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
         seqs <- gene.which
       }
       if (length(seqs)) {
-        x <- snapAdd(x, "\n\n对于基因集，在各组细胞中，以阈值穿透率去除低表达的基因 (例如，去除总体表达为 0 的基因) (阈值：{gene.threshold}，穿透率 cutoff：{gene.props.filter}) ({.fast_penetrate_rate_method()})。\n\n", step = class(ref))
+        x <- methodAdd(x, "\n\n对于基因集，在各组细胞中，以阈值穿透率去除低表达的基因 (例如，去除总体表达为 0 的基因) (阈值：{gene.threshold}，穿透率 cutoff：{gene.props.filter}) ({.fast_penetrate_rate_method()})。\n\n", step = class(ref))
       }
       for (i in seqs) {
         lst_stats <- fun_get_stats(ref[[i]])
@@ -924,26 +924,27 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
           }
         })
       sets <- lst_clear0(sets)
-      x <- snapAdd(x, "\n\n如果细胞群中，两组 features 均满足数量大于 {feature.nlimit}，则保留该细胞群，用于后续分析。\n\n", step = class(ref))
+      x <- methodAdd(x, "\n\n如果细胞群中，两组 features 均满足数量大于 {feature.nlimit}，则保留该细胞群，用于后续分析。\n\n", step = class(ref))
     }
     # set function of getting dataset (job_limma for 'cal_corp')
     fun_get_datasets <- function(feature, dataset, group) {
       if (is(dataset, "job_seurat")) {
-        asjob_limma(dataset, feature, cell_groups = group, group.by = group.by)
+        object <- asjob_limma(dataset, feature, cell_groups = group, group.by = group.by)
       } else if (is(dataset, "job_limma")) {
         if (is.null(.get_meta(dataset, group.by))) {
           stop('is.null(.get_meta(dataset, group.by)).')
         }
-        filter(
+        object <- filter(
           dataset, type = "metadata", !!rlang::sym(group.by) == !!group, 
           add_snap = FALSE, force = TRUE
         )
       } else {
         stop("`datasets` should be a list of 'job_seurat' or 'job_limma'")
       }
+      return(object)
     }
     # calculate correlation ...
-    x <- snapAdd(
+    x <- methodAdd(
       x, "\n\n分别对各细胞群的两组 features 关联分析。\n\n", step = class(ref)
     )
     res_correlation <- sapply(names(sets), simplify = FALSE,
@@ -953,7 +954,13 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
         to <- sets[[ group ]]$to
         lm_from <- fun_get_datasets(from, datasets[[1]], group)
         lm_to <- fun_get_datasets(to, datasets[[2]], group)
-        message("Got datasets.")
+        message("Got datasets. Check cell number...")
+        lapply(list(lm_from, lm_to), 
+          function(x) {
+            if (!nrow(x@params$normed_data$targets)[1]) {
+              stop('!nrow(x@params$normed_data$targets)[1].')
+            }
+          })
         cp <- cal_corp(
           lm_from, lm_to, from, to, names = names, gname = FALSE,
           cut.cor = cut.cor, cut.p = cut.p, theme = paste(x@sig, fun_formal_name(group))
@@ -968,7 +975,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
         n <- nrow(res_correlation[[name]]$sig.corp) %||% 0L
         glue::glue("{name} ({n})")
       }, character(1))
-    x <- snapAdd(x, "设定 P 阈值 ({cut.p}) 与关联系数 ({cut.cor}) 阈值，获取各细胞群中的显著关联组。统计为: {bind(s.com)}。", step = class(ref))
+    x <- snapAdd(x, "设定 P 阈值 ({cut.p}) 与关联系数 ({cut.cor}) 阈值，获取各细胞群 (细胞的筛选算法见方法章节) 中的显著关联组。统计为: {bind(s.com)}。", step = class(ref))
     names(res_correlation) <- fun_formal_name(names(res_correlation))
     features <- sapply(
       names(res_correlation), simplify = FALSE, 

@@ -1,0 +1,1213 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE DocumentSummarySet>
+<DocumentSummarySet status="OK">
+  <DocumentSummary>
+    <Id>21981800</Id>
+    <PubDate>2011 Oct 7</PubDate>
+    <EPubDate>2011 Oct 7</EPubDate>
+    <Source>BMC Genomics</Source>
+    <Authors>
+      <Author>
+        <Name>Vieira FA</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Greg&#xf3;rio SF</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Ferraresso S</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Thorne MA</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Costa R</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Milan M</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Bargelloni L</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Clark MS</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Canario AV</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Power DM</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Power DM</LastAuthor>
+    <Title>Skin healing and scale regeneration in fed and unfed sea bream, Sparus auratus.</Title>
+    <SortTitle>skin healing and scale regeneration in fed and unfed sea bream sparus auratus</SortTitle>
+    <Volume>12</Volume>
+    <Pages>490</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100965258</NlmUniqueID>
+    <ESSN>1471-2164</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>21981800</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC3199283</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC3199283;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/1471-2164-12-490</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>1471-2164-12-490</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2010/12/24 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2011/10/07 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2011/10/11 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2011/10/11 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2012/02/09 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2011/10/07 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>89</PmcRefCount>
+    <FullJournalName>BMC genomics</FullJournalName>
+    <ELocationID>doi: 10.1186/1471-2164-12-490</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2011/10/07 00:00</SortPubDate>
+    <SortFirstAuthor>Vieira FA</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>22726420</Id>
+    <PubDate>2012 Jun 22</PubDate>
+    <EPubDate>2012 Jun 22</EPubDate>
+    <Source>BMC Genomics</Source>
+    <Authors>
+      <Author>
+        <Name>Arainga M</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Murakami H</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Aida Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Aida Y</LastAuthor>
+    <Title>Visualizing spatiotemporal dynamics of apoptosis after G1 arrest by human T cell leukemia virus type 1 Tax and insights into gene expression changes using microarray-based gene expression analysis.</Title>
+    <SortTitle>visualizing spatiotemporal dynamics of apoptosis after g1 arrest by human t cell leukemia virus type 1 tax and insights into gene expression changes using microarray based gene expression analysis</SortTitle>
+    <Volume>13</Volume>
+    <Pages>275</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100965258</NlmUniqueID>
+    <ESSN>1471-2164</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>22726420</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC3537563</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC3537563;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/1471-2164-13-275</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>1471-2164-13-275</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2012/03/06 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2012/06/07 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2012/06/26 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2012/06/26 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2013/05/15 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2012/06/22 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>58</PmcRefCount>
+    <FullJournalName>BMC genomics</FullJournalName>
+    <ELocationID>doi: 10.1186/1471-2164-13-275</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2012/06/22 00:00</SortPubDate>
+    <SortFirstAuthor>Arainga M</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>26951612</Id>
+    <PubDate>2016 Mar 8</PubDate>
+    <EPubDate>2016 Mar 8</EPubDate>
+    <Source>BMC Genomics</Source>
+    <Authors>
+      <Author>
+        <Name>Schroyen M</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Eisley C</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Koltes JE</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Fritz-Waters E</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Choi I</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Plastow GS</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Guan L</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Stothard P</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Bao H</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Kommadath A</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Reecy JM</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Lunney JK</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Rowland RR</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Dekkers JC</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Tuggle CK</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Tuggle CK</LastAuthor>
+    <Title>Bioinformatic analyses in early host response to Porcine Reproductive and Respiratory Syndrome virus (PRRSV) reveals pathway differences between pigs with alternate genotypes for a major host response QTL.</Title>
+    <SortTitle>bioinformatic analyses in early host response to porcine reproductive and respiratory syndrome virus prrsv reveals pathway differences between pigs with alternate genotypes for a major host response qtl</SortTitle>
+    <Volume>17</Volume>
+    <Pages>196</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100965258</NlmUniqueID>
+    <ESSN>1471-2164</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>26951612</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC4782518</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC4782518;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s12864-016-2547-z</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s12864-016-2547-z</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2015/11/19 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2016/02/26 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2016/03/09 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2016/03/10 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2016/11/01 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2016/03/08 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>82</PmcRefCount>
+    <FullJournalName>BMC genomics</FullJournalName>
+    <ELocationID>doi: 10.1186/s12864-016-2547-z</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2016/03/08 00:00</SortPubDate>
+    <SortFirstAuthor>Schroyen M</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>30075702</Id>
+    <PubDate>2018 Aug 3</PubDate>
+    <EPubDate>2018 Aug 3</EPubDate>
+    <Source>BMC Genomics</Source>
+    <Authors>
+      <Author>
+        <Name>Cai W</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zhou D</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wu W</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Tan WL</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wang J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zhou C</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Lou Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Lou Y</LastAuthor>
+    <Title>MHC class II restricted neoantigen peptides predicted by clonal mutation analysis in lung adenocarcinoma patients: implications on prognostic immunological biomarker and vaccine design.</Title>
+    <SortTitle>mhc class ii restricted neoantigen peptides predicted by clonal mutation analysis in lung adenocarcinoma patients implications on prognostic immunological biomarker and vaccine design</SortTitle>
+    <Volume>19</Volume>
+    <Issue>1</Issue>
+    <Pages>582</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100965258</NlmUniqueID>
+    <ESSN>1471-2164</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>30075702</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC6090856</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC6090856;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s12864-018-4958-5</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s12864-018-4958-5</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2017/08/22 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2018/07/24 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2018/08/05 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2018/08/05 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2018/12/12 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2018/08/03 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>27</PmcRefCount>
+    <FullJournalName>BMC genomics</FullJournalName>
+    <ELocationID>doi: 10.1186/s12864-018-4958-5</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2018/08/03 00:00</SortPubDate>
+    <SortFirstAuthor>Cai W</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>31898484</Id>
+    <PubDate>2020 Jan 2</PubDate>
+    <EPubDate>2020 Jan 2</EPubDate>
+    <Source>BMC Genomics</Source>
+    <Authors>
+      <Author>
+        <Name>Zhong W</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Myers JS</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wang F</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wang K</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Lucas J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Rosfjord E</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Lucas J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Hooper AT</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Yang S</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Lemon LA</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Guffroy M</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>May C</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Bienkowska JR</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Rejto PA</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Rejto PA</LastAuthor>
+    <Title>Comparison of the molecular and cellular phenotypes of common mouse syngeneic models with human tumors.</Title>
+    <SortTitle>comparison of the molecular and cellular phenotypes of common mouse syngeneic models with human tumors</SortTitle>
+    <Volume>21</Volume>
+    <Issue>1</Issue>
+    <Pages>2</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100965258</NlmUniqueID>
+    <ESSN>1471-2164</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>31898484</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC6941261</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC6941261;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s12864-019-6344-3</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s12864-019-6344-3</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2019/01/17 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2019/11/27 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2020/01/04 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2020/01/04 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2020/06/04 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2020/01/02 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>45</PmcRefCount>
+    <FullJournalName>BMC genomics</FullJournalName>
+    <ELocationID>doi: 10.1186/s12864-019-6344-3</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2020/01/02 00:00</SortPubDate>
+    <SortFirstAuthor>Zhong W</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>35026984</Id>
+    <PubDate>2022 Jan 13</PubDate>
+    <EPubDate>2022 Jan 13</EPubDate>
+    <Source>BMC Genomics</Source>
+    <Authors>
+      <Author>
+        <Name>Liu P</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Chen R</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zhang X</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Fu R</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Tao L</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Jia W</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Jia W</LastAuthor>
+    <Title>Combined PD-1/PD-L1 and tumor-infiltrating immune cells redefined a unique molecular subtype of high-grade serous ovarian carcinoma.</Title>
+    <SortTitle>combined pd 1 pd l1 and tumor infiltrating immune cells redefined a unique molecular subtype of high grade serous ovarian carcinoma</SortTitle>
+    <Volume>23</Volume>
+    <Issue>1</Issue>
+    <Pages>51</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100965258</NlmUniqueID>
+    <ESSN>1471-2164</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>35026984</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC8759258</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC8759258;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s12864-021-08265-y</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s12864-021-08265-y</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2021/08/07 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2021/12/20 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2022/01/14 05:27</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2022/01/15 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2022/01/18 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2022/01/13 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>49</PmcRefCount>
+    <FullJournalName>BMC genomics</FullJournalName>
+    <ELocationID>doi: 10.1186/s12864-021-08265-y</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2022/01/13 00:00</SortPubDate>
+    <SortFirstAuthor>Liu P</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>38057698</Id>
+    <PubDate>2023 Dec 6</PubDate>
+    <EPubDate>2023 Dec 6</EPubDate>
+    <Source>BMC Genomics</Source>
+    <Authors>
+      <Author>
+        <Name>Deng L</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Ren J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Li B</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wang Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Jiang N</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wang Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Cui H</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Cui H</LastAuthor>
+    <Title>Predictive value of CCL2 in the prognosis and immunotherapy response of glioblastoma multiforme.</Title>
+    <SortTitle>predictive value of ccl2 in the prognosis and immunotherapy response of glioblastoma multiforme</SortTitle>
+    <Volume>24</Volume>
+    <Issue>1</Issue>
+    <Pages>746</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100965258</NlmUniqueID>
+    <ESSN>1471-2164</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>38057698</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC10698956</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC10698956;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s12864-023-09674-x</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s12864-023-09674-x</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2023/03/03 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2023/09/12 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2023/12/11 12:41</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2023/12/07 00:42</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2023/12/06 23:52</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2023/12/06 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>37</PmcRefCount>
+    <FullJournalName>BMC genomics</FullJournalName>
+    <ELocationID>doi: 10.1186/s12864-023-09674-x</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2023/12/06 00:00</SortPubDate>
+    <SortFirstAuthor>Deng L</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>38326754</Id>
+    <PubDate>2024 Feb 8</PubDate>
+    <EPubDate>2024 Feb 8</EPubDate>
+    <Source>BMC Genomics</Source>
+    <Authors>
+      <Author>
+        <Name>Huang F</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zhang C</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Yang W</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zhou Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Yang Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Yang X</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Guo W</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wang B</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Wang B</LastAuthor>
+    <Title>Identification of a DNA damage repair-related LncRNA signature for predicting the prognosis and immunotherapy response of hepatocellular carcinoma.</Title>
+    <SortTitle>identification of a dna damage repair related lncrna signature for predicting the prognosis and immunotherapy response of hepatocellular carcinoma</SortTitle>
+    <Volume>25</Volume>
+    <Issue>1</Issue>
+    <Pages>155</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100965258</NlmUniqueID>
+    <ESSN>1471-2164</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>38326754</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC10851502</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC10851502;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s12864-024-10055-1</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s12864-024-10055-1</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2023/10/31 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2024/01/26 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2024/02/09 00:42</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2024/02/08 00:41</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2024/02/07 23:43</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2024/02/08 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>28</PmcRefCount>
+    <FullJournalName>BMC genomics</FullJournalName>
+    <ELocationID>doi: 10.1186/s12864-024-10055-1</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2024/02/08 00:00</SortPubDate>
+    <SortFirstAuthor>Huang F</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>38448802</Id>
+    <PubDate>2024 Mar 6</PubDate>
+    <EPubDate>2024 Mar 6</EPubDate>
+    <Source>BMC Genomics</Source>
+    <Authors>
+      <Author>
+        <Name>Pei J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Peng Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Ma K</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Lan C</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zhang T</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Li Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Chen X</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Gao H</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Gao H</LastAuthor>
+    <Title>Integrated analysis reveals FLI1 regulates the tumor immune microenvironment via its cell-type-specific expression and transcriptional regulation of distinct target genes of immune cells in breast cancer.</Title>
+    <SortTitle>integrated analysis reveals fli1 regulates the tumor immune microenvironment via its cell type specific expression and transcriptional regulation of distinct target genes of immune cells in breast cancer</SortTitle>
+    <Volume>25</Volume>
+    <Issue>1</Issue>
+    <Pages>250</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100965258</NlmUniqueID>
+    <ESSN>1471-2164</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>38448802</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC10916124</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC10916124;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s12864-024-10174-9</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s12864-024-10174-9</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2023/12/21 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2024/02/29 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2024/03/08 06:42</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2024/03/07 00:43</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2024/03/06 23:35</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2024/03/06 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>52</PmcRefCount>
+    <FullJournalName>BMC genomics</FullJournalName>
+    <ELocationID>doi: 10.1186/s12864-024-10174-9</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2024/03/06 00:00</SortPubDate>
+    <SortFirstAuthor>Pei J</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>38671348</Id>
+    <PubDate>2024 Apr 26</PubDate>
+    <EPubDate>2024 Apr 26</EPubDate>
+    <Source>BMC Genomics</Source>
+    <Authors>
+      <Author>
+        <Name>Ren L</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Liu J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Lin Q</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>He T</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Huang G</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wang W</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zhan X</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>He Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Huang B</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Mao X</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Mao X</LastAuthor>
+    <Title>Crosstalk of disulfidptosis-related subtypes identifying a prognostic signature to improve prognosis and immunotherapy responses of clear cell renal cell carcinoma patients.</Title>
+    <SortTitle>crosstalk of disulfidptosis related subtypes identifying a prognostic signature to improve prognosis and immunotherapy responses of clear cell renal cell carcinoma patients</SortTitle>
+    <Volume>25</Volume>
+    <Issue>1</Issue>
+    <Pages>413</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100965258</NlmUniqueID>
+    <ESSN>1471-2164</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>38671348</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC11046872</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC11046872;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s12864-024-10307-0</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s12864-024-10307-0</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2023/12/19 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2024/04/15 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2024/04/27 09:53</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2024/04/27 09:52</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2024/04/26 23:37</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2024/04/26 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>64</PmcRefCount>
+    <FullJournalName>BMC genomics</FullJournalName>
+    <ELocationID>doi: 10.1186/s12864-024-10307-0</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2024/04/26 00:00</SortPubDate>
+    <SortFirstAuthor>Ren L</SortFirstAuthor>
+  </DocumentSummary>
+</DocumentSummarySet>

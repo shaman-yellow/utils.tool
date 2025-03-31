@@ -1,0 +1,1366 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE DocumentSummarySet>
+<DocumentSummarySet status="OK">
+  <DocumentSummary>
+    <Id>27549193</Id>
+    <PubDate>2016 Aug 22</PubDate>
+    <EPubDate>2016 Aug 22</EPubDate>
+    <Source>Genome Biol</Source>
+    <Authors>
+      <Author>
+        <Name>Li B</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Severson E</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Pignon JC</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zhao H</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Li T</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Novak J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Jiang P</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Shen H</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Aster JC</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Rodig S</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Signoretti S</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Liu JS</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Liu XS</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Liu XS</LastAuthor>
+    <Title>Comprehensive analyses of tumor immunity: implications for cancer immunotherapy.</Title>
+    <SortTitle>comprehensive analyses of tumor immunity implications for cancer immunotherapy</SortTitle>
+    <Volume>17</Volume>
+    <Issue>1</Issue>
+    <Pages>174</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100960660</NlmUniqueID>
+    <ISSN>1474-7596</ISSN>
+    <ESSN>1474-760X</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>27549193</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC4993001</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC4993001;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s13059-016-1028-7</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s13059-016-1028-7</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2016/01/30 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2016/07/15 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2016/08/24 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2016/08/24 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2017/07/14 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2016/08/22 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <References>
+      <Reference>
+        <RefSource>Genome Biol. 2016 Aug 22;17(1):175. doi: 10.1186/s13059-016-1036-7.</RefSource>
+        <RefType>Comment in</RefType>
+        <PMID>27549319</PMID>
+      </Reference>
+      <Reference>
+        <RefSource>Genome Biol. 2017 Jul 5;18(1):127. doi: 10.1186/s13059-017-1256-5.</RefSource>
+        <RefType>Comment in</RefType>
+        <PMID>28679386</PMID>
+      </Reference>
+      <Reference>
+        <RefSource>Genome Biol. 2017 Jul 5;18(1):128. doi: 10.1186/s13059-017-1257-4.</RefSource>
+        <RefType>Comment in</RefType>
+        <PMID>28679399</PMID>
+      </Reference>
+    </References>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>43</PmcRefCount>
+    <FullJournalName>Genome biology</FullJournalName>
+    <ELocationID>doi: 10.1186/s13059-016-1028-7</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2016/08/22 00:00</SortPubDate>
+    <SortFirstAuthor>Li B</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>27855702</Id>
+    <PubDate>2016 Nov 17</PubDate>
+    <EPubDate>2016 Nov 17</EPubDate>
+    <Source>Genome Biol</Source>
+    <Authors>
+      <Author>
+        <Name>&#x15e;enbabao&#x11f;lu Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Gejman RS</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Winer AG</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Liu M</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Van Allen EM</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>de Velasco G</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Miao D</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Ostrovnaya I</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Drill E</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Luna A</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Weinhold N</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Lee W</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Manley BJ</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Khalil DN</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Kaffenberger SD</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Chen Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Danilova L</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Voss MH</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Coleman JA</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Russo P</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Reuter VE</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Chan TA</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Cheng EH</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Scheinberg DA</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Li MO</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Choueiri TK</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Hsieh JJ</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Sander C</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Hakimi AA</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Hakimi AA</LastAuthor>
+    <Title>Tumor immune microenvironment characterization in clear cell renal cell carcinoma identifies prognostic and immunotherapeutically relevant messenger RNA signatures.</Title>
+    <SortTitle>tumor immune microenvironment characterization in clear cell renal cell carcinoma identifies prognostic and immunotherapeutically relevant messenger rna signatures</SortTitle>
+    <Volume>17</Volume>
+    <Issue>1</Issue>
+    <Pages>231</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100960660</NlmUniqueID>
+    <ISSN>1474-7596</ISSN>
+    <ESSN>1474-760X</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>27855702</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC5114739</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC5114739;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s13059-016-1092-z</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s13059-016-1092-z</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2016/08/01 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2016/10/26 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2016/11/19 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2016/11/20 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2017/06/22 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2016/11/17 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <References>
+      <Reference>
+        <RefSource>Genome Biol. 2017 Mar 1;18(1):46. doi: 10.1186/s13059-017-1180-8.</RefSource>
+        <RefType>Erratum in</RefType>
+        <PMID>28249590</PMID>
+      </Reference>
+    </References>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>85</PmcRefCount>
+    <FullJournalName>Genome biology</FullJournalName>
+    <DocType>citation</DocType>
+    <SortPubDate>2016/11/17 00:00</SortPubDate>
+    <SortFirstAuthor>&#x15e;enbabao&#x11f;lu Y</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>32718321</Id>
+    <PubDate>2020 Jul 27</PubDate>
+    <EPubDate>2020 Jul 27</EPubDate>
+    <Source>Genome Biol</Source>
+    <Authors>
+      <Author>
+        <Name>D'Anna F</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Van Dyck L</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Xiong J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zhao H</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Berrens RV</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Qian J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Bieniasz-Krzywiec P</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Chandra V</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Schoonjans L</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Matthews J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>De Smedt J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Minnoye L</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Amorim R</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Khorasanizadeh S</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Yu Q</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zhao L</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>De Borre M</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Savvides SN</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Simon MC</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Carmeliet P</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Reik W</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Rastinejad F</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Mazzone M</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Thienpont B</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Lambrechts D</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Lambrechts D</LastAuthor>
+    <Title>DNA methylation repels binding of hypoxia-inducible transcription factors to maintain tumor immunotolerance.</Title>
+    <SortTitle>dna methylation repels binding of hypoxia inducible transcription factors to maintain tumor immunotolerance</SortTitle>
+    <Volume>21</Volume>
+    <Issue>1</Issue>
+    <Pages>182</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100960660</NlmUniqueID>
+    <ISSN>1474-7596</ISSN>
+    <ESSN>1474-760X</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>32718321</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC7384226</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC7384226;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s13059-020-02087-z</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s13059-020-02087-z</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2020/01/23 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2020/06/29 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2020/07/29 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2020/07/29 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2021/07/09 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2020/07/27 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>68</PmcRefCount>
+    <FullJournalName>Genome biology</FullJournalName>
+    <ELocationID>doi: 10.1186/s13059-020-02087-z</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2020/07/27 00:00</SortPubDate>
+    <SortFirstAuthor>D'Anna F</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>33059736</Id>
+    <PubDate>2020 Oct 15</PubDate>
+    <EPubDate>2020 Oct 15</EPubDate>
+    <Source>Genome Biol</Source>
+    <Authors>
+      <Author>
+        <Name>Gu SS</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wang X</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Hu X</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Jiang P</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Li Z</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Traugh N</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Bu X</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Tang Q</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wang C</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zeng Z</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Fu J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Meyer C</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zhang Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Cejas P</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Lim K</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wang J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zhang W</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Tokheim C</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Sahu AD</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Xing X</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Kroger B</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Ouyang Z</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Long H</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Freeman GJ</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Brown M</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Liu XS</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Liu XS</LastAuthor>
+    <Title>Clonal tracing reveals diverse patterns of response to immune checkpoint blockade.</Title>
+    <SortTitle>clonal tracing reveals diverse patterns of response to immune checkpoint blockade</SortTitle>
+    <Volume>21</Volume>
+    <Issue>1</Issue>
+    <Pages>263</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100960660</NlmUniqueID>
+    <ISSN>1474-7596</ISSN>
+    <ESSN>1474-760X</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>33059736</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC7559192</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC7559192;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s13059-020-02166-1</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s13059-020-02166-1</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2020/04/07 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2020/09/15 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2020/10/16 05:34</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2020/10/17 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2021/06/12 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2020/10/15 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>105</PmcRefCount>
+    <FullJournalName>Genome biology</FullJournalName>
+    <ELocationID>doi: 10.1186/s13059-020-02166-1</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2020/10/15 00:00</SortPubDate>
+    <SortFirstAuthor>Gu SS</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>33849634</Id>
+    <PubDate>2021 Apr 13</PubDate>
+    <EPubDate>2021 Apr 13</EPubDate>
+    <Source>Genome Biol</Source>
+    <Authors>
+      <Author>
+        <Name>Qu S</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Jiao Z</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Lu G</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Yao B</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wang T</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Rong W</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Xu J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Fan T</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Sun X</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Yang R</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wang J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Yao Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Xu G</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Yan X</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Wang T</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Liang H</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zen K</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Zen K</LastAuthor>
+    <Title>PD-L1 lncRNA splice isoform promotes lung adenocarcinoma progression via enhancing c-Myc activity.</Title>
+    <SortTitle>pd l1 lncrna splice isoform promotes lung adenocarcinoma progression via enhancing c myc activity</SortTitle>
+    <Volume>22</Volume>
+    <Issue>1</Issue>
+    <Pages>104</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100960660</NlmUniqueID>
+    <ISSN>1474-7596</ISSN>
+    <ESSN>1474-760X</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>33849634</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC8042710</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC8042710;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s13059-021-02331-0</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s13059-021-02331-0</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2020/08/27 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2021/03/25 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2021/04/14 05:42</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2021/04/15 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2022/01/15 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2021/04/13 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>53</PmcRefCount>
+    <FullJournalName>Genome biology</FullJournalName>
+    <ELocationID>doi: 10.1186/s13059-021-02331-0</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2021/04/13 00:00</SortPubDate>
+    <SortFirstAuthor>Qu S</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>33952321</Id>
+    <PubDate>2021 May 5</PubDate>
+    <EPubDate>2021 May 5</EPubDate>
+    <Source>Genome Biol</Source>
+    <Authors>
+      <Author>
+        <Name>Minot SS</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Barry KC</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Kasman C</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Golob JL</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Willis AD</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Willis AD</LastAuthor>
+    <Title>geneshot: gene-level metagenomics identifies genome islands associated with immunotherapy response.</Title>
+    <SortTitle>geneshot gene level metagenomics identifies genome islands associated with immunotherapy response</SortTitle>
+    <Volume>22</Volume>
+    <Issue>1</Issue>
+    <Pages>135</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100960660</NlmUniqueID>
+    <ISSN>1474-7596</ISSN>
+    <ESSN>1474-760X</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>33952321</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC8097837</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC8097837;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s13059-021-02355-6</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s13059-021-02355-6</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2020/11/09 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2021/04/16 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2021/05/06 05:47</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2021/05/07 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2022/01/20 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2021/05/05 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>21</PmcRefCount>
+    <FullJournalName>Genome biology</FullJournalName>
+    <ELocationID>doi: 10.1186/s13059-021-02355-6</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2021/05/05 00:00</SortPubDate>
+    <SortFirstAuthor>Minot SS</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>35538548</Id>
+    <PubDate>2022 May 11</PubDate>
+    <EPubDate>2022 May 11</EPubDate>
+    <Source>Genome Biol</Source>
+    <Authors>
+      <Author>
+        <Name>Khaliq AM</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Erdogan C</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Kurt Z</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Turgut SS</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Grunvald MW</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Rand T</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Khare S</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Borgia JA</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Hayden DM</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Pappas SG</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Govekar HR</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Kam AE</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Reiser J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Turaga K</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Radovich M</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Zang Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Qiu Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Liu Y</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Fishel ML</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Turk A</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Gupta V</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Al-Sabti R</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Subramanian J</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Kuzel TM</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Sadanandam A</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Waldron L</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Hussain A</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Saleem M</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>El-Rayes B</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Salahudeen AA</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Masood A</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Masood A</LastAuthor>
+    <Title>Refining colorectal cancer classification and clinical stratification through a single-cell atlas.</Title>
+    <SortTitle>refining colorectal cancer classification and clinical stratification through a single cell atlas</SortTitle>
+    <Volume>23</Volume>
+    <Issue>1</Issue>
+    <Pages>113</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100960660</NlmUniqueID>
+    <ISSN>1474-7596</ISSN>
+    <ESSN>1474-760X</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>35538548</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC9092724</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC9092724;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s13059-022-02677-z</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s13059-022-02677-z</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2021/12/15 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2022/04/21 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2022/05/10 23:42</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2022/05/11 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2022/05/14 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2022/05/11 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <References>
+      <Reference>
+        <RefSource>Genome Biol. 2022 Jul 13;23(1):156. doi: 10.1186/s13059-022-02724-9.</RefSource>
+        <RefType>Erratum in</RefType>
+        <PMID>35831907</PMID>
+      </Reference>
+    </References>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>114</PmcRefCount>
+    <FullJournalName>Genome biology</FullJournalName>
+    <ELocationID>doi: 10.1186/s13059-022-02677-z</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2022/05/11 00:00</SortPubDate>
+    <SortFirstAuthor>Khaliq AM</SortFirstAuthor>
+  </DocumentSummary>
+  <DocumentSummary>
+    <Id>36376909</Id>
+    <PubDate>2022 Nov 14</PubDate>
+    <EPubDate>2022 Nov 14</EPubDate>
+    <Source>Genome Biol</Source>
+    <Authors>
+      <Author>
+        <Name>Kaufmann TL</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Petkovic M</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Watkins TBK</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Colliver EC</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Laskina S</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Thapa N</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Minussi DC</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Navin N</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Swanton C</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Van Loo P</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Haase K</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Tarabichi M</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+      <Author>
+        <Name>Schwarz RF</Name>
+        <AuthType>Author</AuthType>
+      </Author>
+    </Authors>
+    <LastAuthor>Schwarz RF</LastAuthor>
+    <Title>MEDICC2: whole-genome doubling aware copy-number phylogenies for cancer evolution.</Title>
+    <SortTitle>medicc2 whole genome doubling aware copy number phylogenies for cancer evolution</SortTitle>
+    <Volume>23</Volume>
+    <Issue>1</Issue>
+    <Pages>241</Pages>
+    <Lang>
+      <string>eng</string>
+    </Lang>
+    <NlmUniqueID>100960660</NlmUniqueID>
+    <ISSN>1474-7596</ISSN>
+    <ESSN>1474-760X</ESSN>
+    <PubType>
+      <flag>Journal Article</flag>
+    </PubType>
+    <RecordStatus>PubMed - indexed for MEDLINE</RecordStatus>
+    <PubStatus>3</PubStatus>
+    <ArticleIds>
+      <ArticleId>
+        <IdType>pubmed</IdType>
+        <IdTypeN>1</IdTypeN>
+        <Value>36376909</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmc</IdType>
+        <IdTypeN>8</IdTypeN>
+        <Value>PMC9661799</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pmcid</IdType>
+        <IdTypeN>5</IdTypeN>
+        <Value>pmc-id: PMC9661799;</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>doi</IdType>
+        <IdTypeN>3</IdTypeN>
+        <Value>10.1186/s13059-022-02794-9</Value>
+      </ArticleId>
+      <ArticleId>
+        <IdType>pii</IdType>
+        <IdTypeN>4</IdTypeN>
+        <Value>10.1186/s13059-022-02794-9</Value>
+      </ArticleId>
+    </ArticleIds>
+    <History>
+      <PubMedPubDate>
+        <PubStatus>received</PubStatus>
+        <Date>2021/11/15 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>accepted</PubStatus>
+        <Date>2022/10/12 00:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>entrez</PubStatus>
+        <Date>2022/11/15 00:15</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pubmed</PubStatus>
+        <Date>2022/11/16 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>medline</PubStatus>
+        <Date>2022/11/18 06:00</Date>
+      </PubMedPubDate>
+      <PubMedPubDate>
+        <PubStatus>pmc-release</PubStatus>
+        <Date>2022/11/14 00:00</Date>
+      </PubMedPubDate>
+    </History>
+    <Attributes>
+      <flag>Has Abstract</flag>
+    </Attributes>
+    <PmcRefCount>75</PmcRefCount>
+    <FullJournalName>Genome biology</FullJournalName>
+    <ELocationID>doi: 10.1186/s13059-022-02794-9</ELocationID>
+    <DocType>citation</DocType>
+    <SortPubDate>2022/11/14 00:00</SortPubDate>
+    <SortFirstAuthor>Kaufmann TL</SortFirstAuthor>
+  </DocumentSummary>
+</DocumentSummarySet>
