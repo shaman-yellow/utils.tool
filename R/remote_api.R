@@ -103,7 +103,7 @@ testRem_file.exists <- function(x, file, wait = 10,
   testFun <- function() {
     if ((notHasThat <- !rem_file.exists(file)) && getFun()) {
       if (show_queque) {
-        system(glue::glue("ssh {x$remote} 'squeque'"))
+        system(glue::glue("ssh {x$remote} 'squeue'"))
       }
       if (later) {
         message(

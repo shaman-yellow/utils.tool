@@ -244,7 +244,7 @@ setMethod("vis", signature = c(x = "job_scfea"),
     }
     data <- x@tables$step2$t.flux
     anno <- x@tables$step2$t.anno
-    data <- tidyr::pivot_longer(data, -V1, names_to = "Module", values_to = "Flux")
+    data <- e(tidyr::pivot_longer(data, -V1, names_to = "Module", values_to = "Flux"))
     data <- map(data, "Module", anno, "V1", "name", col = "name")
     data <- dplyr::filter(data, name %in% !!feature)
     if (!nrow(data)) {
@@ -271,18 +271,21 @@ setMethod("vis", signature = c(x = "job_scfea"),
       data <- dplyr::filter(data, group.by %in% !!groups)
     }
     p.flux <- ggplot(data, aes(x = Flux, y = name, fill = group.by)) +
-      ggridges::geom_density_ridges() +
+      e(ggridges::geom_density_ridges()) +
       facet_wrap(~ group.by, nrow = 1) +
       guides(fill = "none") +
       ggridges::theme_ridges()
+    message("Automated scaling.")
     p.flux <- wrap(
       p.flux, min(20, length(unique(data$group.by)) * 3 + max(nchar(as.character(unique(data$name)))) * .1), 
       min(10, length(feature) * .4 + 1)
     )
     p.flux <- set_lab_legend(
-      p.flux, paste(name, "Cell flux ridge plot"), "为细胞的代谢通量山脊图。"
+      p.flux, glue::glue("{x@sig} {name} Cell flux ridge plot"),
+      glue::glue("为 {name} 的代谢通量山脊图。")
     )
     return_type <- match.arg(return_type)
+    message("Finished.")
     if (return_type == "job") {
       x$p.flux <- p.flux
       return(x)

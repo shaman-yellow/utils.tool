@@ -55,3 +55,7 @@ setMethod("step3", signature = c(x = "job_seurat_sub"),
     return(x)
   })
 
+as_markers <- function(cell_markers) {
+  as_df.lst(cell_markers, "cell", "markers")
+}
+

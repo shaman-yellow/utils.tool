@@ -577,7 +577,7 @@ setMethod("step3", signature = c(x = "job_limma"),
   function(x, names = NULL, use = "all", use.gene = .guess_symbol(x),
     fun_filter = rm.no, trunc = NULL,
     signature = if (is.null(x$from_scfea)) "DEGs" else "DMFs",
-    gname = is.null(x$from_scfea), gather_volcano = TRUE)
+    gname = is.null(x$from_scfea), gather_volcano = TRUE, guess_use = FALSE)
   {
     step_message("Sets intersection.")
     tops <- x@tables$step2$tops
@@ -616,33 +616,43 @@ setMethod("step3", signature = c(x = "job_limma"),
       x <- snapAdd(x, "所有非重复 {signature} 共 {length(unique(unlist(tops)))} 个。")
       tops <- unlist(tops, recursive = FALSE)
       x$sets_intersection <- tops
-      message("The guess use dataset combination of:\n",
-        "\t ", names(tops)[1], " %in% ", names(tops)[4], "\n",
-        "\t ", names(tops)[2], " %in% ", names(tops)[3])
-      x$guess_use <- unique(c(
-          intersect(tops[[ 1 ]], tops[[ 4 ]]),
-          intersect(tops[[ 2 ]], tops[[ 3 ]])
-          ))
+      if (guess_use) {
+        message("The guess use dataset combination of:\n",
+          "\t ", names(tops)[1], " %in% ", names(tops)[4], "\n",
+          "\t ", names(tops)[2], " %in% ", names(tops)[3])
+        x$guess_use <- unique(c(
+            intersect(tops[[ 1 ]], tops[[ 4 ]]),
+            intersect(tops[[ 2 ]], tops[[ 3 ]])
+            ))
+      }
       if (is.null(x$from_scfea)) {
         p.hp <- plot_genes_heatmap.elist(x$normed_data, unlist(tops), use.gene)
         p.hp <- .set_lab(wrap(p.hp), sig(x), "Heatmap of {signature}")
       } else {
         p.hp <- NULL
       }
-      p.sets_intersection <- new_upset(lst = tops, trunc = trunc)
-      p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "Difference", "intersection")
-      x@plots[[ 3 ]] <- namel(p.sets_intersection, p.hp)
+      if (FALSE) {
+        message("Upset plot.")
+        p.sets_intersection <- new_upset(lst = tops, trunc = trunc)
+        p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "Difference", "intersection")
+        x@plots[[ 3 ]] <- namel(p.sets_intersection, p.hp)
+      }
     }
     if (!is.null(x$from_scfea) && x$from_scfea) {
+      message("Set `feature` for scfea.")
       feature(x) <- as_feature(x$.feature, x, nature = "flux")
     }
     if (gather_volcano && length(tops <- x@tables$step2$tops) >= 3) {
+      message("gather volcano plot.")
       args <- x$args_volcano
       args$top_table <- rbind_list(tops, .id = ".versus", FALSE)
       args$keep_cols <- TRUE
       p.volcano_gather <- do.call(plot_volcano, args)
       p.volcano_gather <- p.volcano_gather + facet_wrap(~ .versus)
-      x$p.volcano_gather <- wrap(p.volcano_gather)
+      x$p.volcano_gather <- set_lab_legend(
+        wrap(p.volcano_gather), glue::glue("{x@sig} gathered volcano plot"),
+        glue::glue("为合并的各组差异分析 {signature} 火山图。")
+      )
     }
     return(x)
   })

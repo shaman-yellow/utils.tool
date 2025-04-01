@@ -131,6 +131,7 @@ setMethod("step1", signature = c(x = "job_monocle"),
           p <- wrap(p + scale_color_manual(values = palette))
           p <- .set_lab(p, sig(x), "trajectories of", group)
         }))
+    p.traj <- wrap(p.traj, 7, 5)
     p.prin <- monocle3::plot_cells(
       object(x), color_cells_by = groups[1],
       label_cell_groups = FALSE, label_principal_points = TRUE,
@@ -138,10 +139,11 @@ setMethod("step1", signature = c(x = "job_monocle"),
       alpha = .7
     )
     p.prin <- p.prin + scale_color_manual(values = palette)
-    p.prin <- wrap(p.prin, 10, 7)
+    p.prin <- wrap(p.prin, 7, 5)
     p.prin <- .set_lab(p.prin, sig(x), "principal points")
     p.prin <- setLegend(p.prin, "为拟时轨迹与 principal point 示意。")
-    x@plots[[ 1 ]] <- namel(p.traj, p.prin)
+    p.group <- vis(x$sr_sub, groups[1])
+    x@plots[[ 1 ]] <- namel(p.traj, p.prin, p.group)
     return(x)
   })
 

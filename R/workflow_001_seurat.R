@@ -293,7 +293,7 @@ setMethod("step6", signature = c(x = "job_seurat"),
     method = c("cellMarker", "gpt", "scsa"), exclude = NULL,
     exclude_pattern = "derived|progenitor|Transitional|Memory|switch|white blood cell",
     include = NULL, show = NULL, notShow = NULL, reset = NULL,
-    toClipboard = TRUE, post_modify = FALSE, keep_markers = 2,
+    toClipboard = TRUE, post_modify = FALSE, keep_markers = 3,
     n = 30, variable = FALSE, hp_type = c("pretty", "seurat"), ...)
   {
     method <- match.arg(method)
@@ -501,7 +501,7 @@ setMethod("diff", signature = c(x = "job_seurat"),
       message(glue::glue("Some cells too few, exclude from contrasts ({bind(which(excluThat))})."))
       contrasts <- contrasts[ !excluThat ]
     }
-    if (is.null(x@params[[ name ]]) || force) {
+    if (is.null(x@params[[ glue::glue("{name}_contrast") ]]) || force) {
       res <- e(lapply(contrasts,
           function(con) {
             data <- Seurat::FindMarkers(object(x),
@@ -519,10 +519,20 @@ setMethod("diff", signature = c(x = "job_seurat"),
       res <- setLegend(
         res, "细胞群差异表达基因附表 (其中 'contrast' 列为比较的两类细胞) (|log~2~(FC)| &gt; {cut.fc}, P-Adjust &lt; {cut.p})。"
       )
-      x@params[[ name ]] <- res
+      x@params[[ glue::glue("{name}_contrast") ]] <- res
     } else {
-      res <- x@params[[ name ]]
+      res <- x@params[[ glue::glue("{name}_contrast") ]]
     }
+    p.volcano <- plot_volcano(
+      res, "gene", use = "p_val_adj", use.fc = "avg_log2FC", fc = cut.fc, keep_cols = TRUE
+    )
+    p.volcano <- p.volcano + facet_wrap(~ contrast)
+    p.volcano <- set_lab_legend(
+      wrap(p.volcano),
+      glue::glue("{x@sig} cell differential expression volcano plot"),
+      glue::glue("细胞群差异表达基因火山图。")
+    )
+    x[[ glue::glue("{name}_volcano") ]] <- p.volcano
     init(snap(x)) <- TRUE
     snap <- vapply(contrasts, bind, character(1), co = " vs ")
     x <- snapAdd(
@@ -548,6 +558,7 @@ setMethod("diff", signature = c(x = "job_seurat"),
     p.sets_intersection <- setLegend(p.sets_intersection, "细胞群差异表达基因的 UpSet 交集图。")
     x[[ paste0("p.", name, "_intersection") ]] <- p.sets_intersection
     if (identical(parent.frame(2), .GlobalEnv)) {
+      job_append_heading(x, heading = "细胞差异表达分析")
       job_append_method(
         x, paste0("diff_", name), TRUE, FALSE
       )
@@ -732,11 +743,12 @@ plot_qc.seurat <- function(x) {
 setMethod("vis", signature = c(x = "job_seurat"),
   function(x, group.by = x@params$group.by,
     pt.size = .7, mode = c("cell", "sample", "type"),
-    palette = x$palette, reduction = "umap", type_pattern = "_[^_]+$", ...)
+    palette = x$palette, reduction = "umap", type_pattern = "_[^_]+$",
+    orig.ident = "orig.ident", ...)
   {
     mode <- match.arg(mode)
     if (is.null(palette)) {
-      palette <- wgcna_colors()[-c(1, 5)]
+      palette <- wgcna_colors()[-c(1, 4, 8, 9, 11)]
     }
     if (mode == "cell") {
     } else if (mode == "type") {
@@ -744,7 +756,7 @@ setMethod("vis", signature = c(x = "job_seurat"),
       patterns <- gs(groups, type_pattern, "")
       palette <- pattern_gradientColor(patterns, groups, palette)
     } else if (mode == "sample") {
-      x <- mutate(x, Cell_Sample = paste0(!!rlang::sym(group.by), "_", orig.ident))
+      x <- mutate(x, Cell_Sample = paste0(!!rlang::sym(group.by), "_", !!rlang::sym(orig.ident)))
       groups <- unique(object(x)@meta.data[[ group.by ]])
       patterns <- paste0("^", gs(make.names(groups), "[()]", "."), "_")
       Cell_Samples <- unique(object(x)@meta.data[[ "Cell_Sample" ]])
@@ -811,7 +823,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "character"),
 setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
   function(x, ref, datasets = NULL, names = NULL,
     group.by = x$group.by, sample = "orig.ident",
-    pattern_suffix = "_[^_]+$", cell.props.filter = .5, 
+    pattern_suffix = "_[^_]+$", cell.props.filter = .1,
     feature.nlimit = 3, gene.props.filter = .1, gene.threshold = 0, 
     gene.which = NULL, excludes = "Monocyte", cut.cor = .3, cut.p = .05)
   {
@@ -824,7 +836,13 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
     if (!is.null(cell.props.filter)) {
       freq <- prop.table(table(metadata[[ group.by ]], metadata[[ sample ]]), 1)
       groups <- names(which(apply(freq, 1, function(x) entropy_score(freq = x)) > cell.props.filter))
-      x <- methodAdd(x, "\n\n以标准化熵筛选于样本中相对均衡分布的细胞 ({bind(groups)}) (cutoff: {cell.props.filter}) \n\n ({.entropy_score_method()})。\n\n", step = class(ref))
+      filter_out <- groups[ !groups %in% ids(x, group.by) ]
+      if (length(filter_out)) {
+        message(glue::glue("Filter out cell: \n{crayon::red(showStrings(filter_out))}"))
+        x <- methodAdd(x, "\n\n以标准化熵筛选于样本中相对均衡分布的细胞 ({bind(groups)}) (cutoff: {cell.props.filter}) \n\n ({.entropy_score_method()})。\n\n", step = class(ref))
+      } else {
+        message(glue::glue("{crayon::yellow('No filter out cell.')}"))
+      }
     } else {
       groups <- ids(x, group.by)
     }
@@ -1029,7 +1047,8 @@ entropy_score <- function(x, freq = NULL) {
 }
 
 setMethod("map", signature = c(x = "job_seurat", ref = "job_seurat"),
-  function(x, ref, use.x, use.ref, name = "cell_mapped", asIdents = TRUE){
+  function(x, ref, use.x, use.ref, name = "map_cell", asIdents = TRUE)
+  {
     matched <- match(rownames(object(x)@meta.data), rownames(object(ref)@meta.data))
     object(x)@meta.data[[name]] <- as.character(object(ref)@meta.data[[use.ref]])[matched]
     object(x)@meta.data[[name]] <- ifelse(
@@ -1047,6 +1066,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_seurat"),
         stop("identical(names(object(x)@active.ident), rownames(object(x)@meta.data)) == FALSE")
       }
     }
+    x$group.by <- name
     return(x)
   })
 
@@ -1495,7 +1515,8 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
 
 .plot_marker_heatmap <- function(x, markers, group.by,
   show = NULL, extra.after = NULL,
-  order.by = c("smart", "raw"), max = 2, soft = TRUE, notShow = NULL)
+  order.by = c("smart", "raw"), 
+  max = 2, soft = TRUE, notShow = NULL, scale = FALSE)
 {
   if ((is(markers, "list") || is(markers, "feature")) && !is.null(max)) {
     lst <- markers
@@ -1590,11 +1611,19 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
     glevels <- unique(dat$Gene)
     avgExpr <- dplyr::mutate(avgExpr, Gene = factor(Gene, levels = glevels))
   }
+  if (scale) {
+    avgExpr <- dplyr::mutate(avgExpr, Expression = scale(Expression))
+    fun_palette <- fun_color(
+      values = avgExpr$Expression, category = "div", rev = TRUE
+    )
+  } else {
+    fun_palette <- fun_color(
+      values = avgExpr$Expression, category = "seq", rev = FALSE
+    )
+  }
   p.markers <- tidyHeatmap::heatmap(
     avgExpr, Gene, Cell, Expression, cluster_columns = FALSE, 
-    palette_value = fun_color(
-      values = avgExpr$Expression, category = "seq", rev = FALSE
-    ),
+    palette_value = fun_palette,
     cluster_rows = FALSE
   )
   p.markers@arguments <- list()

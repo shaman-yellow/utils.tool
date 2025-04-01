@@ -203,6 +203,11 @@ setClassUnion("numeric_or_character", c("numeric", "character"))
 .feature_list <- setClass("feature_list", contains = c("feature"))
 .feature_char <- setClass("feature_char", contains = c("feature"))
 
+setMethod("show", signature = c(object = "feature_char"),
+  function(object){
+    message(glue::glue("{showStrings(object@.Data)}\n{crayon::silver(snap(object))}"))
+  })
+
 setMethod("show", signature = c(object = "feature_list"),
   function(object){
     lst <- object@.Data
@@ -225,6 +230,7 @@ setMethod("show", signature = c(object = "feature_list"),
       }
     }
     fun(lst)
+    message(glue::glue("{crayon::silver(snap(object))}"))
   })
 
 setValidity("feature_list",
@@ -1525,6 +1531,9 @@ setReplaceMethod("Legend", signature = c(x = "ANY"),
   })
 
 set_lab_legend <- function(object, lab, legend = lab, labs = NULL, ...) {
+  if (!length(lab)) {
+    stop('!length(lab).')
+  }
   object <- .set_lab(object, lab, labs)
   object <- setLegend(object, legend)
   object
