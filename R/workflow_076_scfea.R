@@ -33,6 +33,9 @@ setMethod("asjob_scfea", signature = c(x = "job_seurat"),
     } else if (org == "human") {
       moduleGene_file <- "module_gene_m168.csv"
     }
+    if (nrow(object(x)@meta.data) > 50000) {
+      stop('nrow(object(x)@meta.data) > 50000, too many cells for prediction.')
+    }
     if (TRUE) {
       file <- file.path(pg("scfea_db"), moduleGene_file)
       fun_test <- function(file) {

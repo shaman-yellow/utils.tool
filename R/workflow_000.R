@@ -649,6 +649,15 @@ setReplaceMethod("init", signature = c(x = "meth"),
     return(x)
   })
 
+setMethod("init", signature = c(x = "job"),
+  function(x){
+    init(snap(x)) <- TRUE
+    init(meth(x)) <- TRUE
+    x$.tables_initial <- TRUE
+    x$.plots_initial <- TRUE
+    return(x)
+  })
+
 setGeneric("meth",
   function(x, ref, ...) standardGeneric("meth"))
 setMethod("meth", signature = c(x = "ANY", ref = "missing"),
@@ -2363,10 +2372,7 @@ checkAddStep <- function(x, n, clear_tables_plots = TRUE) {
   message(crayon::green("Running", STEP), ":")
   x@step <- n
   x@others$.oldParams <- names(x@params)
-  init(snap(x)) <- TRUE
-  init(meth(x)) <- TRUE
-  x$.tables_initial <- TRUE
-  x$.plots_initial <- TRUE
+  x <- init(x)
   x
 }
 
@@ -2695,9 +2701,7 @@ setGeneric("is.remote",
 
 setMethod("is.remote", signature = c(x = "job"),
   function(x){
-    if (!is.null(x@params$set_remote)) {
-      if (x$set_remote) TRUE else FALSE
-    } else FALSE
+    !is.null(x$set_remote) && x$set_remote
   })
 
 setGeneric("is_workflow_object_exists",

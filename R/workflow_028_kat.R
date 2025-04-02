@@ -46,9 +46,17 @@ setMethod("step0", signature = c(x = "job_kat"),
   })
 
 setMethod("step1", signature = c(x = "job_kat"),
-  function(x, workers = 5, path = timeName("copykat"), test = FALSE)
+  function(x, workers = 5, path = glue::glue("copykat_{x@sig}"), test = FALSE)
   {
     step_message("Run copyKAT.")
+    if (is.remote(x)) {
+      x <- run_job_remote(x, wait = 3L,
+        {
+          x <- step1(x, workers = "{workers}", path = "{path}")
+        }
+      )
+      return(x)
+    }
     x$savepath <- path
     if (is.null(x$res_copykat)) {
       wd <- getwd()
@@ -260,3 +268,11 @@ plot_heatmap.copyKAT <- function(copykat.obj) {
       col = RColorBrewer::brewer.pal(n = 8, name = "Dark2")[3:4], cex = 0.9, bty = 'n')
   }
 }
+
+setMethod("set_remote", signature = c(x = "job_kat"),
+  function(x, wd = glue::glue("~/kat_{x@sig}")){
+    x$wd <- wd
+    rem_dir.create(wd, wd = ".")
+    return(x)
+  })
+

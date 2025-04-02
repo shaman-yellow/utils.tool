@@ -2,25 +2,26 @@
 # for remote files operation
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-rem_run <- function(..., .script = NULL, .append = FALSE) {
+rem_run <- function(..., .script = NULL, .append = FALSE, .test = FALSE) {
   x <- get("x", envir = parent.frame(1))
   if (is.null(x$wd)) {
     message("Use `x$wd` as '.'")
     x$wd <- "."
   }
-  if (!check_remote()) {
+  if (!check_remote() && !.test) {
     cdRun(..., path = x$wd)
   } else {
     remoteRun(..., path = x$wd, tmpdir = x$tmpdir,
       remote = x$remote, postfix = x$postfix,
-      run_after_cd = x$run_after_cd, x = x, .script = .script, .append = .append
+      run_after_cd = x$run_after_cd, x = x, .script = .script, 
+      .append = .append, .test = .test
     )
   }
 }
 
 remoteRun <- function(..., path, run_after_cd = NULL,
   postfix = NULL, remote = "remote", tmpdir = NULL, 
-  .script = NULL, .append = FALSE, x)
+  .script = NULL, .append = FALSE, .test = FALSE, x)
 {
   expr <- paste0(unlist(list(...)), collapse = "")
   if (missing(x)) {
@@ -64,7 +65,7 @@ remoteRun <- function(..., path, run_after_cd = NULL,
     writeLines(expr, script)
   }
   writeLines(crayon::yellow(paste0("The script file for remote is: ", script)))
-  if (!.append) {
+  if (!.append && !.test) {
     .run_script_in_remote(script, path, remote = remote)
   }
   script
@@ -361,3 +362,120 @@ list.remote <- function(path, pattern, remote = "remote",
     stop("The path may be character(0).")
   }
 }
+
+.args_transformer <- function(text, envir) {
+  res <- glue::identity_transformer(text, envir)
+  if (length(res) != 1) {
+    stop('.args_transformer, length(res) != 1')
+  }
+  if (is.character(res)) {
+    paste0("'", res, "'")
+  } else {
+    res
+  }
+}
+
+run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$wd,
+  name = attr(x@sig, 'name'), rds = glue::glue("{wd}/{name}.rds"),
+  force = FALSE, wait = 1L, step_just = TRUE)
+{
+  # prepare script
+  if (!is.remote(x)) {
+    stop('!is.remote(x).')
+  }
+  if (is.null(name)) {
+    stop('is.null(name). step < 1L?')
+  }
+  expression <- as.expression(substitute(expression))
+  # glue with "{arg}", if character, -> 'test' (with quote), else if is numeric, -> 1 (without quote)
+  fun_glue <- function(expression, envir = parent.frame(1)) {
+    glue::glue(as.character(expression),
+      .transformer = .args_transformer,
+      .open = "\"{", .close = "}\"",
+      .envir = envir)
+  }
+  setup <- fun_glue(expression({
+    devtools::load_all("~/utils.tool")
+    x <- readRDS("{rds}")
+  }))
+  # set a file for judging whether finished.
+  file_end <- glue::glue("{name}_{x@step}.finish")
+  finish <- fun_glue(expression({
+    saveRDS(x, "{rds}")
+    writeLines("END", "{file_end}")
+  }))
+  fun_format <- function(x) {
+    gs(x, "\\bx\\b", name)
+  }
+  main <- fun_glue(expression, envir)
+  # replace `x` with `name`.
+  script <- shQuote(paste0(c(fun_format(setup), main, fun_format(finish)), collapse = "\n"))
+  hash <- digest::digest(c(x@sig, script))
+  # prepare data (job)
+  if (is.null(x$map_local)) {
+    stop('is.null(x$map_local).')
+  }
+  file_local <- file.path(x$map_local, basename(rds))
+  file_res <- add_filename_suffix(file_local, hash)
+  if (!file.exists(file_res) || force) {
+    message(glue::glue("Saving file in local: {file_local}"))
+    if (step_just) {
+      x@step <- x@step - 1L
+    }
+    # `not_remote`, Prevent recursion
+    saveRDS(not_remote(x), file_local)
+    if (step_just) {
+      x@step <- x@step + 1L
+    }
+    cdRun(glue::glue("scp {file_local} {x$remote}:{x$wd}/{basename(rds)}"))
+    if (rem_file.exists(file_end)) {
+      rem_file.remove(file_end)
+    }
+    rem_run(glue::glue("{pg('Rscript', TRUE)} -e {script}"), ...)
+    # wait for finish (later = FALSE)
+    testRem_file.exists(x, file_end, wait, later = FALSE)
+    get_file_from_remote(basename(rds), x$wd, file_res, x$remote)
+  } else {
+    message(glue::glue("File already exists: {file_res}"))
+  }
+  res <- as_remote(readRDS(file_res))
+  if (res@step != x@step) {
+    warning(crayon::red('res@step != x@step.'))
+  } else {
+    x <- res
+  }
+  return(x)
+}
+
+not_remote <- function(x) {
+  x$set_remote <- FALSE
+  return(x)
+}
+
+as_remote <- function(x) {
+  x$set_remote <- TRUE
+  return(x)
+}
+
+.install_basic_packages <- function() {
+  packages <- c(
+    "aplot", "bibtex", "cli", "ComplexHeatmap", "crayon", "data.table",
+    "devtools", "dplyr", "flextable", "ggplotify", "ggraph", "ggrepel",
+    "ggsci", "ggVennDiagram", "glmnet", "Hmisc", "knitr",
+    "magick", "magrittr", "Matrix", "openxlsx", "igraph", "patchwork", "pbapply",
+    "pdftools", "png", "qpdf", "R.utils", "RCurl", "readxl", "rlang",
+    "rsvg", "stringr", "UpSetR", "usethis", "XML", "xml2"
+  )
+  packages <- lapply(packages, 
+    function(x) {
+      if (requireNamespace(x, quietly = TRUE)) {
+        x
+      } else NULL
+    })
+  packages <- lst_clear0(packages)
+  if (length(packages)) {
+    options("download.file.method" = "wget")
+    BiocManager::install(unlist(packages))
+  }
+}
+

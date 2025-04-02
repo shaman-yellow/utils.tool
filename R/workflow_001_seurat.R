@@ -286,16 +286,47 @@ setMethod("step5", signature = c(x = "job_seurat"),
   })
 
 setMethod("step6", signature = c(x = "job_seurat"),
-  function(x, tissue, ref.markers = NULL, type = c("Normal cell"),
-    filter.p = 0.01, filter.fc = .5, filter.pct = .3,
-    org = c("Human", "Mouse"),
-    cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_cell",
-    method = c("cellMarker", "gpt", "scsa"), exclude = NULL,
+  function(x, tissue, ref.markers = NULL, method = c("cellMarker", "gpt", "scsa"),
+    # scsa
+    org = c("Human", "Mouse"), filter.p = 0.01, filter.fc = .5, res.col = "scsa_cell",
+    # cellMarker
+    type = c("Normal cell"),
+    # plot markers
     exclude_pattern = "derived|progenitor|Transitional|Memory|switch|white blood cell",
-    include = NULL, show = NULL, notShow = NULL, reset = NULL,
-    toClipboard = TRUE, post_modify = FALSE, keep_markers = 3,
+    exclude = NULL, include = NULL, show = NULL, notShow = NULL,
+    reset = NULL, keep_markers = 3,
+    # chatGPT 
+    filter.pct = .25, toClipboard = TRUE, post_modify = FALSE,
     n = 30, variable = FALSE, hp_type = c("pretty", "seurat"), ...)
   {
+    args <- c(as.list(environment()), list(...))
+    args$init <- FALSE
+    do.call(anno, args)
+  })
+
+setMethod("anno", signature = c(x = "job_seurat"),
+  function(x, tissue, ref.markers = NULL, method = c("cellMarker", "gpt", "scsa"),
+    # scsa
+    org = c("Human", "Mouse"), filter.p = 0.01, filter.fc = .5, res.col = "scsa_cell",
+    # cellMarker
+    type = c("Normal cell"),
+    # plot markers
+    exclude_pattern = "derived|progenitor|Transitional|Memory|switch|white blood cell",
+    exclude = NULL, include = NULL, show = NULL, notShow = NULL,
+    reset = NULL, keep_markers = 3,
+    # chatGPT 
+    filter.pct = .25, toClipboard = TRUE, post_modify = FALSE,
+    n = 30, variable = FALSE, hp_type = c("pretty", "seurat"), 
+    ..., init = TRUE)
+  {
+    if (x@step < 5L) {
+      stop('x@step < 5L.')
+    }
+    if (init) {
+      x <- init(x)
+      message(glue::glue("Set step as 6."))
+      x@step <- 6L
+    }
     method <- match.arg(method)
     if (method == "gpt") {
       step_message("Use ChatGPT (ChatGPT-4o) to annotate cell types.")
@@ -362,7 +393,7 @@ setMethod("step6", signature = c(x = "job_seurat"),
         )
         p.props_gpt <- .set_lab(p.props_gpt, sig(x), "ChatGPT4 Cell Proportions in each sample")
         p.props_gpt <- setLegend(p.props_gpt, "为 ChatGPT-4 注释的细胞群在各个样本中的占比。")
-        x@plots[[ 6 ]] <- namel(p.map_gpt, p.markers, p.props_gpt)
+        x <- plotsAdd(x, p.map_gpt, p.markers, p.props_gpt)
         x <- snapAdd(
           x, "根据细胞群 Markers (检出率至少为 {filter.pct}，选取 Top {n}) ，让 ChatGPT-4 对细胞类型注释。"
         )
@@ -402,11 +433,10 @@ setMethod("step6", signature = c(x = "job_seurat"),
       lst <- scsa_annotation(
         x = x, tissue = if (method == "scsa") tissue else "All",
         ref.markers = ref.markers, filter.p = filter.p,
-        filter.fc = filter.fc, org = org, reset = reset,
-        cmd = cmd, db = db, res.col = res.col
+        filter.fc = filter.fc, org = org, reset = reset, res.col = res.col
       )
       x <- lst$x
-      x@tables[[ 6 ]] <- list(scsa_res_all = lst$scsa_res_all)
+      x <- tablesAdd(x, scsa_res_all = lst$scsa_res_all)
       x@params$group.by <- lst$res.col
       p.props_scsa <- plot_cells_proportion(
         object(x)@meta.data, "orig.ident", "scsa_cell"
@@ -434,8 +464,9 @@ setMethod("step6", signature = c(x = "job_seurat"),
           "使用特异性 Marker 对细胞注释结果的验证热图。"
         )
       }
-      x@plots[[ 6 ]] <- list(
-        p.map_scsa = lst$p.map_scsa, p.props_scsa = p.props_scsa, p.markers = p.markers
+      x <- plotsAdd(
+        x, p.map_scsa = lst$p.map_scsa, p.props_scsa = p.props_scsa, 
+        p.markers = p.markers
       )
       if (method == "scsa" || !is.null(ref.markers)) {
         x <- snapAdd(x, "{if (!is.null(ref.markers)) '使用特异性 Marker，' else ''}以 SCSA 对细胞群注释。")
@@ -1196,7 +1227,7 @@ setMethod("feature", signature = c(x = "job_seurat"),
 setMethod("set_remote", signature = c(x = "job_seurat"),
   function(x, wd = glue::glue("~/seurat_{x@sig}")){
     x$wd <- wd
-    rem_dir.create(wd)
+    rem_dir.create(wd, wd = ".")
     return(x)
   })
 
@@ -1325,7 +1356,7 @@ scsa_annotation <- function(
   hash <- e(
     digest::digest(
       list(
-        x@sig, object(x)@meta.data, x@tables$step5$all_markers_no_filter,
+        x@sig, x@tables$step5$all_markers_no_filter,
         tissue, ref.markers, onlyUseRefMarkers, filter.p, filter.fc, org
       ), "md5"
     )
