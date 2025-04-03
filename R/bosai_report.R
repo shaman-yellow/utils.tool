@@ -446,14 +446,14 @@ postModify_annoDocx <- function(file, prefix = "comment",
   chapter <- lapply(chapter, function(text) {
     text <- paste(text, collapse = " ")
     text <- stringr::str_extract_all(text,
-      "\\[[^\\]]*?\\]\\{\\.comment-start.*?\\}.*?\\[[^\\]]*?\\]\\{\\.comment-end.*?\\}")
+      "\\[[^\\]]*?\\]\\{\\.comment-start.*?\\}.*?\\[[^\\]]*?\\]")
     text <- unlist(text)
     text <- text[ !is.na(text) ]
     text <- gs(text, "¶", ", ")
   })
   chapter <- lst_clear0(chapter)
   chapter <- lapply(chapter, function(x) {
-    content <- gs(x, ".*.comment-start[^}]*\\}(.*)\\[\\]\\{.comment-end.*", "\\1")
+    content <- gs(x, ".*.comment-start[^}]*\\}(.*)\\[\\]", "\\1")
     comment <- strx(x, "(?<=\\[)[^\\]]*(?=\\])")
     meta <- strx(x, "(?<=\\{)[^}]*(?=\\})")
     meta <- gs(meta, '.*author="([^\"]*?)".*', "\\1")

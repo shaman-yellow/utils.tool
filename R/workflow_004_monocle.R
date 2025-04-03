@@ -142,7 +142,7 @@ setMethod("step1", signature = c(x = "job_monocle"),
     p.prin <- wrap(p.prin, 7, 5)
     p.prin <- .set_lab(p.prin, sig(x), "principal points")
     p.prin <- setLegend(p.prin, "为拟时轨迹与 principal point 示意。")
-    p.group <- vis(x$sr_sub, groups[1])
+    p.group <- vis(x$sr_sub, groups[1], name = x@sig)
     x@plots[[ 1 ]] <- namel(p.traj, p.prin, p.group)
     return(x)
   })

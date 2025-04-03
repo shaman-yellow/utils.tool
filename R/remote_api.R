@@ -377,7 +377,7 @@ list.remote <- function(path, pattern, remote = "remote",
 
 run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$wd,
   name = attr(x@sig, 'name'), rds = glue::glue("{wd}/{name}.rds"),
-  force = FALSE, wait = 1L, step_just = TRUE)
+  force = FALSE, wait = 1L, step_just = TRUE, inherits = FALSE)
 {
   # prepare script
   if (!is.remote(x)) {
@@ -404,30 +404,31 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
     saveRDS(x, "{rds}")
     writeLines("END", "{file_end}")
   }))
-  fun_format <- function(x) {
-    gs(x, "\\bx\\b", name)
-  }
   main <- fun_glue(expression, envir)
-  # replace `x` with `name`.
-  script <- shQuote(paste0(c(fun_format(setup), main, fun_format(finish)), collapse = "\n"))
+  script <- shQuote(paste0(c(setup, main, finish), collapse = "\n"))
   hash <- digest::digest(c(x@sig, script))
   # prepare data (job)
   if (is.null(x$map_local)) {
     stop('is.null(x$map_local).')
   }
+  dir.create(x$map_local, FALSE)
   file_local <- file.path(x$map_local, basename(rds))
   file_res <- add_filename_suffix(file_local, hash)
   if (!file.exists(file_res) || force) {
     message(glue::glue("Saving file in local: {file_local}"))
-    if (step_just) {
-      x@step <- x@step - 1L
+    if (!inherits) {
+      if (step_just) {
+        x@step <- x@step - 1L
+      }
+      # `not_remote`, Prevent recursion
+      saveRDS(not_remote(x), file_local)
+      if (step_just) {
+        x@step <- x@step + 1L
+      }
+      cdRun(glue::glue("scp {file_local} {x$remote}:{x$wd}/{basename(rds)}"))
+    } else {
+      message(crayon::red(glue::glue("`inherits` == TRUE, use previous result file.")))
     }
-    # `not_remote`, Prevent recursion
-    saveRDS(not_remote(x), file_local)
-    if (step_just) {
-      x@step <- x@step + 1L
-    }
-    cdRun(glue::glue("scp {file_local} {x$remote}:{x$wd}/{basename(rds)}"))
     if (rem_file.exists(file_end)) {
       rem_file.remove(file_end)
     }

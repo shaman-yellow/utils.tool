@@ -81,7 +81,7 @@ setMethod("step2", signature = c(x = "job_seurat"),
         object(x), subset = !!rlang::sym(use) > min.features &
           !!rlang::sym(use) < max.features & percent.mt < max.percent.mt
         ))
-    x <- methodAdd(x, "一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。")
+    x <- methodAdd(x, "一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞 (低质量的细胞或空液滴通常含有很少的基因; 细胞双联体或多联体可能表现出异常高的基因计数; 低质量/死亡细胞通常表现出广泛的线粒体污染) (请参考 <https://satijalab.org/seurat/articles/pbmc3k_tutorial.html#qc-and-selecting-cells-for-further-analysis>)。")
     x <- snapAdd(x, "前期质量控制，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。过滤后，数据集共包含 {dim(x@object)[1]} 个基因，{dim(x@object)[2]} 个细胞。")
     p.qc_aft <- plot_qc.seurat(x)
     p.qc_aft <- .set_lab(p.qc_aft, sig(x), "After Quality control")
@@ -582,6 +582,13 @@ setMethod("diff", signature = c(x = "job_seurat"),
         lapply(lst, fun_filter)
       })
     feature(x) <- as_feature(tops, x, analysis = "Seurat 细胞群差异表达分析")
+    s.com <- paste0(
+      "- ", names(tops), ": ", vapply(tops, try_snap, character(1))
+    )
+    x <- snapAdd(
+      x, "上调或下调统计：\n\n{paste0(s.com, collapse = '\n')}",
+      step = paste0("diff_", name)
+    )
     tops <- unlist(tops, recursive = FALSE)
     x[[ paste0(name, "_intersection") ]] <- tops
     p.sets_intersection <- new_upset(lst = tops, trunc = NULL)
@@ -775,7 +782,7 @@ setMethod("vis", signature = c(x = "job_seurat"),
   function(x, group.by = x@params$group.by,
     pt.size = .7, mode = c("cell", "sample", "type"),
     palette = x$palette, reduction = "umap", type_pattern = "_[^_]+$",
-    orig.ident = "orig.ident", ...)
+    orig.ident = "orig.ident", name = NULL, ...)
   {
     mode <- match.arg(mode)
     if (is.null(palette)) {
@@ -801,7 +808,9 @@ setMethod("vis", signature = c(x = "job_seurat"),
             group.by = group.by, cols = palette, ...
             ))), 7, 4)
     p <- setLegend(p, "为 {group.by} 的 {reduction} 聚类图。")
-    .set_lab(p, sig(x), "The", gs(group.by, "_", "-"))
+    .set_lab(
+      p, paste(sig(x), name), "The", gs(group.by, "_", "-")
+    )
   })
 
 setMethod("focus", signature = c(x = "job_seurat"),
@@ -856,7 +865,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
     group.by = x$group.by, sample = "orig.ident",
     pattern_suffix = "_[^_]+$", cell.props.filter = .1,
     feature.nlimit = 3, gene.props.filter = .1, gene.threshold = 0, 
-    gene.which = NULL, excludes = "Monocyte", cut.cor = .3, cut.p = .05)
+    gene.which = NULL, excludes = NULL, cut.cor = .3, cut.p = .05)
   {
     message("Correlation analysis for two feature sets within each cell group.")
     if (length(ref) != 2) {
@@ -864,6 +873,9 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
     }
     metadata <- object(x)@meta.data
     # filter by cells proportion above sample.
+    x <- methodAdd(
+      x, "\n\n\n## 单细胞关联分析 ({x@sig})\n\n\n", step = class(ref)
+    )
     if (!is.null(cell.props.filter)) {
       freq <- prop.table(table(metadata[[ group.by ]], metadata[[ sample ]]), 1)
       groups <- names(which(apply(freq, 1, function(x) entropy_score(freq = x)) > cell.props.filter))
@@ -881,7 +893,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
       x <- methodAdd(x, "\n\n去除未知细胞 (unknown)。\n\n", step = class(ref))
       groups <- groups[ !isUnknown ]
     }
-    if (!is.null(excludes)) {
+    if (!is.null(excludes) && any(excludes %in% groups)) {
       x <- methodAdd(x, "去除 {bind(excludes)} 细胞。\n\n", step = class(ref))
       groups <- groups[ !groups %in% excludes ]
     }
@@ -1024,6 +1036,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
         n <- nrow(res_correlation[[name]]$sig.corp) %||% 0L
         glue::glue("{name} ({n})")
       }, character(1))
+    x <- snapAdd(x, "分别对各细胞群的两组 features (即，{snap(ref[[1]])}，与 {snap(ref[[2]])}) 关联分析。")
     x <- snapAdd(x, "设定 P 阈值 ({cut.p}) 与关联系数 ({cut.cor}) 阈值，获取各细胞群 (细胞的筛选算法见方法章节) 中的显著关联组。统计为: {bind(s.com)}。", step = class(ref))
     names(res_correlation) <- fun_formal_name(names(res_correlation))
     features <- sapply(
@@ -1643,7 +1656,9 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
     avgExpr <- dplyr::mutate(avgExpr, Gene = factor(Gene, levels = glevels))
   }
   if (scale) {
-    avgExpr <- dplyr::mutate(avgExpr, Expression = scale(Expression))
+    avgExpr <- dplyr::mutate(
+      avgExpr, Expression = scale(Expression)[, 1]
+    )
     fun_palette <- fun_color(
       values = avgExpr$Expression, category = "div", rev = TRUE
     )

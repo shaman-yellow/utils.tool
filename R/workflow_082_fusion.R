@@ -104,7 +104,9 @@ setMethod("step1", signature = c(x = "job_fusion"),
     if (!file.exists(x$file_sumstats)) {
       format_sumstats(x$file_gwas, x$SNP, x$A1, x$A2, x$use, x$N, prefix)
     }
-    x <- methodAdd(x, "以 Python 工具 LDSC (`munge_sumstats.py`) (<https://github.com/bulik/ldsc>) {cite_show('LD_Score_regres_Bulik_2015')} 将 GWAS summary 文件检查并格式化为 .sumstats 格式。")
+    x <- methodAdd(
+      x, "以 Python 工具 Linkage Disequilibrium Score Regression (LDSC, v1.0.1) (`munge_sumstats.py`) (<https://github.com/bulik/ldsc>) {cite_show('LD_Score_regres_Bulik_2015')} 将 GWAS summary 文件检查并格式化为 .sumstats 格式。"
+    )
     x <- snapAdd(x, "以 `ldsc` 将 GWAS summary 转化为 .sumstats 格式。")
     return(x)
   })

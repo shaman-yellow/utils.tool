@@ -26,7 +26,7 @@ job_kat <- function(x, use = names(x@object@assays)[[1]], layer = "counts")
   } else {
     stop("`x@object@assays[[ use ]]` is not 'Assay5'.")
   }
-  rownames(object) <- gs(rownames(object), "\\.[0-9]*$", "")
+  rownames(object) <- gname(rownames(object))
   .job_kat(object = object)
 }
 
@@ -52,24 +52,27 @@ setMethod("step1", signature = c(x = "job_kat"),
     if (is.remote(x)) {
       x <- run_job_remote(x, wait = 3L,
         {
+          full.anno <- cyclegenes <- DNA.hg20 <- NULL
+          if (packageVersion("Matrix") < "1.7-3") {
+            x@object <- as.matrix(x@object)
+          }
           x <- step1(x, workers = "{workers}", path = "{path}")
+          x@object <- NULL
         }
       )
       return(x)
     }
     x$savepath <- path
     if (is.null(x$res_copykat)) {
-      wd <- getwd()
+      savedir <- getwd()
       if (dir.exists(path)) {
         path <- paste0("copykat", gs(Sys.time(), " |:", "_"))
       }
       dir.create(path, FALSE)
       setwd(path)
-      x@params$wd <- path
-      if (isNamespaceLoaded("copykat") && !test) {
+      x$savedir <- path
+      if (isNamespaceLoaded("copykat")) {
         pkgload::unload("copykat")
-      } else {
-        e(pkgload::load_all("~/copykat"))
       }
       full.anno <- dplyr::mutate(
         copykat::full.anno, hgnc_symbol = s(hgnc_symbol, "\\.[0-9]*", "")
@@ -78,18 +81,31 @@ setMethod("step1", signature = c(x = "job_kat"),
       cyclegenes <<- copykat::cyclegenes
       DNA.hg20 <<- copykat::DNA.hg20
       message("According to `full.anno` to filter `object(x)`, and duplicated.")
+      require(Matrix)
       object(x) <- object(x)[rownames(object(x)) %in% full.anno$hgnc_symbol, ]
       object(x) <- object(x)[!duplicated(rownames(object(x))), ]
       res_copykat <- tryCatch(
         e(copykat::copykat(rawmat = object(x),
-            genome = "hg20", n.cores = workers)), finally = setwd(wd)
+            genome = "hg20", n.cores = workers)), finally = setwd(savedir)
       )
-      try(rm(list = c("full.anno", "cyclegenes", "DNA.hg20"), envir = .GlobalEnv), silent = TRUE)
+      # try(rm(list = c("full.anno", "cyclegenes", "DNA.hg20"), envir = .GlobalEnv), silent = TRUE)
       x$res_copykat <- res_copykat
       x <- methodAdd(x, "R 包 `CopyKAT` 用于鉴定恶性细胞 {cite_show('DelineatingCopGaoR2021')}。`CopyKAT` 可以区分整倍体与非整倍体，其中非整倍体被认为是肿瘤细胞，而整倍体是正常细胞 {cite_show('CausesAndConsGordon2012')}。")
     }
     return(x)
   })
+
+
+setupCopykat <- function() {
+  require("copykat")
+  data <- dplyr::mutate(
+    copykat::full.anno, hgnc_symbol = gname(hgnc_symbol)
+  )
+  # full.anno <<- full.anno
+  # cyclegenes <<- copykat::cyclegenes
+  # DNA.hg20 <<- copykat::DNA.hg20
+  replaceFunInPackage("full.anno", data, "copykat")
+}
 
 setMethod("step2", signature = c(x = "job_kat"),
   function(x){
@@ -106,7 +122,7 @@ setMethod("step2", signature = c(x = "job_kat"),
   })
 
 setMethod("step3", signature = c(x = "job_kat"),
-  function(x, name = x@params$wd) {
+  function(x, name = x$savedir) {
     step_message("save heatmap.")
     if (!is.null(x@params$res_copykat)) {
       x@params$res_copykat <- NULL

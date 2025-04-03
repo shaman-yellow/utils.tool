@@ -658,6 +658,14 @@ setMethod("init", signature = c(x = "job"),
     return(x)
   })
 
+end_init <- function(x) {
+  init(snap(x)) <- FALSE
+  init(meth(x)) <- FALSE
+  x$.tables_initial <- FALSE
+  x$.plots_initial <- FALSE
+  return(x)
+}
+
 setGeneric("meth",
   function(x, ref, ...) standardGeneric("meth"))
 setMethod("meth", signature = c(x = "ANY", ref = "missing"),
@@ -1581,6 +1589,7 @@ jobSlotAdd <- function(x, name, ..., reset, step) {
   names(objs) <- calls
   labs <- formatNames(calls)
   if (missing(reset)) {
+    # .tables_initial or .plots_initial
     symbol <- paste0(".", name, "_initial")
     isInitial <- x[[ symbol ]]
     if (is.null(isInitial) || isInitial) {
@@ -1852,6 +1861,9 @@ setReplaceMethod("others", signature = c(x = "job"),
 
 setGeneric("set_remote",
   function(x, ...) {
+    if (!length(x@sig)) {
+      x <- set_sig(x, substitute(x), parent.frame(1))
+    }
     x <- set_remote.default(x, tmpdir = getOption("remote_tmpdir", NULL),
       map_local = paste0(
         gs(class(x), "^job_", ""), "_local_", x@sig
@@ -1941,11 +1953,13 @@ setMethod("step0", signature = c(x = "character"),
     options(method_name = paste0("job_", sig))
   })
 
-set_sig <- function(x) {
-  name <- substitute(x)
-  sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
-  attr(sig, "name") <- as.character(name)
-  sig(x) <- sig
+set_sig <- function(x, substitute, envir = parent.frame(2)) {
+  if (identical(envir, .GlobalEnv)) {
+    name <- as.character(substitute)
+    sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
+    attr(sig, "name") <- as.character(name)
+    sig(x) <- sig
+  }
   return(x)
 }
 
@@ -1953,17 +1967,19 @@ setGeneric("step1", group = list("step_series"),
   function(x, ...) {
     # if (identical(sig(x), character(0))) {
     legal <- TRUE
-    if (identical(parent.frame(1), .GlobalEnv)) {
-      name <- rlang::as_label(substitute(x))
-      if (grepl("^[A-Za-z][A-Za-z0-9_.]*$", name)) {
-        sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
-        attr(sig, "name") <- name
-        sig(x) <- sig 
+    if (!length(x@sig)) {
+      if (identical(parent.frame(1), .GlobalEnv)) {
+        name <- rlang::as_label(substitute(x))
+        if (grepl("^[A-Za-z][A-Za-z0-9_.]*$", name)) {
+          sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
+          attr(sig, "name") <- name
+          sig(x) <- sig 
+        } else {
+          legal <- FALSE
+        }
       } else {
         legal <- FALSE
       }
-    } else {
-      legal <- FALSE
     }
     # }
     if (is.null(seed <- getOption("step_seed"))) {
@@ -1972,19 +1988,23 @@ setGeneric("step1", group = list("step_series"),
       x$seed <- seed
     }
     x <- checkAddStep(x, 1L)
-    # you can set `x$.append_heading <- FALSE` to cancel that.
-    x$.append_heading <- TRUE
-    x$.append_snap <- TRUE
+    if (interactive()) {
+      # you can set `x$.append_heading <- FALSE` to cancel that.
+      x$.append_heading <- TRUE
+      x$.append_snap <- TRUE
+    }
     x <- standardGeneric("step1")
     x <- stepPostModify(x, 1)
-    if (legal && x$.append_heading) {
-      job_append_heading(x)
+    if (interactive()) {
+      if (legal && !is.null(x$.append_heading) && x$.append_heading) {
+        job_append_heading(x)
+      }
+      if (legal && !is.null(x$.append_snap) && x$.append_snap) {
+        job_append_method(x, oname = attr(sig(x), "name"))
+      }
+      x$.append_heading <- NULL
+      x$.append_snap <- NULL
     }
-    if (legal && x$.append_snap) {
-      job_append_method(x, oname = attr(sig(x), "name"))
-    }
-    x$.append_heading <- NULL
-    x$.append_snap <- NULL
     x
   })
 
@@ -2231,6 +2251,7 @@ stepPostModify <- function(x, n = NULL, formal = TRUE) {
       message(glue::glue("Available feature: {crayon::red(bind(nParaNames[ isThat ]))}"))
     }
   }
+  x <- end_init(x)
   x
 }
 
@@ -2545,6 +2566,7 @@ setGeneric("map",
     if (is(x, "job")) {
       init(snap(x)) <- TRUE
       init(meth(x)) <- TRUE
+      # deprecated. for `methodAdd` ...
       x$.map_step <- TRUE
     }
     x <- standardGeneric("map")
@@ -2552,7 +2574,7 @@ setGeneric("map",
       x$.map_step <- FALSE
     }
     if (is(x, "job")) {
-      if (identical(parent.frame(1), .GlobalEnv)) {
+      if (interactive() && identical(parent.frame(1), .GlobalEnv)) {
         if (!is.null(x$.map_heading)) {
           job_append_heading(x, heading = x$.map_heading)
         }
@@ -2563,12 +2585,12 @@ setGeneric("map",
         }
       }
       stepPostModify(x, formal = FALSE)
-      x$.map_heading <- NULL
-      x$.map_snap <- NULL
-      x
-    } else {
-      x
+      if (interactive()) {
+        x$.map_heading <- NULL
+        x$.map_snap <- NULL
+      }
     }
+    return(x)
   })
 
 setGeneric("formal_names",
