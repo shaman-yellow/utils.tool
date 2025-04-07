@@ -16,16 +16,18 @@ setGeneric("asjob_katn", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_katn"))
 
 setMethod("asjob_katn", signature = c(x = "job_seurat"),
-  function(x, use = names(x@object@assays)[[1]], layer = "counts"){
+  function(x, use = names(x@object@assays)[[1]], group.by = "orig.ident", layer = "counts")
+  {
     metadata <- object(x)@meta.data
-    cellsGroup <- split(rownames(metadata), metadata$orig.ident)
+    cellsGroup <- split(rownames(metadata), metadata[[ group.by ]])
     data <- do.call(`$`, list(object(x)@assays[[ use ]], layer))
-    data <- pbapply::pblapply(cellsGroup,
-      function(cells) {
+    data <- pbapply::pblapply(
+      cellsGroup, function(cells, name) {
         object <- data[, cells]
-        rownames(object) <- gs(rownames(object), "\\.[0-9]*$", "")
+        rownames(object) <- gname(rownames(object))
         .job_kat(object = object)
-      })
+      }
+    )
     x <- .job_katn(object = data)
     x$metadata <- metadata
     return(x)
@@ -37,34 +39,49 @@ setMethod("step0", signature = c(x = "job_katn"),
   })
 
 setMethod("step1", signature = c(x = "job_katn"),
-  function(x, workers = 5, paths = "copykat_batch")
+  function(x, workers = 5, space = glue::glue("copykat_batch_{x@sig}"), cl = 10)
   {
-    step_message("Quality control (QC).")
-    n <- 0L
-    paths <- paste0(paths, "_", names(object(x)))
-    lapply(paths,
-      function(path) {
-        if (dir.exists(path)) {
-          stop(glue::glue("{path} exists."))
-        }
-      })
-    x <- methodAdd(x, "R 包 `CopyKAT` 用于鉴定恶性细胞 {cite_show('DelineatingCopGaoR2021')}。`CopyKAT` 可以区分整倍体与非整倍体，其中非整倍体被认为是肿瘤细胞，而整倍体是正常细胞 {cite_show('CausesAndConsGordon2012')}。由于 `CopyKAT` 不适用于多样本数据 (批次效应) ，因此，对各个样本独立执行 `CopyKAT`。")
-    object(x) <- pbapply::pblapply(object(x),
-      function(obj) {
-        n <<- n + 1L
-        wd <- getwd()
-        writeLines("")
-        cli::cli_alert_info(glue::glue("Running {n}: {wd}"))
-        obj <- try(step1(obj, workers, paths[n]))
-        if (inherits(obj, "try-error")) {
-          setwd(wd)
+    step_message("Running...")
+    dir.create(space, FALSE)
+    if (is.remote(x)) {
+      x <- set_remote_for_sub_jobs(x, space)
+      object(x) <- pbapply::pblapply(object(x), cl = cl, 
+        function(obj) {
+          obj <- step1(obj, workers = workers)
+        })
+    } else {
+      paths <- file.path(space, names(object(x)))
+      lapply(paths,
+        function(path) {
+          if (dir.exists(path)) {
+            stop(glue::glue("{path} exists."))
+          }
+        })
+      n <- 0L
+      object(x) <- pbapply::pblapply(object(x),
+        function(obj) {
+          n <<- n + 1L
+          wd <- getwd()
+          writeLines("")
+          cli::cli_alert_info(glue::glue("Running {n}: {wd}"))
+          obj <- try(step1(obj, workers, paths[n]))
+          if (inherits(obj, "try-error")) {
+            setwd(wd)
+            return(obj)
+          }
+          obj <- step2(obj)
+          saveRDS(obj, file.path(path, "res.rds"))
           return(obj)
-        }
-        obj <- step2(obj)
-        obj <- step3(obj)
-        saveRDS(obj, file.path(path, "res.rds"))
-        gc()
-        return(obj)
-      })
+        })
+    }
+    x <- methodAdd(x, "R 包 `CopyKAT` 用于鉴定恶性细胞 {cite_show('DelineatingCopGaoR2021')}。`CopyKAT` 可以区分整倍体与非整倍体，其中非整倍体被认为是肿瘤细胞，而整倍体是正常细胞 {cite_show('CausesAndConsGordon2012')}。由于 `CopyKAT` 不适用于多样本数据 (批次效应的存在) ，因此，对各个样本独立鉴定。")
     return(x)
   })
+
+setMethod("set_remote", signature = c(x = "job_katn"),
+  function(x, wd = glue::glue("~/katn_{x@sig}")){
+    x$wd <- wd
+    rem_dir.create(wd, wd = ".")
+    return(x)
+  })
+

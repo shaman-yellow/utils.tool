@@ -1866,7 +1866,7 @@ setGeneric("set_remote",
     }
     x <- set_remote.default(x, tmpdir = getOption("remote_tmpdir", NULL),
       map_local = paste0(
-        gs(class(x), "^job_", ""), "_local_", x@sig
+        s(class(x), "^job_", ""), "_local_", x@sig
       ),
       remote = "remote"
     )
@@ -1887,6 +1887,31 @@ set_remote.default <- function(x, tmpdir, map_local, remote) {
   if (is.null(x$wait)) {
     x$wait <- 10L
   }
+  return(x)
+}
+
+set_remote_for_sub_jobs <- function(x, map_local = glue::glue("{class(x)}_batch_{x@sig}")) {
+  message("Set `sig` for jobs in `object(x)`, and `set_remote`.")
+  if (!is.remote(x)) {
+    stop('!is.remote(x).')
+  }
+  if (!is(object(x), "list")) {
+    stop('!is(object(x), "list").')
+  }
+  if (is.null(map_local)) {
+    stop('is.null(map_local).')
+  }
+  object(x) <- mapply(
+    object(x), names(object(x)), SIMPLIFY = FALSE,
+    FUN = function(obj, name) {
+      sig <- name
+      attr(sig, "name") <- glue::glue("{class(obj)}_{name}")
+      obj@sig <- sig
+      obj <- set_remote(obj, glue::glue("{x$wd}/{obj@sig}"))
+      obj$map_local <- file.path(map_local, obj$map_local)
+      return(obj)
+    }
+  )
   return(x)
 }
 
@@ -1995,7 +2020,7 @@ setGeneric("step1", group = list("step_series"),
     }
     x <- standardGeneric("step1")
     x <- stepPostModify(x, 1)
-    if (interactive()) {
+    if (interactive() && identical(parent.frame(1), .GlobalEnv)) {
       if (legal && !is.null(x$.append_heading) && x$.append_heading) {
         job_append_heading(x)
       }

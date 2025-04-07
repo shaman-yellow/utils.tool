@@ -936,3 +936,7 @@ try_get_url <- function(url, maxTry = 10, pattern = "0A000126:SSL routines") {
   }
   return(res)
 }
+
+pngDpi <- function(filename, width = 7, height = 7, dpi = 300) {
+  png(filename, width = width, height = height, units = "in", res = dpi)
+}
