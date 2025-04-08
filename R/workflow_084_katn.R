@@ -42,6 +42,7 @@ setMethod("step1", signature = c(x = "job_katn"),
   function(x, workers = 5, space = glue::glue("copykat_batch_{x@sig}"), cl = 10)
   {
     step_message("Running...")
+    x$space <- space
     dir.create(space, FALSE)
     if (is.remote(x)) {
       x <- set_remote_for_sub_jobs(x, space)
@@ -74,9 +75,50 @@ setMethod("step1", signature = c(x = "job_katn"),
           return(obj)
         })
     }
-    x <- methodAdd(x, "R 包 `CopyKAT` 用于鉴定恶性细胞 {cite_show('DelineatingCopGaoR2021')}。`CopyKAT` 可以区分整倍体与非整倍体，其中非整倍体被认为是肿瘤细胞，而整倍体是正常细胞 {cite_show('CausesAndConsGordon2012')}。由于 `CopyKAT` 不适用于多样本数据 (批次效应的存在) ，因此，对各个样本独立鉴定。")
+    x <- snapAdd(x, "以 `CopyKAT` 鉴定恶质细胞。")
+    x <- methodAdd(x, "R 包 `CopyKAT` ({packageVersion('CopyKAT')}) 用于鉴定恶性细胞 {cite_show('DelineatingCopGaoR2021')}。`CopyKAT` 可以区分整倍体与非整倍体，其中非整倍体被认为是肿瘤细胞，而整倍体是正常细胞 {cite_show('CausesAndConsGordon2012')}。由于 `CopyKAT` 不适用于多样本数据 (批次效应的存在) ，因此，对各个样本独立鉴定。")
     return(x)
   })
+
+setMethod("step2", signature = c(x = "job_katn"),
+  function(x, workers = 20, cl = 10, ignore = FALSE){
+    step_message("Plot heatmap.")
+    if (is.remote(x)) {
+      object(x) <- pbapply::pblapply(object(x), cl = cl, 
+        function(obj) {
+          if (ignore) {
+            obj@step <- 1L
+          }
+          obj <- step2(
+            obj, workers = workers, inherits = TRUE, ignore = ignore
+          )
+        })
+    }
+    return(x)
+  })
+
+setMethod("step3", signature = c(x = "job_katn"),
+  function(x){
+    step_message("Collate results (remote).")
+    if (is.remote(x)) {
+      file_backup <- file.path(x$space, "objects.rds")
+      if (!file.exists(file_backup)) {
+        saveRDS(object(x), file_backup)
+      }
+      object(x) <- lapply(object(x), 
+        function(obj) {
+          obj$res_copykat <- NULL
+          return(obj)
+        })
+      plots <- lapply(object(x), function(x) x@plots$step2$p.copykat)
+      tables <- lapply(object(x), function(x) x@tables$step2$res_copykat)
+      res <- rbind_list(tables, "orig.ident")
+      x <- plotsAdd(x, all_heatmap = plots)
+      x <- tablesAdd(x, t.res_copykat = res)
+    }
+    return(x)
+  })
+
 
 setMethod("set_remote", signature = c(x = "job_katn"),
   function(x, wd = glue::glue("~/katn_{x@sig}")){

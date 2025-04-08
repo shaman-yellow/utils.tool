@@ -744,8 +744,27 @@ pretty_elbowplot <- function(plot) {
 }
 
 setMethod("getsub", signature = c(x = "job_seurat"),
-  function(x, ...){
-    object(x) <- e(SeuratObject:::subset.Seurat(object(x), ...))
+  function(x, ..., sample = 1L, sample_group.by = c("orig.ident", x$group.by)){
+    if (sample > 0L && sample < 1L) {
+      message("Sampling the cells.")
+      metadata <- object(x)@meta.data
+      groups <- lapply(sample_group.by, 
+        function(group) {
+          metadata[[ group ]]
+        })
+      group.by <- do.call(paste, groups)
+      ncells <- split(seq_len(nrow(metadata)), group.by)
+      set.seed(x$seed)
+      ncells <- unlist(lapply(ncells, 
+        function(ns) {
+          sample(ns, ceiling(length(ns) * sample))
+        }))
+      object(x) <- e(
+        SeuratObject:::subset.Seurat(object(x), cells = ncells)
+      )
+    } else {
+      object(x) <- e(SeuratObject:::subset.Seurat(object(x), ...))
+    }
     return(x)
   })
 

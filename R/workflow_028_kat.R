@@ -97,13 +97,19 @@ setMethod("step1", signature = c(x = "job_kat"),
   })
 
 setMethod("step2", signature = c(x = "job_kat"),
-  function(x, workers = x$workers, inherits = TRUE, local = FALSE)
+  function(x, workers = x$workers, inherits = TRUE, 
+    local = FALSE, ignore = FALSE)
   {
     step_message("Results visualization.")
     if (is.remote(x) && !local) {
-      x <- run_job_remote(x, wait = 1L, inherits = inherits, {
-        x <- step2(x, "{workers}")
-      })
+      x <- run_job_remote(x, wait = 1L, inherit_last_result = inherits,
+        ignore_local_cache = ignore, ignore_remote_cache = ignore,
+        {
+          if ("{ignore}") {
+            x@step <- as.integer(1L)
+          }
+          x <- step2(x, "{workers}")
+        })
       x <- transmute_remote_figs(x)
     } else {
       p.copykat <- plot_heatmap_copyKAT(
@@ -272,10 +278,12 @@ plot_heatmap_copyKAT <- function(copykat.obj, workers = 4L,
   color_chr <- c('black', 'grey')
   ColSideColors_chrs <- color_chr[ as.numeric(CNA.data$chrom) %% 2+1 ]
   ColSideColors_chrs <- cbind(ColSideColors_chrs, ColSideColors_chrs)
+  colnames(ColSideColors_chrs) <- rep("CHR", 2)
   # set colors for cell groups, green and red (aneuploid, diploid)
   color_cellGroup <- c("#D95F02", "#1B9E77")
   RowSideColors_cells <- color_cellGroup[ as.integer(factor(pred.data$copykat.pred)) ]
   RowSideColors_cells <- rbind(RowSideColors_cells, RowSideColors_cells)
+  rownames(RowSideColors_cells) <- rep("Cells", 2)
   distfun <- function(x) {
     file_cache <- paste0("dist_", digest::digest(CNA.data))
     if (file.exists(file_cache)) {
@@ -289,11 +297,9 @@ plot_heatmap_copyKAT <- function(copykat.obj, workers = 4L,
   }
   # draw...
   pngDpi(pngfile <- paste0(name, ".png"))
-  Cells <- RowSideColors_cells
-  CHR <- ColSideColors_chrs
   heatmap.3(t(CNA.data[, 4:ncol(CNA.data)]), dendrogram = "r",
     distfun = distfun, hclustfun = function(x) hclust(x, method = "ward.D2"),
-    ColSideColors = CHR, RowSideColors = Cells,
+    ColSideColors = ColSideColors_chrs, RowSideColors = RowSideColors_cells,
     Colv = NA, Rowv = TRUE, notecol = "black", col = color_gainOrLoss,
     breaks = breaks_gainOrLoss, key = FALSE, keysize = .5,
     density.info = "none", trace = "none", cexRow = 0.1, cexCol = 0.1, cex.main = 1,

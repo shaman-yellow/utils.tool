@@ -24,7 +24,7 @@ setGeneric("asjob_scfea", group = list("asjob_series"),
 
 setMethod("asjob_scfea", signature = c(x = "job_seurat"),
   function(x, cells = NULL, groups = NULL, group.by = x$group.by,
-    org = c("human", "mouse"), assay = "RNA", dir = "scfea", ...)
+    org = c("human", "mouse"), assay = "RNA", dir = glue::glue("scfea_{x@sig}"), ...)
   {
     org <- match.arg(org)
     message("Use org: ", org)
@@ -477,7 +477,7 @@ setMethod("asjob_limma", signature = c(x = "job_scfea"),
   })
 
 setMethod("set_remote", signature = c(x = "job_scfea"),
-  function(x, wd = "scfea")
+  function(x, wd = glue::glue("scfea_{x@sig}"))
   {
     local_wd <- x$wd
     x$wd <- "."

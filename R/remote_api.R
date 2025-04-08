@@ -8,7 +8,7 @@ rem_run <- function(..., .script = NULL, .append = FALSE, .test = FALSE) {
     message("Use `x$wd` as '.'")
     x$wd <- "."
   }
-  if (!check_remote() && !.test) {
+  if (!check_remote(1L) && !.test) {
     cdRun(..., path = x$wd)
   } else {
     remoteRun(..., path = x$wd, tmpdir = x$tmpdir,
@@ -140,7 +140,7 @@ scriptPrefix <- function(x) {
 rem_list.files <- function(path, pattern,
   all.files = FALSE, full.names = FALSE, recursive = FALSE, x)
 {
-  if (!check_remote()) {
+  if (!check_remote(1L)) {
     if (length(path) > 1) {
       sapply(path, list.files, pattern = pattern, simplify = FALSE)
     } else {
@@ -377,7 +377,8 @@ list.remote <- function(path, pattern, remote = "remote",
 
 run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$wd,
   name = attr(x@sig, 'name'), rds = glue::glue("{wd}/{name}.rds"),
-  force = FALSE, wait = 1L, step_just = TRUE, inherits = FALSE)
+  ignore_remote_cache = FALSE, ignore_local_cache = FALSE,
+  inherit_last_result = FALSE, step_just = TRUE, wait = 1L)
 {
   # prepare script
   if (!is.remote(x)) {
@@ -394,15 +395,35 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
       .open = "\"{", .close = "}\"",
       .envir = envir)
   }
-  setup <- fun_glue(expression({
-    devtools::load_all("~/utils.tool")
-    x <- readRDS("{rds}")
-  }))
   # set a file for judging whether finished.
   file_end <- glue::glue("{name}_{x@step}.finish")
+  try_continue <- FALSE
+  if (rem_file.exists(file_end)) {
+    if (!ignore_remote_cache) {
+      try_continue <- TRUE
+    }
+    rem_file.remove(file_end)
+  }
   finish <- fun_glue(expression({
     saveRDS(x, "{rds}")
     writeLines("END", "{file_end}")
+  }))
+  file_upload <- add_filename_suffix(rds, "UPLOAD")
+  setup <- fun_glue(expression({
+    devtools::load_all("~/utils.tool")
+    if ("{inherit_last_result}" || "{try_continue}") {
+      x <- readRDS("{rds}")
+      if ("{try_continue}") {
+        if (if_job_step_expected(x, "{x@step}")) {
+          writeLines("END", "{file_end}")
+          quit("no")
+        } else {
+          x <- readRDS("{file_upload}")
+        }
+      }
+    } else {
+      x <- readRDS("{file_upload}")
+    }
   }))
   main <- fun_glue(expression, envir)
   script <- shQuote(paste0(c(setup, main, finish), collapse = "\n"))
@@ -414,23 +435,20 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
   dir.create(x$map_local, FALSE)
   file_local <- file.path(x$map_local, basename(rds))
   file_res <- add_filename_suffix(file_local, hash)
-  if (!file.exists(file_res) || force) {
-    message(glue::glue("Saving file in local: {file_local}"))
-    if (!inherits) {
+  if (!file.exists(file_res) || ignore_local_cache) {
+    if (!inherit_last_result) {
       if (step_just) {
         x@step <- x@step - 1L
       }
       # `not_remote`, Prevent recursion
+      message(glue::glue("Saving file in local: {file_local}"))
       saveRDS(not_remote(x), file_local)
       if (step_just) {
         x@step <- x@step + 1L
       }
-      cdRun(glue::glue("scp {file_local} {x$remote}:{x$wd}/{basename(rds)}"))
+      cdRun(glue::glue("scp {file_local} {x$remote}:{x$wd}/{basename(file_upload)}"))
     } else {
-      message(crayon::red(glue::glue("`inherits` == TRUE, use previous result file.")))
-    }
-    if (rem_file.exists(file_end)) {
-      rem_file.remove(file_end)
+      message(crayon::red(glue::glue("`inherit_last_result` == TRUE, use previous result file.")))
     }
     rem_run(glue::glue("{pg('Rscript', TRUE)} -e {script}"), ...)
     # wait for finish (later = FALSE)
@@ -446,6 +464,15 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
     x <- res
   }
   return(x)
+}
+
+if_job_step_expected <- function(x, expect) {
+  if (x@step == expect) {
+    message("Job step has been finished previously.")
+    return(TRUE)
+  } else {
+    return(FALSE)
+  }
 }
 
 not_remote <- function(x) {
