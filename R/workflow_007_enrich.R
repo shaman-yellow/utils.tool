@@ -287,11 +287,18 @@ vis_enrich.kegg <- function(lst, cutoff = .1, maxShow = 10,
 
 # for external use
 plot_kegg <- function(data, cutoff = .1, maxShow = 10,
-  use = c("p.adjust", "pvalue"), pattern = NULL, ...)
+  use = c("p.adjust", "pvalue"), 
+  use.log = FALSE, pattern = NULL, pals = c("grey90", "darkred"), ...)
 {
   use <- match.arg(use)
   data <- .format_enrich(data, use, cutoff, maxShow, pattern)
-  p <- .plot_kegg(data, use, ...)
+  if (use.log) {
+    data <- dplyr::mutate(data, logUse = -log10(!!rlang::sym(use)))
+    use <- glue::glue("-log10({use})")
+    data <- dplyr::rename(data, !!!setNames(list("logUse"), use))
+    pals <- rev(pals)
+  }
+  p <- .plot_kegg(data, use, pals = pals, ...)
   p <- wrap_scale(
     p, max(nchar(data$Description)) / 5, nrow(data)
   )
@@ -299,19 +306,37 @@ plot_kegg <- function(data, cutoff = .1, maxShow = 10,
   p
 }
 
-.plot_kegg <- function(data, use, ratio = "GeneRatio", count = "Count") {
+.plot_kegg <- function(data, use, ratio = "GeneRatio", count = "Count", order.by = ratio,
+  order.desc = FALSE, pals = c("grey90", "darkred"), theme = geom_blank())
+{
   p <- ggplot(data) +
-    geom_point(aes(x = reorder(Description, !!rlang::sym(ratio)),
+    geom_point(
+      aes(x = reordern(Description, !!rlang::sym(order.by), decreasing = order.desc),
         y = !!rlang::sym(ratio), size = !!rlang::sym(count), fill = !!rlang::sym(use)),
-      shape = 21, stroke = 0, color = "transparent") +
-    scale_fill_gradient(high = "grey90", low = "darkred") +
+      shape = 21, stroke = 0, color = "transparent"
+    ) +
+    scale_fill_gradient(high = pals[1], low = pals[2]) +
     scale_size(range = c(4, 6)) +
     labs(x = "", y = "Hits Ratio") +
     guides(size = guide_legend(override.aes = list(color = "grey70", stroke = 1))) +
     coord_flip() +
     ylim(zoRange(data[[ ratio ]], 1.3)) +
-    rstyle("theme")
+    rstyle("theme") +
+    theme
   p
+}
+
+reordern <- function(x, by, ...) {
+  if (!is.numeric(by)) {
+    if (is.character(by)) {
+      by <- as.integer(as.factor(by))
+    } else if (is.factor(by)) {
+      by <- as.integer(by)
+    } else {
+      stop('`by` should be either numeric or factor or character.')
+    }
+  }
+  reorder(x, by, ...)
 }
 
 vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
@@ -363,6 +388,67 @@ plot_go <- function(data, cutoff = .1, maxShow = 10,
   p <- .set_lab(p, "GO-enrichment")
   p <- setLegend(p, "GO 富集图展示了基因集在 GO 的 BP (Biological Process), MF (Molecular Function), CC (Cellular Component) 组中的富集结果 (以 {use} 排序，各自展示前 {maxShow} 的富集通路) 。")
   p
+}
+
+plot_go_polor <- function(data,
+  pr = c(inner_blank = 70, layer1 = 10, layer2 = 30, layer3 = 30),
+  space. = 1 / 30)
+{
+  space <- sum(pr) * space.
+  data <- dplyr::select(data, ONTOLOGY, ID, pvalue, Count, GeneRatio)
+  data <- dplyr::group_by(data, ONTOLOGY)
+  data <- dplyr::arrange(data, dplyr::desc(Count), .by_group = TRUE)
+  data <- dplyr::ungroup(data)
+  data <- dplyr::mutate(
+    data, xmax = cumsum(Count), xmin = xmax - Count + sum(Count) / 500,
+    xmid = xmin + Count / 2,
+    angle_pi = -(xmid / max(xmax) * 2 * pi) - pi / 2,
+    angle = angle_pi / (2 * pi) * 360,
+    angle = angle + as.integer(cos(angle_pi) < 0) * 180,
+    logP = -log10(pvalue),
+    logG = -log10(GeneRatio),
+    norm_logG = logG / max(logG)
+  )
+  pals <- c(BP ="#8FC93A", CC = "#1982C4", MF = "#FF595E")
+  fp <- function(a, scale = 1) {
+    if (a >= length(pr) + 1) {
+      stop('a >= length(pr)')
+    }
+    a <- a - 1L
+    if (a == -1L) {
+      a <- length(pr) - 1
+    }
+    sum(pr[seq_len(a)]) + pr[a + 1L] * scale
+  }
+  p <- ggplot(data, aes(xmin = xmin, xmax = xmax)) +
+    # p-value
+    geom_rect(aes(ymin = fp(1), ymax = fp(2) - space, fill = logP)) +
+    scale_fill_gradient(low = "lightyellow", high = "darkred") +
+    labs(fill = "-Log10(Pvalue)") +
+    ggnewscale::new_scale_fill() +
+    # Ontology
+    geom_rect(aes(ymin = fp(2), ymax = fp(3)- space, fill = ONTOLOGY)) +
+    # other
+    geom_rect(aes(ymin = fp(3), ymax = fp(4, norm_logG) - space, fill = ONTOLOGY)) +
+    scale_fill_manual(values = pals) +
+    labs(fill = "Ontology") +
+    guides(fill = guide_legend(order = 1)) +
+    # text
+    geom_text(
+      aes(x = xmid, y = fp(3, 0), label = ID, angle = angle,
+        hjust = as.integer(cos(angle_pi) > 0)), 
+      size = 4.5
+      ) +
+    coord_polar() +
+    lims(y = c(0, fp(0)), x = c(0, sum(data$Count))) +
+    theme_void() +
+    theme(
+      plot.margin = unit(rep(-.5, 4), "in"), legend.position = c(.5, .5)
+      ) +
+    geom_blank()
+  p <- .set_lab(p, "GO-enrichment-coord-polar")
+  p <- setLegend(p, "GO 富集图展示了基因集在 GO 的 BP (Biological Process), MF (Molecular Function), CC (Cellular Component) 组中的富集结果。")
+  return(p)
 }
 
 .format_enrich <- function(data, use, cutoff, maxShow, pattern = NULL)

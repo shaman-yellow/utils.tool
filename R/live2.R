@@ -456,6 +456,84 @@ get_detail_chunk <- function(body) {
   c(body[sig:sig.end], other_lines)
 }
 
+plot_network.shiny <- function(
+  graph, layout = "graphopt", seed = 1,
+  shape = c(Input = 15, Others = 16),
+  color = c(
+    Pathway = "#E64B35FF",
+    Module = "#E377C2",
+    Enzyme = "#EFC000",
+    Reaction = "#4DBBD5FF",
+    Compound = "#00A087FF"),
+  size = c(
+    Pathway = 7,
+    Module = 5,
+    Enzyme = 6,
+    Reaction = 5,
+    Compound = 10), font.size = 3,
+  fun_label = function(...) ggrepel::geom_label_repel(..., max.overlaps = 10),
+  ...)
+{
+  set.seed(seed)
+  # type, input, abbrev.name, weight,
+  layout <- ggraph::create_layout(graph, layout = layout, ...)
+  nodes <- dplyr::filter(ggraph::get_nodes()(layout), type != "Reaction")
+  ggraph(layout) + 
+    geom_node_point(
+      aes(color = type,
+        shape = input,
+        size = type),
+      stroke = 0.1) + 
+    fun_label(
+      data = dplyr::filter(nodes, input != "Input"),
+      aes(x = x, y = y, label = abbrev.name, colour = type),
+      size = font.size,
+      family = .font) +
+    fun_label(
+      data = dplyr::filter(nodes, input == "Input"),
+      aes(x = x, y = y, label = abbrev.name, colour = type),
+      size = font.size,
+      family = .font) +
+    geom_edge_fan(
+      aes(edge_width = weight),
+      color = "black",
+      show.legend = FALSE,
+      start_cap = ggraph::circle(5, 'mm'),
+      end_cap = ggraph::circle(5, 'mm'),
+      arrow = arrow(length = unit(2, 'mm'))) + 
+    scale_shape_manual(values = shape) +
+    scale_color_manual(values = color) +
+    scale_size_manual(values = size) +
+    scale_edge_width(range = c(0.1, 0.3)) + 
+    guides(
+      size = "none",
+      shape = guide_legend(override.aes = list(size = 4)),
+      color = guide_legend(override.aes = list(size = 4))) +
+    labs(color = "Category", shape = "Type") +
+    theme_void() +
+    theme(text = element_text(family = .font))
+}
+
+col2hex <- function(color) {
+  rgb(t(col2rgb(color)), maxColorValue = 255)
+}
+
+clearNodePropertyBypass <- function (node.names, visual.property, network = NULL,
+  base.url = RCy3:::.defaultBaseUrl)
+{
+  net.SUID <- RCy3::getNetworkSuid(network, base.url)
+  net.views.SUIDs <- RCy3::getNetworkViews(network = net.SUID, base.url = base.url)
+  view.SUID <- as.character(net.views.SUIDs[[1]])
+  node.SUIDs <- RCy3:::.nodeNameToNodeSUID(node.names, network = net.SUID,
+    base.url = base.url, uniqueList = TRUE)
+  for (i in seq_len(length(node.SUIDs))) {
+    node.SUID <- as.character(node.SUIDs[i])
+    res <- RCy3:::cyrestDELETE(paste("networks", net.SUID, "views", 
+        view.SUID, "nodes", node.SUID, visual.property, 
+        "bypass", sep = "/"), base.url = base.url)
+  }
+}
+
 # ==========================================================================
 # for slidy
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
