@@ -294,13 +294,30 @@ setGeneric("feature<-",
   function(x, value) standardGeneric("feature<-"))
 
 setMethod("feature", signature = c(x = "job"),
-  function(x, ...){
-    feas <- x$.feature
+  function(x, mode = .all_features(x), ...){
+    if (missing(mode)) {
+      mode <- ".feature"
+    } else {
+      if (!grpl(mode, "^\\.feature")) {
+        mode <- paste0(".feature_", mode)
+      }
+      mode <- match.arg(mode)
+    }
+    feas <- x[[ mode ]]
     if (!is(feas, "feature")) {
       feas <- as_feature(feas, x, ...)
     }
     feas
   })
+
+# setMethod("feature", signature = c(x = "job"),
+#   function(x, ...){
+#     feas <- x$.feature
+#     if (!is(feas, "feature")) {
+#       feas <- as_feature(feas, x, ...)
+#     }
+#     feas
+#   })
 
 setReplaceMethod("feature", signature = c(x = "job"),
   function(x, value){

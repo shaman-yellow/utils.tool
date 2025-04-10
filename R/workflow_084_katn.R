@@ -119,6 +119,19 @@ setMethod("step3", signature = c(x = "job_katn"),
     return(x)
   })
 
+setMethod("map", signature = c(x = "job_seurat", ref = "job_katn"),
+  function(x, ref, from = "scsa_cell", to = "copykat_cell")
+  {
+    if (ref@step < 3L) {
+      stop('ref@step < 3L.')
+    }
+    if (is.null(res <- ref@tables$step3$t.res_copykat)) {
+      stop('is.null(res <- ref@tables$step3$t.res_copykat).')
+    }
+    fun_method <- selectMethod("map", c("job_seurat", "job_kat"))
+    ref <- .job_kat(tables = list(step2 = list(res_copykat = res)))
+    fun_method(x, ref)
+  })
 
 setMethod("set_remote", signature = c(x = "job_katn"),
   function(x, wd = glue::glue("~/katn_{x@sig}")){

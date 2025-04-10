@@ -577,3 +577,8 @@ expect_geo_extra <- function(gses, cl = NULL, nGroup = 20,
   dplyr::mutate(data, GSE = !!gses, .before = 1)
 }
 
+extract_gse_from_text <- function(file) {
+  text <- readLines(file)
+  rm.no(unlist(stringr::str_extract_all(text, "GSE[0-9]+")))
+}
+

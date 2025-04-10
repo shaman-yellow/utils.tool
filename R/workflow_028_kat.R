@@ -121,7 +121,7 @@ setMethod("step2", signature = c(x = "job_kat"),
       res_copykat <- dplyr::as_tibble(x$res_copykat$prediction)
       res_copykat <- dplyr::mutate(res_copykat,
         copykat.pred = gs(copykat.pred, ".*:([a-z]+):.*", "\\1"),
-        copykat_cell = ifelse(copykat.pred == "aneuploid", "Cancer cell", "Normal cell")
+        copykat_cell = ifelse(copykat.pred == "aneuploid", "Malignant cell", "Benign cell")
       )
       res_copykat <- set_lab_legend(
         res_copykat,
@@ -184,22 +184,52 @@ setMethod("transmute", signature = c(x = "job", ref = "fig"),
 #   })
 
 setMethod("map", signature = c(x = "job_seurat", ref = "job_kat"),
-  function(x, ref, from = "scsa_cell", to = "copykat_cell") {
+  function(x, ref, from = "scsa_cell", to = "copykat_cell")
+  {
     if (!any(colnames(x@object@meta.data) == from)) {
       stop("`from` not found in meta.data.")
     }
+    # all used in ref
     res <- ref@tables$step2$res_copykat
     fun_cell <- function(x) colnames(x@object)
     res <- res$copykat_cell[ match(fun_cell(x), res$cell.names) ]
-    res <- ifelse(is.na(res) | vapply(res, function(x) identical(x, "Normal cell"), logical(1)),
+    res <- ifelse(is.na(res) | vapply(res, function(x) identical(x, "Benign cell"), logical(1)),
       as.character(x@object@meta.data[[ from ]]), res)
     x@object@meta.data[[ to ]] <- res
+    x <- mutate(
+      x, isCancer = ifelse(
+        !!rlang::sym(to) == "Malignant cell", "Malignant cell", "Benign cell"
+      )
+    )
+    Raws <- x@object@meta.data[[from]]
+    if (is.character(Raws)) {
+      allRawCells <- sort(unique(Raws))
+    } else if (is.factor(Raws)) {
+      allRawCells <- levels(Raws)
+    } else {
+      stop("Not either factor or character.")
+    }
+    palette <- nl(
+      levels <- c(allRawCells, "Malignant cell"), 
+      c(color_set()[seq_along(allRawCells)], "black"), FALSE
+    )
+    x@object@meta.data[[to]] <- factor(
+      x@object@meta.data[[to]], levels = levels
+    )
     p.map_cancer <- e(Seurat::DimPlot(
         object(x), reduction = "umap", label = FALSE, pt.size = .7,
-        group.by = "copykat_cell", cols = color_set()
+        group.by = "copykat_cell", cols = palette
         ))
     p.map_cancer <- wrap(as_grob(p.map_cancer), 7, 4)
     p.map_cancer <- .set_lab(p.map_cancer, sig(x), "Cancer", "Cell type annotation")
+    p.props_cancer <- plot_cells_proportion(
+      object(x)@meta.data, "isCancer", from, relative = FALSE
+    )
+    x$p.props_cancer <- set_lab_legend(
+      p.props_cancer,
+      glue::glue("{sig(x)} cancer cell proportions"),
+      glue::glue("为 copyKAT 注释的恶质细胞在各个细胞类型中的占比。")
+    )
     x@params$p.map_cancer <- p.map_cancer
     x <- snapAdd(x, "将 `CopyKAT` 的预测结果映射细胞注释中。", step = class(ref))
     x$.map_heading <- glue::glue("Seurat-copyKAT 癌细胞注释")
@@ -227,7 +257,7 @@ setMethod("merge", signature = c(x = "job_seurat", y = "job_kat"),
     if (!is.null(object(x)@meta.data[[ merge ]])) {
       anno_name <- paste0(gs(merge, "_cell$", "_"), "copykat")
       object(x)@meta.data[[ anno_name ]] <- as.factor(ifelse(
-          object(x)@meta.data$copykat_cell == "Cancer cell",
+          object(x)@meta.data$copykat_cell == "Malignant cell",
           object(x)@meta.data$copykat_cell,
           as.character(object(x)@meta.data$scsa_cell))
       )

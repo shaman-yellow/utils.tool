@@ -126,6 +126,10 @@ setMethod("step3", signature = c(x = "job_seurat"),
     if (reset) {
       object(x) <- e(Seurat::FindVariableFeatures(object(x)))
       object(x) <- e(Seurat::ScaleData(object(x)))
+      object(x) <- e(Seurat::RunPCA(
+          object(x), 
+          features = SeuratObject::VariableFeatures(object(x)), reduction.name = "pca"
+          ))
     }
     if (!is.null(features)) {
       message(glue::glue("Run PCA in specified features."))
@@ -1088,7 +1092,7 @@ setMethod("map", signature = c(x = "job_seurat", ref = "sets_feature"),
   if (!is.null(pattern_suffix)) {
     x <- lapply(x, function(x) unique(s(x, pattern_suffix, "")))
     if (any(lengths(x) != 1)) {
-      stop('any(lengths(x) != 1)')
+      message('any(lengths(x) != 1)')
     }
   }
   if (unlist) {
@@ -1239,22 +1243,22 @@ setMethod("meta", signature = c(x = "job_seurat"),
     as_tibble(object(x)@meta.data)
   })
 
-setMethod("feature", signature = c(x = "job_seurat"),
-  function(x, mode = .all_features(x), ...){
-    if (missing(mode)) {
-      mode <- ".feature"
-    } else {
-      if (!grpl(mode, "^\\.feature")) {
-        mode <- paste0(".feature_", mode)
-      }
-      mode <- match.arg(mode)
-    }
-    feas <- x[[ mode ]]
-    if (!is(feas, "feature")) {
-      feas <- as_feature(feas, x, ...)
-    }
-    feas
-  })
+# setMethod("feature", signature = c(x = "job_seurat"),
+#   function(x, mode = .all_features(x), ...){
+#     if (missing(mode)) {
+#       mode <- ".feature"
+#     } else {
+#       if (!grpl(mode, "^\\.feature")) {
+#         mode <- paste0(".feature_", mode)
+#       }
+#       mode <- match.arg(mode)
+#     }
+#     feas <- x[[ mode ]]
+#     if (!is(feas, "feature")) {
+#       feas <- as_feature(feas, x, ...)
+#     }
+#     feas
+#   })
 
 setMethod("set_remote", signature = c(x = "job_seurat"),
   function(x, wd = glue::glue("~/seurat_{x@sig}")){
@@ -1737,11 +1741,15 @@ find_outliers_iqr <- function(x, coef = 1.5) {
   skewness + dispersion + gap
 }
 
-plot_cells_proportion <- function(metadata, sample = "orig.ident", cell = "ChatGPT_cell") {
+plot_cells_proportion <- function(metadata, sample = "orig.ident", 
+  cell = "ChatGPT_cell", relative = TRUE)
+{
   ntypes <- length(unique(metadata[[ cell ]]))
-  data <- data.frame(
-    prop.table(table(droplevels(metadata[[ cell ]]), metadata[[ sample ]]), 1)
-  )
+  stat <- table(droplevels(metadata[[ cell ]]), metadata[[ sample ]])
+  if (relative) {
+    stat <- prop.table(stat, 1)
+  }
+  data <- data.frame(stat)
   p.props <- ggplot(data, aes(x = Var1, y = Freq, fill = Var2)) +
     geom_bar(stat = "identity", width = .7, size = .5) +
     coord_flip() +

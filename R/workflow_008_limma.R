@@ -675,8 +675,9 @@ plot_genes_heatmap.elist <- function(normed_data, degs, use = "hgnc_symbol") {
 plot_genes_heatmap <- function(data, metadata) {
   data <- dplyr::rename(as_tibble(data), genes = rownames)
   data <- tidyr::pivot_longer(data, !genes, names_to = "sample", values_to = "expression")
+  message("plot_genes_heatmap: merge data with metadata...")
   data <- tbmerge(
-    data, metadata, by = "sample", all.x = TRUE
+    data, metadata, by = "sample", all.x = TRUE, allow.cartesian = TRUE
   )
   maxBreak <- max(ceiling(abs(range(data$expression))))
   # ComplexHeatmap::Heatmap

@@ -17,13 +17,50 @@
     analysis = "Survival 生存分析"
     ))
 
+setGeneric("do_survival",
+  function(x, ref, ...) standardGeneric("do_survival"))
+
+setMethod("do_survival", signature = c(x = "job_limma", ref = "job_survival"),
+  function(x, ref, ...){
+    cox <- asjob_lasso(x)
+    cox <- step1(cox)
+    surv <- asjob_survival(
+      cox, fea_coefs = ref$fea_coefs, force = TRUE, ...
+    )
+    surv
+  })
+
+setMethod("do_survival", signature = c(x = "list", ref = "job_survival"),
+  function(x, ref, ...){
+    x <- lapply(x, 
+      function(x) {
+        if (!is(x, "job_limma")) {
+          stop('!is(x, "job_limma").')
+        }
+        cox <- asjob_lasso(x)
+        cox@sig <- x$project
+        cox
+      })
+    data <- x[[1]]
+    for (i in seq_along(x[-1])) {
+      message(glue::glue("Merge with {x[[i]]$project}"))
+      data <- merge(data, x[[i]])
+    }
+    message("Finished merging")
+    data <- step1(data)
+    surv <- asjob_survival(
+      data, fea_coefs = ref$fea_coefs, force = TRUE, ...
+    )
+    surv
+  })
+
 setGeneric("asjob_survival", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_survival"))
 
 setMethod("asjob_survival", signature = c(x = "job_lasso"),
   function(x, use.group = c("mul_cox", "uni_cox"), lambda = c("min", "1se"),
     base_method = c("surv_cutpoint", "median"), fea_coefs = NULL, force = FALSE,
-    use_data = c("all", "train", "valid"))
+    use_data = c("all", "train", "valid"), alias = NULL)
   {
     y <- .job_survival()
     use_data <- match.arg(use_data)
@@ -68,6 +105,31 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
     if (any(!use_genes %in% colnames(data))) {
       not_cover <- use_genes[ !use_genes %in% colnames(data) ]
       message(glue::glue("Genes not cover: {crayon::red(bind(not_cover))}."))
+      if (!is.null(alias)) {
+        if (!is(alias, "list")) {
+          stop('!is(alias, "list").')
+        }
+        fun_reset <- function(db, from, to) {
+          ifelse(db == from, to, db)
+        }
+        message("Try found alias genes.")
+        lapply(not_cover, 
+          function(name) {
+            alias <- alias[[ name ]]
+            isThat <- alias %in% colnames(data)
+            if (!any(isThat)) {
+              message(crayon::red(glue::glue("Alias of {name} neither covered.")))
+            } else {
+              use <- alias[ which(isThat)[1] ]
+              message(glue::glue("Use alias: {use} ({name})"))
+              use_genes <<- fun_reset(use_genes, name, use)
+              fea_coefs$feature <- fun_reset(fea_coefs$feature, name, use)
+              fea_coefs <<- fea_coefs
+              not_cover <<- not_cover[not_cover != name]
+            }
+
+          })
+      }
       x$not_cover <- not_cover
       use_genes <- use_genes[ use_genes %in% colnames(data) ]
       fea_coefs <- dplyr::filter(fea_coefs, feature %in% use_genes)

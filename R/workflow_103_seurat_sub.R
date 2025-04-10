@@ -53,6 +53,15 @@ setMethod("step2", signature = c(x = "job_seurat_sub"),
     step_message("Reset variable features.")
     object(x) <- e(Seurat::FindVariableFeatures(object(x)))
     object(x) <- e(Seurat::ScaleData(object(x)))
+    object(x) <- e(Seurat::RunPCA(
+        object(x), 
+        features = SeuratObject::VariableFeatures(object(x)), reduction.name = "pca"
+        ))
+    p.pca_rank <- e(Seurat::ElbowPlot(object(x), 30))
+    p.pca_rank <- wrap(pretty_elbowplot(p.pca_rank), 4, 4)
+    p.pca_rank <- .set_lab(p.pca_rank, sig(x), "Standard deviations of PCs")
+    p.pca_rank <- setLegend(p.pca_rank, "为主成分 (PC) 的 Standard deviations。")
+    x@plots[[ 2 ]] <- namel(p.pca_rank)
     return(x)
   })
 
