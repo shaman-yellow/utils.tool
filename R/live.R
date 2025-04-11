@@ -1299,6 +1299,8 @@ wrap_layout <- function(data, layout, size = calculate_layout_size(layout)$size[
 }
 
 wrap <- function(data, width = 10, height = 8, showtext = NULL) {
+  width <- if (width > 20) 20 else width
+  height <- if (height > 14) 14 else height
   if (is(data, "wrap")) {
     data@width <- width
     data@height <- height

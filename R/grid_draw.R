@@ -1229,6 +1229,6 @@ nebulae_as_grob <- function(x) {
 }
 
 setMethod("as_grob", signature = c(x = "expression"),
-  function(x, envir = parent.frame(1)){
+  function(x, envir = parent.frame(2)){
     ggplotify::base2grob(x, envir)
   })

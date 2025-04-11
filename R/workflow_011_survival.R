@@ -17,6 +17,8 @@
     analysis = "Survival 生存分析"
     ))
 
+.job_survn <- setClass("job_survn", contains = c("job_survival"))
+
 setGeneric("do_survival",
   function(x, ref, ...) standardGeneric("do_survival"))
 
@@ -32,6 +34,7 @@ setMethod("do_survival", signature = c(x = "job_limma", ref = "job_survival"),
 
 setMethod("do_survival", signature = c(x = "list", ref = "job_survival"),
   function(x, ref, ...){
+    projects <- vapply(x, function(x) x$project, character(1))
     x <- lapply(x, 
       function(x) {
         if (!is(x, "job_limma")) {
@@ -46,13 +49,29 @@ setMethod("do_survival", signature = c(x = "list", ref = "job_survival"),
       message(glue::glue("Merge with {x[[i]]$project}"))
       data <- merge(data, x[[i]])
     }
-    message("Finished merging")
+    message("Finished merging, dim: ", bind(dim(object(data))))
     data <- step1(data)
     surv <- asjob_survival(
       data, fea_coefs = ref$fea_coefs, force = TRUE, ...
     )
-    surv
+    surv$objects <- lapply(x, 
+      function(obj) {
+        obj <- step1(obj)
+        obj <- asjob_survival(
+          obj, fea_coefs = ref$fea_coefs, force = TRUE, ...
+        )
+        obj
+      })
+    names(surv$objects) <- projects
+    surv@snap$step0 <- glue::glue(
+      "合并数据集 ({bind(projects)})。{.merge_alias_method(ref, surv, TRUE)}随后，将基因表达数据归一化 (Z-score)。{surv@snap$step0}此外，对于未合并前的各个数据集，以相同的方式生存分析。"
+    )
+    return(.job_survn(surv))
   })
+
+.merge_alias_method <- function(from, to, merge = FALSE) {
+  glue::glue("{if (merge) '对于不同注释来源的基因名，以 `org.Hs.eg.db::org.Hs.eg.db` 获取基因的别名 (ALIAS) ，根据 (ALIAS) 的一致性合并。' else ''}查找预后模型中基因的 ALIAS，在未找到对应基因的情况下，使用该基因的 ALIAS 查找。 (原模型基因：{bind(from$fea_coefs$feature)}；以 ALIAS 匹配后，基因为：{bind(to$fea_coefs$feature)}) 。")
+}
 
 setGeneric("asjob_survival", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_survival"))
@@ -60,7 +79,8 @@ setGeneric("asjob_survival", group = list("asjob_series"),
 setMethod("asjob_survival", signature = c(x = "job_lasso"),
   function(x, use.group = c("mul_cox", "uni_cox"), lambda = c("min", "1se"),
     base_method = c("surv_cutpoint", "median"), fea_coefs = NULL, force = FALSE,
-    use_data = c("all", "train", "valid"), alias = NULL)
+    use_data = c("all", "train", "valid"), 
+    alias = NULL, use_alias = TRUE, db = org.Hs.eg.db::org.Hs.eg.db)
   {
     y <- .job_survival()
     use_data <- match.arg(use_data)
@@ -105,6 +125,14 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
     if (any(!use_genes %in% colnames(data))) {
       not_cover <- use_genes[ !use_genes %in% colnames(data) ]
       message(glue::glue("Genes not cover: {crayon::red(bind(not_cover))}."))
+      if (use_alias) {
+        merge_alias <- merge(fea_coefs$feature, colnames(data), db = db)
+        fea_coefs$feature <- map(fea_coefs$feature, merge_alias, "x")
+        colnames(data) <- map(colnames(data), merge_alias, "y")
+        use_genes <- fea_coefs$feature
+        not_cover <- use_genes[ !use_genes %in% colnames(data) ]
+        message(glue::glue("Alias not cover: {crayon::red(bind(not_cover))}."))
+      }
       if (!is.null(alias)) {
         if (!is(alias, "list")) {
           stop('!is(alias, "list").')
@@ -122,13 +150,11 @@ setMethod("asjob_survival", signature = c(x = "job_lasso"),
             } else {
               use <- alias[ which(isThat)[1] ]
               message(glue::glue("Use alias: {use} ({name})"))
-              use_genes <<- fun_reset(use_genes, name, use)
               fea_coefs$feature <- fun_reset(fea_coefs$feature, name, use)
               fea_coefs <<- fea_coefs
-              not_cover <<- not_cover[not_cover != name]
             }
-
           })
+        use_genes <- fea_coefs$feature
       }
       x$not_cover <- not_cover
       use_genes <- use_genes[ use_genes %in% colnames(data) ]
@@ -325,6 +351,17 @@ setMethod("step0", signature = c(x = "job_survival"),
     )
   })
 
+setMethod("step1", signature = c(x = "job_survn"),
+  function(x, ...){
+    x <- callNextMethod(x, ...)
+    message("For individuals ...")
+    x$objects <- lapply(x$objects, 
+      function(obj) {
+        step1(obj, ...)
+      })
+    return(x)
+  })
+
 setMethod("step1", signature = c(x = "job_survival"),
   function(x, genes_surv = x$genes_surv, fun_group = x$fun_group,
     fun_status = x$fun_status, time = x$time, status = x$status, only_keep_sig = "guess",
@@ -364,7 +401,7 @@ setMethod("step1", signature = c(x = "job_survival"),
           ggtheme = theme_bw()
         )
         p.surv$table <- p.surv$table + labs(x = "time (month)")
-        p.surv <- wrap(p.surv, 5.5, 5)
+        p.surv <- wrap(grid.grabExpr(print(p.surv)), 5.5, 5)
         p.surv <- .set_lab(p.surv, sig(x), "survival curve of", title)
         p.surv <- setLegend(p.surv, "为 {title} 生存曲线。")
         # timeROC
@@ -375,18 +412,20 @@ setMethod("step1", signature = c(x = "job_survival"),
             x <<- snapAdd(x, "不存在 1 年以内 Dead 的样本，因此以 3, 5, 10 计算 ROC。")
             roc_time <- c(3, 5, 10)
           }
-          cols <- c("blue", "red", "orange")[seq_along(roc_time)]
-          roc <- timeROC::timeROC(
-            data$time / 12, data$status, data[[ genes ]], 
-            cause = 1, times = roc_time, weighting = "cox"
-          )
-          legends <- mapply(roc_time, cols, seq_along(roc_time),
-            FUN = function(time, col, n) {
-              plot(roc, time, col = col, add = (n != 1), title = "")
-              glue::glue("AUC at {time} year: {round(roc[[ 'AUC' ]][ paste0('t=', time) ], 2)}")
-            })
-          legend("bottomright", legends, text.col = cols, bty = "n")
-          p.roc <- wrap(recordPlot(), 7, 7)
+          cols <- c("blue", "red", "orange", "green", "black", "pink", "purple")[seq_along(roc_time)]
+          expr <- expression({
+            roc <- timeROC::timeROC(
+              data$time / 12, data$status, data[[ genes ]], 
+              cause = 1, times = roc_time, weighting = "cox"
+            )
+            legends <- mapply(roc_time, cols, seq_along(roc_time),
+              FUN = function(time, col, n) {
+                plot(roc, time, col = col, add = (n != 1), title = "")
+                glue::glue("AUC at {time} year: {round(roc[[ 'AUC' ]][ paste0('t=', time) ], 2)}")
+              })
+            legend(.5, .2, legends, text.col = cols, bty = "n")
+          })
+          p.roc <- wrap(as_grob(expr), 7, 7)
           p.roc <- .set_lab(p.roc, sig(x), "time ROC")
           p.roc <- setLegend(p.roc, "为 {genes} {bind(roc_time)} 年生存分析 ROC 曲线。")
           data <- dplyr::mutate(data,
@@ -443,6 +482,33 @@ setMethod("step1", signature = c(x = "job_survival"),
     feature(x) <- t.SignificantSurvivalPValue$name
     x <- tablesAdd(x, t.SurvivalPValue, t.SignificantSurvivalPValue)
     x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。")
+    return(x)
+  })
+
+setMethod("step2", signature = c(x = "job_survn"),
+  function(x){
+    step_message("Collate results.")
+    fun_collate <- function(name) {
+      objects <- c(list(Merged = x), x$objects)
+      plots <- lapply(objects, 
+        function(obj) {
+          obj@plots$step1[[name]][[1]]
+        })
+      wrap_layout(frame_wrap(plots), c(1, length(objects)), 5)
+    }
+    p.survs <- fun_collate("p.surv")
+    p.survs <- set_lab_legend(
+      p.survs,
+      glue::glue("{x@sig} all datasets survival plot"),
+      glue::glue("为所有数据集的生存分析图。")
+    )
+    p.rocs <- fun_collate("p.roc")
+    p.rocs <- set_lab_legend(
+      p.rocs,
+      glue::glue("{x@sig} all datasets ROC validation"),
+      glue::glue("为所有数据集的 ROC 图。")
+    )
+    x <- plotsAdd(x, p.survs, p.rocs)
     return(x)
   })
 

@@ -39,7 +39,8 @@ setMethod("step0", signature = c(x = "job_geo"),
   })
 
 setMethod("step1", signature = c(x = "job_geo"),
-  function(x, getGPL = TRUE, dir_cache = .prefix("GEO", "db"))
+  function(x, getGPL = TRUE, dir_cache = .prefix("GEO", 
+    "db"), force = FALSE)
   {
     step_message("Get GEO metadata and information.")
     if (!is.null(dir_cache)) {
@@ -47,7 +48,7 @@ setMethod("step1", signature = c(x = "job_geo"),
       file_cache <- file.path(
         dir_cache, paste0(object(x), "_", getGPL, ".rds")
       )
-      if (file.exists(file_cache)) {
+      if (file.exists(file_cache) && !force) {
         message(glue::glue('file.exists(file_cache): {file_cache}'))
         about <- readRDS(file_cache)
       } else {

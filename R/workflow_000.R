@@ -3403,3 +3403,82 @@ valid_job_list <- function(x, class, step = 0L) {
     })
 }
 
+setClass("merge_alias")
+
+setMethod("merge", signature = c(x = "character", y = "character"),
+  function(x, y, type = "ALIAS", db = org.Hs.eg.db::org.Hs.eg.db, 
+    unique = TRUE, omit.common = TRUE, ...)
+  {
+    x <- unique(x)
+    y <- unique(y)
+    if (omit.common) {
+      ins <- intersect(x, y)
+      x <- x[ !x %in% ins ]
+      y <- y[ !y %in% ins ]
+    }
+    if (!length(x) || !length(y)) {
+      message(glue::glue('!length(x) || !length(y), return empty data.frame.'))
+      res <- data.frame()
+      class(res) <- c("merge_alias", class(res))
+      return(res)
+    }
+    if (type == "ALIAS") {
+      ref <- "alias"
+    } else {
+      ref <- type
+    }
+    message(glue::glue("Merge genes '{less(x)}' with '{less(y)}' by alias."))
+    fun_alias <- function(keys) {
+      find_alias(keys, type, db = db)
+    }
+    res.x <- fun_alias(x)
+    res.y <- fun_alias(y)
+    res <- tbmerge(
+      res.x, res.y, by = "ALIAS", allow.cartesian = TRUE, ...
+    )
+    res <- dplyr::relocate(
+      res, ALIAS, tidyselect::starts_with(ref, FALSE)
+    )
+    if (unique) {
+      res <- dplyr::distinct(
+        res, dplyr::pick(tidyselect::starts_with(ref, FALSE)), .keep_all = TRUE
+      )
+    }
+    colnames(res)[2:3] <- c("x", "y")
+    class(res) <- c("merge_alias", class(res))
+    return(res)
+  })
+
+find_alias <- function(keys, type = "ALIAS", db = org.Hs.eg.db::org.Hs.eg.db) {
+  anno <- suppressMessages(AnnotationDbi::select(
+      db, keys, columns = unique(c("ALIAS", "SYMBOL")), keytype = type
+      ))
+  if (type == "ALIAS") {
+    anno <- dplyr::rename(anno, alias = ALIAS)
+    anno2 <- suppressMessages(AnnotationDbi::select(
+        db, anno$SYMBOL, columns = c("ALIAS", "SYMBOL"), keytype = "SYMBOL"
+        ))
+    anno <- tbmerge(anno, anno2, by = "SYMBOL", allow.cartesian = TRUE)
+    anno <- dplyr::select(anno, alias, ALIAS, SYMBOL)
+  }
+  return(anno)
+}
+
+setMethod("map", signature = c(x = "character", "merge_alias"),
+  function(x, ref, which = "x", to = "SYMBOL.x")
+  {
+    if (nrow(ref)) {
+      dic <- setNames(as.list(ref[[to]]), ref[[which]])
+      dic <- dic[ !duplicated(names(dic)) ]
+      x <- dplyr::recode(x, !!!dic, .default = x)
+    }
+    return(x)
+  })
+
+setMethod("map", signature = c(x = "df", ref = "merge_alias"),
+  function(x, ref, which = "x", to = "SYMBOL.x")
+  {
+    colnames(x) <- map(colnames(x), ref, which, to)
+    return(x)
+  })
+

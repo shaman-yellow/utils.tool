@@ -1768,6 +1768,9 @@ get_high_expressed <- function(x, features, threshold = 0, cutoff = .3,
   if (!is(data, "dgCMatrix")) {
     stop('!is(data, "dgCMatrix").')
   }
+  if (is(features, "feature")) {
+    features <- resolve_feature(features)
+  }
   data <- data[ rownames(data) %in% features, ]
   if (!nrow(data)) {
     stop('!nrow(data).')
@@ -1776,6 +1779,7 @@ get_high_expressed <- function(x, features, threshold = 0, cutoff = .3,
   if (is.null(groups)) {
     stop('is.null(groups): object(x)@meta.data[[ group.by ]]')
   }
+  cli::cli_alert_info("fast_penetrate_rate")
   stats <- fast_penetrate_rate(data, groups, threshold)
   stats$features <- rownames(data)[stats$row]
   stats <- tibble::as_tibble(stats)

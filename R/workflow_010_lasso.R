@@ -25,7 +25,7 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
   function(x, use.filter = NULL, use = .guess_symbol(x), from_normed = TRUE,
     fun_scale = function(x) scale(x, TRUE, TRUE),
     dup_method = c("max", "min", "mean"), 
-    use.format = TRUE, ...)
+    use.format = TRUE, exclude = NULL, ...)
   {
     step_message("The default, 'job_limma' from 'job_tcga' were adapted to convertion.")
     x <- dedup_by_rank.job_limma(x, ref.use = use, ...)
@@ -45,6 +45,9 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
           message("Detected feature input.")
           snap <- glue::glue("将{snap(use.filter)}用于模型建立。")
           use.filter <- unlist(use.filter@.Data, use.names = FALSE)
+        }
+        if (!is.null(exclude)) {
+          use.filter <- use.filter[ !use.filter %in% exclude ]
         }
         if (use.format) {
           pos <- gname(x@params$normed_data$genes[[use]]) %in% use.filter
@@ -476,7 +479,7 @@ setMethod("map", signature = c(x = "job_lasso"),
   })
 
 setMethod("merge", signature = c(x = "job_lasso", y = "job_lasso"),
-  function(x, y, scale = TRUE, ...)
+  function(x, y, scale = TRUE, use_alias = TRUE, db = org.Hs.eg.db::org.Hs.eg.db, ...)
   {
     common <- intersect(colnames(x$metadata), colnames(y$metadata))
     message(glue::glue("merge metadata of columns: {bind(common)}"))
@@ -486,9 +489,21 @@ setMethod("merge", signature = c(x = "job_lasso", y = "job_lasso"),
       })
     sigs <- names(lst_metas) <- c(x@sig, y@sig)
     metadata <- frbind(lst_metas, idcol = "Dataset")
+    if (use_alias) {
+      message(crayon::red(glue::glue("Search alias for common genes.")))
+      # merge by alias
+      alias <- merge(
+        colnames(object(x)), colnames(object(y)), db = db
+      )
+      object(x) <- map(object(x), alias, "x")
+      object(y) <- map(object(y), alias, "y")
+    }
     gcommon <- intersect(colnames(object(x)), colnames(object(y)))
     object <- rbind(object(x)[, gcommon ], object(y)[, gcommon ])
-    object <- scale(object)
+    message(glue::glue("After merged, dim: {bind(dim(object))}"))
+    if (scale) {
+      object <- scale(object)
+    }
     x <- .job_lasso(object = object, params = list(metadata = metadata))
     x <- snapAdd(x, "将数据集合并 ({bind(sigs)}) 。")
     return(x)
