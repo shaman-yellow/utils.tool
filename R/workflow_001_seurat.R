@@ -809,7 +809,11 @@ setMethod("vis", signature = c(x = "job_seurat"),
   {
     mode <- match.arg(mode)
     if (is.null(palette)) {
-      palette <- wgcna_colors()[-c(1, 4, 8, 9, 11)]
+      if (mode == "sample") {
+        palette <- wgcna_colors()[-c(1, 4, 8, 9, 11)]
+      } else {
+        palette <- color_set()
+      }
     }
     if (mode == "cell") {
     } else if (mode == "type") {
@@ -1745,7 +1749,13 @@ plot_cells_proportion <- function(metadata, sample = "orig.ident",
   cell = "ChatGPT_cell", relative = TRUE)
 {
   ntypes <- length(unique(metadata[[ cell ]]))
-  stat <- table(droplevels(metadata[[ cell ]]), metadata[[ sample ]])
+  fun_mutate <- function(x) {
+    if (is.factor(x)) {
+      x <- droplevels(x)
+    }
+    return(x)
+  }
+  stat <- table(fun_mutate(metadata[[ cell ]]), metadata[[ sample ]])
   if (relative) {
     stat <- prop.table(stat, 1)
   }

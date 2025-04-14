@@ -341,7 +341,9 @@ setMethod("map", signature = c(x = "job_scfea", ref = "job_limma"),
         message(glue::glue("The top has: {nrow(top)}."))
         vis(
           x, group.by = group.by, feature = feature, groups = groups, 
-          return_type = "plot", name = bind(.get_versus_cell(which))
+          return_type = "plot", name = bind(
+            .get_versus_cell(which), co = "_"
+          )
         )
       })
     names(p.fluxs) <- vapply(

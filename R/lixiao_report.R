@@ -641,7 +641,12 @@ order_packaging <- function(target = "output.pdf",
     lapply(names(register), function(name) {
       dir <- dirname(relocate[[ name ]])
       dir.create(dir, FALSE, recursive = TRUE)
-      file.copy(register[[name]], relocate[[name]], TRUE, TRUE)
+      if (dir.exists(register[[name]])) {
+        to <- dir
+      } else {
+        to <- relocate[[name]]
+      }
+      file.copy(register[[name]], to, TRUE, TRUE)
     })
     tempfiles <- unlist(as.list(relocate))
     package_results(main = tempfiles, head = NULL, masterZip = NULL, report = report, ...)

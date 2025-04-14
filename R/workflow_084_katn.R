@@ -111,9 +111,24 @@ setMethod("step3", signature = c(x = "job_katn"),
           return(obj)
         })
       plots <- lapply(object(x), function(x) x@plots$step2$p.copykat)
+      lab(plots) <- glue::glue("{sig(x)} all malignant cells heatmap")
       tables <- lapply(object(x), function(x) x@tables$step2$res_copykat)
       res <- rbind_list(tables, "orig.ident")
-      x <- plotsAdd(x, all_heatmap = plots)
+      res <- set_lab_legend(
+        res,
+        glue::glue("{x@sig} all copyKAT prediction data"),
+        glue::glue("为 copyKAT 所有样本注释结果附表。")
+      )
+      p.props <- plot_cells_proportion(
+        res, "copykat.pred", "orig.ident", FALSE
+      )
+      p.props <- set_lab_legend(
+        p.props,
+        glue::glue("{x@sig} proportions of aneuploid and diploid"),
+        glue::glue("为 copyKAT 注释的所有样本中 aneuploid (Malignant cell) 与
+          diploid (Benign cell) 的细胞比例。")
+      )
+      x <- plotsAdd(x, all_heatmap = plots, p.props = p.props)
       x <- tablesAdd(x, t.res_copykat = res)
     }
     return(x)

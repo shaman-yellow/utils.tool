@@ -479,7 +479,11 @@ setMethod("step1", signature = c(x = "job_survival"),
       plots <- .set_lab(plots, sig(x), c("Survival", "ROC", "Boxplot"), "plots")
       x@plots[[1]] <- plots
     }
-    feature(x) <- t.SignificantSurvivalPValue$name
+    if (is.null(x$fea_coefs)) {
+      feature(x) <- t.SignificantSurvivalPValue$name
+    } else {
+      feature(x) <- dplyr::filter(x$fea_coefs, coef != 0)$feature
+    }
     x <- tablesAdd(x, t.SurvivalPValue, t.SignificantSurvivalPValue)
     x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。")
     return(x)

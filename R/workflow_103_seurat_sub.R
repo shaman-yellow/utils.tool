@@ -12,7 +12,9 @@ setGeneric("asjob_seurat_sub", group = list("asjob_series"),
    function(x, ...) standardGeneric("asjob_seurat_sub"))
 
 setMethod("asjob_seurat_sub", signature = c(x = "job_seurat"),
-  function(x, ..., groups = NULL, group.by = x$group.by, sample = 1L){
+  function(x, ..., groups = NULL, group.by = x$group.by, sample = 1L)
+  {
+    sub_from <- class(x)
     if (!missing(sample)) {
       seed <- x$seed
       x <- getsub(x, sample = sample, ...)
@@ -34,6 +36,7 @@ setMethod("asjob_seurat_sub", signature = c(x = "job_seurat"),
       object(x) <- e(SeuratObject:::subset.Seurat(object, cells = cells))
     }
     x$group.by <- group.by
+    x$sub_from <- sub_from
     return(x)
   })
 
@@ -43,25 +46,36 @@ setMethod("step0", signature = c(x = "job_seurat_sub"),
   })
 
 setMethod("step1", signature = c(x = "job_seurat_sub"),
-  function(x){
-    step_message("Do nothing.")
+  function(x, assay = "RNA", by = "orig.ident"){
+    if (x$sub_from == "job_seurat5n") {
+      step_message("Split datasets, and render as `job_seurat5n`.")
+      object(x)[[assay]] <- split(
+        object(x)[[assay]], 
+        do.call(`$`, list(object(x), by))
+      )
+      x <- .job_seurat5n(x)
+    } else {
+      step_message("Do nothing.")
+    }
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_seurat_sub"),
-  function(x){
+  function(x, reset = FALSE){
     step_message("Reset variable features.")
-    object(x) <- e(Seurat::FindVariableFeatures(object(x)))
-    object(x) <- e(Seurat::ScaleData(object(x)))
-    object(x) <- e(Seurat::RunPCA(
-        object(x), 
-        features = SeuratObject::VariableFeatures(object(x)), reduction.name = "pca"
-        ))
-    p.pca_rank <- e(Seurat::ElbowPlot(object(x), 30))
-    p.pca_rank <- wrap(pretty_elbowplot(p.pca_rank), 4, 4)
-    p.pca_rank <- .set_lab(p.pca_rank, sig(x), "Standard deviations of PCs")
-    p.pca_rank <- setLegend(p.pca_rank, "为主成分 (PC) 的 Standard deviations。")
-    x@plots[[ 2 ]] <- namel(p.pca_rank)
+    if (reset) {
+      object(x) <- e(Seurat::FindVariableFeatures(object(x)))
+      object(x) <- e(Seurat::ScaleData(object(x)))
+      object(x) <- e(Seurat::RunPCA(
+          object(x), 
+          features = SeuratObject::VariableFeatures(object(x)), reduction.name = "pca"
+          ))
+      p.pca_rank <- e(Seurat::ElbowPlot(object(x), 30))
+      p.pca_rank <- wrap(pretty_elbowplot(p.pca_rank), 4, 4)
+      p.pca_rank <- .set_lab(p.pca_rank, sig(x), "Standard deviations of PCs")
+      p.pca_rank <- setLegend(p.pca_rank, "为主成分 (PC) 的 Standard deviations。")
+      x@plots[[ 2 ]] <- namel(p.pca_rank)
+    }
     return(x)
   })
 

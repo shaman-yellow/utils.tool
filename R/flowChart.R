@@ -19,7 +19,7 @@ sortSugi <- function(values, dec = TRUE) {
 as_network <- function(lst, layout = 'sugiyama', seed = 100, env = parent.frame(1))
 {
   lst <- lapply(
-    lst, function(x) glue::glue(gs(x, "\\(.*\\)", ""), .envir = env)
+    lst, function(x) gs(glue::glue(x, .envir = env), "\\(.*\\)", "")
   )
   lst <- vapply(lst, function(ch) gsub(" ", "", ch), character(1))
   if (any(grepl("::", lst))) {
@@ -66,6 +66,39 @@ as_network <- function(lst, layout = 'sugiyama', seed = 100, env = parent.frame(
       data <- data[[1]]
   }
   data
+}
+
+cytoscape_chart <- function(layout, scale = 100, cmd = "~/Cytoscape_v3.10.3/Cytoscape")
+{
+  ping <- try(RCy3::cytoscapePing(), TRUE)
+  if (inherits(ping, "try-error")) {
+    system(glue::glue("{cmd}"), wait = FALSE)
+    Sys.sleep(10L)
+    RCy3::cytoscapePing()
+  }
+  if (!is(layout, "layout_tbl_graph")) {
+    stop('!is(layout, "layout_tbl_graph").')
+  }
+  graph <- attr(layout, "graph")
+  nodes <- tibble::as_tibble(tidygraph::activate(graph, nodes))
+  nodes <- dplyr::mutate(nodes, id = name, .before = 1)
+  edges <- igraph::as_data_frame(tidygraph::as.igraph(graph))
+  edges <- dplyr::rename(edges, source = from, target = to)
+  # send to Cytoscape
+  e(RCy3::createNetworkFromDataFrames(nodes, edges, title = "My Network", collection = "Demo"))
+  e(RCy3::layoutNetwork("force-directed"))
+  e(RCy3::setNodeFontFaceDefault("SansSerif.bold"))
+  e(RCy3::setNodeFontSizeDefault(15))
+  e(RCy3::setEdgeTargetArrowShapeDefault("ARROW"))
+  e(RCy3::setEdgeTargetArrowColorDefault(col2hex("Grey60")))
+  e(RCy3::setEdgeLineWidthDefault(2))
+  # e(RCy3::setNodeColorMapping())
+  e(RCy3::setNodePositionBypass(layout$name, unname(layout$x) * scale, unname(layout$y) * scale))
+  # set to default postions
+  e(RCy3::layoutNetwork("force-directed"))
+  # unlock bypass
+  clearNodePropertyBypass(layout$name, "NODE_Y_LOCATION")
+  clearNodePropertyBypass(layout$name, "NODE_X_LOCATION")
 }
 
 #' @import ggplot2

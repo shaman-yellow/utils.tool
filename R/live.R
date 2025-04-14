@@ -189,6 +189,22 @@ writePlots <- function(lst, dir, width = 7, height = 7, ..., postfix = ".pdf")
   writeDatas(lst, dir, fun = fun, postfix = postfix)
 }
 
+writeFiles <- function(lst, dir, ...) 
+{
+  if (any(duplicated(names(lst)))) {
+    stop('writeFiles: any(duplicated(names(lst))).')
+  }
+  files <- vapply(lst, as.character, character(1))
+  .dir <- get_savedir("figs")
+  dir <- file.path(.dir, dir)
+  dir.create(dir, FALSE)
+  nfiles <- file.path(
+    dir, paste0(names(lst), ".", tools::file_ext(files))
+  )
+  file.copy(files, nfiles, TRUE)
+  return(dir)
+}
+
 writeDatas <- function(lst, dir, ..., fun = data.table::fwrite, postfix = ".csv") 
 {
   if (is.null(names(lst))) {
@@ -199,7 +215,7 @@ writeDatas <- function(lst, dir, ..., fun = data.table::fwrite, postfix = ".csv"
   } else {
     super.dir <- get_savedir("tabs")
   }
-  dir <- paste0(super.dir, "/", dir)
+  dir <- file.path(super.dir, dir)
   dir.create(dir, FALSE)
   n <- 1
   lapply(names(lst),
@@ -2223,8 +2239,9 @@ setMethod("autor", signature = c(x = "files", name = "character"),
     if (needTex()) {
       cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{85}\\vspace{1.5cm}\\end{center}")
     }
-    if (asis)
+    if (asis) {
       abstract(x, name, ...)
+    }
     if (needTex()) {
       cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{85}\\vspace{1.5cm}\\end{center}")
     }
@@ -2243,6 +2260,9 @@ setMethod("autor", signature = c(x = "character", name = "character"),
       stop("length(x) == 1")
     if (!file.exists(x))
       stop("file.exists(x) == FALSE")
+    if (dir.exists(x)) {
+      return(autor(files(x), name, ...))
+    }
     fig.type <- c(".jpg", ".png", ".pdf")
     file.type <- stringr::str_extract(x, "\\.[a-zA-Z]+$")
     if (!is.na(file.type)) {
@@ -2352,7 +2372,10 @@ setMethod("select_savefun", signature = c(x = "list"),
     fun <- function(x, class) {
       vapply(x, function(obj) is(obj, class), logical(1))
     }
-    if (all(fun(x, "easywrite"))) {
+    if (all(fun(x, "file_fig"))) {
+      function(lst, name)
+        get_fun("writeFiles")(lst, get_realname(name))
+    } else if (all(fun(x, "easywrite"))) {
       function(lst, name)
         get_fun("writeDatas")(lst, get_realname(name))
     } else if (all(fun(x, "gg.obj"))) {
@@ -2532,7 +2555,9 @@ setMethod("abstract", signature = c(x = "lich", name = "character", latex = "log
 
 setMethod("abstract", signature = c(x = "files", name = "character", latex = "NULL"),
   function(x, name, latex, ..., abs = NULL, sum.ex = NULL){
-    writeLines(text_roundrect(sumDir(autoRegisters[[ name ]], sum.ex)))
+    writeLines(
+      text_roundrect(sumDir(autoRegisters[[ name ]], sum.ex), ...)
+    )
     locate_file(name)
   })
 

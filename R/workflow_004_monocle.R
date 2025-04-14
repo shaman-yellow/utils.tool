@@ -24,10 +24,12 @@ setGeneric("do_monocle",
 setMethod("do_monocle", signature = c(x = "job_seurat", ref = "character"),
   function(x, ref, dims = 1:15, resolution = 1.2, group.by = x@params$group.by)
   {
-    x <- getsub(x, cells = grp(x@object@meta.data[[group.by]], ref))
+    x <- asjob_seurat_sub(x, grpl(!!rlang::sym(group.by), !!ref))
+    x <- step1(x)
+    x <- step2(x)
+    sr_sub <- step3(x, dims, resolution)
+    # x <- getsub(x, cells = grp(x@object@meta.data[[group.by]], ref))
     snapAdd_onExit("x", "从 `Seurat` 数据对象 {group.by} 中提取 {ref} 类型的细胞，对其重新聚类分析。")
-    x@step <- 2L
-    sr_sub <- step3(x, dims, resolution, reset = TRUE)
     methodAdd_onExit("x", "从 `Seurat` 数据对象 {group.by} 中提取 {ref} 类型的细胞，对其重新聚类分析。")
     methodAdd_onExit("x", sr_sub@meth[[ "step3" ]])
     methodAdd_onExit(
