@@ -95,10 +95,14 @@ setMethod("step1", signature = c(x = "job_gds"),
       ),
     extras = NULL, deep_inspect = TRUE,
     control = "normal|control|healthy|ctrl|adjacent|\\bN[0-9]+\\b|\\bC[0-9]+\\b",
-    expects = NULL, cl = 5
+    expects = NULL, cl = 5, force = FALSE
   )
   {
     step_message("Statistic.")
+    if (is.null(object(x))) {
+      message(crayon::red(glue::glue("No any data!!!")))
+      return(x)
+    }
     args <- rlang::enquos(...)
     fun_expects <- function() {
       if (!is.null(expects)) {
@@ -160,7 +164,7 @@ setMethod("step1", signature = c(x = "job_gds"),
       message(glue::glue("dim: {bind(dim(object(x)))}, excludes .... {fun_expects()}"))
     }
     if (deep_inspect) {
-      if (nrow(object(x)) > 200) {
+      if (nrow(object(x)) > 200 && !force) {
         stop(glue::glue('nrow(object(x)) > 200, too many data to fetch ({nrow(object(x))}).'))
       } else if (!nrow(object(x))) {
         stop('nrow(object(x)) == FALSE')

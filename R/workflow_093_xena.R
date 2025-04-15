@@ -115,6 +115,11 @@ setMethod("step1", signature = c(x = "job_xena"),
     if (add_batch) {
       metadata <- dplyr::mutate(metadata, batch = `_study`)
     }
+    metadata <- set_lab_legend(
+      metadata,
+      glue::glue("{x@sig} all sample metadata"),
+      glue::glue("为使用的 XenaDatasets 所有样本的元数据。")
+    )
     x <- snapAdd(x, "共 {nrow(metadata)} 个数据。样本组织为：{try_snap(metadata$`_primary_site`)}。样本类型为：{try_snap(metadata$`_sample_type`)}。数据来源为：{try_snap(metadata$`_study`)}。")
     x$metadata <- metadata
     return(x)

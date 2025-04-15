@@ -2946,9 +2946,9 @@ view_obj_for_vim <- function(x, y, view = TRUE) {
     assign(x <- ".tmpfun", obj, envir = .GlobalEnv)
   }
   if (view) {
-    if (as.double(strx(obj.size(eval(parse(text = x))), "[0-9.]+")) > .5) {
+    if (as.double(strx(obj.size(eval(parse(text = x))), "[0-9.]+")) > 3) {
       stop(
-        'as.double(strx(obj.size(eval(parse(text = x))), "[0-9.]+")) > .5, too large object to show.'
+        'as.double(strx(obj.size(eval(parse(text = x))), "[0-9.]+")) > 3, too large object to show.'
       )
     }
     .view_obj(x)

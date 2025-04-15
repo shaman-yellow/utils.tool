@@ -15,7 +15,7 @@
     info = c(""),
     cite = "[@Inferring_tumou_Yoshih_2013]",
     method = "",
-    tag = "",
+    tag = "estimate",
     analysis = "estimate 免疫评分"
     ))
 

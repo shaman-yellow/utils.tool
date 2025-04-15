@@ -23,89 +23,30 @@ setGeneric("asjob_lasso", group = list("asjob_series"),
 
 setMethod("asjob_lasso", signature = c(x = "job_limma"),
   function(x, use.filter = NULL, use = .guess_symbol(x), from_normed = TRUE,
-    fun_scale = function(x) scale(x, TRUE, TRUE),
     dup_method = c("max", "min", "mean"), 
-    use.format = TRUE, exclude = NULL, ...)
+    use.format = TRUE, exclude = NULL,
+    fun_scale = function(x) scale(x, TRUE, TRUE),
+    ...)
   {
-    step_message("The default, 'job_limma' from 'job_tcga' were adapted to convertion.")
-    x <- dedup_by_rank.job_limma(x, ref.use = use, ...)
-    dup_method <- match.arg(dup_method)
-    project <- x$project
-    if (x$normed) {
-      x$normed_data <- new("EList", list(E = object(x), targets = x$metadata, genes = x$genes))
-      from_normed <- TRUE
-      x@step <- 1L
-    }
-    if (from_normed && x@step >= 1L) {
-      snap <- ""
-      if (!is(x@params$normed_data, 'EList'))
-        stop("is(x@params$normed_data, 'EList') == FALSE")
-      if (!is.null(use.filter)) {
-        if (is(use.filter, "feature")) {
-          message("Detected feature input.")
-          snap <- glue::glue("将{snap(use.filter)}用于模型建立。")
-          use.filter <- unlist(use.filter@.Data, use.names = FALSE)
-        }
-        if (!is.null(exclude)) {
-          use.filter <- use.filter[ !use.filter %in% exclude ]
-        }
-        if (use.format) {
-          pos <- gname(x@params$normed_data$genes[[use]]) %in% use.filter
-        } else {
-          pos <- x@params$normed_data$genes[[use]] %in% use.filter
-        }
-        object <- e(limma::`[.EList`(x@params$normed_data, pos, ))
-        if (any(duplicated(object$genes[[ use ]]))) {
-          cli::cli_alert_warning("Duplicated names (genes) founds.")
-          lst <- .deduplicated_genes(object$E, object$genes, use, dup_method)
-          object$E <- lst$counts
-          object$genes <- lst$genes
-        }
-        message(glue::glue("After filtered, dim: {bind(dim(object$E))}"))
-      } else {
-        object <- x@params$normed_data
-      }
-      mtx <- t(object$E)
-      gnames <- object$genes[[ use ]]
-      if (use.format) {
-        colnames(mtx) <- gname(gnames)
-      } else {
-        colnames(mtx) <- gnames
-      }
-      mtx <- mtx[, !duplicated(colnames(mtx)) & !is.na(colnames(mtx))]
-      x <- .job_lasso(object = fun_scale(mtx))
-      x <- snapAdd(x, snap)
-      x <- snapAdd(x, "共 {ncol(mtx)} 个基因在数据集 {project} 中找到 (根据基因名匹配)。")
-      x@params$metadata <- as_tibble(object$targets)
+    message("The default, 'job_limma' from 'job_tcga' were adapted to convertion.")
+    object <- extract_unique_genes.job_limma(
+      x, use.filter, use, from_normed = from_normed, dup_method = dup_method, 
+      use.format = use.format, exclude = exclude, ...
+    )
+    mtx <- t(object$E)
+    gnames <- object$genes[[ use ]]
+    if (use.format) {
+      colnames(mtx) <- gname(gnames)
     } else {
-      stop("x@step == 0L, case deprecated.")
-      # if (x@step == 0L) {
-      #   message(glue::glue("x@step == 0L, use raw counts."))
-      # }
-      # genes <- object(x)$genes
-      # counts <- object(x)$counts
-      # if (!is.null(use.filter)) {
-      #   pos <- genes[[ use ]] %in% use.filter
-      #   genes <- genes[pos, ]
-      #   counts <- counts[pos, ]
-      #   if (any(duplicated(genes[[ use ]]))) {
-      #     cli::cli_alert_warning("Duplicated names (genes) founds.")
-      #     lst <- .deduplicated_genes(counts, genes, use, dup_method)
-      #     genes <- lst$genes
-      #     counts <- lst$counts
-      #   }
-      # }
-      # mtx <- t(counts)
-      # if (!is.null(fun_scale)) {
-      #   message("Use `fun_scale` to scale the data.")
-      #   mtx <- fun_scale(mtx)
-      #   attr(mtx, "scaled:center") <- attr(mtx, "scaled:scale") <- NULL
-      # }
-      # colnames(mtx) <- genes[[ use ]]
-      # metadata <- as_tibble(object(x)$samples)
-      # x <- .job_lasso(object = mtx)
-      # x@params$metadata <- metadata
+      colnames(mtx) <- gnames
     }
+    mtx <- mtx[, !duplicated(colnames(mtx)) & !is.na(colnames(mtx))]
+    x <- .job_lasso(object = fun_scale(mtx))
+    if (is(use.filter, "feature")) {
+      x <- snapAdd(x, "将{snap(use.filter)}用于模型建立。")
+    }
+    x <- snapAdd(x, "共 {ncol(mtx)} 个基因在数据集 {project} 中找到 (根据基因名匹配)。")
+    x@params$metadata <- as_tibble(object$targets)
     return(x)
   })
 

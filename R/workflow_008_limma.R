@@ -844,6 +844,54 @@ setMethod("map", signature = c(x = "job_limma"),
     return(x)
   })
 
+extract_unique_genes.job_limma <- function(
+  x, use.filter = NULL, use = .guess_symbol(x), from_normed = TRUE,
+  dup_method = c("max", "min", "mean"), 
+  use.format = TRUE, exclude = NULL, ...)
+{
+  x <- dedup_by_rank.job_limma(x, ref.use = use, ...)
+  dup_method <- match.arg(dup_method)
+  project <- x$project
+  if (x$normed) {
+    x$normed_data <- new("EList", list(E = object(x), targets = x$metadata, genes = x$genes))
+    from_normed <- TRUE
+    x@step <- 1L
+  }
+  if (from_normed && x@step >= 1L) {
+    if (!is(x@params$normed_data, 'EList'))
+      stop("is(x@params$normed_data, 'EList') == FALSE")
+    if (!is.null(use.filter) || !missing(use)) {
+      if (is.null(use.filter)) {
+        use.filter <- unique(x$normed_data$genes[[use]])
+      } else if (is(use.filter, "feature")) {
+        message("Detected feature input.")
+        use.filter <- unlist(use.filter@.Data, use.names = FALSE)
+      }
+      if (!is.null(exclude)) {
+        use.filter <- use.filter[ !use.filter %in% exclude ]
+      }
+      if (use.format) {
+        pos <- gname(x@params$normed_data$genes[[use]]) %in% use.filter
+      } else {
+        pos <- x@params$normed_data$genes[[use]] %in% use.filter
+      }
+      object <- e(limma::`[.EList`(x@params$normed_data, pos, ))
+      if (any(duplicated(object$genes[[ use ]]))) {
+        cli::cli_alert_warning("Duplicated names (genes) founds.")
+        lst <- .deduplicated_genes(object$E, object$genes, use, dup_method)
+        object$E <- lst$counts
+        object$genes <- lst$genes
+      }
+      message(glue::glue("After filtered, dim: {bind(dim(object$E))}"))
+    } else {
+      object <- x@params$normed_data
+    }
+  } else {
+    stop("x@step == 0L, case deprecated.")
+  }
+  return(object)
+}
+
 dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x), which = 1L)
 {
   if (x@step < 2L || is.null(x@tables$step2$tops)) {

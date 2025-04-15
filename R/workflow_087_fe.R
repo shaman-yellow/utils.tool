@@ -80,7 +80,7 @@ get_fe_data <- function(use.symbol = TRUE, for_gsea = FALSE,
   path = .prefix("../data/ferroptosis_2024-12-05_small.rds"),
   add_internal_job = FALSE, collate = FALSE)
 {
-  if (collate) {
+  if (collate || !file.exists(path)) {
     # <http://www.zhounan.org/ferrdb/current/>
     fe_db <- list(marker = "~/Downloads/ferroptosis_marker.csv",
       driver = "~/Downloads/ferroptosis_driver.csv",
