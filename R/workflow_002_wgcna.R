@@ -86,17 +86,21 @@ setMethod("step1", signature = c(x = "job_wgcna"),
   })
 
 setMethod("step2", signature = c(x = "job_wgcna"),
-  function(x, size = NULL, height = NULL){
+  function(x, height = NULL, size = NULL){
     step_message("Cut sample tree with `height` and `size`. ",
       "This do: ",
       "clip `x@object`; generate `x@params$datExpr`; ",
       "generate `x@params$allTraits`. "
     )
-    if (!is.null(size)) {
-      datExpr <- exclude(params(x)$datExpr0,
-        cut_tree(params(x)$raw_sample_tree, size, height))
+    if (!is.null(size) || !is.null(height)) {
+      iskeep <- cut_tree(params(x)$raw_sample_tree, height, size)
+      message(glue::glue("Keep: {try_snap(iskeep)}\nDrop:\n{showStrings(which(!iskeep))}"))
+      datExpr <- exclude(params(x)$datExpr0, iskeep)
       x@params$datExpr <- datExpr
       object(x) <- clip_data(object(x), datExpr)
+      x <- snapAdd(
+        x, "以 `WGCNA::cutreeStatic` (cutHeight = {height}, minSize = {size}) 剪切聚类树，滤掉样本 {showStrings(rownames(x$datExpr0)[!iskeep])}。"
+      )
     } else {
       x$datExpr <- x$datExpr0
     }
@@ -105,24 +109,35 @@ setMethod("step2", signature = c(x = "job_wgcna"),
   })
 
 setMethod("step3", signature = c(x = "job_wgcna"),
-  function(x, powers = 1:50, cores = 4){
+  function(x, cores = 4, powers = 1:50)
+  {
     step_message("Analysis of network topology for soft-thresholding powers. ",
       "This do: ",
       "Generate x@params$sft; plots in `x@plots[[ 3 ]]`. "
     )
-    e(WGCNA::enableWGCNAThreads(cores))
-    sft <- cal_sft(params(x)$datExpr, powers = powers)
-    x@params$sft <- sft
-    p.sft <- wrap(plot_sft(sft), 10, 5)
-    p.sft <- .set_lab(p.sft, sig(x), "soft thresholding powers")
-    p.sft <- setLegend(p.sft, "WGCNA 软阈值筛选曲线。")
-    x@plots[[ 3 ]] <- list(sft = p.sft)
-    x <- methodAdd(x, "以 `WGCNA::pickSoftThreshold` 预测最佳 soft thresholding powers。")
+    if (is.remote(x)) {
+      x <- run_job_remote(x, wait = 3L,
+        {
+          x <- step3(x, powers = seq_len("{max(powers)}"), cores = "{cores}")
+        }
+      )
+    } else {
+      e(WGCNA::enableWGCNAThreads(cores))
+      sft <- cal_sft(params(x)$datExpr, powers = powers)
+      x@params$sft <- sft
+      p.sft <- wrap(plot_sft(sft), 10, 5)
+      p.sft <- .set_lab(p.sft, sig(x), "soft thresholding powers")
+      p.sft <- setLegend(p.sft, "WGCNA 软阈值筛选曲线。")
+      x@plots[[ 3 ]] <- list(sft = p.sft)
+      x <- methodAdd(x, "以 `WGCNA::pickSoftThreshold` 预测最佳 soft thresholding powers。")
+    }
     return(x)
   })
 
 setMethod("step4", signature = c(x = "job_wgcna"),
-  function(x, power = x@params$sft$powerEstimate, cores = 4, ...){
+  function(x, cores = 4, power = x@params$sft$powerEstimate, 
+    inherit = TRUE, ...)
+  {
     step_message("One-step network construction and module detection.
       Extra parameters would passed to `cal_module`.
       This do: Generate `x@params$MEs`; plots (net) in `x@plots[[ 4 ]]`.
@@ -130,23 +145,32 @@ setMethod("step4", signature = c(x = "job_wgcna"),
       as `power` for WGCNA calculation.
       "
     )
-    e(WGCNA::enableWGCNAThreads(cores))
-    net <- cal_module(params(x)$datExpr, power, ...)
-    if (!is(net, "wgcNet")) {
-      net <- .wgcNet(net)
+    if (is.remote(x)) {
+      message(glue::glue("Note: `...` can not passed to remote."))
+      x <- run_job_remote(x, wait = 3, inherit_last_result = inherit,
+        {
+          x <- step4(x, power = "{power}", cores = "{cores}")
+        }
+      )
+    } else {
+      e(WGCNA::enableWGCNAThreads(cores))
+      net <- cal_module(params(x)$datExpr, power, ...)
+      if (!is(net, "wgcNet")) {
+        net <- .wgcNet(net)
+      }
+      x@params$MEs <- get_eigens(net)
+      ME_genes <- net$colors
+      ME_genes <- split(names(ME_genes), unname(ME_genes))
+      names(ME_genes) <- paste0("ME", names(ME_genes))
+      x$ME_genes <- ME_genes
+      x <- snapAdd(x, "以 power {power} (soft thresholding powers) 创建基因共表达模块 (各模块基因数：{try_snap(ME_genes)})。")
+      net <- .set_lab(
+        wrap(net, 7, 6), sig(x), "co-expression module"
+      )
+      net <- setLegend(net, "为 WGCNA 创建的网络的基因共表达模块。")
+      x@plots[[ 4 ]] <- list(net = net)
+      x <- methodAdd(x, "选择 power 为 {power}, 以 `WGCNA::blockwiseModules` 创建共表达网络，检测基因模块。")
     }
-    x@params$MEs <- get_eigens(net)
-    ME_genes <- net$colors
-    ME_genes <- split(names(ME_genes), unname(ME_genes))
-    names(ME_genes) <- paste0("ME", names(ME_genes))
-    x$ME_genes <- ME_genes
-    x <- snapAdd(x, "以 power {power} (soft thresholding powers) 创建基因共表达模块 (各模块基因数：{try_snap(ME_genes)})。")
-    net <- .set_lab(
-      wrap(net, 7, 6), sig(x), "co-expression module"
-    )
-    net <- setLegend(net, "为 WGCNA 创建的网络的基因共表达模块。")
-    x@plots[[ 4 ]] <- list(net = net)
-    x <- methodAdd(x, "选择 power 为 {power}, 以 `WGCNA::blockwiseModules` 创建共表达网络，检测基因模块。")
     return(x)
   })
 
@@ -163,6 +187,10 @@ setMethod("step5", signature = c(x = "job_wgcna"),
       traits <- object(x)$targets
       traits$group <- as.integer(factor(traits$group, levels = group_levels))
       x <- snapAdd(x, "将 'group' 设置为数值变量 ({bind(group_levels)} 依次为 {bind(seq_along(group_levels))}) 与基因共表达模块关联分析。")
+    }
+    if (!is.null(x$traits)) {
+      message("Use `x$traits` for correlation.")
+      traits <- x$traits
     }
     if (!is.null(traits)) {
       .check_columns(traits, c("sample"))
@@ -245,7 +273,7 @@ setMethod("step6", signature = c(x = "job_wgcna"),
 
 cut_tree <- function(tree, height, size) {
   clust <- e(WGCNA::cutreeStatic(tree, height, size))
-  clust == 1
+  clust > 0
 }
 
 cal_sft <- function(data, powers = c(c(1:10), seq(12, 20, by = 2))) 
@@ -287,3 +315,11 @@ cal_module <- function(data, power, save_tom = "tom", ...)
       ))
   .wgcNet(net)
 }
+
+setMethod("set_remote", signature = c(x = "job_wgcna"),
+  function(x, wd = glue::glue("~/wgcna_{x@sig}")){
+    x$wd <- wd
+    rem_dir.create(wd, wd = ".")
+    return(x)
+  })
+

@@ -60,6 +60,7 @@
     `enrich:clusterProfiler` = "KEGG、GO富集分析[rna-method]",
     `docking:vina` = "全自动批量分子对接 (从蛋白质、分子名字到对接结果)[pharm]",
     `scrna:anno` = "单细胞数据分析注释细胞群[scrna-method]",
+    `aucell` = "识别细胞的基因集活性[scrna-method]",
     `scrna:pseudo:monocle` = "单细胞拟时分析[scrna-method]",
     `crd:crdscore` = "是否昼夜节律紊乱预测:rna (__dep__)",
     `scrna:cellchat` = "CellChat 单细胞细胞通讯[scrna-method]",

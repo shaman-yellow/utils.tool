@@ -66,6 +66,23 @@ setMethod("step0", signature = c(x = "job_ssgsea"),
     step_message("Prepare your data with function `job_ssgsea`.")
   })
 
+as_collection <- function(sets) {
+  if (is.null(names(sets))) {
+    stop('is.null(names(sets)).')
+  }
+  if (is(sets, "feature")) {
+    sets <- setNames(sets@.Data, names(sets))
+  }
+  if (!is(sets, "list") && all(vapply(sets, is.character, logical(1L)))) {
+    stop('!is(sets, "list") && all(vapply(sets, is.character, logical(1L))).')
+  }
+  sets <- mapply(names(sets), sets, SIMPLIFY = FALSE,
+    FUN = function(name, genes) {
+      GSEABase::GeneSet(genes, setName = name)
+    })
+  e(GSEABase::GeneSetCollection(sets))
+}
+
 setMethod("step1", signature = c(x = "job_ssgsea"),
   function(x, mode = c("matrisome"), org = c("human", "mouse"), sets)
   {
@@ -78,17 +95,13 @@ setMethod("step1", signature = c(x = "job_ssgsea"),
         x <- snapAdd(x, db)
         # extract results.
         x$db <- db$db
-        sets <- feature(db)
+        sets <- x$.feature <- feature(db)
         x <- snapAdd(x, "将{snap(sets)}用于 ssGSEA 富集分析。")
         sets <- list(matrisome = unlist(sets, use.names = FALSE))
       }
     }
     if (is(sets, "list")) {
-      sets <- mapply(names(sets), sets, SIMPLIFY = FALSE,
-        FUN = function(name, genes) {
-          GSEABase::GeneSet(genes, setIdentifier = name) 
-        })
-      sets <- e(GSEABase::GeneSetCollection(sets))
+      sets <- as_collection(sets)
     }
     param <- e(GSVA::ssgseaParam(object(x), sets))
     res <- e(GSVA::gsva(param))

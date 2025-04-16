@@ -255,6 +255,19 @@ sfea <- function(...) {
   .sets_feature(list(...))
 }
 
+setGeneric("join",
+  function(x, ref, ...) standardGeneric("join"))
+
+setMethod("join", signature = c(x = "feature_list", ref = "character"),
+  function(x, ref){
+    if (length(ref) != 1) {
+      stop('length(ref) != 1.')
+    }
+    x@.Data <- list(unlist(x@.Data))
+    names(x) <- ref
+    return(x)
+  })
+
 setMethod("[[", signature = c(x = "feature"),
   function(x, i, ...) {
     if (is(i, "character")) {

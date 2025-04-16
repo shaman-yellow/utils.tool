@@ -2,8 +2,12 @@
 # for remote files operation
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-rem_run <- function(..., .script = NULL, .append = FALSE, .test = FALSE) {
-  x <- get("x", envir = parent.frame(1))
+rem_run <- function(..., .script = NULL, .append = FALSE, 
+  .test = FALSE, x)
+{
+  if (missing(x)) {
+    x <- get("x", envir = parent.frame(1))
+  }
   if (is.null(x$wd)) {
     message("Use `x$wd` as '.'")
     x$wd <- "."
@@ -435,6 +439,7 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
   dir.create(x$map_local, FALSE)
   file_local <- file.path(x$map_local, basename(rds))
   file_res <- add_filename_suffix(file_local, hash)
+  message(glue::glue("Expected local file: {file_res}"))
   if (!file.exists(file_res) || ignore_local_cache) {
     if (!inherit_last_result) {
       if (step_just) {

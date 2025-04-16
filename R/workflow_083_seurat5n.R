@@ -65,7 +65,7 @@ setMethod("step1", signature = c(x = "job_seurat5n"),
       p.qc_aft <- .set_lab(p.qc_aft, sig(x), "After Quality control")
       p.qc_aft <- setLegend(p.qc_aft, "为数据过滤后的 QC 图。")
       x@params$p.qc_aft <- p.qc_aft
-      x <- snapAdd(x, "前期质量控制，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。")
+      x <- snapAdd(x, "前期质量控制，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。过滤后，所有样本共包含{ncol(object(x))}个细胞用于后续分析。")
       x <- methodAdd(x, "一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。")
     }
     return(x)

@@ -808,15 +808,17 @@ setMethod("vis", signature = c(x = "job_seurat"),
     orig.ident = "orig.ident", name = NULL, ...)
   {
     mode <- match.arg(mode)
-    if (is.null(palette)) {
+    mapValue <- object(x)@meta.data[[ group.by ]]
+    if (!is.numeric(mapValue) && is.null(palette)) {
       if (mode == "sample") {
         palette <- wgcna_colors()[-c(1, 4, 8, 9, 11)]
       } else {
         palette <- color_set()
       }
+    } else if (is.numeric(mapValue)) {
+      stop('is.numeric(mapValue).')
     }
-    if (mode == "cell") {
-    } else if (mode == "type") {
+    if (mode == "type") {
       groups <- unique(object(x)@meta.data[[ group.by ]])
       patterns <- gs(groups, type_pattern, "")
       palette <- pattern_gradientColor(patterns, groups, palette)
@@ -842,7 +844,9 @@ setMethod("vis", signature = c(x = "job_seurat"),
 
 setMethod("focus", signature = c(x = "job_seurat"),
   function(x, features, group.by = x@params$group.by, 
-    sp = FALSE, name = "genes", return_type = c("job", "list"), ...)
+    sp = FALSE, name = "genes", vln = TRUE, dim = TRUE, 
+    cols = c("lightgrey", "blue"),
+    return_type = c("job", "list"), ...)
   {
     if (is(features, "feature")) {
       features <- resolve_feature(features)
@@ -852,23 +856,29 @@ setMethod("focus", signature = c(x = "job_seurat"),
     }
     layout <- calculate_layout(length(features))
     ncol <- layout[[ "cols" ]]
-    p.vln <- e(Seurat::VlnPlot(
-        object(x), features = features, group.by = group.by,
-        pt.size = 0, alpha = .3, cols = color_set(), combine = FALSE
-        ))
-    p.vln <- lapply(p.vln, function(x) x + theme(legend.position = "none"))
-    p.vln <- wrap_layout(patchwork::wrap_plots(p.vln, ncol = ncol), layout)
-    p.vln <- .set_lab(
-      p.vln, sig(x), paste("violing plot of expression level", name)
-    )
-    p.vln <- setLegend(p.vln, "基因 {less(features)} 表达水平的小提琴图。")
-    p.dim <- wrap_layout(patchwork::wrap_plots(e(Seurat::FeaturePlot(
-            object(x), features = features, combine = FALSE
-            )), ncol = ncol), layout)
-    p.dim <- .set_lab(
-      p.dim, sig(x), paste("dimension plot of expression level", name)
-    )
-    p.dim <- setLegend(p.dim, "基因 {less(features)} 表达水平的 Dimension reduction plot.")
+    p.vln <- p.dim <- NULL
+    if (vln) {
+      p.vln <- e(Seurat::VlnPlot(
+          object(x), features = features, group.by = group.by,
+          pt.size = 0, alpha = .3, cols = color_set(), combine = FALSE
+          ))
+      p.vln <- lapply(p.vln, function(x) x + theme(legend.position = "none"))
+      p.vln <- wrap_layout(patchwork::wrap_plots(p.vln, ncol = ncol), layout)
+      p.vln <- .set_lab(
+        p.vln, sig(x), paste("violing plot of expression level", name)
+      )
+      p.vln <- setLegend(p.vln, "基因 {less(features)} 表达水平的小提琴图。")
+    }
+    if (dim) {
+      p.dim <- wrap_layout(patchwork::wrap_plots(e(Seurat::FeaturePlot(
+              object(x), 
+              features = features, combine = FALSE, cols = cols
+              )), ncol = ncol), layout)
+      p.dim <- .set_lab(
+        p.dim, sig(x), paste("dimension plot of expression level", name)
+      )
+      p.dim <- setLegend(p.dim, "基因 {less(features)} 表达水平的 Dimension reduction plot.")
+    }
     return_type <- match.arg(return_type)
     if (return_type == "job") {
       x[[ paste0("focus_", name) ]] <- namel(p.vln, p.dim)
