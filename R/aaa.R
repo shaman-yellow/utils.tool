@@ -48,7 +48,7 @@ setFakeClasses <- function(classes) {
 }
 
 split_text_by_width <- function(text, width) {
-  if (is.null(text) || !length(text)) {
+  if (is.null(text) || !length(text) || (length(text) == 1 && !nchar(text))) {
     return(text)
   }
   parts <- unlist(strsplit(text, "(?<=\\p{Han})", perl = TRUE))

@@ -46,13 +46,13 @@ setMethod("step0", signature = c(x = "job_kat"),
   })
 
 setMethod("step1", signature = c(x = "job_kat"),
-  function(x, workers = 5, path = glue::glue("copykat_{x@sig}"), test = FALSE)
+  function(x, workers = 5, path = glue::glue("copykat_{x@sig}"), test = FALSE, ...)
   {
     step_message("Run copyKAT.")
     x$savepath <- path
     x$workers <- workers
     if (is.remote(x)) {
-      x <- run_job_remote(x, wait = 3L,
+      x <- run_job_remote(x, wait = 3L, ...,
         {
           full.anno <- cyclegenes <- DNA.hg20 <- NULL
           if (packageVersion("Matrix") < "1.7-3") {

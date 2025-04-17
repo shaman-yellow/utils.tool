@@ -39,7 +39,7 @@ setMethod("step0", signature = c(x = "job_katn"),
   })
 
 setMethod("step1", signature = c(x = "job_katn"),
-  function(x, workers = 5, space = glue::glue("copykat_batch_{x@sig}"), cl = 5)
+  function(x, workers = 5, space = glue::glue("copykat_batch_{x@sig}"), cl = 5, ...)
   {
     step_message("Running...")
     x$space <- space
@@ -48,7 +48,7 @@ setMethod("step1", signature = c(x = "job_katn"),
       x <- set_remote_for_sub_jobs(x, space)
       object(x) <- pbapply::pblapply(object(x), cl = cl, 
         function(obj) {
-          obj <- step1(obj, workers = workers)
+          obj <- step1(obj, workers = workers, ...)
         })
     } else {
       paths <- file.path(space, names(object(x)))
@@ -76,12 +76,12 @@ setMethod("step1", signature = c(x = "job_katn"),
         })
     }
     x <- snapAdd(x, "以 `CopyKAT` 鉴定恶质细胞。")
-    x <- methodAdd(x, "R 包 `CopyKAT` ({packageVersion('CopyKAT')}) 用于鉴定恶性细胞 {cite_show('DelineatingCopGaoR2021')}。`CopyKAT` 可以区分整倍体与非整倍体，其中非整倍体被认为是肿瘤细胞，而整倍体是正常细胞 {cite_show('CausesAndConsGordon2012')}。由于 `CopyKAT` 不适用于多样本数据 (批次效应的存在) ，因此，对各个样本独立鉴定。")
+    x <- methodAdd(x, "R 包 `CopyKAT` ({packageVersion('copykat')}) 用于鉴定恶性细胞 {cite_show('DelineatingCopGaoR2021')}。`CopyKAT` 可以区分整倍体与非整倍体，其中非整倍体被认为是肿瘤细胞，而整倍体是正常细胞 {cite_show('CausesAndConsGordon2012')}。由于 `CopyKAT` 不适用于多样本数据 (批次效应的存在) ，因此，对各个样本独立鉴定。")
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_katn"),
-  function(x, workers = 20, cl = 10, ignore = FALSE){
+  function(x, workers = 20, cl = 5, ignore = FALSE){
     step_message("Plot heatmap.")
     if (is.remote(x)) {
       object(x) <- pbapply::pblapply(object(x), cl = cl, 
