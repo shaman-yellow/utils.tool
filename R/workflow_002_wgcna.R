@@ -5,7 +5,7 @@
 .job_wgcna <- setClass("job_wgcna", 
   contains = c("job"),
   representation = representation(
-    object = "elist",
+    object = "ANY",
     params = "list",
     plots = "list",
     tables = "list",
@@ -109,18 +109,21 @@ setMethod("step2", signature = c(x = "job_wgcna"),
   })
 
 setMethod("step3", signature = c(x = "job_wgcna"),
-  function(x, cores = 4, powers = 1:50)
+  function(x, cores = 4, powers = 1:50, ...)
   {
     step_message("Analysis of network topology for soft-thresholding powers. ",
       "This do: ",
       "Generate x@params$sft; plots in `x@plots[[ 3 ]]`. "
     )
     if (is.remote(x)) {
-      x <- run_job_remote(x, wait = 3L,
+      object <- object(x)
+      object(x) <- NULL
+      x <- run_job_remote(x, wait = 3L, ...,
         {
           x <- step3(x, powers = seq_len("{max(powers)}"), cores = "{cores}")
         }
       )
+      object(x) <- object
     } else {
       e(WGCNA::enableWGCNAThreads(cores))
       sft <- cal_sft(params(x)$datExpr, powers = powers)
@@ -147,11 +150,15 @@ setMethod("step4", signature = c(x = "job_wgcna"),
     )
     if (is.remote(x)) {
       message(glue::glue("Note: `...` can not passed to remote."))
-      x <- run_job_remote(x, wait = 3, inherit_last_result = inherit,
+      object <- object(x)
+      object(x) <- NULL
+      x <- run_job_remote(
+        x, wait = 3, inherit_last_result = inherit, ...,
         {
           x <- step4(x, power = "{power}", cores = "{cores}")
         }
       )
+      object(x) <- object
     } else {
       e(WGCNA::enableWGCNAThreads(cores))
       net <- cal_module(params(x)$datExpr, power, ...)
@@ -182,15 +189,15 @@ setMethod("step5", signature = c(x = "job_wgcna"),
       "Generate plots in `x@plots[[ 5 ]]`; ",
       "tables in `x@tables[[ 5 ]]`"
     )
+    if (!is.null(x$traits)) {
+      message("Use `x$traits` for correlation.")
+      traits <- x$traits
+    }
     if (is.null(traits) && !is.null(group_levels) && !is.null(object(x)$targets[[ "group" ]])) {
       message(glue::glue("Use 'group' in `object(x)$targets`: {bind(group_levels)}."))
       traits <- object(x)$targets
       traits$group <- as.integer(factor(traits$group, levels = group_levels))
       x <- snapAdd(x, "将 'group' 设置为数值变量 ({bind(group_levels)} 依次为 {bind(seq_along(group_levels))}) 与基因共表达模块关联分析。")
-    }
-    if (!is.null(x$traits)) {
-      message("Use `x$traits` for correlation.")
-      traits <- x$traits
     }
     if (!is.null(traits)) {
       .check_columns(traits, c("sample"))
@@ -201,7 +208,7 @@ setMethod("step5", signature = c(x = "job_wgcna"),
       traits <- dplyr::select_if(traits, is.numeric)
       traits <- data.frame(traits)
       rownames(traits) <- rownames
-      x@params$allTraits <- .wgcTrait(traits)
+      x$allTraits <- .wgcTrait(traits)
     }
     if (is.null(params(x)$allTraits)) {
       stop("is.null(params(x)$allTraits) == TRUE")
@@ -219,6 +226,7 @@ setMethod("step5", signature = c(x = "job_wgcna"),
       x$corp_group <- dplyr::bind_cols(cor, pvalue)
       colnames(x$corp_group) <- c("cor", "pvalue")
       x$corp_group <- dplyr::mutate(x$corp_group, MEs = rownames(!!cor), .before = 1)
+      x$corp_group <- dplyr::arrange(x$corp_group, dplyr::desc(abs(cor)))
       x$corp_group <- .set_lab(
         x$corp_group, sig(x), "correlation of module with", traitName 
       )

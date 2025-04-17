@@ -48,7 +48,6 @@ job_tcga <- function(project)
     )
   )
   x <- .job_tcga(object = object, params = list(project = project))
-  x <- snapAdd(x, "获取 {project} 数据。")
   x
 }
 
@@ -104,6 +103,7 @@ setMethod("step1", signature = c(x = "job_tcga"),
     }
     res_query <- .set_lab(res_query, paste(sig(x), x$object), names(res_query), "metadata")
     x@tables[[ 1 ]] <- c(res_query, namel(cons))
+    x <- snapAdd(x, "获取 {x$project} ({bind(query)}) 数据。")
     return(x)
   })
 

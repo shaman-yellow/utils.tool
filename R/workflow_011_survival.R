@@ -29,12 +29,14 @@ setMethod("do_survival", signature = c(x = "job_limma", ref = "job_survival"),
     surv <- asjob_survival(
       cox, fea_coefs = ref$fea_coefs, force = TRUE, ...
     )
+    surv <- methodAdd(surv, x@meth$step1)
     surv
   })
 
 setMethod("do_survival", signature = c(x = "list", ref = "job_survival"),
   function(x, ref, ...){
     projects <- vapply(x, function(x) x$project, character(1))
+    inst <- x[[1]]
     x <- lapply(x, 
       function(x) {
         if (!is(x, "job_limma")) {
@@ -63,9 +65,10 @@ setMethod("do_survival", signature = c(x = "list", ref = "job_survival"),
         obj
       })
     names(surv$objects) <- projects
-    surv@snap$step0 <- glue::glue(
-      "合并数据集 ({bind(projects)})。{.merge_alias_method(ref, surv, TRUE)}随后，将基因表达数据归一化 (Z-score)。{surv@snap$step0}此外，对于未合并前的各个数据集，以相同的方式生存分析。"
-    )
+    surv <- methodAdd(surv, inst@meth$step1)
+    if (length(x) > 1) {
+      surv <- snapAdd(surv, "合并数据集 ({bind(projects)})。{.merge_alias_method(ref, surv, TRUE)}随后，将基因表达数据归一化 (Z-score)。{surv@snap$step0}此外，对于未合并前的各个数据集，以相同的方式生存分析。")
+    }
     return(.job_survn(surv))
   })
 
@@ -221,6 +224,8 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
     status = "vital_status", base_method = c("surv_cutpoint", "median"))
   {
     project <- x$project
+    snap <- x@snap$step1
+    meth <- x@meth$step1
     if (x@step < 1)
       stop("x@step < 1")
     if (x@step >= 1) {
@@ -290,6 +295,8 @@ setMethod("asjob_survival", signature = c(x = "job_limma"),
       snapAdd_onExit("x", "生存数据为{project}，使用该基因表达数据。")
     }
     x <- .job_survival(object = data)
+    x <- snapAdd(x, snap)
+    x <- methodAdd(x, meth)
     snapAdd_onExit("x", "根据元数据信息 (即临床数据) ，去除了生存状态未知的样例。")
     x$time <- time
     x$status <- status
@@ -391,6 +398,10 @@ setMethod("step1", signature = c(x = "job_survival"),
           data, status = fun_status(o_status),
           group = fun_group(!!!rlang::syms(genes), time, status),
         )
+        coxfit <- survival::coxph(
+          as.formula(glue::glue("survival::Surv(time, event = status) ~ `{genes}`")), data = data
+        )
+        ph <- survival::cox.zph(coxfit)
         fit <- survival::survfit.formula(survival::Surv(time, status) ~ group, data = data)
         diff <- survival::survdiff(survival::Surv(time, status) ~ group, data = data)
         title <- paste0(genes, collapse = " & ")
@@ -444,7 +455,9 @@ setMethod("step1", signature = c(x = "job_survival"),
           roc <- NULL
           p.boxplot <- NULL
         }
-        namel(p.surv, fit, p.roc, roc, p.boxplot, diff, data_group)
+        namel(
+          p.surv, fit, p.roc, roc, p.boxplot, diff, ph, data_group
+        )
       })
     x$data_group <- lapply(lst, function(x) x[[ "data_group" ]])
     plots <- sapply(c("p.surv", "p.roc", "p.boxplot"), simplify = FALSE,
@@ -454,12 +467,17 @@ setMethod("step1", signature = c(x = "job_survival"),
     t.SurvivalPValue <- tibble::tibble(
       name = names(lst), 
       pvalue = vapply(lst, function(x) x$diff$pvalue, double(1)),
+      ph = vapply(lst, function(x) x$ph$table[1, "p"], double(1)),
       group_low_survival = vapply(lst, function(x) .get_group_mortality.survdiff(x$diff), character(1))
     )
-    t.SignificantSurvivalPValue <- dplyr::filter(t.SurvivalPValue, pvalue < .05)
+    t.SignificantSurvivalPValue <- dplyr::filter(
+      t.SurvivalPValue, pvalue < .05, ph > .05
+    )
     if (length(genes_surv) > 1) {
       x <- snapAdd(x, "根据 P value &lt; 0.05, 共筛到 {nrow(t.SignificantSurvivalPValue)} 个特征。
         分别为 {bind(t.SignificantSurvivalPValue$name)}。")
+    } else if (length(genes_surv)) {
+      x <- snapAdd(x, "{genes_surv} 生存分析 P value &lt; 0.05, 且满足 ph 假设检验 (P &gt; 0.05)。")
     }
     x$models <- lapply(lst, function(x) list(fit = x$fit, roc = x$roc, diff = x$diff))
     if (identical(only_keep_sig, "guess")) {

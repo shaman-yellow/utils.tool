@@ -256,8 +256,31 @@ setMethod("step1", signature = c(x = "job_limma"),
     no.array_norm = "guess",
     norm_vis = FALSE, pca = FALSE, data_type = c(
       "count", "cpm", "tpm"
-    ))
+    ), dir_cache = .prefix("tcga_normalized", "db"))
   {
+    saveAsCache <- FALSE
+    if (grpl(x$project, "^tcga", TRUE)) {
+      hash <- digest::digest(
+        list(
+          object(x), group, batch, pairs, formula, design, 
+          min.count, no.rna_norm, no.array_norm, no.rna_filter, 
+          norm_vis, data_type
+        )
+      )
+      dir.create(dir_cache, FALSE)
+      file_cache <- add_filename_suffix(
+        file.path(dir_cache, "tcga.rds"), hash
+      )
+      if (file.exists(file_cache)) {
+        message(glue::glue("Use file_cache: {file_cache}"))
+        sig <- x@sig
+        x <- readRDS(file_cache)
+        x@sig <- sig
+        return(x)
+      } else {
+        saveAsCache <- TRUE
+      }
+    }
     step_message("Preprocess expression data.")
     ## sample names check
     if (!x$normed && x$rna) {
@@ -370,6 +393,9 @@ setMethod("step1", signature = c(x = "job_limma"),
     x <- snapAdd(x, "以 公式 {formula} 创建设计矩阵 (design matrix) {snap}。")
     x$.metadata <- .set_lab(x$.metadata, sig(x), "metadata of used sample")
     x$metadata <- .set_lab(x$metadata, sig(x), "metadata of used sample")
+    if (saveAsCache) {
+      saveRDS(x, file_cache)
+    }
     return(x)
   })
 
@@ -847,7 +873,8 @@ setMethod("map", signature = c(x = "job_limma"),
 extract_unique_genes.job_limma <- function(
   x, use.filter = NULL, use = .guess_symbol(x), from_normed = TRUE,
   dup_method = c("max", "min", "mean"), 
-  use.format = TRUE, exclude = NULL, ...)
+  use.format = TRUE, exclude = NULL, use_alias = TRUE, 
+  db = org.Hs.eg.db::org.Hs.eg.db, ...)
 {
   x <- dedup_by_rank.job_limma(x, ref.use = use, ...)
   dup_method <- match.arg(dup_method)
@@ -871,10 +898,16 @@ extract_unique_genes.job_limma <- function(
         use.filter <- use.filter[ !use.filter %in% exclude ]
       }
       if (use.format) {
-        pos <- gname(x@params$normed_data$genes[[use]]) %in% use.filter
-      } else {
-        pos <- x@params$normed_data$genes[[use]] %in% use.filter
+        x$normed_data$genes[[use]] <- gname(x$normed_data$genes[[use]])
       }
+      if (use_alias) {
+        alias <- merge(
+          x$normed_data$genes[[use]], use.filter, db = db
+        )
+        x$normed_data$genes[[use]] <- map(x$normed_data$genes[[use]], alias, "x")
+        use.filter <- map(use.filter, alias, "y")
+      }
+      pos <- x$normed_data$genes[[use]] %in% use.filter
       object <- e(limma::`[.EList`(x@params$normed_data, pos, ))
       if (any(duplicated(object$genes[[ use ]]))) {
         cli::cli_alert_warning("Duplicated names (genes) founds.")

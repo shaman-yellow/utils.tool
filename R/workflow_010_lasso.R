@@ -25,13 +25,17 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
   function(x, use.filter = NULL, use = .guess_symbol(x), from_normed = TRUE,
     dup_method = c("max", "min", "mean"), 
     use.format = TRUE, exclude = NULL,
-    fun_scale = function(x) scale(x, TRUE, TRUE),
+    fun_scale = function(x) scale(x, TRUE, TRUE), 
+    db = org.Hs.eg.db::org.Hs.eg.db,
     ...)
   {
     message("The default, 'job_limma' from 'job_tcga' were adapted to convertion.")
+    project <- x$project
+    meth <- x@meth$step1
+    snap <- x@snap$step1
     object <- extract_unique_genes.job_limma(
       x, use.filter, use, from_normed = from_normed, dup_method = dup_method, 
-      use.format = use.format, exclude = exclude, ...
+      use.format = use.format, exclude = exclude, db = db, ...
     )
     mtx <- t(object$E)
     gnames <- object$genes[[ use ]]
@@ -42,10 +46,14 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
     }
     mtx <- mtx[, !duplicated(colnames(mtx)) & !is.na(colnames(mtx))]
     x <- .job_lasso(object = fun_scale(mtx))
+    x <- methodAdd(x, meth)
+    x <- snapAdd(x, snap)
     if (is(use.filter, "feature")) {
       x <- snapAdd(x, "将{snap(use.filter)}用于模型建立。")
     }
-    x <- snapAdd(x, "共 {ncol(mtx)} 个基因在数据集 {project} 中找到 (根据基因名匹配)。")
+    x <- snapAdd(
+      x, "共 {ncol(mtx)} 个基因在数据集 {project} 中找到 (根据基因名 Symbol 以及 ALIAS (org.Hs.eg.db, {packageVersion('org.Hs.eg.db')}) 匹配)。"
+    )
     x@params$metadata <- as_tibble(object$targets)
     return(x)
   })
@@ -113,11 +121,13 @@ setMethod("step1", signature = c(x = "job_lasso"),
       }
       namel(data, event, types, time, surv)
     }
-    p.all <- gtitle(new_pie(x$get("a")$types)@data, "All")
-    p.train <- gtitle(new_pie(x$get("t")$types)@data, "Train")
-    p.valid <- gtitle(new_pie(x$get("v")$types)@data, "Validate")
-    p.consist <- wrap(xf(p.all = 1, p.train = 1, p.valid = 1), 6, 2)
-    x <- plotsAdd(x, p.consist)
+    if (FALSE) {
+      p.all <- gtitle(new_pie(x$get("a")$types)@data, "All")
+      p.train <- gtitle(new_pie(x$get("t")$types)@data, "Train")
+      p.valid <- gtitle(new_pie(x$get("v")$types)@data, "Validate")
+      p.consist <- wrap(xf(p.all = 1, p.train = 1, p.valid = 1), 6, 2)
+      x <- plotsAdd(x, p.consist)
+    }
     target <- x$get("a")$types
     x <- snapAdd(x, "所有数据生存状态 (去除生存状态未知的数据)，({try_snap(target)})。")
     return(x)
@@ -171,16 +181,20 @@ setMethod("step3", signature = c(x = "job_lasso"),
       function(feature) {
         res <- survival::coxph(as.formula(paste0("target ~ `", feature, "`")),
           data.frame(data, check.names = FALSE))
-        summary(res)$coefficients[1, ]
+        ph <- cox.zph(res)
+        res <- summary(res)$coefficients[1, ]
+        c(res, c(ph = ph$table[feature, "p"]))
       })
     uni_cox <- do.call(dplyr::bind_rows, uni_cox)
     x$uni_cox <- uni_cox <- dplyr::mutate(uni_cox, feature = !!colnames(data), .before = 1)
     sig.uni_cox <- dplyr::mutate(uni_cox, p.adjust = stats::p.adjust(`Pr(>|z|)`, "fdr"))
-    sig.uni_cox <- dplyr::filter(sig.uni_cox, `Pr(>|z|)` < cutoff)
+    sig.uni_cox <- dplyr::filter(
+      sig.uni_cox, `Pr(>|z|)` < cutoff, ph > .05
+    )
     x$sig.uni_cox <- dplyr::rename(sig.uni_cox, pvalue = `Pr(>|z|)`)
     feature(x) <- x$sig.uni_cox$feature
     x <- tablesAdd(x, t.sigUnivariateCoxCoefficients = x$sig.uni_cox)
-    x <- snapAdd(x, "执行单因素 COX 回归，筛选 P 值 &lt; {cutoff}，共筛选到 {nrow(x$sig.uni_cox)} 个基因。")
+    x <- snapAdd(x, "执行单因素 COX 回归，筛选 P 值 &lt; {cutoff}，且满足 PH 假定 (P &gt; 0.05)，共筛选到 {nrow(x$sig.uni_cox)} 个基因。")
     if (!is.null(x$efs_tops)) {
       t.significantUnivariateCoxIntersectWithEFS_tops <- dplyr::filter(sig.uni_cox, feature %in% x$efs_tops)
       x <- tablesAdd(x, t.significantUnivariateCoxIntersectWithEFS_tops)
@@ -193,7 +207,7 @@ setMethod("step3", signature = c(x = "job_lasso"),
 setMethod("step4", signature = c(x = "job_lasso"),
   function(x, use_data = x$use_data, use_valid = use_data, inherit_unicox = TRUE,
     inherit_unicox.cut.p = NULL,
-    fun = c("coxph", "glmnet", "cv.glmnet"), nfold = 10,
+    fun = c("cv.glmnet", "coxph", "glmnet"), nfold = 10,
     alpha = 1, family = "cox", type.measure = c(
       "deviance", "C", "default"
     ), ...)

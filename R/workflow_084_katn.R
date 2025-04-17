@@ -39,7 +39,7 @@ setMethod("step0", signature = c(x = "job_katn"),
   })
 
 setMethod("step1", signature = c(x = "job_katn"),
-  function(x, workers = 5, space = glue::glue("copykat_batch_{x@sig}"), cl = 10)
+  function(x, workers = 5, space = glue::glue("copykat_batch_{x@sig}"), cl = 5)
   {
     step_message("Running...")
     x$space <- space

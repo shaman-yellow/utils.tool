@@ -106,7 +106,11 @@ testRem_file.exists <- function(x, file, wait = 10,
     res
   }
   testFun <- function() {
-    if ((notHasThat <- !rem_file.exists(file)) && getFun()) {
+    hasThat <- try(rem_file.exists(file), silent = TRUE)
+    if (inherits(hasThat, "try-error")) {
+      hasThat <- FALSE
+    }
+    if (!hasThat && getFun()) {
       if (show_queque) {
         system(glue::glue("ssh {x$remote} 'squeue'"))
       }
@@ -122,7 +126,7 @@ testRem_file.exists <- function(x, file, wait = 10,
         Sys.sleep(wait * 60)
         testFun()
       }
-    } else if (!notHasThat && Sys.which("notify-send") != "") {
+    } else if (hasThat && Sys.which("notify-send") != "") {
       cdRun("notify-send 'Got File: ", x$wd, "/", file, "'")
     }
   }
@@ -381,8 +385,9 @@ list.remote <- function(path, pattern, remote = "remote",
 
 run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$wd,
   name = attr(x@sig, 'name'), rds = glue::glue("{wd}/{name}.rds"),
-  ignore_remote_cache = FALSE, ignore_local_cache = FALSE,
-  inherit_last_result = FALSE, step_just = TRUE, wait = 1L)
+  ignore_remote_cache = FALSE, ignore_local_cache = FALSE, 
+  inherit_last_result = FALSE, file_res = NULL, step_just = TRUE, 
+  wait = 1L, testLocal = FALSE)
 {
   # prepare script
   if (!is.remote(x)) {
@@ -438,9 +443,14 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
   }
   dir.create(x$map_local, FALSE)
   file_local <- file.path(x$map_local, basename(rds))
-  file_res <- add_filename_suffix(file_local, hash)
+  if (is.null(file_res)) {
+    file_res <- add_filename_suffix(file_local, hash)
+  }
   message(glue::glue("Expected local file: {file_res}"))
   if (!file.exists(file_res) || ignore_local_cache) {
+    if (testLocal) {
+      stop(glue::glue('`testLocal` == TRUE, but not match local file: {file_res}'))
+    }
     if (!inherit_last_result) {
       if (step_just) {
         x@step <- x@step - 1L

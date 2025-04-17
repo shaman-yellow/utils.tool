@@ -268,6 +268,19 @@ setMethod("join", signature = c(x = "feature_list", ref = "character"),
     return(x)
   })
 
+setMethod("join", signature = c(x = "feature_char", ref = "character"),
+  function(x, ref){
+    x@.Data <- list(x@.Data)
+    y <- .feature_list(x)
+    names(y) <- ref
+    others <- slotNames(x)
+    others <- others[ others != ".Data" ]
+    for (i in others) {
+      slot(y, i) <- slot(x, i)
+    }
+    return(y)
+  })
+
 setMethod("[[", signature = c(x = "feature"),
   function(x, i, ...) {
     if (is(i, "character")) {
@@ -288,6 +301,9 @@ setMethod("[[", signature = c(x = "feature"),
 
 setMethod("[", signature = c(x = "feature"),
   function(x, i, ...){
+    if (is.character(i)) {
+      i <- match(i, names(x))
+    }
     name <- names(x)[ i ]
     x@.Data <- x@.Data[ i ]
     names(x) <- name
