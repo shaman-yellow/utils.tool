@@ -16,22 +16,51 @@ setGeneric("asjob_katn", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_katn"))
 
 setMethod("asjob_katn", signature = c(x = "job_seurat"),
-  function(x, use = names(x@object@assays)[[1]], group.by = "orig.ident", layer = "counts")
+  function(x, refs = NULL, group.by = x$group.by,
+    use = names(x@object@assays)[[1]], split.by = "orig.ident", layer = "counts")
   {
     metadata <- object(x)@meta.data
-    cellsGroup <- split(rownames(metadata), metadata[[ group.by ]])
+    cellsGroup <- split(rownames(metadata), metadata[[ split.by ]])
     data <- do.call(`$`, list(object(x)@assays[[ use ]], layer))
-    data <- pbapply::pblapply(
-      cellsGroup, function(cells, name) {
+    data <- pbapply::pbmapply(
+      cellsGroup, names(cellsGroup), FUN = function(cells, name) {
         object <- data[, cells]
         rownames(object) <- gname(rownames(object))
-        .job_kat(object = object)
+        refs <- dplyr::filter(
+          metadata, !!rlang::sym(group.by) %in% refs, !!rlang::sym(split.by) == name
+        )
+        if (!nrow(refs)) {
+          stop('!nrow(refs).')
+        }
+        refs <- rownames(refs)
+        job_kat(object, refs)
       }
     )
     x <- .job_katn(object = data)
     x$metadata <- metadata
     return(x)
   })
+
+setValidity("job_katn",
+  function(object){
+    .valid_pblapply_res(object)
+  })
+
+.valid_pblapply_res <- function(object) {
+  if (is(object(object), "list")) {
+    valid <- !any(isError <- vapply(object(object),
+        function(obj) {
+          inherits(obj, "try-error")
+        }, logical(1)))
+    if (!valid) {
+      message(crayon::red(glue::glue("valid: {try_snap(!isError)}")))
+      print(object(object)[isError])
+    }
+    valid
+  } else {
+    TRUE
+  }
+}
 
 setMethod("step0", signature = c(x = "job_katn"),
   function(x){
@@ -81,7 +110,7 @@ setMethod("step1", signature = c(x = "job_katn"),
   })
 
 setMethod("step2", signature = c(x = "job_katn"),
-  function(x, workers = 20, cl = 5, ignore = FALSE){
+  function(x, workers = 20, cl = 5, ignore = FALSE, ...){
     step_message("Plot heatmap.")
     if (is.remote(x)) {
       object(x) <- pbapply::pblapply(object(x), cl = cl, 
@@ -90,7 +119,8 @@ setMethod("step2", signature = c(x = "job_katn"),
             obj@step <- 1L
           }
           obj <- step2(
-            obj, workers = workers, inherits = TRUE, ignore = ignore
+            obj, workers = workers, inherits = TRUE, 
+            ignore = ignore, ...
           )
         })
     }

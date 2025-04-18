@@ -328,14 +328,14 @@ setMethod("regroup", signature = c(x = "job_limma", ref = "job_survival"),
     }
     data <- ref$data_group[[ feature ]]
     x <- filter(x, sample %in% !!data$sample, type = "metadata", add_snap = FALSE)
-    if (identical(.get_meta(x, "sample"), data$sample)) {
-      message("Reset group.")
-      x <- modify_job_limma_meta(
-        x, group = data$group, fun = dplyr::mutate, modify_object = TRUE
-      )
-    } else {
-      stop('identical(.get_meta(x, "sample"), data$sample) == FALSE')
+    data <- data[match(.get_meta(x, "sample"), data$sample), ]
+    if (!identical(.get_meta(x, "sample"), data$sample)) {
+      stop('!identical(.get_meta(x, "sample"), data$sample).')
     }
+    message("Reset group.")
+    x <- modify_job_limma_meta(
+      x, group = data$group, fun = dplyr::mutate, modify_object = TRUE
+    )
     x <- set_independence(x)
     x <- set_design(x, ...)
     des <- glue::glue("使用 Survival 分析 ({ref@sig}) 时定义的分组数据 (根据 {feature} 的表达，分为 {try_snap(.get_meta(x, 'group'))})。")
@@ -504,6 +504,23 @@ setMethod("step1", signature = c(x = "job_survival"),
     }
     x <- tablesAdd(x, t.SurvivalPValue, t.SignificantSurvivalPValue)
     x <- methodAdd(x, "以 R 包 `survival` ({packageVersion('survival')}) 生存分析，以 R 包 `survminer` ({packageVersion('survminer')}) 绘制生存曲线。")
+    return(x)
+  })
+
+setMethod("step2", signature = c(x = "job_survival"),
+  function(x){
+    step_message("Collate results.")
+    plots <- x@plots$step1$p.surv
+    if (length(plots) <= 1) {
+      stop('length(plots) <= 1.')
+    }
+    p.survs <- smart_wrap(plots, 3)
+    p.survs <- set_lab_legend(
+      p.survs,
+      glue::glue("{x@sig} all significant genes survival curves"),
+      glue::glue("为所有基因的生存曲线图 (显著的)。")
+    )
+    x <- plotsAdd(x, p.survs = p.survs)
     return(x)
   })
 

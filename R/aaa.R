@@ -940,3 +940,20 @@ try_get_url <- function(url, maxTry = 10, pattern = "0A000126:SSL routines") {
 pngDpi <- function(filename, width = 7, height = 7, dpi = 300) {
   png(filename, width = width, height = height, units = "in", res = dpi)
 }
+
+smart_wrap <- function(plots, size = 3, ...) {
+  layout <- calculate_layout(length(plots), ...)
+  p <- patchwork::wrap_plots(
+    lapply(plots,
+      function(x) {
+        if (is(x, "wrap")) {
+          x@data
+        } else {
+          x
+        }
+      }), ncol = layout[["cols"]]
+  )
+  p <- wrap_layout(p, layout, size)
+  p$layout <- layout
+  return(p)
+}

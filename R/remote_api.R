@@ -78,10 +78,23 @@ remoteRun <- function(..., path, run_after_cd = NULL,
 .run_script_in_remote <- function(script, path,
   remote_script = file.path(path, basename(script)), remote = "remote")
 {
-  system(paste0("scp ", script, " ", remote, ":", remote_script))
+  ssh_send(paste0("scp ", script, " ", remote, ":", remote_script))
   cmd <- paste0("ssh ", remote, " '", getOption("remoteRun", "bash"), " ", remote_script, "'")
   cli::cli_alert_info(cmd)
-  system(cmd)
+  ssh_send(cmd)
+}
+
+ssh_send <- function(command, ...) {
+  res <- NULL
+  n <- 0L
+  while (is.null(res)) {
+    if (!is.null(res) && grpl(paste0(res, collapse = "\n"), "ssh: handshake failed")) {
+      n <- n + 1L
+      message(crayon::yellow(glue::glue("Try again ... ({n})")))
+    }
+    res <- system(paste0(command, " 2>&1"), intern = TRUE, ignore.stderr = TRUE)
+  }
+  res
 }
 
 set_remoteRun.bosai <- function(core = 16) {
@@ -112,7 +125,7 @@ testRem_file.exists <- function(x, file, wait = 10,
     }
     if (!hasThat && getFun()) {
       if (show_queque) {
-        system(glue::glue("ssh {x$remote} 'squeue'"))
+        ssh_send(glue::glue("ssh {x$remote} 'squeue'"))
       }
       if (later) {
         message(
@@ -193,7 +206,7 @@ get_file_from_remote <- function(file, wd, to = NULL, remote = "remote")
   if (is.null(to)) {
     to <- tempfile()
   }
-  cdRun("scp ", remote, ":", wd, "/", file, " ", to)
+  ssh_send(paste0("scp ", remote, ":", wd, "/", file, " ", to))
   to
 }
 
@@ -217,11 +230,11 @@ rem_file.copy <- function(from, to, recursive = FALSE, ...) {
     } else {
       options <- ""
     }
-    cdRun("ssh ", x$remote, " '",
-      "cd ", x$wd, "; ",
-      "if [ -d ", to, " ]; then arg=-t; fi;",
-      "cp ", options, " ", from, " $arg ", to,
-      "'")
+    ssh_send(paste0("ssh ", x$remote, " '",
+        "cd ", x$wd, "; ",
+        "if [ -d ", to, " ]; then arg=-t; fi;",
+        "cp ", options, " ", from, " $arg ", to,
+        "'"))
   }
 }
 
@@ -230,10 +243,10 @@ rem_file.rename <- function(from, to) {
     file.rename(from, to)
   } else {
     x <- get("x", envir = parent.frame(1))
-    cdRun("ssh ", x$remote, " '",
-      "cd ", x$wd, "; ",
-      "mv ", from, " $arg ", to,
-      "'")
+    ssh_send(paste0("ssh ", x$remote, " '",
+        "cd ", x$wd, "; ",
+        "mv ", from, " $arg ", to,
+        "'"))
   }
 }
 
@@ -242,10 +255,10 @@ rem_file.remove <- function(...) {
     file.remove(...)
   } else {
     x <- get("x", envir = parent.frame(1))
-    cdRun("ssh ", x$remote, " '",
-      "cd ", x$wd, "; ",
-      "rm ", paste0(unlist(list(...)), collapse = " "),
-      "'")
+    ssh_send(paste0("ssh ", x$remote, " '",
+        "cd ", x$wd, "; ",
+        "rm ", paste0(unlist(list(...)), collapse = " "),
+        "'"))
   }
 }
 
@@ -257,7 +270,7 @@ rem_file.exists <- function(file, wd) {
     if (missing(wd)) {
       wd <- x$wd
     }
-    res <- system(paste0("ssh ", x$remote, " '",
+    res <- ssh_send(paste0("ssh ", x$remote, " '",
         "cd ", wd, "; ",
         paste0(expr_sys.file.exists(file), collapse = "; "), "'"),
       intern = TRUE)
@@ -270,7 +283,7 @@ rem_normalizePath <- function(...) {
     normalizePath(...)
   } else {
     x <- get("x", envir = parent.frame(1))
-    system(paste0("ssh ", x$remote, " '",
+    ssh_send(paste0("ssh ", x$remote, " '",
         "cd ", x$wd, "; ",
         "readlink -f ", paste0(unlist(list(...)), collapse = " "),
         "'"), intern = TRUE)
@@ -294,10 +307,10 @@ rem_dir.create <- function(path, ..., wd) {
     if (missing(wd)) {
       wd <- x$wd
     }
-    cdRun("ssh ", x$remote, " '",
-      "cd ", wd, "; ",
-      "mkdir ", path,
-      "'")
+    ssh_send(paste0("ssh ", x$remote, " '",
+        "cd ", wd, "; ",
+        "mkdir ", path,
+        "'"))
   }
 }
 
@@ -342,18 +355,18 @@ list.remote <- function(path, pattern, remote = "remote",
       before <- paste0(before, " cd ", path, ";")
       path <- "."
     }
-    files <- system(paste0("ssh ", remote, " '", before,
+    files <- ssh_send(paste0("ssh ", remote, " '", before,
         " find ", path, " ", options, "'"),
       intern = TRUE)
     files[ grepl(pattern, basename(files)) ]
   } else if (length(path) > 1) {
     if (!full.names) {
-      files <- system(paste0("ssh ", remote, " ",
+      files <- ssh_send(paste0("ssh ", remote, " ",
           "'", before, " for i in ", paste0(path, collapse = " "),
           "; do cd $i; find . ", options, "; echo -----; done'"),
         intern = TRUE)
     } else {
-      files <- system(paste0("ssh ", remote, " ",
+      files <- ssh_send(paste0("ssh ", remote, " ",
           "'", before, " for i in ", paste0(path, collapse = " "),
           "; do find $i ", options, "; echo -----; done'"),
         intern = TRUE)
@@ -386,7 +399,7 @@ list.remote <- function(path, pattern, remote = "remote",
 run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$wd,
   name = attr(x@sig, 'name'), rds = glue::glue("{wd}/{name}.rds"),
   ignore_remote_cache = FALSE, ignore_local_cache = FALSE, 
-  inherit_last_result = FALSE, file_res = NULL, step_just = TRUE, 
+  inherit_last_result = FALSE, force_continue = FALSE, file_res = NULL, step_just = TRUE,
   wait = 1L, testLocal = FALSE)
 {
   # prepare script
@@ -412,6 +425,9 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
       try_continue <- TRUE
     }
     rem_file.remove(file_end)
+  }
+  if (force_continue) {
+    try_continue <- TRUE
   }
   finish <- fun_glue(expression({
     saveRDS(x, "{rds}")
@@ -461,7 +477,7 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
       if (step_just) {
         x@step <- x@step + 1L
       }
-      cdRun(glue::glue("scp {file_local} {x$remote}:{x$wd}/{basename(file_upload)}"))
+      ssh_send(glue::glue("scp {file_local} {x$remote}:{x$wd}/{basename(file_upload)}"))
     } else {
       message(crayon::red(glue::glue("`inherit_last_result` == TRUE, use previous result file.")))
     }
@@ -481,9 +497,12 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
   return(x)
 }
 
-if_job_step_expected <- function(x, expect) {
-  if (x@step == expect) {
+if_job_step_expected <- function(x, expect, strict = FALSE) {
+  if (strict && x@step == expect) {
     message("Job step has been finished previously.")
+    return(TRUE)
+  } else if (!strict && x@step >= expect) {
+    message("Job step has been finished previously (not strict).")
     return(TRUE)
   } else {
     return(FALSE)

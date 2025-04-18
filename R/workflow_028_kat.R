@@ -18,24 +18,43 @@
     analysis = "CopyKAT 癌细胞鉴定"
     ))
 
-job_kat <- function(x, use = names(x@object@assays)[[1]], layer = "counts")
+job_kat <- function(x, refs = "")
 {
-  assay <- x@object@assays[[ use ]]
-  if (is(assay, "Assay5")) {
-    object <- do.call(`$`, list(assay, layer))
-  } else {
-    stop("`x@object@assays[[ use ]]` is not 'Assay5'.")
+  if (!is(x, "dgCMatrix")) {
+    stop('!is(x, "dgCMatrix").')
   }
-  rownames(object) <- gname(rownames(object))
-  .job_kat(object = object)
+  x <- .job_kat(object = x)
+  x$refs <- refs
+  return(x)
 }
 
 setGeneric("asjob_kat", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_kat"))
 
 setMethod("asjob_kat", signature = c(x = "job_seurat"),
-  function(x, use = names(x@object@assays)[[1]], layer = "counts"){
-    job_kat(x, use, layer)
+  function(x, refs = NULL, group.by = x$group.by, use = names(x@object@assays)[[1]], layer = "counts")
+  {
+    assay <- x@object@assays[[ use ]]
+    if (is(assay, "Assay5")) {
+      object <- do.call(`$`, list(assay, layer))
+    } else {
+      stop("`x@object@assays[[ use ]]` is not 'Assay5'.")
+    }
+    rownames(object) <- gname(rownames(object))
+    if (is.null(refs)) {
+      stop('is.null(refs).')
+    }
+    metadata <- object(x)@meta.data
+    refs <- dplyr::filter(metadata, !!rlang::sym(group.by) %in% !!refs)
+    if (!nrow(refs)) {
+      stop('!nrow(refs).')
+    }
+    refs <- rownames(refs)
+    if (is.null(refs)) {
+      stop('is.null(refs), no rownames.')
+    }
+    x <- job_kat(object, refs)
+    return(x)
   })
 
 setMethod("step0", signature = c(x = "job_kat"),
@@ -85,9 +104,13 @@ setMethod("step1", signature = c(x = "job_kat"),
       require(Matrix)
       object(x) <- object(x)[rownames(object(x)) %in% full.anno$hgnc_symbol, ]
       object(x) <- object(x)[!duplicated(rownames(object(x))), ]
+      refs <- x$ref_cells
+      if (is.null(refs)) {
+        refs <- ""
+      }
       res_copykat <- tryCatch(
         e(copykat::copykat(rawmat = object(x),
-            genome = "hg20", n.cores = workers)), finally = setwd(savedir)
+            genome = "hg20", n.cores = workers, norm.cell.names = refs)), finally = setwd(savedir)
       )
       # try(rm(list = c("full.anno", "cyclegenes", "DNA.hg20"), envir = .GlobalEnv), silent = TRUE)
       x$res_copykat <- res_copykat
@@ -98,12 +121,12 @@ setMethod("step1", signature = c(x = "job_kat"),
 
 setMethod("step2", signature = c(x = "job_kat"),
   function(x, workers = x$workers, inherits = TRUE, 
-    local = FALSE, ignore = FALSE)
+    local = FALSE, ignore = FALSE, ...)
   {
     step_message("Results visualization.")
     if (is.remote(x) && !local) {
       x <- run_job_remote(x, wait = 1L, inherit_last_result = inherits,
-        ignore_local_cache = ignore, ignore_remote_cache = ignore,
+        ignore_local_cache = ignore, ignore_remote_cache = ignore, ...,
         {
           if ("{ignore}") {
             x@step <- as.integer(1L)

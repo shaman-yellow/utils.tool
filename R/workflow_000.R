@@ -1953,8 +1953,11 @@ set_remote_for_sub_jobs <- function(x, map_local = glue::glue("{class(x)}_batch_
       sig <- name
       attr(sig, "name") <- glue::glue("{class(obj)}_{name}")
       obj@sig <- sig
+      subdir <- paste0(
+        s(class(obj), "^job_", ""), "_local_", obj@sig
+      )
+      obj$map_local <- file.path(map_local, subdir)
       obj <- set_remote(obj, glue::glue("{x$wd}/{obj@sig}"))
-      obj$map_local <- file.path(map_local, obj$map_local)
       return(obj)
     }
   )
@@ -2323,6 +2326,7 @@ stepPostModify <- function(x, n = NULL, formal = TRUE) {
     }
   }
   x <- end_init(x)
+  validObject(x)
   x
 }
 

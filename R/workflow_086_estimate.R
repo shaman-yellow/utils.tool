@@ -22,18 +22,21 @@
 setGeneric("asjob_estimate", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_estimate"))
 
-setMethod("asjob_estimate", 
-  signature = c(x = "job_limma"),
-  function(x, use = if (x$isTcga) "gene_name" else "hgnc_symbol", dir = "estimate")
+setMethod("asjob_estimate", signature = c(x = "job_limma"),
+  function(x, use = .guess_symbol(x), dir = "estimate")
   {
     if (x@step < 1) {
       stop("The data should be normalized.")
     }
+    snap <- x@snap
     object <- x$normed_data
     rownames(object) <- object$genes[[ use ]]
     data <- object$E
+    metadata <- .get_meta(x)
     x <- job_estimate(data)
+    x <- snapAdd(x, snap)
     x <- snapAdd(x, "以数据集 ({x$project}, dataset: {x@sig}) 进行 ESTIMATE 免疫评分计算。")
+    x$metadata <- metadata
     x
   })
 
@@ -70,7 +73,7 @@ setMethod("step1", signature = c(x = "job_estimate"),
   })
 
 setMethod("step2", signature = c(x = "job_estimate"),
-  function(x, metadata = NULL, sig.test = NULL)
+  function(x, metadata = NULL, sig.test = "Group")
   {
     step_message("Collate results")
     t.immuneScores <- ftibble(x$file_score, skip = 2)
@@ -83,16 +86,22 @@ setMethod("step2", signature = c(x = "job_estimate"),
       Group = ifelse(score > median(score), "High", "Low")
     )
     t.immuneScores <- dplyr::ungroup(t.immuneScores)
-    if (!is.null(metadata) && !is.null(sig.test)) {
-      t.immuneScores <- map(t.immuneScores, "sample", metadata, "sample", sig.test, col = sig.test)
-      p.immuneScoresPlot <- wrap(.map_boxplot2(t.immuneScores, TRUE,
-        x = "Group", y = sig.test, xlab = "Group", ylab = sig.test, ids = "NAME"
+    if (!is.null(sig.test) && length(sig.test) == 1) {
+      data <- t.immuneScores
+      p.immuneScoresPlot <- wrap(.map_boxplot2(data, TRUE,
+        x = sig.test, y = "score", xlab = R.utils::capitalize(sig.test), ylab = "Score", ids = "NAME"
       ), 8, 3.5)
+      p.immuneScoresPlot <- set_lab_legend(
+        p.immuneScoresPlot,
+        glue::glue("{x@sig} {sig.test} boxplot"),
+        glue::glue("为 {sig.test} 评分差异箱形图。")
+      )
     } else {
-      p.immuneScores <- NULL
+      p.immuneScoresPlot <- NULL
     }
     x <- tablesAdd(x, t.immuneScores)
     x <- plotsAdd(x, p.immuneScoresPlot)
+    x <- snapAdd(x, "以 `estimate` 进行免疫评分分析。")
     x <- methodAdd(x, "以 R 包 `estimate` ({packageVersion('estimate')}) {cite_show('Inferring_tumou_Yoshih_2013')} 预测数据集的 stromal, immune, estimate 得分。")
     return(x)
   })
