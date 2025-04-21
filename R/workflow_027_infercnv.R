@@ -21,7 +21,7 @@ setGeneric("asjob_infercnv", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_infercnv"))
 
 setMethod("asjob_infercnv", signature = c(x = "job_seurat"),
-  function(x, use = "scsa_cell", ref.pattern = "Macrophage", outdir = "infercnv")
+  function(x, ref.pattern = "Macrophage", group.by = x$group.by, outdir = "infercnv")
   {
     if (is.null(x$mart)) {
       mart <- new_biomart()
@@ -35,13 +35,13 @@ setMethod("asjob_infercnv", signature = c(x = "job_seurat"),
       hgnc_symbol, chromosome_name, start_position, end_position
     )
     counts <- counts[rownames(counts) %in% genes$hgnc_symbol, ]
-    metadata <- dplyr::select(as_tibble(object(x)@meta.data), rownames, !!rlang::sym(use))
+    metadata <- dplyr::select(as_tibble(object(x)@meta.data), rownames, !!rlang::sym(group.by))
     # x$infercnv_used <- namel(metadata, counts, genes)
     tmp.metadata <- tempfile("cnv_metadata", fileext = ".tsv")
     write_tsv(metadata, tmp.metadata, col.names = FALSE)
     tmp.genes <- tempfile("cnv_metadata", fileext = ".tsv")
     write_tsv(genes, tmp.genes, col.names = FALSE)
-    cells <- metadata[[ use ]]
+    cells <- metadata[[ group.by ]]
     ref <- cells[ grepl(ref.pattern, cells, ignore.case = TRUE) ]
     obj.cnv <- e(infercnv::CreateInfercnvObject(as.matrix(counts),
         tmp.genes, tmp.metadata, ref, chr_exclude = c("X", "Y", "M")))
