@@ -84,14 +84,19 @@ remoteRun <- function(..., path, run_after_cd = NULL,
   ssh_send(cmd)
 }
 
-ssh_send <- function(command, ...) {
+ssh_send <- function(command, ..., file_log = "./.tmp_ssh.log") {
   res <- NULL
   n <- 0L
+  # if (Sys.which("tee") == "") {
+  #   stop('Sys.which("tee") == "".')
+  # }
   while (is.null(res)) {
     if (!is.null(res) && grpl(paste0(res, collapse = "\n"), "ssh: handshake failed")) {
       n <- n + 1L
       message(crayon::yellow(glue::glue("Try again ... ({n})")))
     }
+    # system(paste0(command, " 2>&1 | tee ", file_log))
+    # res <- readLines(file_log)
     res <- system(paste0(command, " 2>&1"), intern = TRUE, ignore.stderr = TRUE)
   }
   res
@@ -201,12 +206,16 @@ rem_get <- function(file) {
   }
 }
 
-get_file_from_remote <- function(file, wd, to = NULL, remote = "remote")
+get_file_from_remote <- function(file, wd, to = NULL, 
+  remote = "remote", recursive = FALSE)
 {
   if (is.null(to)) {
+    if (recursive) {
+      stop('recursive.')
+    }
     to <- tempfile()
   }
-  ssh_send(paste0("scp ", remote, ":", wd, "/", file, " ", to))
+  ssh_send(glue::glue("scp {if (recursive) '-r' else ''} {remote}:{wd}/{file} {to}"))
   to
 }
 

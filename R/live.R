@@ -974,8 +974,8 @@ fuzzy <- function(str) {
 # heatmap
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-get_fun <- function(name, envir = topenv()) {
-  get(name, envir = envir, mode = "function")
+get_fun <- function(name, envir = topenv(), mode = "function") {
+  get(name, envir = envir, mode = mode)
 }
 
 .heatdata <- setClass("heatdata", 
