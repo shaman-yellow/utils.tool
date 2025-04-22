@@ -440,7 +440,13 @@ setMethod("snap", signature = c(x = "ANY", ref = "NULL"),
 
 setReplaceMethod("snap", signature = c(x = "ANY"),
   function(x, value, ...){
-    attr(x, ".SNAP") <- glue::glue(value, ..., .envir = parent.frame(2))
+    if (is.character(value)) {
+      attr(x, ".SNAP") <- glue::glue(value, ..., .envir = parent.frame(2))
+    } else if (is(value, "snap")) {
+      attr(x, ".SNAP") <- value
+    } else {
+      stop("Don't know how to deal with `value`.")
+    }
     return(x)
   })
 
