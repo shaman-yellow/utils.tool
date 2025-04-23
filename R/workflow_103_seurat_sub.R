@@ -61,11 +61,19 @@ setMethod("step1", signature = c(x = "job_seurat_sub"),
   })
 
 setMethod("step2", signature = c(x = "job_seurat_sub"),
-  function(x, reset = FALSE){
+  function(x, reset = FALSE, sct = FALSE) {
     step_message("Reset variable features.")
-    if (reset) {
-      object(x) <- e(Seurat::FindVariableFeatures(object(x)))
-      object(x) <- e(Seurat::ScaleData(object(x)))
+    if (reset || sct) {
+      if (sct) {
+        object(x) <- e(Seurat::SCTransform(
+            object(x), method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = TRUE,
+            assay = SeuratObject::DefaultAssay(object(x))
+            ))
+      } else {
+        object(x) <- e(Seurat::NormalizeData(object(x)))
+        object(x) <- e(Seurat::FindVariableFeatures(object(x)))
+        object(x) <- e(Seurat::ScaleData(object(x)))
+      }
       object(x) <- e(Seurat::RunPCA(
           object(x), 
           features = SeuratObject::VariableFeatures(object(x)), reduction.name = "pca"

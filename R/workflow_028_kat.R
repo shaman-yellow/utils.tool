@@ -225,23 +225,13 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_kat"),
       )
     )
     Raws <- x@object@meta.data[[from]]
-    if (is.character(Raws)) {
-      allRawCells <- sort(unique(Raws))
-    } else if (is.factor(Raws)) {
-      allRawCells <- levels(Raws)
-    } else {
-      stop("Not either factor or character.")
-    }
-    palette <- nl(
-      levels <- c(allRawCells, "Malignant cell"), 
-      c(color_set()[seq_along(allRawCells)], "black"), FALSE
-    )
+    palette <- .set_palette_in_ending(Raws, "Malignant cell")
     x@object@meta.data[[to]] <- factor(
-      x@object@meta.data[[to]], levels = levels
+      x@object@meta.data[[to]], levels = names(palette)
     )
     p.map_cancer <- e(Seurat::DimPlot(
         object(x), reduction = "umap", label = FALSE, pt.size = .7,
-        group.by = "copykat_cell", cols = palette
+        group.by = to, cols = palette
         ))
     p.map_cancer <- wrap(as_grob(p.map_cancer), 7, 4)
     p.map_cancer <- .set_lab(p.map_cancer, sig(x), "Cancer", "Cell type annotation")
@@ -258,6 +248,23 @@ setMethod("map", signature = c(x = "job_seurat", ref = "job_kat"),
     x$.map_heading <- glue::glue("Seurat-copyKAT 癌细胞注释")
     return(x)
   })
+
+.set_palette_in_ending <- function(Raws, extras = "Malignant cell", 
+  extra_colors = "black", colors = color_set())
+{
+  if (is.character(Raws)) {
+    allRawCells <- sort(unique(Raws))
+  } else if (is.factor(Raws)) {
+    allRawCells <- levels(Raws)
+  } else {
+    stop("Not either factor or character.")
+  }
+  palette <- nl(
+    levels <- c(allRawCells, extras), 
+    c(colors[seq_along(allRawCells)], extra_colors), FALSE
+  )
+  palette
+}
 
 setMethod("regroup", signature = c(x = "job_seurat", ref = "job_kat"),
   function(x, ref, k){

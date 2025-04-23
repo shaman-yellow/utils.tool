@@ -73,49 +73,57 @@ cite_show <- function(keys, as.character = TRUE,
   ifsets = getOption("IF_sets"),
   prefix = function(x) gs(tolower(x), "[^a-z]|^[Tt][Hh][Ee] ", ""))
 {
-  reload_bib()
-  bibentry <- getOption("bibentrys")
-  if (is.null(ifsets)) {
-    ifsets <- ftibble(file.path(.expath, "2023JCR.csv"))
-    ifsets <- dplyr::select(ifsets, Name, IF, Class)
-    ifsets <- dplyr::mutate(ifsets, fuzzy = prefix(Name))
-    options(IF_sets = ifsets)
-  }
-  keys <- gs(keys, "^@", "")
-  names <- paste0(keys, ".", keys)
-  eles <- lapply(names,
-    function(name) {
-      bib <- bibentry[[ name ]]
-      year <- bib$year
-      journal <- bib$journal
-      title <- bib$title
-      fuzzy <- prefix(journal)
-      which <- match(fuzzy, ifsets$fuzzy)
-      list(year = year, journal = journal, IF = ifsets$IF[which],
-        Class = ifsets$Class[which], fuzzy = fuzzy, title = title)
-    })
-  if (as.character) {
-    text <- vapply(eles,
-      function(x) {
-        if (is.null(x$IF) || !length(x$IF)) {
-          noIF <- TRUE
-        } else if (is.na(x$IF)) {
-          noIF <- TRUE
-        } else {
-          noIF <- FALSE
-        }
-        if (noIF) {
-          if (length(x$journal)) {
-            paste0("(", x$year, ", ", x$journal, ")")
+  expr <- expression({
+    reload_bib()
+    bibentry <- getOption("bibentrys")
+    if (is.null(ifsets)) {
+      ifsets <- ftibble(file.path(.expath, "2023JCR.csv"))
+      ifsets <- dplyr::select(ifsets, Name, IF, Class)
+      ifsets <- dplyr::mutate(ifsets, fuzzy = prefix(Name))
+      options(IF_sets = ifsets)
+    }
+    keys <- gs(keys, "^@", "")
+    names <- paste0(keys, ".", keys)
+    eles <- lapply(names,
+      function(name) {
+        bib <- bibentry[[ name ]]
+        year <- bib$year
+        journal <- bib$journal
+        title <- bib$title
+        fuzzy <- prefix(journal)
+        which <- match(fuzzy, ifsets$fuzzy)
+        list(year = year, journal = journal, IF = ifsets$IF[which],
+          Class = ifsets$Class[which], fuzzy = fuzzy, title = title)
+      })
+    if (as.character) {
+      text <- vapply(eles,
+        function(x) {
+          if (is.null(x$IF) || !length(x$IF)) {
+            noIF <- TRUE
+          } else if (is.na(x$IF)) {
+            noIF <- TRUE
           } else {
-            paste0("(", x$year, ")")
+            noIF <- FALSE
           }
-        } else {
-          paste0("(", x$year, ", **IF:", x$IF, "**, ", x$Class, ", ", x$journal, ")")
-        }
-      }, character(1))
-    paste0(text, "[@", keys, "]")
-  } else eles
+          if (noIF) {
+            if (length(x$journal)) {
+              paste0("(", x$year, ", ", x$journal, ")")
+            } else {
+              paste0("(", x$year, ")")
+            }
+          } else {
+            paste0("(", x$year, ", **IF:", x$IF, "**, ", x$Class, ", ", x$journal, ")")
+          }
+        }, character(1))
+      paste0(text, "[@", keys, "]")
+    } else eles
+  })
+  res <- try(eval(expr), silent = TRUE)
+  if (inherits(res, "try-error")) {
+    return('')
+  } else {
+    res
+  }
 }
 
 citethis <- function(..., trunc = TRUE, trunc.author = 1, trunc.title = FALSE,

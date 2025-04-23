@@ -72,18 +72,32 @@ setMethod("step1", signature = c(x = "job_seurat5n"),
   })
 
 setMethod("step2", signature = c(x = "job_seurat5n"),
-  function(x, ndims = 20){
+  function(x, ndims = 20, sct = FALSE){
     step_message("Run standard anlaysis workflow")
-    object(x) <- e(Seurat::NormalizeData(object(x)))
-    object(x) <- e(Seurat::FindVariableFeatures(object(x)))
-    object(x) <- e(Seurat::ScaleData(object(x)))
+    if (sct) {
+      object(x) <- e(Seurat::SCTransform(
+          object(x), method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = TRUE,
+          assay = SeuratObject::DefaultAssay(object(x))
+          ))
+      message(glue::glue("Shift assays to {SeuratObject::DefaultAssay(object(x))}"))
+      x <- methodAdd(
+        x, "使用 `Seurat::SCTransform` 对数据集归一化。"
+      )
+    } else {
+      object(x) <- e(Seurat::NormalizeData(object(x)))
+      object(x) <- e(Seurat::FindVariableFeatures(object(x)))
+      object(x) <- e(Seurat::ScaleData(object(x)))
+      x <- methodAdd(
+        x, "执行标准 Seurat 分析工作流 (`NormalizeData`, `FindVariableFeatures`, `ScaleData`)。"
+      )
+    }
     object(x) <- e(Seurat::RunPCA(object(x)))
     p.pca_rank <- e(Seurat::ElbowPlot(object(x), ndims))
     p.pca_rank <- wrap(pretty_elbowplot(p.pca_rank), 4, 4)
     p.pca_rank <- .set_lab(p.pca_rank, sig(x), "Standard deviations of PCs")
     p.pca_rank <- setLegend(p.pca_rank, "为主成分 (PC) 的 Standard deviations。")
     x@plots[[ 2 ]] <- namel(p.pca_rank)
-    x <- methodAdd(x, "执行标准 Seurat 分析工作流 (`NormalizeData`, `FindVariableFeatures`, `ScaleData`, `RunPCA`)。以 `ElbowPlot` 判断后续分析的 PC 维度。")
+    x <- methodAdd(x, "随后 PCA 聚类 (`RunPCA`)。")
     x <- snapAdd(x, "数据归一化，PCA 聚类 (Seurat 标准工作流，见方法章节) 后，绘制 PC standard deviations 图。")
     return(x)
   })

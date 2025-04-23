@@ -22,15 +22,16 @@ setGeneric("do_monocle",
   function(x, ref, ...) standardGeneric("do_monocle"))
 
 setMethod("do_monocle", signature = c(x = "job_seurat", ref = "character"),
-  function(x, ref, dims = 1:15, resolution = 1.2, group.by = x@params$group.by)
+  function(x, ref, dims = 1:15, resolution = 1.2, group.by = x@params$group.by, sct = FALSE)
   {
     x <- asjob_seurat_sub(x, grpl(!!rlang::sym(group.by), !!ref))
     x <- step1(x)
-    x <- step2(x)
+    x <- step2(x, sct = sct)
     sr_sub <- step3(x, dims, resolution)
     # x <- getsub(x, cells = grp(x@object@meta.data[[group.by]], ref))
     snapAdd_onExit("x", "从 `Seurat` 数据对象 {group.by} 中提取 {ref} 类型的细胞，对其重新聚类分析。")
     methodAdd_onExit("x", "从 `Seurat` 数据对象 {group.by} 中提取 {ref} 类型的细胞，对其重新聚类分析。")
+    methodAdd_onExit("x", sr_sub@meth[[ "step2" ]])
     methodAdd_onExit("x", sr_sub@meth[[ "step3" ]])
     methodAdd_onExit(
       "x", "使用 `SeuratWrappers` (`SeuratWrappers::as.cell_data_set`, 参考 <http://htmlpreview.github.io/?https://github.com/satijalab/seurat-wrappers/blob/master/docs/monocle3.html>) 将 `Seurat` 转化为 `Monocle3` 的 `cell_data_set` 数据。该转化将继承 `Seurat` 前期分析的 PCA、UMAP 等聚类结果，用于 `Monocle3` 的拟时分析，使前后分析一致。"

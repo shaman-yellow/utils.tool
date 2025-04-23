@@ -107,7 +107,7 @@ setMethod("step2", signature = c(x = "job_seurat"),
     p.pca_rank <- setLegend(p.pca_rank, "为主成分 (PC) 的 Standard deviations。")
     x@plots[[ 2 ]] <- namel(p.pca_rank)
     x <- methodAdd(x, "执行标准 Seurat 分析工作流 (`NormalizeData`, `FindVariableFeatures`, `ScaleData`, `RunPCA`)。以 `ElbowPlot` 判断后续分析的 PC 维度。")
-    x <- snapAdd(x, "数据归一化，PCA 聚类 (Seurat 标准工作流，见方法章节) 后，绘制 PC standard deviations 图。")
+    x <- snapAdd(x, "数据归一化，PCA 聚类 (Seurat 标准工作流)。")
     message("Dim: ", paste0(dim(object(x)), collapse = ", "))
     return(x)
   })
@@ -117,12 +117,6 @@ setMethod("step3", signature = c(x = "job_seurat"),
     reduction = if (is.null(features)) "pca" else "features_pca", force = FALSE)
   {
     step_message("This contains several execution: Cluster the cells, UMAP...")
-    if (!force) {
-      if (ncol(object(x)) > 3000 & resolution < 1.2) {
-        stop("ncol(object(x)) > 3000 but resolution < 1.2. ",
-          "Please consider higher `resolution`. ")
-      }
-    }
     if (reset) {
       object(x) <- e(Seurat::FindVariableFeatures(object(x)))
       object(x) <- e(Seurat::ScaleData(object(x)))

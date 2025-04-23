@@ -2832,7 +2832,7 @@ setMethod("$<-", signature = c(x = "job"),
     return(x)
   })
 
-setMethod("map", signature = c(x = "df"),
+setMethod("map", signature = c(x = "df", ref = "character"),
   function(x, ref, y, y.ref, y.get, rename = TRUE, col = NULL)
   {
     if (any(!c(y.ref, y.get) %in% colnames(y))) {
