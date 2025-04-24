@@ -3521,3 +3521,15 @@ setMethod("map", signature = c(x = "df", ref = "merge_alias"),
     return(x)
   })
 
+clear_others <- function(names, envir = .GlobalEnv) {
+  if (!is.character(names)) {
+    stop('!is.character(names).')
+  }
+  alls <- ls(envir = envir)
+  if (!any(names %in% alls)) {
+    stop('!any(names %in% alls)')
+  }
+  names <- alls[ !alls %in% names ]
+  rm(list = names, envir = envir)
+  gc()
+}

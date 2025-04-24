@@ -72,9 +72,23 @@ setMethod("step1", signature = c(x = "job_seurat5n"),
   })
 
 setMethod("step2", signature = c(x = "job_seurat5n"),
-  function(x, ndims = 20, sct = FALSE){
-    step_message("Run standard anlaysis workflow")
+  function(x, ndims = 20, sct = FALSE, workers = NULL){
+    step_message("Run standard anlaysis workflow or `SCTransform`.")
+    if (is.remote(x)) {
+      if (is.null(workers)) {
+        stop('is.null(workers).')
+      }
+      x <- run_job_remote(x, wait = 1,
+        {
+          x <- step2(x, ndims = "{ndims}", sct = "{sct}", workers = "{workers}")
+        }
+      )
+      return(x)
+    }
     if (sct) {
+      if (!is.null(workers)) {
+        future::plan(future::multicore, workers = workers)
+      }
       object(x) <- e(Seurat::SCTransform(
           object(x), method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = TRUE,
           assay = SeuratObject::DefaultAssay(object(x))

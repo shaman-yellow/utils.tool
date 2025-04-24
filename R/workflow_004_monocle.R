@@ -184,6 +184,7 @@ setMethod("step2", signature = c(x = "job_monocle"),
 setMethod("step3", signature = c(x = "job_monocle"),
   function(x, formula_string = NULL, group.by = NULL, cores = 4){
     step_message("This step do:
+      0. Subset by pseudotime
       1. Regression analysis;
       2. Graph-autocorrelation analysis;
       3. Finding modules of co-regulated genes (Significant genes).
@@ -196,8 +197,14 @@ setMethod("step3", signature = c(x = "job_monocle"),
     if (length(unique(object(x)@colData[[ x$group.by ]])) <= 2) {
       stop("Too few clusters for gene modules finding...")
     }
-    if (length(x@tables) < 3)
+    pseudotime <- e(monocle3::pseudotime(object(x)))
+    if (any(is.infinite(pseudotime))) {
+      message(glue::glue("Subset by finite pseudotime."))
+      object(x) <- object(x)[, is.finite(pseudotime)]
+    }
+    if (length(x@tables) < 3) {
       x@tables[[ 3 ]] <- list()
+    }
     if (!is.null(formula_string)) {
       if (!is.character(formula_string)) {
         stop("is.character(formula_string) == FALSE")
@@ -236,6 +243,7 @@ setMethod("step3", signature = c(x = "job_monocle"),
       graph_test <- x@tables[[ 3 ]]$graph_test
       graph_test.sig <- x@tables[[ 3 ]]$graph_test.sig
     }
+    feature(x) <- as_feature(graph_test.sig$gene_id, x, analysis = "Monocle3 拟时分析 Graph Test Top Significant genes")
     if (!is.null(formula_string)) {
       cross.sig <- graph_test.sig$gene_id[ graph_test.sig$gene_id %in% fit_coefs.sig$gene_id ]
       gene_sigs <- list(
@@ -280,7 +288,7 @@ setMethod("step3", signature = c(x = "job_monocle"),
   })
 
 setMethod("step4", signature = c(x = "job_monocle"),
-  function(x, groups = ids(x), genes, group.by = NULL, cutoff = .5,
+  function(x, groups = ids(x), genes, group.by = x$group.by, cutoff = .5,
     cutoff.den = 1, group.den = "orig.ident", significant = TRUE)
   {
     step_message("Plot genes (in branch) that change as a function of pseudotime.

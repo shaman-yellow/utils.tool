@@ -21,7 +21,7 @@ setGeneric("asjob_cellchat", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_cellchat"))
 
 setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
-  function(x, group.by = x@params$group.by, assay = "SCT", ...){
+  function(x, group.by = x$group.by, assay = SeuratObject::DefaultAssay(object(x)), ...){
     step_message("Prarameter red{{`group.by`}}, red{{`assay`}}, 
       and red{{`...`}} would passed to `CellChat::createCellChat`.",
       show_end = NULL
@@ -41,7 +41,7 @@ setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
         ...
         ))
     x <- .job_cellchat(object = object, params = list(group.by = group.by))
-    meth(x)$step0 <- glue::glue("以 `CellChat` R 包 ({packageVersion('CellChat')}) {cite_show('InferenceAndAJinS2021')} 对单细胞数据进行细胞通讯分析。以 `CellChat::createCellChat` 将 `Seurat` 对象的 {assay} Assay 转化为 CellChat 对象。")
+    x <- methodAdd(x, "以 `CellChat` R 包 ({packageVersion('CellChat')}) {cite_show('InferenceAndAJinS2021')} 对单细胞数据进行细胞通讯分析。以 `CellChat::createCellChat` 将 `Seurat` 对象的 {assay} Assay 转化为 CellChat 对象。")
     return(x)
   })
 
@@ -53,22 +53,27 @@ setMethod("step0", signature = c(x = "job_cellchat"),
   })
 
 setMethod("step1", signature = c(x = "job_cellchat"),
-  function(x, db = CellChat::CellChatDB.human,
-    ppi = CellChat::PPI.human, cl = 4, python = NULL, debug = FALSE)
+  function(x, workers = 4, python = NULL, debug = FALSE, 
+    org = c("human", "mouse"), ...)
   {
-    step_message("One step forward computation of most.
-      yellow{{In a nutshell, this do:
-      Infer cell communication;
-      Infer signaling role of cell groups;
-      Clustering signaling.}}
-      By default, red{{`CellChat::CellChatDB.human`}}
-      grey{{(Consider use `CellChat::subsetDB` to filter `db`)}}
-      was used as reference database.
-      The `future::plan('multisession', worker = cl)` were called.
-      By default, red{{`CellChat::PPI.human`}} were used by `CellChat::projectData`
-      to smooth gene expression level (set NULL to cancel).
-      "
-    )
+    step_message("One step forward computation of most. ")
+    org <- match.arg(org)
+    if (is.remote(x)) {
+      x <- run_job_remote(x, wait = 1, ...,
+        {
+          options(future.globals.maxSize = 5e10)
+          x <- step1(x, workers = "{workers}", org = "{org}")
+        }
+      )
+      return(x)
+    }
+    if (org == "human") {
+      db <- CellChat::CellChatDB.human
+      ppi <- CellChat::PPI.human
+    } else if (org == "mouse") {
+      db <- CellChat::CellChatDB.mouse
+      ppi <- CellChat::PPI.mouse
+    }
     if (!debug) {
       if (!is.null(python)) {
         e(base::Sys.setenv(RETICULATE_PYTHON = python))
@@ -77,7 +82,7 @@ setMethod("step1", signature = c(x = "job_cellchat"),
       p.showdb <- e(CellChat::showDatabaseCategory(db))
       p.showdb <- wrap(p.showdb, 8, 4)
       object(x)@DB <- db
-      future::plan("multisession", workers = cl)
+      future::plan("multisession", workers = workers)
       object(x) <- e(CellChat::subsetData(object(x)))
       ## cell communication
       object(x) <- e(CellChat::identifyOverExpressedGenes(object(x)))
@@ -119,7 +124,8 @@ setMethod("step1", signature = c(x = "job_cellchat"),
     #  weights/strength between the two cell types
     x@plots[[ 1 ]] <- c(namel(p.showdb, p.commHpAll), p.comms)
     x@tables[[ 1 ]] <- namel(lp_net, pathway_net)
-    meth(x)$step1 <- glue::glue("参照 {x@info} 分析 scRNA-seq 数据。")
+    x <- methodAdd(x, "参照 {x@info} 分析 scRNA-seq 数据。")
+    x <- snapAdd(x, "对 {showStrings(object(x)@meta[[x$group.by]], trunc = FALSE)} 细胞通讯分析。")
     return(x)
   })
 
@@ -361,3 +367,11 @@ unique.lps <- function(x, use = c("ligand", "receptor")) {
   }
   unique(unlist(stringr::str_extract_all(x, "[^_]+")))
 }
+
+setMethod("set_remote", signature = c(x = "job_cellchat"),
+  function(x, wd = glue::glue("~/cellchat_{x@sig}")){
+    x$wd <- wd
+    rem_dir.create(wd, wd = ".")
+    return(x)
+  })
+

@@ -181,7 +181,7 @@ setMethod("step3", signature = c(x = "job_lasso"),
       function(feature) {
         res <- survival::coxph(as.formula(paste0("target ~ `", feature, "`")),
           data.frame(data, check.names = FALSE))
-        ph <- cox.zph(res)
+        ph <- survival::cox.zph(res)
         res <- summary(res)$coefficients[1, ]
         c(res, c(ph = ph$table[feature, "p"]))
       })

@@ -130,7 +130,7 @@ testRem_file.exists <- function(x, file, wait = 10,
     }
     if (!hasThat && getFun()) {
       if (show_queque) {
-        ssh_send(glue::glue("ssh {x$remote} 'squeue'"))
+        writeLines(ssh_send(glue::glue("ssh {x$remote} 'squeue'")))
       }
       if (later) {
         message(
@@ -409,7 +409,7 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
   name = attr(x@sig, 'name'), rds = glue::glue("{wd}/{name}.rds"),
   ignore_remote_cache = FALSE, ignore_local_cache = FALSE, 
   inherit_last_result = FALSE, force_continue = FALSE, file_res = NULL, step_just = TRUE,
-  wait = 1L, testLocal = FALSE)
+  wait = 1L, testLocal = FALSE, hasUpload = FALSE)
 {
   # prepare script
   if (!is.remote(x)) {
@@ -476,7 +476,7 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
     if (testLocal) {
       stop(glue::glue('`testLocal` == TRUE, but not match local file: {file_res}'))
     }
-    if (!inherit_last_result) {
+    if (!inherit_last_result && !hasUpload) {
       if (step_just) {
         x@step <- x@step - 1L
       }
@@ -487,6 +487,8 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
         x@step <- x@step + 1L
       }
       ssh_send(glue::glue("scp {file_local} {x$remote}:{x$wd}/{basename(file_upload)}"))
+    } else if (!inherit_last_result && hasUpload) {
+      message(glue::glue('hasUpload == TRUE, use remote ...'))
     } else {
       message(crayon::red(glue::glue("`inherit_last_result` == TRUE, use previous result file.")))
     }
