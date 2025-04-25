@@ -407,8 +407,9 @@ list.remote <- function(path, pattern, remote = "remote",
 
 run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$wd,
   name = attr(x@sig, 'name'), rds = glue::glue("{wd}/{name}.rds"),
-  ignore_remote_cache = FALSE, ignore_local_cache = FALSE, 
-  inherit_last_result = FALSE, force_continue = FALSE, file_res = NULL, step_just = TRUE,
+  ignore_remote_cache = FALSE, ignore_local_cache = FALSE,
+  inherit_last_result = FALSE, force_continue = FALSE, debug = FALSE,
+  file_res = NULL, step_just = TRUE,
   wait = 1L, testLocal = FALSE, hasUpload = FALSE)
 {
   # prepare script
@@ -438,6 +439,9 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
   if (force_continue) {
     try_continue <- TRUE
   }
+  if (debug) {
+    try_continue <- FALSE
+  }
   finish <- fun_glue(expression({
     saveRDS(x, "{rds}")
     writeLines("END", "{file_end}")
@@ -461,7 +465,7 @@ run_job_remote <- function(x, expression, ..., envir = parent.frame(1), wd = x$w
   }))
   main <- fun_glue(expression, envir)
   script <- shQuote(paste0(c(setup, main, finish), collapse = "\n"))
-  hash <- digest::digest(c(x@sig, script))
+  hash <- digest::digest(c(x@sig, paste0(main, collapse = "\n")))
   # prepare data (job)
   if (is.null(x$map_local)) {
     stop('is.null(x$map_local).')

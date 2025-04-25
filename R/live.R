@@ -1314,9 +1314,12 @@ wrap_layout <- function(data, layout, size = calculate_layout_size(layout)$size[
   wrap(data, size * layout[2], size * layout[1])
 }
 
-wrap <- function(data, width = 10, height = 8, showtext = NULL) {
-  width <- if (width > 20) 20 else width
-  height <- if (height > 14) 14 else height
+wrap <- function(data, width = 10, height = 8, showtext = NULL, force = FALSE)
+{
+  if (!force) {
+    width <- if (width > 20) 20 else width
+    height <- if (height > 14) 14 else height
+  }
   if (is(data, "wrap")) {
     data@width <- width
     data@height <- height
@@ -1989,12 +1992,14 @@ set_appendix <- function() {
 }
 
 autor_preset <- function(echo = FALSE, eval = FALSE, 
-  autor_relocate = TRUE, autor_legends_gather = FALSE, ...)
+  autor_relocate = TRUE, autor_legends_gather = FALSE,
+  method_into_snap = TRUE, ...)
 {
   options(
     autor_unnamed_number = 1, autor_relocate = autor_relocate,
     autoLegendsVisuable = autor_legends_gather,
-    autor_legends_gather = autor_legends_gather
+    autor_legends_gather = autor_legends_gather,
+    method_into_snap = method_into_snap
   )
   knitr::opts_chunk$set(
     echo = echo, eval = eval, message = FALSE, warning = FALSE,

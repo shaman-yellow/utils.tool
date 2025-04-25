@@ -742,7 +742,9 @@ pretty_elbowplot <- function(plot) {
 }
 
 setMethod("getsub", signature = c(x = "job_seurat"),
-  function(x, ..., sample = 1L, sample_group.by = c("orig.ident", x$group.by)){
+  function(x, ..., sample = 1L, group.by = x$group.by,
+    sample_group.by = c("orig.ident", group.by))
+  {
     if (sample > 0L && sample < 1L) {
       message("Sampling the cells.")
       metadata <- object(x)@meta.data

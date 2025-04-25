@@ -21,13 +21,19 @@ setGeneric("asjob_cellchat", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_cellchat"))
 
 setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
-  function(x, group.by = x$group.by, assay = SeuratObject::DefaultAssay(object(x)), ...){
+  function(x, group.by = x$group.by, assay = SeuratObject::DefaultAssay(object(x)), 
+    sample = .5, ...)
+  {
     step_message("Prarameter red{{`group.by`}}, red{{`assay`}}, 
       and red{{`...`}} would passed to `CellChat::createCellChat`.",
       show_end = NULL
     )
     if (x@step < 2) {
       stop("x@step < 2. At least, preprocessed assay data should be ready.")
+    }
+    if (!missing(sample) || ncol(object(x)) > 5e4) {
+      message(glue::glue("Too many cells, sampling for analysis."))
+      x <- asjob_seurat_sub(x, sample = sample)
     }
     if (is.null(group.by))
       stop("is.null(group.by) == TRUE")
@@ -40,7 +46,9 @@ setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
         object = object(x), group.by = group.by, assay = assay,
         ...
         ))
-    x <- .job_cellchat(object = object, params = list(group.by = group.by))
+    x <- snapAdd(
+      .job_cellchat(object = object, params = list(group.by = group.by)), x
+    )
     x <- methodAdd(x, "以 `CellChat` R 包 ({packageVersion('CellChat')}) {cite_show('InferenceAndAJinS2021')} 对单细胞数据进行细胞通讯分析。以 `CellChat::createCellChat` 将 `Seurat` 对象的 {assay} Assay 转化为 CellChat 对象。")
     return(x)
   })
@@ -59,10 +67,13 @@ setMethod("step1", signature = c(x = "job_cellchat"),
     step_message("One step forward computation of most. ")
     org <- match.arg(org)
     if (is.remote(x)) {
-      x <- run_job_remote(x, wait = 1, ...,
+      x <- run_job_remote(x, wait = 3, ..., debug = debug,
         {
           options(future.globals.maxSize = 5e10)
-          x <- step1(x, workers = "{workers}", org = "{org}")
+          x <- step1(
+            x, workers = "{workers}", org = "{org}",
+            debug = "{debug}", python = "{python}"
+          )
         }
       )
       return(x)
@@ -74,11 +85,11 @@ setMethod("step1", signature = c(x = "job_cellchat"),
       db <- CellChat::CellChatDB.mouse
       ppi <- CellChat::PPI.mouse
     }
+    if (!is.null(python)) {
+      e(base::Sys.setenv(RETICULATE_PYTHON = python))
+      e(reticulate::py_config())
+    }
     if (!debug) {
-      if (!is.null(python)) {
-        e(base::Sys.setenv(RETICULATE_PYTHON = python))
-        e(reticulate::py_config())
-      }
       p.showdb <- e(CellChat::showDatabaseCategory(db))
       p.showdb <- wrap(p.showdb, 8, 4)
       object(x)@DB <- db
@@ -97,7 +108,9 @@ setMethod("step1", signature = c(x = "job_cellchat"),
       pathway_net <- as_tibble(CellChat::subsetCommunication(object(x), slot.name = "netP"))
       object(x) <- e(CellChat::aggregateNet(object(x)))
       p.comms <- plot_communication.cellchat(object(x))
-      p.comms <- .set_lab(p.comms, sig(x), paste("overall communication", c("count", "weight", "individuals")))
+      types <- c("count", "weight", "individuals")
+      p.comms <- .set_lab(p.comms, sig(x), paste("overall communication", types))
+      p.comms <- setLegend(p.comms, glue::glue("为细胞通讯 {types} 统计。"))
       ## Signaling role of cell groups
       object(x) <- e(CellChat::netAnalysis_computeCentrality(object(x), slot.name = "netP"))
     }
@@ -118,12 +131,15 @@ setMethod("step1", signature = c(x = "job_cellchat"),
     }
     p.commHpAll <- CellChat::netVisual_heatmap(object(x), color.heatmap = "Reds", signaling = NULL)
     p.commHpAll <- .set_lab(wrap(p.commHpAll), sig(x), "All Cell communication heatmap")
+    p.commHpAll <- setLegend(p.commHpAll, "为所有细胞的通讯热图。")
     #  Interaction net count plot and interaction weight
     #  plot. The thicker the line represented, the more
     #  the number of interactions, and the stronger the interaction
     #  weights/strength between the two cell types
-    x@plots[[ 1 ]] <- c(namel(p.showdb, p.commHpAll), p.comms)
-    x@tables[[ 1 ]] <- namel(lp_net, pathway_net)
+    if (!debug) {
+      x@plots[[ 1 ]] <- c(namel(p.showdb, p.commHpAll), p.comms)
+      x@tables[[ 1 ]] <- namel(lp_net, pathway_net)
+    }
     x <- methodAdd(x, "参照 {x@info} 分析 scRNA-seq 数据。")
     x <- snapAdd(x, "对 {showStrings(object(x)@meta[[x$group.by]], trunc = FALSE)} 细胞通讯分析。")
     return(x)
@@ -145,37 +161,52 @@ setMethod("step2", signature = c(x = "job_cellchat"),
       pathways <- object(x)@netP$pathways
     }
     sapply <- pbapply::pbsapply
-    cell_comm_heatmap <- e(sapply(pathways, simplify = FALSE,
-      function(name) {
-        main <- try(CellChat::netVisual_heatmap(
-          object(x), color.heatmap = "Reds", signaling = name), TRUE)
-        if (inherits(main, "try-error")) {
-          return(list(main = NULL, contri = NULL))
-        }
-        if (!is.null(name)) {
-          contri <- CellChat::extractEnrichedLR(object(x),
-            signaling = name, geneLR.return = FALSE)
-          return(namel(main, contri))
-        } else {
-          return(namel(wrap(main)))
-        }
-      }))
+    if (FALSE) {
+      cell_comm_heatmap <- e(sapply(pathways, simplify = FALSE,
+        function(name) {
+          main <- try(CellChat::netVisual_heatmap(
+            object(x), color.heatmap = "Reds", signaling = name), TRUE)
+          if (inherits(main, "try-error")) {
+            return(list(main = NULL, contri = NULL))
+          }
+          if (!is.null(name)) {
+            contri <- CellChat::extractEnrichedLR(object(x),
+              signaling = name, geneLR.return = FALSE)
+            return(namel(main, contri))
+          } else {
+            return(namel(wrap(main)))
+          }
+        }))
+      cell_comm_heatmap$ALL$main <- .set_lab(cell_comm_heatmap$ALL$main, sig(x), "Cell communication heatmap")
+    } else {
+      cell_comm_heatmap <- NULL
+    }
     lr_comm_bubble <- e(CellChat::netVisual_bubble(object(x), remove.isolate = FALSE))
+    lr_comm_bubble <- set_lab_legend(
+      lr_comm_bubble,
+      glue::glue("{x@sig} communication probability and significant"),
+      glue::glue("为细胞通讯概率以及显著性。")
+    )
     gene_expr_violin <- e(sapply(pathways, simplify = FALSE,
       function(name) {
         CellChat::plotGeneExpression(object(x),
             signaling = name, group.by = NULL) +
           theme(legend.position = "none")
       }))
-    role_comps_heatmap <- e(sapply(pathways, simplify = FALSE,
-        function(name) {
-          res <- try({CellChat::netAnalysis_signalingRole_network(object(x), signaling = name,
-            width = 8, height = 2.5, font.size = 8, cluster.rows = TRUE)
-            recordPlot()}, TRUE)
-          if (inherits(res, "try-error"))
-            return(NULL)
-          else res
-        }))
+    if (FALSE) {
+      # this plot saved as RDS too large.
+      role_comps_heatmap <- e(sapply(pathways, simplify = FALSE,
+          function(name) {
+            res <- try({CellChat::netAnalysis_signalingRole_network(object(x), signaling = name,
+              width = 8, height = 2.5, font.size = 8, cluster.rows = TRUE)
+              recordPlot()}, TRUE)
+            if (inherits(res, "try-error"))
+              return(NULL)
+            else res
+          }))
+    } else {
+      role_comps_heatmap <- NULL
+    }
     role_weight_scatter <- e(sapply(pathways, simplify = FALSE,
         function(name) {
           CellChat::netAnalysis_signalingRole_scatter(object(x),
@@ -194,7 +225,9 @@ setMethod("step2", signature = c(x = "job_cellchat"),
         "But the object was returned.")
     }
     lr_role_heatmap <- .set_lab(lr_role_heatmap, sig(x), names(lr_role_heatmap), "ligand-receptor role")
-    cell_comm_heatmap$ALL$main <- .set_lab(cell_comm_heatmap$ALL$main, sig(x), "Cell communication heatmap")
+    lr_role_heatmap <- setLegend(
+      lr_role_heatmap, glue::glue("为细胞间的 {names(lr_role_heatmap)} 类型通路信号强度 ")
+    )
     x@plots[[ 2 ]] <- namel(cell_comm_heatmap, lr_comm_bubble, gene_expr_violin,
       role_comps_heatmap, role_weight_scatter, lr_role_heatmap)
     return(x)

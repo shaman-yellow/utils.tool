@@ -517,19 +517,23 @@ setReplaceMethod("snap", signature = c(x = "feature"),
 
 setMethod("snap", signature = c(x = "job", ref = "numeric_or_character"),
   function(x, ref){
-    fun <- function(ref) {
-      if (!is.null(snap <- snap(x)[[ paste0("step", ref) ]])) {
-        snap
+    fun <- function(ref, fun_extract = snap) {
+      des <- fun_extract(x)[[ paste0("step", ref) ]]
+      if (!is.null(des)) {
+        des
       } else {
         ""
       }
     }
-    if (length(ref) > 1) {
-      res <- unlist(lapply(ref, fun))
-      paste0(res[ res != "" ], collapse = "")
-    } else {
-      fun(ref)
+    res <- unlist(lapply(ref, fun, fun_extract = snap))
+    snaps <- paste0(res[ res != "" ], collapse = "")
+    if (getOption("method_into_snap", FALSE)) {
+      res <- unlist(lapply(ref, fun, fun_extract = meth))
+      meths <- paste0(res[ res != "" ], collapse = "")
+      meths <- gs(meths, "\n[#]* [^\n]+\n", "")
+      snaps <- paste0(meths, "\n\n-----------\n\n", snaps)
     }
+    snaps
   })
 
 trace_filter <- function(data, ..., quosures = NULL) {
@@ -762,13 +766,19 @@ setReplaceMethod("meth", signature = c(x = "ANY"),
   })
 
 collate_details <- function(tag = "meth", envir = parent.frame(1)) {
+  sys <- Sys.info()
+  base <- c(
+    "## 数据分析平台", "",
+    glue::glue("在 {paste(sys[[ 'sysname' ]], sys[[ 'nodename' ]], sys[[ 'machine' ]])} ({sys[[ 'release' ]]}) 上，使用 {R.Version()$version.string} (https://www.r-project.org/) 对数据统计分析与整合分析。")
+  )
+  if (getOption("method_into_snap", TRUE)) {
+    extra <- "详细见各分析部分。"
+    return(writeLines(c(base, extra)))
+  }
   expr <- stringr::str_extract(unlist(knitr::knit_code$get()),
     paste0("(?<=^#' @", tag, " ).*"))
   expr <- expr[ !is.na(expr) ]
-  sys <- Sys.info()
-  expr <- c("## 数据分析平台", "",
-    glue::glue("在 {paste(sys[[ 'sysname' ]], sys[[ 'nodename' ]], sys[[ 'machine' ]])} ({sys[[ 'release' ]]}) 上，使用 {R.Version()$version.string} (https://www.r-project.org/) 对数据统计分析与整合分析。"),
-    "", expr)
+  expr <- c(base, "", expr)
   if (length(expr)) {
     text <- lapply(expr, glue::glue, .sep = "\n", .envir = envir)
     writeLines(unlist(text))
