@@ -59,7 +59,8 @@ setMethod("step0", signature = c(x = "job_tcga"),
   })
 
 setMethod("step1", signature = c(x = "job_tcga"),
-  function(x, query = c("RNA", "clinical"), keep_consensus = FALSE){
+  function(x, query = c("RNA", "clinical"), keep_consensus = FALSE)
+  {
     step_message("Get information in TCGA.")
     object(x) <- object(x)[ names(object(x)) %in% query ]
     if (is.null(x@tables$step1)) {
@@ -184,7 +185,7 @@ setMethod("step3", signature = c(x = "job_tcga"),
       message("Got clinical data.")
       x$metadata <- as_tibble(x$metadata)
     }
-    if (!is.null(obj)) {
+    if (query == "RNA" && !is.null(obj)) {
       obj@assays@data <- obj@assays@data[ names(obj@assays@data) %in% type ]
     }
     x$dim <- dim(obj)

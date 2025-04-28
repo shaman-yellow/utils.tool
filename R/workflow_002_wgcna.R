@@ -182,7 +182,7 @@ setMethod("step4", signature = c(x = "job_wgcna"),
   })
 
 setMethod("step5", signature = c(x = "job_wgcna"),
-  function(x, traits = NULL, group_levels = NULL, cut.p = .05, cut.cor = 0)
+  function(x, traits = NULL, group_levels = NULL, cut.p = .05, cut.cor = .3)
   {
     step_message("Correlation test for modules with trait data. ",
       "This do:",
@@ -231,9 +231,25 @@ setMethod("step5", signature = c(x = "job_wgcna"),
         x$corp_group, sig(x), "correlation of module with", traitName 
       )
       x$corp_group <- setLegend(x$corp_group, "为共表达模块与 {traitName} 的关联性。")
+      data <- dplyr::mutate(x$corp_group, group = !!traitName)
+      fun_palette <- fun_color(
+        values = data$cor, category = "div", rev = TRUE
+      )
+      p.corhp <- e(
+        tidyHeatmap::heatmap(data, MEs, group, cor, palette_value = fun_palette)
+      )
+      p.corhp <- tidyHeatmap::layer_text(
+        p.corhp, .value = signif(pvalue, 4)
+      )
+      p.corhp <- set_lab_legend(
+        wrap(p.corhp, 5),
+        glue::glue("{x@sig} correlation heatmap"),
+        glue::glue("为模块与疾病表型 ({traitName}) 关联分析热图。")
+      )
+      x <- plotsAdd(x, p.corhp)
       sigModules <- dplyr::filter(
         x$corp_group, abs(cor) > cut.cor, pvalue < cut.p
-      )$MEs
+        )$MEs
       x <- snapAdd(
         x, "筛选显著关联的共表达模块的基因 (pvalue &lt; {cut.p}, cor &gt; {cut.cor})。"
       )

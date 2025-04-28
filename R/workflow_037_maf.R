@@ -22,12 +22,19 @@ setGeneric("asjob_maf", group = list("asjob_series"),
   function(x, ...) standardGeneric("asjob_maf"))
 
 setMethod("asjob_maf", signature = c(x = "job_tcga"),
-  function(x, use = "follow_up", keep_consensus = TRUE){
+  function(x, use = "follow_up", keep_consensus = TRUE)
+  {
+    if (x@step < 3L) {
+      stop('x@step < 3L.')
+    }
     n.all_raw <- colSum(object(x)$Tumor_Sample_Barcode)
     object <- e(maftools::read.maf(object(x), isTCGA = TRUE))
     n.all <- colSum(maftools::getClinicalData(object)$Tumor_Sample_Barcode)
     if (!is.null(x$queries$clinical)) {
-      clinical <- e(TCGAbiolinks::GDCprepare_clinic(x$queries$clinical, use))
+      if (is.null(x$metadata)) {
+        stop('is.null(x$metadata).')
+      }
+      clinical <- x$metadata
       if (use == "follow_up" & keep_consensus) {
         ## check duplicated
         data <- dplyr::distinct(clinical, bcr_patient_barcode, vital_status)
@@ -70,17 +77,23 @@ setMethod("step0", signature = c(x = "job_maf"),
   })
 
 setMethod("step1", signature = c(x = "job_maf"),
-  function(x, genes = NULL, top = 30){
+  function(x, genes = NULL, top = 30)
+  {
     step_message("Visualize the overview of data.")
     e(maftools::plotmafSummary(object(x), addStat = 'median', titvRaw = TRUE))
     p.summary <- wrap(recordPlot())
     p.summary <- .set_lab(p.summary, sig(x), "summary of mutation")
+    p.summary <- setLegend(p.summary, "为样本突变注释 (MAF) 概览。")
     e(maftools::titv(object(x)))
     p.snp_class <- wrap(recordPlot())
+    p.snp_class <- setLegend(p.snp_class, "为单核苷酸变异归类图。")
     e(maftools::oncoplot(object(x), top = top, genes = genes))
     p.oncoplot <- wrap(recordPlot())
     p.oncoplot <- .set_lab(p.oncoplot, sig(x), "oncoplot of top genes")
-    x@plots[[ 1 ]] <- namel(p.summary, p.snp_class, p.oncoplot)
+    p.oncoplot <- setLegend(p.oncoplot, "为基因突变类型瀑布图 (Top {top})。")
+    x <- plotsAdd(
+      x, p.summary = p.summary, p.snp_class = p.snp_class, p.oncoplot = p.oncoplot
+    )
     return(x)
   })
 
