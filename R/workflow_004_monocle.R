@@ -22,14 +22,18 @@ setGeneric("do_monocle",
   function(x, ref, ...) standardGeneric("do_monocle"))
 
 setMethod("do_monocle", signature = c(x = "job_seurat", ref = "character"),
-  function(x, ref, dims = 1:15, resolution = 1.2, group.by = x@params$group.by, sct = FALSE)
+  function(x, ref, dims = 1:15, resolution = 1.2, group.by = x@params$group.by, 
+    sct = FALSE, ...)
   {
-    x <- asjob_seurat_sub(x, grpl(!!rlang::sym(group.by), !!ref))
+    x <- asjob_seurat_sub(
+      x, grpl(!!rlang::sym(group.by), !!ref), ...
+    )
+    snap0 <- x@snap$step0
     x <- step1(x)
     x <- step2(x, sct = sct)
     sr_sub <- step3(x, dims, resolution)
     # x <- getsub(x, cells = grp(x@object@meta.data[[group.by]], ref))
-    snapAdd_onExit("x", "从 `Seurat` 数据对象 {group.by} 中提取 {ref} 类型的细胞，对其重新聚类分析。")
+    snapAdd_onExit("x", "从 `Seurat` 数据对象 {group.by} 中提取 {ref} 类型的细胞。{snap0}对其重新聚类分析。")
     methodAdd_onExit("x", "从 `Seurat` 数据对象 {group.by} 中提取 {ref} 类型的细胞，对其重新聚类分析。")
     methodAdd_onExit("x", sr_sub@meth[[ "step2" ]])
     methodAdd_onExit("x", sr_sub@meth[[ "step3" ]])
@@ -182,7 +186,7 @@ setMethod("step2", signature = c(x = "job_monocle"),
   })
 
 setMethod("step3", signature = c(x = "job_monocle"),
-  function(x, formula_string = NULL, group.by = NULL, cores = 4){
+  function(x, formula_string = NULL, group.by = NULL, workers = 4){
     step_message("This step do:
       0. Subset by pseudotime
       1. Regression analysis;
@@ -196,6 +200,9 @@ setMethod("step3", signature = c(x = "job_monocle"),
     }
     if (length(unique(object(x)@colData[[ x$group.by ]])) <= 2) {
       stop("Too few clusters for gene modules finding...")
+    }
+    if (object.size(x$sr_sub) > 1e9) {
+      stop(glue::glue("Too large size of `x$sr_sub`, cleared."))
     }
     pseudotime <- e(monocle3::pseudotime(object(x)))
     if (any(is.infinite(pseudotime))) {
@@ -218,7 +225,7 @@ setMethod("step3", signature = c(x = "job_monocle"),
             pkgload::unload("Seurat")
           }
         }
-        fits <- e(monocle3::fit_models(object(x), formula_string, cores = cores, verbose = TRUE))
+        fits <- e(monocle3::fit_models(object(x), formula_string, cores = workers, verbose = TRUE))
         fit_coefs <- e(monocle3::coefficient_table(fits))
         fit_coefs.sig <- dplyr::filter(fit_coefs, term != "(Intercept)", q_value < .05)
         fit_coefs.sig <- dplyr::arrange(fit_coefs.sig, q_value)
@@ -232,7 +239,7 @@ setMethod("step3", signature = c(x = "job_monocle"),
     x <- methodAdd(x, "以 `monocle3::graph_test` 寻找单细胞拟时轨迹中差异表达的基因。")
     x <- snapAdd(x, "寻找单细胞拟时轨迹 (`monocle3::graph_test`) 中差异表达的基因。")
     if (is.null(x@tables[[ 3 ]]$graph_test)) {
-      graph_test <- e(monocle3::graph_test(object(x), neighbor_graph = "knn", cores = cores))
+      graph_test <- e(monocle3::graph_test(object(x), neighbor_graph = "knn", cores = workers))
       graph_test <- as_tibble(graph_test)
       graph_test.sig <- dplyr::filter(graph_test, q_value < .05)
       graph_test.sig <- dplyr::arrange(graph_test.sig, dplyr::desc(morans_I), q_value)
@@ -263,7 +270,9 @@ setMethod("step3", signature = c(x = "job_monocle"),
     )
     x@params$cell_group <- cell_group
     if (is.null(x@tables[[ 3 ]]$gene_module)) {
-      gene_module <- try(cal_modules.cds(object(x), gene_sigs, cell_group), TRUE)
+      gene_module <- try(
+        cal_modules.cds(object(x), gene_sigs, cell_group, workers), TRUE
+      )
       gene_module_heatdata <- lapply(gene_module,
         function(lst) {
           if (!is.null(lst$aggregate)) {
@@ -739,7 +748,7 @@ get_earliest_principal_nodes <- function(cds, col, target) {
 }
 
 
-cal_modules.cds <- function(cds, gene_sigs, cell_group) {
+cal_modules.cds <- function(cds, gene_sigs, cell_group, workers = 4) {
   n <- 0
   e(lapply(gene_sigs,
     function(genes) {
@@ -748,7 +757,7 @@ cal_modules.cds <- function(cds, gene_sigs, cell_group) {
         return(data.frame())
       anno <- paste0("with ", names(gene_sigs)[n])
       res <- try(
-        monocle3::find_gene_modules(cds[genes, ], cores = 4, resolution = 10 ^ seq(-6,-1)),
+        monocle3::find_gene_modules(cds[genes, ], cores = workers, resolution = 10 ^ seq(-6,-1)),
         silent = FALSE
       )
       if (!inherits(res, "try-error")) {
