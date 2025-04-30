@@ -395,10 +395,12 @@ list.remote <- function(path, pattern, remote = "remote",
 
 .args_transformer <- function(text, envir) {
   res <- glue::identity_transformer(text, envir)
-  if (length(res) != 1) {
+  if (length(res) != 1 && !is.null(res)) {
     stop('.args_transformer, length(res) != 1')
   }
-  if (is.character(res)) {
+  if (is.null(res)) {
+    "NULL"
+  } else if (is.character(res)) {
     paste0("'", res, "'")
   } else {
     res

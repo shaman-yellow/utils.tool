@@ -254,6 +254,11 @@ setMethod("step4", signature = c(x = "job_lasso"),
       multi_cox$model <- model <- e(glmnet::cv.glmnet(data, target,
           alpha = alpha, family = family, nfold = nfold, type.measure = type.measure, ...))
       p.lassoCOX_model <- wrap(as_grob(expression(plot(model)), environment()), 6, 6, showtext = TRUE)
+      p.lassoCox_coefficient <- wrap(
+        as_grob(
+          expression(plot(model$glmnet.fit, xvar = "lambda"), environment())
+        ), 6, 6, showtext = FALSE
+      )
       lambdas <- c("lambda.min", "lambda.1se")
       res <- sapply(lambdas, simplify = FALSE,
         function(lam) {
@@ -309,7 +314,9 @@ setMethod("step4", signature = c(x = "job_lasso"),
           }
         )
       }
-      x <- plotsAdd(x, p.lassoCOX_model, p.lassoCOX_ROC, p.lassoCOX_coeffients)
+      x <- plotsAdd(
+        x, p.lassoCOX_model, p.lassoCOX_ROC, p.lassoCOX_coeffients, p.lassoCox_coefficient
+      )
       x <- methodAdd(x, "以 R 包 `glmnet` ({packageVersion('glmnet')}) 作 {methodName} 处罚的 {family} 回归，以 `{fun_multiCox}` 函数作 {nfold} 交叉验证获得模型。", TRUE)
     } else if (fun_multiCox == "glmnet") {
       methodName <- if (alpha) "lasso" else "ridge"

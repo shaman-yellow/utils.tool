@@ -61,20 +61,25 @@ setMethod("step0", signature = c(x = "job_cellchat"),
   })
 
 setMethod("step1", signature = c(x = "job_cellchat"),
-  function(x, workers = 4, python = NULL, debug = FALSE, 
+  function(x, workers = 4, python = NULL, py_config = FALSE, debug = FALSE, 
     org = c("human", "mouse"), ...)
   {
     step_message("One step forward computation of most. ")
     org <- match.arg(org)
     if (is.remote(x)) {
+      ## need python umap-learn, the best way is to use reticulate python.
+      ## reticulate::py_install(packages = 'umap-learn')
       x <- run_job_remote(x, wait = 3, ..., debug = debug,
         {
           options(future.globals.maxSize = 5e10)
           x <- step1(
             x, workers = "{workers}", org = "{org}",
-            debug = "{debug}", python = "{python}"
+            debug = "{debug}", python = "{python}", py_config = "{py_config}"
           )
         }
+      )
+      x@plots$step1$p.commHpAll@data <- e(
+        CellChat::netVisual_heatmap(object(x), color.heatmap = "Reds", signaling = NULL)
       )
       return(x)
     }
@@ -87,6 +92,8 @@ setMethod("step1", signature = c(x = "job_cellchat"),
     }
     if (!is.null(python)) {
       e(base::Sys.setenv(RETICULATE_PYTHON = python))
+      e(reticulate::py_config())
+    } else if (py_config) {
       e(reticulate::py_config())
     }
     if (!debug) {
