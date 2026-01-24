@@ -244,7 +244,7 @@ order_publish.bosai <- function(file = "index.Rmd", output = "output.Rmd", title
       n <<- n + 1L
       res <- fun(file, output, title)
       if (n == length(funs)) {
-        browseURL(res)
+        browseURL(res, "wps")
       }
     })
   invisible()
