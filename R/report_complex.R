@@ -12,6 +12,32 @@ order_publish.complex <- function(file = "index.Rmd", output = "output.Rmd", tit
   browseURL(fun(file, output, title), "wps")
 }
 
+order_packaging.complex <- function(target = "output.pdf",
+  register = autoRegisters, idname = gidn(), external_file = NULL,
+  ..., extras = NULL,
+  codes = c(.getRICodes(), s(target, "_out.docx", ".Rmd")))
+{
+  extras <- c(extras, codes)
+  order_packaging(
+    target, register, idname, extras = extras, external_file = external_file, ...
+  )
+}
+
+.getRICodes <- function(file_install = normalizePath("~/.vim/others/install.R"),
+  dir_package = normalizePath("~/utils.tool"), package_name = basename(dir_package))
+{
+  archive_package <- paste0(package_name, ".tar.gz")
+  cdRun(
+    "git ls-files -z | xargs -0 tar -czf ", archive_package,
+    path = dir_package
+  )
+  file.copy(file_install, ".", TRUE)
+  file.copy(
+    file.path(dir_package, archive_package), ".", TRUE
+  )
+  return(c(basename(file_install), archive_package))
+}
+
 write_complexDocx <- function(report, savename, title,
   yml = file.path(.expath, "complex.yml"), ...)
 {

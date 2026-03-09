@@ -201,7 +201,7 @@ setMethod("step3", signature = c(x = "job_monocle"),
     if (length(unique(object(x)@colData[[ x$group.by ]])) <= 2) {
       stop("Too few clusters for gene modules finding...")
     }
-    if (object.size(x$sr_sub) > 1e9) {
+    if (object.size(x$sr_sub) > 5e9) {
       stop(glue::glue("Too large size of `x$sr_sub`, cleared."))
     }
     pseudotime <- e(monocle3::pseudotime(object(x)))

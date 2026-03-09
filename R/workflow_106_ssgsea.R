@@ -135,6 +135,6 @@ setMethod("step1", signature = c(x = "job_ssgsea"),
       x <- plotsAdd(x, p.scores = p.scores)
     }
     object(x) <- NULL
-    x <- methodAdd(x, "以 R 包 `GSVA` ({packageVersion('GSVA')}) 用于 ssGSEA 分析。")
+    x <- methodAdd(x, "以 R 包 `GSVA` ({packageVersion('GSVA')}) 用于 ssGSEA 分析 (免疫细胞浸润分析)。")
     return(x)
   })

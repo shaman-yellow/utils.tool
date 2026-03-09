@@ -24,7 +24,7 @@ setGeneric("asjob_iobr", group = list("asjob_series"),
    function(x, ...) standardGeneric("asjob_iobr"))
 
 setMethod("asjob_iobr", signature = c(x = "job_limma"),
-  function(x, use = .guess_symbol(x))
+  function(x, use = .guess_symbol(x), project = x$project)
   {
     snap <- snap(x)
     object <- extract_unique_genes.job_limma(x)
@@ -32,7 +32,7 @@ setMethod("asjob_iobr", signature = c(x = "job_limma"),
     rownames(mtx) <- gname(object$genes[[ use ]])
     x <- snapAdd(
       job_iobr(mtx, metadata = object$targets), 
-      "以数据集 ({x$project}, dataset: {x@sig}) 进行 IOBR 免疫微环境评估。"
+      "对数据集 ({project}) 进行 IOBR 免疫微环境评估。"
     )
     x <- snapAdd(x, snap)
     return(x)

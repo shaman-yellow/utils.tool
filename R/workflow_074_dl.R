@@ -34,7 +34,7 @@ job_dl <- function(smiles, force_cpu = TRUE)
     smiles <- smiles[ !isDot ]
   }
   object(x) <- smiles
-  activate_base("dl")
+  activate_env("dl")
   sys <- reticulate::import("sys")
   sys$path <- c(sys$path, pg("dl"))
   if (force_cpu) {

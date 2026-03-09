@@ -15,6 +15,9 @@
 
 .job_vennDEGs <- setClass("job_vennDEGs", contains = c("job_venn"))
 
+setGeneric("asjob_venn",
+  function(x, ...) standardGeneric("asjob_venn"))
+
 job_vennDEGs <- function(pattern, exclude = NULL,
   mode = c("raw", "pro"), name = "guess", ...,
   pattern_dataset = ".*(GSE[0-9]+).*", gp = NULL)
@@ -22,7 +25,7 @@ job_vennDEGs <- function(pattern, exclude = NULL,
   mode <- match.arg(mode)
   if (mode == "raw") {
     fun_extract <- function(x) x@tables$step2$tops[[1]][, 1:3]
-    snapAdd_onExit("x", "不同数据集的差异表达基因的交集。")
+    snapAdd_onExit("x", "数据集的差异表达基因的交集。")
   } else {
     stop(glue::glue("..."))
   }
@@ -48,7 +51,7 @@ job_vennDEGs <- function(pattern, exclude = NULL,
     )
     x$metadata <- tibble::as_tibble(x$metadata)
     x$metadata <- set_lab_legend(
-      x$metadata, "metadata of mutiple datasets", "为多个数据集的元数据信息 (分组信息) "
+      x$metadata, "metadata of mutiple datasets", "数据集的元数据信息 (分组信息) "
     )
     x$groups <- nl(x$metadata$project, x$metadata$group)
   }

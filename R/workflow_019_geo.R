@@ -94,10 +94,11 @@ setMethod("step1", signature = c(x = "job_geo"),
 }
 
 setMethod("step2", signature = c(x = "job_geo"),
-  function(x, filter_regex = NULL, baseDir = .prefix("GEO", "db"), rna = TRUE)
+  function(x, filter_regex = NULL, baseDir = .prefix("GEO", "db"), 
+    rna = TRUE, get_supp = FALSE, hasFile = FALSE)
   {
     step_message("Download geo datasets or yellow{{RNA seq data}}.")
-    if (rna) {
+    if (rna && !get_supp) {
       if (dim(x$about[[1]])[1] > 0) {
         message("Is this a Microarray dataset?")
         return()
@@ -143,8 +144,10 @@ setMethod("step2", signature = c(x = "job_geo"),
         continue <- sureThat(glue::glue("File exists ({dir}), continue?"))
       }
       if (continue) {
-        e(GEOquery::getGEOSuppFiles(object(x), filter_regex = filter_regex,
-            baseDir = baseDir))
+        if (!hasFile) {
+          e(GEOquery::getGEOSuppFiles(object(x), filter_regex = filter_regex,
+              baseDir = baseDir))
+        }
         x$dir <- dir
         files <- list.files(dir, "\\.tar", full.names = TRUE)
         if (length(files)) {

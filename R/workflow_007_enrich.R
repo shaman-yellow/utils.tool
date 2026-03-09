@@ -45,14 +45,15 @@ job_enrich <- function(ids, annotation, from = "hgnc_symbol", to = "entrezgene_i
     stop("is.null(names(ids))")
   }
   if (missing(annotation)) {
+    if (from != "hgnc_symbol") {
+      stop('from != "hgnc_symbol".')
+    }
     if (TRUE) {
       ids <- lapply(ids, gname)
-      annotation <- e(
-        clusterProfiler::bitr(
-          unique(unlist(ids)), fromType = "SYMBOL", toType = "ENTREZID",
-          OrgDb = org.Hs.eg.db::org.Hs.eg.db
-        )
-      )
+      annotation <- e(AnnotationDbi::select(org.Hs.eg.db::org.Hs.eg.db,
+          keys = unique(unlist(ids)), 
+          keytype = "SYMBOL", columns = c("SYMBOL", "ENTREZID")))
+      annotation <- annotation[!is.na(annotation[, 2]), ]
       annotation <- dplyr::rename(
         annotation, !!!nl(c(from, to), c("SYMBOL", "ENTREZID"))
       )
@@ -87,7 +88,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
   function(x, organism = c("hsa", "mmu", "rno"),
     orgDb = switch(organism,
       hsa = "org.Hs.eg.db", mmu = "org.Mm.eg.db", rno = "org.Rn.eg.db"),
-    cl = 4, maxShow.kegg = 10,
+    cl = 4, maxShow.kegg = 20,
     maxShow.go = 10, use = c("p.adjust", "pvalue"))
   {
     step_message("Use clusterProfiler for enrichment.")
@@ -256,7 +257,7 @@ check_enrichGO <- function(res.go) {
   isthat
 }
 
-vis_enrich.kegg <- function(lst, cutoff = .1, maxShow = 10,
+vis_enrich.kegg <- function(lst, cutoff = .05, maxShow = 10,
   use = c("p.adjust", "pvalue"), least = 3L)
 {
   use <- match.arg(use)
@@ -286,7 +287,7 @@ vis_enrich.kegg <- function(lst, cutoff = .1, maxShow = 10,
 }
 
 # for external use
-plot_kegg <- function(data, cutoff = .1, maxShow = 10,
+plot_kegg <- function(data, cutoff = .05, maxShow = 10,
   use = c("p.adjust", "pvalue"), 
   use.log = FALSE, pattern = NULL, pals = c("grey90", "darkred"), ...)
 {
@@ -299,8 +300,11 @@ plot_kegg <- function(data, cutoff = .1, maxShow = 10,
     pals <- rev(pals)
   }
   p <- .plot_kegg(data, use, pals = pals, ...)
+  firstlines <- vapply(
+    strsplit(data$Description, "\n"), function(x) x[1], character(1)
+  )
   p <- wrap_scale(
-    p, max(nchar(data$Description)) / 5, nrow(data)
+    p, max(nchar(firstlines)) / 4, nrow(data)
   )
   p <- .set_lab(p, "KEGG-enrichment")
   p
@@ -339,7 +343,7 @@ reordern <- function(x, by, ...) {
   reorder(x, by, ...)
 }
 
-vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
+vis_enrich.go <- function(lst, cutoff = .05, maxShow = 10,
   use = c("p.adjust", "pvalue"), least = 3L)
 {
   use <- match.arg(use)
@@ -374,7 +378,7 @@ vis_enrich.go <- function(lst, cutoff = .1, maxShow = 10,
 }
 
 # this function is for external use. 
-plot_go <- function(data, cutoff = .1, maxShow = 10,
+plot_go <- function(data, cutoff = .05, maxShow = 10,
   use = c("p.adjust", "pvalue"), facet = ".id", pattern = NULL)
 {
   use <- match.arg(use)
@@ -505,8 +509,8 @@ setMethod("map", signature = c(x = "job_enrich", ref = "job_enrich"),
   })
 
 map_gene <- function(data, col,
-  from = "ENTREZID", to = "SYMBOL",
-  from_bm = "entrezgene_id", to_bm = "hgnc_symbol", try_bm = FALSE,
+  from = "ENTREZID", to = "SYMBOL", split = ",",
+  from_bm = "entrezgene_id", to_bm = "hgnc_symbol", try_bm = FALSE, force_bm = FALSE,
   get = to, OrgDb = org.Hs.eg.db::org.Hs.eg.db, gname = TRUE)
 {
   if (gname && is.character(data[[ col ]])) {
@@ -516,32 +520,53 @@ map_gene <- function(data, col,
   }
   data <- dplyr::relocate(data, !!rlang::sym(get), .after = !!rlang::sym(col))
   ids <- data[[ get ]]
+  mixSets <- NULL
+  if (!is.null(split)) {
+    mixSets <- strsplit(ids, split)
+    maybeMergedIds <- ids
+    numMix <- sum(lengths(mixSets) > 1)
+    message(glue::glue("Try split id colomn, number of {numMix} merged id rows found."))
+    ids <- unlist(mixSets)
+    mixSets <- data.frame(
+      id = rep(maybeMergedIds, lengths(mixSets)),
+      splits = unlist(mixSets)
+    )
+  }
   if (any(duplicated(ids))) {
     ids <- unique(ids)
   }
-  annotation <- e(
-    suppressWarnings(clusterProfiler::bitr(
-      ids, fromType = from, toType = to,
-      OrgDb = OrgDb
-    ))
-  )
   backup <- data[[ get ]]
-  data <- map(data, get, annotation, from, to, col = get)
-  funStat <- function() {
-    misFreq <- length(which(is.na(data[[ get ]]))) / nrow(data)
-    message(glue::glue("Missing '{to}': {misFreq} of data."))
+  funStat <- function(which) {
+    misFreq <- sum(is.na(data[[ get ]])) / nrow(data)
+    message(glue::glue("Missing '{which}': {misFreq} of data."))
     return(misFreq)
   }
-  misFreq <- funStat()
-  if (try_bm && misFreq > .3) {
-    message(glue::glue("Try biomaRt."))
+  if (!force_bm) {
+    annotation <- e(AnnotationDbi::select(OrgDb, keys = ids, 
+        keytype = from, columns = c(from, to)))
+    annotation <- annotation[!is.na(annotation[, 2]), ]
+    if (!is.null(mixSets)) {
+      annotation <- map(
+        annotation, from, mixSets, "splits", "id", col = from
+      )
+    }
+    data <- map(data, col, annotation, from, to, col = get)
+    misFreq <- funStat(to)
+  }
+  if (force_bm || (try_bm && misFreq > .3)) {
+    message(glue::glue("Try mapping via biomaRt."))
     mart <- new_biomart()
     annotation <- filter_biomart(
       mart, c(from_bm, to_bm), from_bm, ids
     )
+    if (!is.null(mixSets)) {
+      annotation <- map(
+        annotation, from_bm, mixSets, "splits", "id", col = from_bm
+      )
+    }
     data[[ get ]] <- backup
     data <- map(data, get, annotation, from_bm, to_bm, col = get)
-    funStat()
+    funStat(to)
   }
   return(data)
 }

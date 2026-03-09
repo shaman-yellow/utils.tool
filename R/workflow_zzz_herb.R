@@ -181,7 +181,8 @@ filter_hob_dl <- function(ids, filter.hob, filter.dl, test = FALSE, use.cids = T
         stop("is.numeric(ids) == FALSE")
       }
       smiles <- get_smiles_batch(ids, n = 50)
-      smiles <- dplyr::select(smiles, ID = CID, SMILES = IsomericSMILES)
+      # IsomericSMILES -> SMILES
+      smiles <- dplyr::select(smiles, ID = CID, SMILES = dplyr::ends_with("SMILES"))
     } else {
       message("use.cids == FALSE, so `ids` should be SMILES with names.")
       smiles <- ids

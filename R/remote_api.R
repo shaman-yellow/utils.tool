@@ -558,3 +558,9 @@ as_remote <- function(x) {
   }
 }
 
+fake_remote_job <- function(wd = getRemoteWs()) {
+  fake <- .job()
+  fake <- set_remote(fake, wd)
+  return(fake)
+}
+

@@ -199,73 +199,79 @@ setMethod("step5", signature = c(x = "job_seurat"),
     force = FALSE, topn = 5)
   {
     step_message("Find all Marders for Cell Cluster.")
-    if (is.remote(x)) {
-      file_markers <- file.path(x$map_local, filename_markers <- "markers.csv")
-      if (!file.exists(file_markers) || force) {
-        if (!rem_file.exists(filename_markers) || force) {
-          if (is.null(workers)) {
-            stop('is.null(workers).')
-          }
-          file_obj <- file.path(
-            x$map_local, filename_obj <- paste0("seurat_5.rds")
-          )
-          if (!file.exists(file_obj) || force) {
-            message(glue::glue("Save Seurat object as {file_obj}..."))
-            saveRDS(object(x), file_obj)
-          }
-          if (!rem_file.exists(filename_obj) || force) {
-            cdRun(glue::glue("scp {file_obj} {x$remote}:{x$wd}"))
-          }
-          script <- expression({
-            require(Seurat)
-            require(future)
-            args <- commandArgs(trailingOnly = TRUE)
-            ## args
-            file_rds <- args[1]
-            output <- args[2]
-            workers <- as.integer(args[3])
-            min.pct <- as.double(args[4])
-            logfc.threshold <- as.double(args[5])
-            ## run
-            object <- readRDS(file_rds)
-            options(future.globals.maxSize = Inf)
-            future::plan(future::multicore, workers = workers)
-            markers <- Seurat::FindAllMarkers(object, min.pct = min.pct,
-              logfc.threshold = logfc.threshold, only.pos = TRUE)
-            write.table(
-              markers, output, sep = ",", col.names = TRUE, row.names = FALSE, quote = FALSE
-            )
-          })
-          script <- as.character(script)
-          if (force) {
-            message(glue::glue("force == TRUE, remove remote and local file."))
-            rem_file.remove(filename_markers)
-            file.remove(file_markers)
-          }
-          rem_run(glue::glue(
-              "{pg('Rscript', is.remote(x))} -e '{script}' \\
-              {filename_obj} {filename_markers} {workers} {min.pct} {logfc.threshold}"
-              ))
-          testRem_file.exists(x, filename_markers, 1, later = FALSE)
-        }
-        file_markers <- get_file_from_remote(
-          filename_markers, x$wd, file_markers, x$remote
-        )
-      }
-      markers <- ftibble(file_markers)
-      markers <- dplyr::mutate(markers, rownames = gene, .before = 1)
+    cache_markers <- file.path(create_job_cache(), "markers.tsv")
+    if (file.exists(cache_markers)) {
+      markers <- read_tsv(cache_markers)
     } else {
-      fun <- function(x) {
-        markers <- as_tibble(
-          e(Seurat::FindAllMarkers(object(x), min.pct = min.pct,
-              logfc.threshold = logfc.threshold, only.pos = TRUE))
-        )
-      }
-      if (!is.null(workers)) {
-        markers <- parallel(x, fun, workers)
+      if (is.remote(x)) {
+        file_markers <- file.path(x$map_local, filename_markers <- "markers.csv")
+        if (!file.exists(file_markers) || force) {
+          if (!rem_file.exists(filename_markers) || force) {
+            if (is.null(workers)) {
+              stop('is.null(workers).')
+            }
+            file_obj <- file.path(
+              x$map_local, filename_obj <- paste0("seurat_5.rds")
+            )
+            if (!file.exists(file_obj) || force) {
+              message(glue::glue("Save Seurat object as {file_obj}..."))
+              saveRDS(object(x), file_obj)
+            }
+            if (!rem_file.exists(filename_obj) || force) {
+              cdRun(glue::glue("scp {file_obj} {x$remote}:{x$wd}"))
+            }
+            script <- expression({
+              require(Seurat)
+              require(future)
+              args <- commandArgs(trailingOnly = TRUE)
+              ## args
+              file_rds <- args[1]
+              output <- args[2]
+              workers <- as.integer(args[3])
+              min.pct <- as.double(args[4])
+              logfc.threshold <- as.double(args[5])
+              ## run
+              object <- readRDS(file_rds)
+              options(future.globals.maxSize = Inf)
+              future::plan(future::multicore, workers = workers)
+              markers <- Seurat::FindAllMarkers(object, min.pct = min.pct,
+                logfc.threshold = logfc.threshold, only.pos = TRUE)
+              write.table(
+                markers, output, sep = ",", col.names = TRUE, row.names = FALSE, quote = FALSE
+              )
+            })
+            script <- as.character(script)
+            if (force) {
+              message(glue::glue("force == TRUE, remove remote and local file."))
+              rem_file.remove(filename_markers)
+              file.remove(file_markers)
+            }
+            rem_run(glue::glue(
+                "{pg('Rscript', is.remote(x))} -e '{script}' \\
+                {filename_obj} {filename_markers} {workers} {min.pct} {logfc.threshold}"
+                ))
+            testRem_file.exists(x, filename_markers, 1, later = FALSE)
+          }
+          file_markers <- get_file_from_remote(
+            filename_markers, x$wd, file_markers, x$remote
+          )
+        }
+        markers <- ftibble(file_markers)
+        markers <- dplyr::mutate(markers, rownames = gene, .before = 1)
       } else {
-        markers <- fun(x)
+        fun <- function(x) {
+          markers <- as_tibble(
+            e(Seurat::FindAllMarkers(object(x), min.pct = min.pct,
+                logfc.threshold = logfc.threshold, only.pos = TRUE))
+          )
+        }
+        if (!is.null(workers)) {
+          markers <- parallel(x, fun, workers)
+        } else {
+          markers <- fun(x)
+        }
       }
+      write_tsv(markers, cache_markers)
     }
     all_markers_no_filter <- markers
     markers <- dplyr::filter(markers, p_val_adj < .05)
@@ -1382,7 +1388,8 @@ scsa_annotation <- function(
   x, tissue, ref.markers = NULL, onlyUseRefMarkers = !is.null(ref.markers),
   filter.p = 0.01, filter.fc = .5, reset = NULL,
   org = c("Human", "Mouse"),
-  cmd = pg("scsa"), db = pg("scsa_db"), res.col = "scsa_annotation",
+  cmd = pg("scsa"), 
+  db = pg("scsa_db"), scsaEnv = pg("scsaEnv"), res.col = "scsa_annotation",
   cache = "scsa", ...)
 {
   if (grpl(tissue, "(?<!\\\\)\\s", perl = TRUE)) {
@@ -1434,6 +1441,9 @@ scsa_annotation <- function(
     all_markers <- dplyr::select(all_markers, -rownames)
     all_markers <- dplyr::mutate(all_markers, gene = gs(gene, "\\.[0-9]*", ""))
     data.table::fwrite(all_markers, marker_file)
+    if (!is.null(scsaEnv)) {
+      activate_env(scsaEnv, pg("conda"))
+    }
     cli::cli_alert_info(cmd)
     cdRun(cmd,
       " -s seurat", " -i ", marker_file,

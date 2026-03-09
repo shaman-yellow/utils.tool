@@ -43,7 +43,8 @@ setMethod("step0", signature = c(x = "job_hob"),
 
 setMethod("step1", signature = c(x = "job_hob"),
   function(x, cutoff = c("20", "50"), wd = timeName("hob"),
-    command = paste(pg("hobPython"), pg("hobPredict")),
+    command = paste(pg("hobPython"), pg("hobPredict")), 
+    hobEnv = pg("hobEnv"),
     model = pg("hobModel"), extra = pg("hobExtra"), dir = NULL)
   {
     step_message("Run HOB for Prediction.")
@@ -61,6 +62,9 @@ setMethod("step1", signature = c(x = "job_hob"),
         dir.create(wd, FALSE)
         file.copy(extra, wd)
         writeLines(object(x), paste0(wd, "/smiles.txt"))
+        if (!is.null(hobEnv)) {
+          activate_env(hobEnv)
+        }
         cdRun(command, " ", model, " smiles.txt ", cutoff, path = x$wd)  
       } else {
         message("Detected 'pred_result.csv' exists, use that.")

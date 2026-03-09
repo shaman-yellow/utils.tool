@@ -407,7 +407,7 @@ setMethod("step2", signature = c(x = "job_limma"),
     step_message("Difference test.")
     use <- match.arg(use)
     if (is.null(contrasts)) {
-      if (!length(alist(...))) {
+      if (!...length()) {
         contr <- NULL
       } else {
         contr <- limma::makeContrasts(..., levels = x@params$design)
@@ -721,9 +721,12 @@ plot_genes_heatmap <- function(data, metadata) {
 }
 
 setMethod("clear", signature = c(x = "job_limma"),
-  function(x, save = TRUE, suffix = NULL){
-    if (save)
-      saveRDS(x, paste0(substitute(x, parent.frame(1)), x@step, suffix, ".rds"))
+  function(x, save = TRUE, suffix = NULL, name = substitute(x, parent.frame(1))){
+    if (save) {
+      file <- paste0(name, ".", x@step, suffix, ".rds")
+      message("Save RDS: ", file)
+      saveRDS(x, file)
+    }
     object(x) <- NULL
     x@params$normed_data <- NULL
     return(x)
@@ -731,40 +734,47 @@ setMethod("clear", signature = c(x = "job_limma"),
 
 setMethod("focus", signature = c(x = "job_limma"),
   function(x, ref, ref.use = .guess_symbol(x), which = 1L,
-    use = c("adj.P.Val", "P.Value"), .name = NULL, sig = FALSE, ...)
+    use = c("adj.P.Val", "P.Value"), .name = NULL, sig = FALSE,
+    data.which = if (!is.null(which)) attr(x@tables$step2$tops[[ which ]], "all") else NULL, ...)
   {
     if (is(ref, "feature")) {
       x <- snapAdd(
-        x, "(Dataset: {sig(x)}) 聚焦于{snap(ref)}的差异表达 ({names(x@tables$step2$tops)[which]})。", 
+        x, "聚焦于{snap(ref)}的差异表达。", 
         add = FALSE, step = if (is.null(.name)) "m" else .name
       )
       ref <- resolve_feature(ref)
     } else {
       x <- snapAdd(
-        x, "(Dataset: {sig(x)}) 聚焦于{less(ref)}的差异表达 ({names(x@tables$step2$tops)[which]})。", 
+        x, "聚焦于{less(ref)}的差异表达。", 
         add = FALSE, step = if (is.null(.name)) "m" else .name
       )
     }
-    data <- attr(x@tables$step2$tops[[ which ]], "all")
-    data <- dplyr::filter(data, !!rlang::sym(ref.use) %in% ref)
-    data <- dplyr::relocate(
-      data, !!rlang::sym(ref.use), logFC, adj.P.Val, P.Value
-    )
-    if (sig) {
-      use <- match.arg(use)
-      data <- dplyr::filter(data, !!rlang::sym(use) < .05)
-      ref <- ref[ ref %in% data[[ ref.use ]] ]
-      if (!length(ref)) {
-        stop('!length(ref), no significant.')
+    if (identical(ref.use, "guess")) {
+      ref.use <- .guess_symbol(x)
+    }
+    if (!is.null(data.which)) {
+      data <- dplyr::filter(data.which, !!rlang::sym(ref.use) %in% ref)
+      data <- dplyr::relocate(
+        data, !!rlang::sym(ref.use), logFC, adj.P.Val, P.Value
+      )
+      if (sig) {
+        use <- match.arg(use)
+        data <- dplyr::filter(data, !!rlang::sym(use) < .05)
+        ref <- ref[ ref %in% data[[ ref.use ]] ]
+        if (!length(ref)) {
+          stop('!length(ref), no significant.')
+        }
       }
+      data <- set_lab_legend(
+        tibble::as_tibble(data), 
+        paste(sig(x), "Statistic of Focused genes", .name),
+        "为聚焦分析的基因的统计附表。"
+      )
+    } else {
+      data <- NULL
     }
     x <- map(
-      x, ref, ref.use, use = use, which = which, name = .name, ...
-    )
-    data <- set_lab_legend(
-      tibble::as_tibble(data), 
-      paste(sig(x), "Statistic of Focused genes", .name),
-      "为聚焦分析的基因的统计附表。"
+      x, ref, ref.use, use = use, which = which, data.which = data.which, name = .name, ...
     )
     if (!is.null(.name)) {
       lst <- namel(
@@ -784,8 +794,10 @@ setMethod("focus", signature = c(x = "job_limma"),
 setMethod("map", signature = c(x = "job_limma"),
   function(x, ref, ref.use = .guess_symbol(x),
     group = NULL, group.use = "group", pvalue = TRUE, 
-    which = 1L, use = c("adj.P.Val", "P.Value"), 
-    name = NULL, dedup_by_rank = TRUE)
+    which = 1L,
+    data.which = if (!is.null(which)) attr(x@tables$step2$tops[[ which ]], "all") else NULL,
+    use = c("adj.P.Val", "P.Value"), 
+    name = NULL, dedup_by_rank = TRUE, fun_plot = geom_boxplot, ...)
   {
     object <- x@params$normed_data
     if (identical(class(object), "list")) {
@@ -793,14 +805,17 @@ setMethod("map", signature = c(x = "job_limma"),
     }
     message(glue::glue("Use name of {ref.use}."))
     if (!is.null(which) && dedup_by_rank) {
-      x <- dedup_by_rank.job_limma(x, ref.use, which = which)
+      x <- dedup_by_rank.job_limma(
+        x, ref.use, which = which, data.which = data.which
+      )
       object <- x$normed_data
     }
-    object <- e(
-      limma::`[.EList`(object,
-        !duplicated(object$genes[[ ref.use ]]) & !is.na(object$genes[[ ref.use ]]),)
-    )
-    message(glue::glue("After deduplicated: {bind(dim(object))}"))
+    needRemove <- duplicated(object$genes[[ ref.use ]]) | is.na(object$genes[[ ref.use ]])
+    if (any(needRemove)) {
+      message("Duplicated gene id detected.")
+      object <- e(limma::`[.EList`(object, !needRemove, ))
+      message(glue::glue("After deduplicated: {bind(dim(object))}"))
+    }
     res <- try(
       rownames(object) <- object$genes[[ ref.use ]], TRUE
     )
@@ -810,18 +825,18 @@ setMethod("map", signature = c(x = "job_limma"),
       )
     }
     object <- object[rownames(object) %in% ref, ]
-    message("Remove duplicated names.")
     if (any(duplicated(rownames(object)))) {
+      message("Remove duplicated names.")
       object <- object[ !duplicated(rownames(object)), ]
     }
-    if (!is.null(which)) {
-      top <- attr(x@tables$step2$tops[[ which ]], "all")
+    if (!is.null(which) || !is.null(data.which)) {
+      top <- data.which
       top <- dplyr::filter(top, !!rlang::sym(ref.use) %in% ref)
       if (!nrow(top)) {
         stop('!nrow(top), no significant data.')
       }
       group <- names(x@tables$step2$tops)[which]
-      group <- gs(strsplit(group, "-")[[1]], " ", "")
+      group <- .get_group_from_contrast_character(group)
       if (any(!group %in% object$targets[[ group.use ]])) {
         stop(
           'any(!group %in% object$targets[[ group.use ]]), can not found contrast group.'
@@ -837,13 +852,24 @@ setMethod("map", signature = c(x = "job_limma"),
     if (!is.null(group)) {
       data <- dplyr::mutate(data, group = factor(group, levels = !!group))
     }
-    p <- .map_boxplot2(data, pvalue)
+    p <- .map_boxplot2(data, pvalue, fun_plot = fun_plot, ...)
+    if (is(p, "S7_object")) {
+      anno_pvalue <- p@layers$geom_text$data
+    } else {
+      anno_pvalue <- tail(p$layers, n = 1)[[1]]$data
+    }
+    if (!is(anno_pvalue, "data.frame") || any(!c("var", "labs") %in% colnames(anno_pvalue))) {
+      stop("Can not extract pvalue from ggpval annotation.")
+    }
+    pvalue <- setNames(
+      as.numeric(strx(anno_pvalue$labs, "[0-9.]+")), anno_pvalue$var
+    )
     if (is.null(which)) {
-      legend <- "以 wilcox.test 检验少量基因 ({bind(ref)}) 的表达。"
+      legend <- "以 wilcox.test 检验基因 ({bind(ref)}) 的表达。"
     } else {
       use <- match.arg(use)
       p <- .set_significant_mapping(p, top, ref.use, use)
-      legend <- "基因 {bind(unique(ref))} 表达水平，以及对应的 limma 差异分析显著水平。"
+      legend <- "基因 {bind(unique(ref))} 表达水平，以及对应的差异显著水平。"
     }
     scale <- sqrt(length(ref)) * 3
     just <- 1L
@@ -858,6 +884,7 @@ setMethod("map", signature = c(x = "job_limma"),
     p <- setLegend(
       wrap(p, min(scale, 14), min(scale + just, 10)), legend
     )
+    p$pvalue <- pvalue
     feature(p) <- ref
     if (is.null(name)) {
       x <- plotsAdd(x, p.BoxPlotOfDEGs = p, reset = FALSE, step = 2L)
@@ -867,8 +894,13 @@ setMethod("map", signature = c(x = "job_limma"),
       args <- c(list(x), arg_p, list(reset = FALSE, step = 2L))
       x <- do.call(plotsAdd, args)
     }
+    x <- stepPostModify(x, 2L)
     return(x)
   })
+
+.get_group_from_contrast_character <- function(string) {
+  gsub(" ", "", strsplit(string, "-| vs ")[[1]])
+}
 
 extract_unique_genes.job_limma <- function(
   x, use.filter = NULL, use = .guess_symbol(x), from_normed = TRUE,
@@ -911,6 +943,7 @@ extract_unique_genes.job_limma <- function(
       object <- e(limma::`[.EList`(x@params$normed_data, pos, ))
       if (any(duplicated(object$genes[[ use ]]))) {
         cli::cli_alert_warning("Duplicated names (genes) founds.")
+        stop('any(duplicated(object$genes[[ use ]]))')
         lst <- .deduplicated_genes(object$E, object$genes, use, dup_method)
         object$E <- lst$counts
         object$genes <- lst$genes
@@ -925,7 +958,24 @@ extract_unique_genes.job_limma <- function(
   return(object)
 }
 
-dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x), which = 1L)
+.deduplicated_genes <- function(counts, genes, use, dup_method) {
+  counts <- data.frame(counts, check.names = FALSE)
+  counts <- dplyr::mutate(counts, gene = !!genes[[ use ]])
+  counts <- dplyr::group_by(counts, gene)
+  message(glue::glue("Use function `{dup_method}` for deduplicated."))
+  dup_method <- match.fun(dup_method)
+  counts <- dplyr::summarise(counts, dplyr::across(dplyr::everything(), ~ dup_method(.x)))
+  counts <- dplyr::arrange(counts, gene)
+  counts <- data.frame(counts[, -1], check.names = FALSE)
+  genes <- genes[!duplicated(genes[[ use ]]), ]
+  genes <- dplyr::arrange(genes, !!rlang::sym(use))
+  rownames(counts) <- rownames(genes)
+  namel(counts, genes)
+}
+
+
+dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x), 
+  which = 1L, data.which = attr(x@tables$step2$tops[[ which ]], "all"))
 {
   if (x@step < 2L || is.null(x@tables$step2$tops)) {
     message(
@@ -937,7 +987,7 @@ dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x), which = 1L)
   if (identical(class(object), "list")) {
     object <- new_from_package("EList", "limma", object)
   }
-  top <- attr(x@tables$step2$tops[[ which ]], "all")
+  top <- data.which
   if (!is.null(top$rownames)) {
     rownames_keep <- top$rownames[!duplicated(top[[ ref.use ]])]
   } else {
@@ -984,10 +1034,10 @@ dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x), which = 1L)
 
 .map_boxplot2 <- function(data, pvalue, x = "group", y = "value",
   xlab = "Group", ylab = "Value", ids = "var", test = "wilcox.test", 
-  annotation = NULL, ...)
+  annotation = NULL, fun_plot = geom_boxplot, ...)
 {
   p <- ggplot(data, aes(x = !!rlang::sym(x), y = !!rlang::sym(y), color = !!rlang::sym(x))) +
-    geom_boxplot(outlier.shape = NA, fill = "transparent") +
+    fun_plot(outlier.shape = NA, fill = "transparent") +
     geom_jitter(aes(x = !!rlang::sym(x), y = !!rlang::sym(y), fill = !!rlang::sym(x)),
       stroke = 0, shape = 21, width = .1, color = "transparent") +
     facet_wrap(ggplot2::vars(!!rlang::sym(ids)), ...) +
@@ -1010,9 +1060,23 @@ dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x), which = 1L)
   p
 }
 
+.get_label_height <- function(x, factor = 1.5) {
+  box_stats <- boxplot.stats(x)
+  text_adj <- (box_stats$stats[5] - box_stats$stats[1]) / 15
+  height2 <- max(x)
+  if (!length(box_stats$out)) {
+    return(c(height2 + 0.1 * iqr, text_adj))
+  }
+  q3 <- box_stats$stats[4]
+  iqr <- box_stats$stats[4] - box_stats$stats[2]
+  height3 <- q3 + 0.5 * iqr
+  return(c(height3, text_adj))
+}
+
 plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
-  fc = .3, seed = 1, HLs = NULL, use.fc = "logFC", label.fc = "log2(FC)",
-  label.p = paste0("-log10(", use, ")"), keep_cols = FALSE)
+  fc = .3, seed = 2, HLs = NULL, use.fc = "logFC", label.fc = "log2(FC)",
+  label.p = paste0("-log10(", use, ")"), 
+  keep_cols = FALSE, pal = NULL, circle = FALSE)
 {
   set.seed(seed)
   if (!any(label == colnames(top_table))) {
@@ -1030,28 +1094,33 @@ plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
     change = ifelse(!!rlang::sym(use.fc) > abs(fc), "up",
       ifelse(!!rlang::sym(use.fc) < -abs(fc), "down", "stable"))
   )
-  pal <- color_set2()
+  if (is.null(pal)) {
+    pal <- c("#053061FF", "#67001FFF")
+  }
   p <- ggplot(data, aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use)), color = change)) + 
     geom_point(alpha = 0.8, stroke = 0, size = 1.5) + 
     scale_color_manual(values = c("down" = pal[1], "stable" = "grey90", "up" = pal[2])) +
     geom_hline(yintercept = -log10(0.05), linetype = 4, size = 0.8) +
     geom_vline(xintercept = c(-abs(fc), abs(fc)), linetype = 4, size = 0.8) + 
     labs(x = label.fc, y = label.p) + 
-    ggrepel::geom_text_repel(
-      data = dplyr::distinct(rbind(
-        dplyr::slice_min(data, !!rlang::sym(use), n = 10),
-        dplyr::slice_max(data, abs(!!rlang::sym(use.fc)), n = 20)
-        )), 
-      aes(label = !!rlang::sym(label)), size = 3) +
     rstyle("theme") +
     geom_blank()
   if (!is.null(HLs)) {
     data <- dplyr::filter(data, !!rlang::sym(label) %in% HLs)
     p <- p +
       ggrepel::geom_label_repel(data = data,
-        aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use)), label = !!rlang::sym(label))) +
-      geom_point(data = data, aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use))),
+        aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use)), label = !!rlang::sym(label)))
+    if (circle) {
+      p <- geom_point(data = data, aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use))),
         color = "darkred", shape = 21, fill = "transparent", size = 3, stroke = .5)
+    }
+  } else {
+    p <- p + ggrepel::geom_text_repel(
+      data = dplyr::distinct(rbind(
+          dplyr::slice_min(data, !!rlang::sym(use), n = 10),
+          dplyr::slice_max(data, abs(!!rlang::sym(use.fc)), n = 20)
+          )), 
+      aes(label = !!rlang::sym(label)), size = 3)
   }
   p
 }
@@ -1492,6 +1561,18 @@ extract_tops <- function(x, use = "adj.P.Val", use.cut = 0.05, cut.fc = 0.3){
 
 prepare_expr_data <- function(metadata, counts, genes, message = TRUE) 
 {
+  if (any(duplicated(counts[[ 1 ]]))) {
+    message("Duplicated gene ID column detected.")
+    # Sort the average gene expression levels and retain the gene symbol with the highest average expression level
+    order <- order(
+      apply(counts[, -1, drop = FALSE], 1, mean), decreasing = TRUE
+    )
+    counts <- counts[order, ]
+    genes <- genes[order, ]
+    keep <- !duplicated(counts[[ 1 ]])
+    counts <- counts[keep, ]
+    genes <- genes[keep, ]
+  }
   ## sort and make name for metadata and counts
   checkDup <- function(x) {
     if (any(duplicated(x))) {

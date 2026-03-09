@@ -21,6 +21,7 @@
 
 job_seurat5n <- function(dirs, names = NULL, mode = c("sc", "st"), st.filename = "filtered_feature_bc_matrix.h5")
 {
+  # https://satijalab.org/seurat/articles/parsebio_sketch_integration
   mode <- match.arg(mode)
   n <- 0L
   object <- pbapply::pblapply(dirs,

@@ -665,7 +665,7 @@ order_packaging <- function(target = "output.pdf",
     }
   }
   file.rename("./client.zip", paste0(idname, ".zip"))
-  browseURL(paste0(idname, ".zip"))
+  xdg_open_url(paste0(idname, ".zip"))
   return(idname)
 }
 

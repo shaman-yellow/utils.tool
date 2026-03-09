@@ -192,6 +192,9 @@ setMethod("initialize", "job",
 
 
 setClassUnion("numeric_or_character", c("numeric", "character"))
+setClassUnion(
+  "numeric_or_character_or_logical", c("numeric", "character", "logical")
+)
 
 .feature <- setClass("feature",
   contains = c("vector"),
@@ -399,7 +402,7 @@ setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
     }
     sig <- sig(ref)
     if (length(sig)) {
-      sig <- glue::glue("[Section: {sig}]")
+      sig <- glue::glue("[{sig}]")
     } else {
       sig <- ""
     }
@@ -515,10 +518,16 @@ setReplaceMethod("snap", signature = c(x = "feature"),
     return(x)
   })
 
-setMethod("snap", signature = c(x = "job", ref = "numeric_or_character"),
-  function(x, ref){
+setMethod("snap", signature = c(x = "job", ref = "numeric_or_character_or_logical"),
+  function(x, ref, meth = TRUE){
+    if (is.logical(ref)) {
+      ref <- names(snap(x))
+      ref <- ref[ ref != ".order" ]
+    } else {
+      ref <- paste0("step", ref)
+    }
     fun <- function(ref, fun_extract = snap) {
-      des <- fun_extract(x)[[ paste0("step", ref) ]]
+      des <- fun_extract(x)[[ ref ]]
       if (!is.null(des)) {
         des
       } else {
@@ -527,7 +536,7 @@ setMethod("snap", signature = c(x = "job", ref = "numeric_or_character"),
     }
     res <- unlist(lapply(ref, fun, fun_extract = snap))
     snaps <- paste0(res[ res != "" ], collapse = "")
-    if (getOption("method_into_snap", FALSE)) {
+    if (meth && getOption("method_into_snap", FALSE)) {
       res <- unlist(lapply(ref, fun, fun_extract = meth))
       meths <- paste0(res[ res != "" ], collapse = "")
       meths <- gs(meths, "\n[#]* [^\n]+\n", "")
@@ -976,12 +985,16 @@ setMethod("upd", signature = c(x = "db_expect"),
     return(x)
   })
 
-expect_local_data <- function(dir, name, fun, args) {
-  hash <- digest::digest(args, "md5")
+expect_local_data <- function(dir, name, fun, args, rerun = FALSE)
+{
+  if (!dir.exists(dir)) {
+    stop('!dir.exists(dir).')
+  }
+  hash <- digest::digest(args, "xxhash64", serializeVersion = 3)
   file <- file.path(
     dir, paste0(name, "_", hash, ".rds")
   )
-  if (file.exists(file)) {
+  if (!rerun && file.exists(file)) {
     message(glue::glue('file.exists(file): {file}'))
     obj <- readRDS(file)
   } else {
@@ -1008,7 +1021,9 @@ set_hash_expect <- function(x, ref, id = NULL) {
     if (!len) {
       stop('!len, should has at least one depth.')
     }
-    hash <- digest::digest(c(id, x[[ref@uniqueness]]), "md5")
+    hash <- digest::digest(
+      c(id, x[[ref@uniqueness]]), "xxhash64", serializeVersion = 3
+    )
     hash_expect(x) <- .hash_expect(
       vapply(ref, function(obj) obj@name, character(1)),
       hash = hash
@@ -1413,11 +1428,11 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
       label <- as_chunk_label(x)
       line_label <- paste0("#| ", label)
     }
-    .C("nvimcom_msg_to_nvim", glue::glue('append(line(".") - 1, "{line_label}")'), PACKAGE = "nvimcom")
+    SendCmdToNvim(glue::glue('append(line(".") - 1, "{line_label}")'), PACKAGE = "nvimcom")
     if (ref) {
       line_ref <- glue::glue("`r ref(\"{label}\")`")
       print(line_ref)
-      .C("nvimcom_msg_to_nvim", glue::glue("Add_auto_label_ref('{line_ref}')"), PACKAGE = "nvimcom")
+      SendCmdToNvim(glue::glue("Add_auto_label_ref('{line_ref}')"), PACKAGE = "nvimcom")
     }
   }
 }
@@ -1515,6 +1530,7 @@ pg_local_recode <- function() {
     musitePython = "{conda}/bin/conda run -n musite python3",
     musitePTM = "~/MusiteDeep_web/MusiteDeep/predict_multi_batch.py",
     musitePTM2S = "~/MusiteDeep_web/PTM2S/ptm2Structure.py",
+    hobEnv = "hobpre",
     hobPython = "{conda}/bin/conda run -n hobpre python",
     hobPredict = "~/HOB/HOB_predict.py",
     hobModel = "~/HOB/model",
@@ -1529,7 +1545,8 @@ pg_local_recode <- function() {
     mk_prepare_ligand.py = "mk_prepare_ligand.py",
     prepare_gpf.py = "prepare_gpf.py",
     autogrid4 = "autogrid4",
-    scsa = "/usr/bin/python3 ~/SCSA/SCSA.py",
+    scsaEnv = "scsa",
+    scsa = "{conda}/bin/conda run -n scsa python3 ~/SCSA/SCSA.py",
     scsa_db = "~/SCSA/whole_v2.db",
     pymol = "/usr/bin/python3 -m pymol",
     # sirius = .prefix("sirius/bin/sirius", "op"),
@@ -1935,6 +1952,17 @@ setGeneric("set_remote",
     standardGeneric("set_remote")
   })
 
+create_job_cache <- function(x, path = ".") {
+  if (is(x, "job")) {
+    stop('is(x, "job") == FALSE')
+  }
+  dir <- file.path(
+    path, paste0(s(class(x), "^job_", ""), "_cache_", x@sig)
+  )
+  dir.create(dir, FALSE)
+  return(dir)
+}
+
 set_remote.default <- function(x, tmpdir, map_local, remote) {
   if (is.null(x$set_remote))
     x$set_remote <- TRUE
@@ -2072,10 +2100,12 @@ setGeneric("step1", group = list("step_series"),
       }
     }
     # }
-    if (is.null(seed <- getOption("step_seed"))) {
-      x$seed <- 987456L
-    } else {
-      x$seed <- seed
+    if (is.null(x$seed)) {
+      if (is.null(seed <- getOption("step_seed"))) {
+        x$seed <- 987456L
+      } else {
+        x$seed <- seed
+      }
     }
     x <- checkAddStep(x, 1L)
     if (interactive()) {
@@ -2165,7 +2195,7 @@ job_append_method <- function(x, step = NULL, append = FALSE, method = TRUE, ona
         args <- glue::glue(
           "CheckAndAppendMethod('{oname}', '{step}', '{append}', '{method}')"
         )
-        .C("nvimcom_msg_to_nvim", args, PACKAGE = "nvimcom")
+        SendCmdToNvim(args, PACKAGE = "nvimcom")
       }
     }
   }
@@ -2175,7 +2205,7 @@ job_append_method <- function(x, step = NULL, append = FALSE, method = TRUE, ona
   args <- paste0("CheckAndAppendHeading('", x, "'", if (mutate) ", 1" else ", 0", ")")
   if (requireNamespace("nvimcom")) {
     if (nchar(x)) {
-      .C("nvimcom_msg_to_nvim", args, PACKAGE = "nvimcom")
+      SendCmdToNvim(args, PACKAGE = "nvimcom")
     }
   }
 }
@@ -2189,7 +2219,7 @@ job_append_method <- function(x, step = NULL, append = FALSE, method = TRUE, ona
     }
     args <- glue::glue("InsertText_I('{class}', -1)")
     message("Send to vim: ", args)
-    .C("nvimcom_msg_to_nvim", args, PACKAGE = "nvimcom")
+    SendCmdToNvim(args, PACKAGE = "nvimcom")
   }
 }
 
@@ -2270,8 +2300,10 @@ setGeneric("step12", group = list("step_series"),
     stepPostModify(x, 12)
   })
 
-stepPostModify <- function(x, n = NULL, formal = TRUE) {
-  cli::cli_h1("Job finished & Start post modify")
+stepPostModify <- function(x, n = NULL, formal = TRUE, showH1 = TRUE) {
+  if (showH1) {
+    cli::cli_h1("Job finished & Start post modify")
+  }
   xname <- attr(x@sig, "name")
   news <- c()
   if (formal) {
@@ -2631,8 +2663,11 @@ setGeneric("clear",
 
 setMethod("clear", signature = c(x = "job"),
   function(x, save = TRUE, suffix = NULL, name = substitute(x, parent.frame(1))){
-    if (save)
-      saveRDS(x, paste0(name, ".", x@step, suffix, ".rds"))
+    if (save) {
+      file <- paste0(name, ".", x@step, suffix, ".rds")
+      message("Save RDS: ", file)
+      saveRDS(x, file)
+    }
     object(x) <- NULL
     return(x)
   })
@@ -2697,6 +2732,9 @@ setGeneric("tops",
 
 setGeneric("regroup",
   function(x, ref, ...) standardGeneric("regroup"))
+
+setGeneric("add",
+  function(x, ...) standardGeneric("add"))
 
 setGeneric("diff",
   function(x, ...) standardGeneric("diff"))
@@ -2822,7 +2860,16 @@ setGeneric("is_workflow_object_exists",
 
 setMethod("[[", signature = c(x = "job"),
   function(x, i, ...){
-    x@params[[ i ]]
+    if (identical(i, "project")) {
+      if (!is.null(x@params$project)) {
+        x@params$project
+      } else if (!is.null(x@sig) && nchar(x@sig)) {
+        message("is.null(x@params$project) == TRUE, use `x@sig` as project.")
+        x@sig
+      }
+    } else {
+      x@params[[ i ]]
+    }
   })
 
 setMethod("[[<-", signature = c(x = "job"),
@@ -2883,10 +2930,10 @@ setMethod("gname", signature = c(x = "character"),
   })
 
 activate_celldancer <- function(env_pattern = "cellDancer", conda = "~/miniconda3/bin/conda") {
-  activate_base(env_pattern, conda = conda)
+  activate_env(env_pattern, conda = conda)
 }
 
-activate_base <- function(env_pattern = "base",
+activate_env <- function(env_pattern = "base",
   env_path = pg("conda_env"), conda = pg("conda"))
 {
   meta <- dplyr::filter(e(reticulate::conda_list()), grepl(env_pattern, name))
@@ -2953,7 +3000,11 @@ treeObj <- function(obj, stops = c("gg", "wrap", "data.frame"), maxdepth = 10L, 
 }
 
 .view_obj <- function(x, howto = "vsplit") {
-  nvimcom:::nvim_viewobj(x, howto = howto)
+  if (any(formalArgs(nvimcom:::nvim_viewobj) == "howto")) {
+    nvimcom:::nvim_viewobj(x, howto = howto)
+  } else {
+    nvimcom:::nvim_dput(x, howto = howto)
+  }
 }
 
 view_obj_for_vim <- function(x, y, view = TRUE) {
@@ -3018,12 +3069,91 @@ view_obj_for_vim <- function(x, y, view = TRUE) {
   }
   .vimPre <- function(name = "Content", howto = "vsplit") {
     msg <- paste0("ShowRObj(\"", howto, "\", \"", name, "\", \"r\")")
-    .C("nvimcom_msg_to_nvim", msg, PACKAGE = "nvimcom")
+    SendCmdToNvim(msg, PACKAGE = "nvimcom")
   }
   .prepare_vimShow(text)
   invisible(.vimPre(name, howto))
 }
 
+#' Provide completion files for the specified R package.
+#' 
+#' Some R packages will not be provided with completion files by
+#' `nvimcom` (R.nvim), such as R packages loaded using `devtools::load_all`.
+#' This function provides additional completion.
+#' However, it should be noted that the R package does not have an
+#' Rd document, so it is currently not possible to obtain parameter
+#' description for the completion.
+#' 
+#' @NOTE This function will generate an additional file saved in:
+#' `file.path(Sys.getenv("RNVIM_COMPLDIR"), "extra_completion_packages.rds")`
+#' 
+#' @param pkgname The package name. 
+build_completion_for_package <- function(pkgname) {
+  allpkgs <- rownames(installed.packages())
+  if (any(allpkgs == pkgname)) {
+    stop(
+      "The R package has already been installed and will be automatically ",
+      "completed by nvimcom, so no additional completion is required."
+    )
+  }
+  ns <- try(getNamespace(pkgname), TRUE)
+  if (inherits(ns, "try-error")) {
+    stop("There is no package named: ", pkgname)
+  }
+  bdir <- Sys.getenv("RNVIM_COMPLDIR")
+  if (!dir.exists(bdir)) {
+    stop("Unable to obtain a valid `RNVIM COMPDIR`.")
+  }
+  pvl <- as.character(packageVersion(pkgname))
+  rds.exPkgs <- file.path(bdir, "extra_completion_packages.rds")
+  if (file.exists(rds.exPkgs)) {
+    exPkgs <- readRDS(rds.exPkgs)
+  } else {
+    exPkgs <- NULL
+  }
+  if (!any(names(exPkgs) == pkgname)) {
+    exr <- pvl
+    names(exr) <- pkgname
+    saveRDS(c(exPkgs, exr), rds.exPkgs)
+    message("Write RDS file: ", rds.exPkgs)
+  }
+  isFileExists <- function(file) {
+    if (file.exists(file)) {
+      message("File esits, update: ", file)
+    }
+    file
+  }
+  nvimcom:::nvim.bol(isFileExists(paste0(bdir, "/objls_", pkgname, "_", pvl)), pkgname)
+  nvim.buildArgsWithoutDescription(isFileExists(paste0(bdir, "/args_", pkgname)), pkgname)
+}
+
+#' Build completion of augments without description
+#' 
+#' The R package does not have an Rd file. Therefore, the
+#' completion does not involve the explanation of parameters.
+#' 
+#' @param afile The file to output.
+#' @param pkg The package name.
+nvim.buildArgsWithoutDescription <- function(afile, pkg) {
+  envir <- asNamespace(pkg)
+  sink(afile)
+  all_objects <- ls(envir = envir)
+  lapply(all_objects,
+    function(name) {
+      fun <- get(name, envir = envir)
+      if (!is.function(fun)) {
+        return(NULL)
+      }
+      args <- methods::formalArgs(fun)
+      args <- paste0(
+        paste0(args, "\x05", "`", args, "`: ", "..."), collapse = "\x06"
+      )
+      line <- paste0(name, "\x06", paste0(args, "\x06"))
+      cat(line, sep = "", "\n")
+    })
+  sink()
+  return(invisible(NULL))
+}
 
 get_workflow_news <- function(..., data = get_orders()) {
   lst <- as.Date(unlist(list(...)))
@@ -3319,7 +3449,7 @@ menuThat <- function(qs, x, ...) {
     choices <- bind(
       paste0("\"", c(x, "exit", qs), "\""), co = ", "
     )
-    .C("nvimcom_msg_to_nvim", glue::glue('RSelect({choices})'), PACKAGE = "nvimcom")
+    SendCmdToNvim(glue::glue('RSelect({choices})'), PACKAGE = "nvimcom")
   }
   menu(qs, title = x, ...)
 }
@@ -3347,7 +3477,7 @@ sureThat <- function(x, yes = c("Yes", "Sure", "Yup",
     choices <- bind(
       paste0("\"", c(x, "exit", qs), "\""), co = ", "
     )
-    .C("nvimcom_msg_to_nvim", glue::glue('RSelect({choices})'), PACKAGE = "nvimcom")
+    SendCmdToNvim(glue::glue('RSelect({choices})'), PACKAGE = "nvimcom")
   }
   rlang::inform(x)
   out <- utils::menu(qs)
@@ -3543,3 +3673,19 @@ clear_others <- function(names, envir = .GlobalEnv) {
   rm(list = names, envir = envir)
   gc()
 }
+
+SendCmdToNvim <- function(cmd = "print('test')", ...) {
+  routines <- getDLLRegisteredRoutines("nvimcom")
+  sym <- routines$.C[["nvimcom_msg_to_nvim"]]
+  if (!is.null(sym)) {
+    cmd <- glue::glue('vim.cmd([[call {cmd}]])')
+    .C(sym, cmd, PACKAGE = "nvimcom")
+  } else {
+    .C("nvimcom_msg_to_nvim", cmd, PACKAGE = "nvimcom")
+  }
+}
+
+# .doubleQuote <- function(string) {
+#   gsub("\"", "\\\"", string)
+# }
+

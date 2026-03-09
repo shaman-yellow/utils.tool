@@ -60,9 +60,9 @@ setMethod("step0", signature = c(x = "job_stringdb"),
   })
 
 setMethod("step1", signature = c(x = "job_stringdb"),
-  function(x, tops = 30, layout = "kk", species = 9606,
+  function(x, tops = 30, layout = "kk", species = 9606, score_threshold = 400,
     network_type = "phy", input_directory = .prefix("stringdb_physical_v12.0", name = "db"),
-    version = "12.0", label = FALSE, HLs = NULL, use.anno = TRUE,
+    version = "12.0", label = FALSE, HLs = NULL, use.anno = TRUE, link_data = "detailed",
     file_anno = .prefix("stringdb_physical_v12.0/9606.protein.physical.links.full.v12.0.txt.gz", name = "db"),
     filter.exp = 0, filter.text = 0, MCC = FALSE)
   {
@@ -73,8 +73,9 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     }
     if (is.null(x@params$sdb)) {
       message("Use STRINGdb network type of '", network_type, "'")
-      sdb <- new_stringdb(species = species, network_type = network_type,
-        input_directory = input_directory, version = version
+      sdb <- new_stringdb(
+        score_threshold = score_threshold, species = species, network_type = network_type,
+        input_directory = input_directory, version = version, link_data = link_data
       )
       x@params$sdb <- sdb
     } else {
@@ -126,7 +127,9 @@ setMethod("step1", signature = c(x = "job_stringdb"),
       p.ppi <- .set_lab(wrap(p.ppi, 4.5, 3), sig(x), "raw PPI network")
     }
     ## hub genes
-    message("Calculate MCC score.")
+    if (MCC) {
+      message("Calculate MCC score.")
+    }
     hub_genes <- cal_mcc.str(res.str, "Symbol", FALSE, MCC = MCC)
     graph_mcc <- get_subgraph.mcc(res.str$graph, hub_genes, top = tops)
     x$graph_mcc <- graph_mcc <- fast_layout(graph_mcc, layout = "linear", circular = TRUE)
@@ -148,7 +151,12 @@ setMethod("step1", signature = c(x = "job_stringdb"),
       namel(hub_genes)
     )
     x@params$tops <- tops
-    meth(x)$step1 <- glue::glue("以 R 包 `STEINGdb` ({packageVersion('STRINGdb')}) {cite_show('TheStringDataSzklar2021')} 构建 PPI 网络。数据版本为 {version}，互作类型为 {network_type}。以 Cytohubba {cite_show('CytohubbaIdenChin2014')} 的算法计算 MCC score (在 R 中计算) 。随后，以 `ggraph` 可视化网络 ({packageVersion('ggraph')})。")
+    if (MCC) {
+      ex <- glue::glue("以 Cytohubba {cite_show('CytohubbaIdenChin2014')} 的算法计算 MCC score (在 R 中计算) 。")
+    } else {
+      ex <- ""
+    }
+    meth(x)$step1 <- glue::glue("以 R 包 `STEINGdb` ({packageVersion('STRINGdb')}) {cite_show('TheStringDataSzklar2021')} 构建 PPI 网络。数据版本为 {version}，互作类型为 {network_type}。置信评分 (confidence score) 阈值为 {score_threshold / 1000}。{ex}随后，以 `ggraph` 可视化网络 ({packageVersion('ggraph')})。")
     return(x)
   })
 
@@ -286,13 +294,22 @@ new_stringdb <- function(
   score_threshold = 200,
   species = 9606,
   network_type = c("physical", "full"),
+  link_data = c("detailed", "full", "combined_only"),
   input_directory = .prefix("stringdb_physical_v12.0", name = "db"),
   version = "12.0")
 {
-  e(STRINGdb::STRINGdb$new(score_threshold = score_threshold,
-    species = species, network_type = match.arg(network_type),
-    input_directory = input_directory, version = version
-  ))
+  if (packageVersion("STRINGdb") < "2.22.0") {
+    e(STRINGdb::STRINGdb$new(score_threshold = score_threshold,
+        species = species, network_type = match.arg(network_type), 
+        input_directory = input_directory, version = version
+        ))
+  } else {
+    e(STRINGdb::STRINGdb$new(score_threshold = score_threshold,
+        species = species, network_type = match.arg(network_type), 
+        link_data = match.arg(link_data),
+        input_directory = input_directory, version = version
+        ))
+  }
 }
 
 create_interGraph <- function(sdb, data, col = "name", rm.na = TRUE) {

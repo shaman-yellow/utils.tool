@@ -6,7 +6,10 @@
  
 
 setClass("aplot")
-setClassUnion("can_not_be_draw", c("recordedplot", "aplot"))
+setClass("pheatmap")
+setClassUnion(
+  "can_not_be_draw", c("recordedplot", "aplot", "pheatmap")
+)
 
 files <- setClass("files", 
   contains = c("character"),
@@ -58,7 +61,11 @@ setMethod("show", signature = c(object = "files"),
     if (length(object) > 1) {
       lapply(object, function(x) browseURL(as.character(x)))
     } else {
-      browseURL(as.character(object))
+      if (.Platform$OS.type == "unix") {
+        browseURL(as.character(object), "xdg-open")
+      } else {
+        browseURL(as.character(object))
+      }
     }
   })
 
@@ -101,7 +108,7 @@ format_bindingdb.tsv <- function(file,
 
 get_realname <- function(filename) {
   name <- basename(filename)
-  gsub("\\..*$", "", name)
+  tools::file_path_sans_ext(name)
 }
 
 cdRun <- function(..., path = ".", sinkFile = NULL)
@@ -2753,12 +2760,15 @@ setGeneric("as_tibble",
   function(x, ...) standardGeneric("as_tibble"))
 
 setMethod("as_tibble", signature = c(x = "df"),
-  function(x, ...){
+  function(x, ..., idcol = NULL){
     rownames <- rownames(x)
     x <- tibble::as_tibble(x, ...)
     if (!identical(rownames, as.character(seq_len(nrow(x))))) {
       x <- dplyr::mutate(x, rownames = !!rownames)
       x <- dplyr::relocate(x, rownames)
+      if (!is.null(idcol)) {
+        colnames(x)[1] <- idcol
+      }
     }
     return(x)
   })

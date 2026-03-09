@@ -10,7 +10,7 @@
     tables = "list",
     others = "ANY"),
   prototype = prototype(
-    info = c("https://htmlpreview.github.io/?https://github.com/sqjin/CellChat/blob/master/tutorial/CellChat-vignette.html"),
+    info = c("https://htmlpreview.github.io/?https://github.com/jinworks/CellChat/blob/master/tutorial/CellChat-vignette.html"),
     cite = "[@InferenceAndAJinS2021]",
     method = "R package `CellChat` used for cell communication analysis",
     tag = "scrna:cellchat",
@@ -62,7 +62,7 @@ setMethod("step0", signature = c(x = "job_cellchat"),
 
 setMethod("step1", signature = c(x = "job_cellchat"),
   function(x, workers = 4, python = NULL, py_config = FALSE, debug = FALSE, 
-    org = c("human", "mouse"), ...)
+    org = c("human", "mouse"), smooth = FALSE, ...)
   {
     step_message("One step forward computation of most. ")
     org <- match.arg(org)
@@ -105,10 +105,14 @@ setMethod("step1", signature = c(x = "job_cellchat"),
       ## cell communication
       object(x) <- e(CellChat::identifyOverExpressedGenes(object(x)))
       object(x) <- e(CellChat::identifyOverExpressedInteractions(object(x)))
-      if (!is.null(ppi)) {
-        object(x) <- e(CellChat::projectData(object(x), ppi))
+      if (smooth && !is.null(ppi)) {
+        object(x) <- e(CellChat::smoothData(object(x), adj = ppi))
+        object(x) <- e(
+          CellChat::computeCommunProb(object(x), raw.use = FALSE)
+        )
+      } else {
+        object(x) <- e(CellChat::computeCommunProb(object(x)))
       }
-      object(x) <- e(CellChat::computeCommunProb(object(x)))
       object(x) <- e(CellChat::filterCommunication(object(x), min.cells = 10))
       lp_net <- as_tibble(CellChat::subsetCommunication(object(x)))
       object(x) <- e(CellChat::computeCommunProbPathway(object(x)))

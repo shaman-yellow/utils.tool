@@ -82,8 +82,8 @@ setMethod("step2", signature = c(x = "assist_anno"),
           }
         })
     }
-    .C("nvimcom_msg_to_nvim", "ToggleWinheight()", PACKAGE = "nvimcom")
-    .C("nvimcom_msg_to_nvim", "ShowNotifyWindow(['Appending contents.'])", PACKAGE = "nvimcom")
+    SendCmdToNvim("ToggleWinheight()", PACKAGE = "nvimcom")
+    SendCmdToNvim("ShowNotifyWindow(['Appending contents.'])", PACKAGE = "nvimcom")
     if (target) {
       meta <- x$dataTarget
       anno <- matchMdContent(x$anno, x$target)
@@ -101,7 +101,7 @@ setMethod("step2", signature = c(x = "assist_anno"),
   contents <- paste0(shQuote(contents), collapse = ", ")
   contents <- paste0("[", contents, "]")
   arg <- paste0("append(", line, ", ", contents, ")")
-  .C("nvimcom_msg_to_nvim", arg, PACKAGE = "nvimcom")
+  SendCmdToNvim(arg, PACKAGE = "nvimcom")
 }
 
 matchMdContent <- function(data, target, only.title = FALSE, mode = c("all", "description")) {

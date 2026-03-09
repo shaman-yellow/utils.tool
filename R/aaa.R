@@ -264,6 +264,12 @@ repSuffix <-
                 }))
   }
 
+if (!exists("%||%")) {
+  `%||%` <- function(x, y) {
+    if (is.null(x)) y else x
+  }
+}
+
 #' @export %>%
 #' @aliases %>%
 #' @description \code{%>%}: ...
@@ -957,3 +963,209 @@ smart_wrap <- function(plots, size = 3, ...) {
   p$layout <- layout
   return(p)
 }
+
+reinstall <- function(pkg) {
+  BiocManager::install(ask = FALSE, force = TRUE, update = FALSE, pkg)
+}
+
+xdg_open_url <- function(object, ...) {
+  if (.Platform$OS.type == "unix") {
+    browseURL(object, "xdg-open", ...)
+  } else {
+    browseURL(object, ...)
+  }
+}
+
+
+# my_add_pval <- function(
+#   ggplot_obj, pairs = NULL, test = "wilcox.test", heights = NULL,
+#   barheight = NULL, textsize = 5, pval_text_adj = NULL, annotation = NULL,
+#   log = FALSE, pval_star = FALSE, plotly = FALSE, fold_change = FALSE,
+#   parse_text = NULL, response = "infer", ...
+# )
+# {
+#   if (is.null(pairs)) {
+#     total_groups <- length(unique(ggplot_obj$data[[ggpval:::get_in_parenthesis(as.character(ggplot_obj$mapping[1]))]]))
+#     if (total_groups == 2) {
+#       pairs <- list(c(1, 2))
+#     } else {
+#       pairs <- lapply(2:total_groups, function(x) {
+#         c(
+#           1,
+#           x
+#         )
+#       })
+#     }
+#   }
+#   if (is.null(parse_text)) {
+#     if (is.null(annotation)) {
+#       parse_text <- TRUE
+#     } else {
+#       parse_text <- FALSE
+#     }
+#   }
+#   facet <- NULL
+#   n_facet <- 1
+#   ggplot_obj$data <- data.table::data.table(ggplot_obj$data)
+#   if (class(ggplot_obj$facet)[1] != "FacetNull") {
+#     if (class(ggplot_obj$facet)[1] == "FacetGrid") {
+#       facet <- c(names(ggplot_obj$facet$params$cols), names(ggplot_obj$facet$params$rows))
+#     } else {
+#       facet <- names(ggplot_obj$facet$params$facets)
+#     }
+#     if (length(facet) > 1) {
+#       facet_ <- NULL
+#       ggplot_obj$data[, `:=`(facet_, paste0(
+#         get(facet[1]),
+#         get(facet[2])
+#       ))]
+#       comb <- expand.grid(levels(as.factor(ggplot_obj$data[
+#         ,
+#         get(facet[1])
+#       ])), levels(as.factor(ggplot_obj$data[
+#         ,
+#         get(facet[2])
+#       ])))
+#       facet_level <- paste0(comb[, 1], comb[, 2])
+#       facet <- "facet_"
+#     } else {
+#       facet_level <- levels(as.factor(ggplot_obj$data[
+#         ,
+#         get(facet)
+#       ]))
+#     }
+#     n_facet <- length(unique(ggplot_obj$data[, get(facet)]))
+#   }
+#   if (!is.null(heights)) {
+#     if (length(pairs) != length(heights)) {
+#       pairs <- rep_len(heights, length(pairs))
+#     }
+#   }
+#   ggplot_obj$data$group__ <- ggplot_obj$data[, get(ggpval:::get_in_parenthesis(as.character(ggplot_obj$mapping[1])))]
+#   ggplot_obj$data$group__ <- factor(ggplot_obj$data$group__)
+#   if (response == "infer") {
+#     response_ <- ggpval:::infer_response(ggplot_obj)
+#   } else {
+#     response_ <- response
+#   }
+#   ggplot_obj$data$response <- ggplot_obj$data[, get(response_)]
+#   y_range <- layer_scales(ggplot_obj)$y$range$range
+#   if (is.null(barheight)) {
+#     barheight <- (y_range[2] - y_range[1]) / 20
+#   }
+#   if (is.null(heights)) {
+#     heights <- y_range[2] + barheight
+#     heights <- rep(heights, length = length(pairs))
+#   }
+#   if (length(barheight) != length(pairs)) {
+#     barheight <- rep(barheight, length = length(pairs))
+#   }
+#   if (is.null(pval_text_adj)) {
+#     pval_text_adj <- barheight * 0.5
+#   }
+#   if (length(pval_text_adj) != length(pairs)) {
+#     pval_text_adj <- rep(pval_text_adj, length = length(pairs))
+#   }
+#   if (!is.null(annotation)) {
+#     if ((length(annotation) != length(pairs)) && length(annotation) !=
+#       n_facet) {
+#       annotation <- rep(annotation, length = length(pairs))
+#     }
+#     if (is.list(annotation)) {
+#       if (length(annotation[[1]]) != length(pairs)) {
+#         annotation <- lapply(annotation, function(a) {
+#           rep(a,
+#             length = length(pairs)
+#           )
+#         })
+#       }
+#     }
+#     annotation <- data.frame(annotation)
+#   }
+#   if (log) {
+#     barheight <- exp(log(heights) + barheight) - heights
+#     pval_text_adj <- exp(log(heights) + pval_text_adj) -
+#       heights
+#   }
+#   V1 <- aes <- annotate <- geom_line <- group__ <- response <- labs <- NULL
+#   for (i in seq(length(pairs))) {
+#     if (length(unique(pairs[[1]])) != 2) {
+#       stop("Each vector in pairs must have two different groups to compare, e.g. c(1,2) to compare first and second box.")
+#     }
+#     test_groups <- levels(ggplot_obj$data$group__)[pairs[[i]]]
+#     data_2_test <- ggplot_obj$data[ggplot_obj$data$group__ %in%
+#       test_groups, ]
+#     if (!is.null(facet)) {
+#       pval <- data_2_test[, lapply(.SD, function(i) {
+#         get(test)(response ~
+#           as.character(group__), ...)$p.value
+#       }),
+#       by = facet,
+#       .SDcols = c("response", "group__")
+#       ]
+#       pval <- pval[, `:=`(facet, factor(get(facet), levels = facet_level))][
+#         order(facet),
+#         group__
+#       ]
+#     } else {
+#       pval <- get(test)(data = data_2_test, response ~
+#         group__, ...)$p.value
+#       if (fold_change) {
+#         fc <- data_2_test[, median(response), by = group__][order(group__)][,
+#           .SD[1] / .SD[2],
+#           .SDcols = "V1"
+#         ][, V1]
+#         fc <- paste0("FC=", round(fc, digits = 2))
+#         pval <- paste(pval, fc)
+#       }
+#     }
+#     if (pval_star & is.null(annotation)) {
+#       pval <- pvars2star(pval)
+#       annotation <- t(t(pval))
+#     }
+#     height <- heights[i]
+#     df_path <- data.frame(
+#       group__ = rep(pairs[[i]], each = 2),
+#       response = c(height, height + barheight[i], height +
+#         barheight[i], height)
+#     )
+#     ggplot_obj <- ggplot_obj + geom_line(
+#       data = df_path,
+#       aes(x = group__, y = response), inherit.aes = F
+#     )
+#     if (is.null(annotation)) {
+#       labels <- sapply(pval, function(i) {
+#         ggpval:::format_pval(i, plotly)
+#       })
+#     } else {
+#       labels <- unlist(annotation[i, ])
+#     }
+#     if (is.null(facet)) {
+#       anno <- data.table::data.table(
+#         x = (pairs[[i]][1] + pairs[[i]][2]) / 2,
+#         y = height + barheight[i] + pval_text_adj[i],
+#         labs = labels
+#       )
+#     } else {
+#       anno <- data.table::data.table(x = rep(
+#         (pairs[[i]][1] + pairs[[i]][2]) / 2,
+#         n_facet
+#       ), y = rep(
+#         height + barheight[i] + pval_text_adj[i],
+#         n_facet
+#       ), labs = labels, facet = facet_level)
+#       data.table::setnames(anno, "facet", eval(facet))
+#     }
+#     labs <- geom_text <- x <- y <- NULL
+#     # Added here: size=textsize
+#     ggplot_obj <- ggplot_obj + geom_text(
+#       data = anno, aes(
+#         x = x,
+#         y = y, label = labs
+#       ), size = textsize, parse = !pval_star & !plotly,
+#       inherit.aes = FALSE
+#     )
+#   }
+#   ggplot_obj
+# }
+#

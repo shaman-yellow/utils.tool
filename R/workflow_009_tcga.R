@@ -63,6 +63,7 @@ setMethod("step1", signature = c(x = "job_tcga"),
   {
     step_message("Get information in TCGA.")
     object(x) <- object(x)[ names(object(x)) %in% query ]
+    dir.create(.prefix("GDCdata", "db"), FALSE)
     if (is.null(x@tables$step1)) {
       object(x) <- pbapply::pblapply(object(x),
           function(args) {

@@ -51,7 +51,8 @@ setMethod("step1", signature = c(x = "job_pubchemr"),
       names(x) <- names
       return(x)
     }
-    x$smiles <- fun_format(props, "IsomericSMILES")
+    # IsomericSMILES -> SMILES
+    x$smiles <- fun_format(props, "SMILES")
     x$inks <- fun_format(props, "InChIKey")
     x$synonyms <- split(synonyms, ~ CID)
     return(x)

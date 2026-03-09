@@ -58,21 +58,6 @@ setMethod("asjob_lasso", signature = c(x = "job_limma"),
     return(x)
   })
 
-.deduplicated_genes <- function(counts, genes, use, dup_method) {
-  counts <- data.frame(counts, check.names = FALSE)
-  counts <- dplyr::mutate(counts, gene = !!genes[[ use ]])
-  counts <- dplyr::group_by(counts, gene)
-  message(glue::glue("Use function `{dup_method}` for deduplicated."))
-  dup_method <- match.fun(dup_method)
-  counts <- dplyr::summarise(counts, dplyr::across(dplyr::everything(), ~ dup_method(.x)))
-  counts <- dplyr::arrange(counts, gene)
-  counts <- data.frame(counts[, -1], check.names = FALSE)
-  genes <- genes[!duplicated(genes[[ use ]]), ]
-  genes <- dplyr::arrange(genes, !!rlang::sym(use))
-  rownames(counts) <- rownames(genes)
-  namel(counts, genes)
-}
-
 job_lasso <- function(data, metadata) {
   .job_lasso(object = data, params = list(metadata = metadata))
 }

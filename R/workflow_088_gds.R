@@ -60,6 +60,13 @@ job_gds <- function(keys,
     "n_samples", "PubMedIds", "BioProject"),
   ...)
 {
+  if (!nchar(Sys.which("esearch"))) {
+    message(glue::glue('!nchar(Sys.which("esearch")), try set PATH...'))
+    if (dir.exists("~/edirect")) {
+      path <- normalizePath("~/edirect")
+    }
+    Sys.setenv(PATH = paste(path, Sys.getenv("PATH"), sep = ":"))
+  }
   query <- add_field(keys, "[Description]")
   if (is.integer(n)) {
     n <- paste0(min(n), ":", max(n))

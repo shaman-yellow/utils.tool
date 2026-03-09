@@ -92,12 +92,11 @@ job_gsea <- function(topTable, annotation, use)
     message("Missing `annotation`, use 'hgnc_symbol' to get annotation.")
     if (TRUE) {
       topTable <- dplyr::mutate(topTable, symbol = gname(symbol))
-      annotation <- e(
-        clusterProfiler::bitr(
-          topTable$symbol, fromType = "SYMBOL", toType = "ENTREZID",
-          OrgDb = org.Hs.eg.db::org.Hs.eg.db
-        )
-      )
+
+      annotation <- e(AnnotationDbi::select(org.Hs.eg.db::org.Hs.eg.db,
+          keys = unique(topTable$symbol),
+          keytype = "SYMBOL", columns = c("SYMBOL", "ENTREZID")))
+      annotation <- annotation[!is.na(annotation[, 2]), ]
       annotation <- dplyr::rename(
         annotation, symbol = SYMBOL, entrezgene_id = ENTREZID
       )
@@ -268,66 +267,83 @@ setMethod("step3", signature = c(x = "job_gsea"),
       ))
   {
     step_message("Custom database for GSEA enrichment.")
-    ## general analysis
-    if (missing(db)) {
-      mode <- match.arg(mode)
-      db_anno <- e(msigdbr::msigdbr(species = "Homo sapiens", category = mode))
-      if (!is.null(db_filter)) {
-        db_anno <- dplyr::filter(
-          db_anno, grpl(gs_description, db_filter, TRUE)
-        )
-      }
-      db <- dplyr::select(db_anno, gs_id, symbol = gene_symbol)
-      x <- methodAdd(x, "以 R 包 `msigdbr` ({packageVersion('msigdbr')}) 获取 MSigDB 数据库基因集，用于 clusterProfiler GSEA 富集分析。")
-      x <- snapAdd(x, "以 `msigdbr` 获取 {mode} ({names(mode)}) 基因集。")
-    }
-    if (FALSE) {
-      insDb <- lapply(split(db, ~ term),
-        function(data) intersect(data$symbol, names(object(x)$symbol)))
-      p.pie_insDb <- new_pie(rep(names(insDb), lengths(insDb)))
-      table_insDb <- dplyr::filter(db, symbol %in% names(object(x)$symbol))
-    }
-    ## enrichment
-    res.gsea <- e(clusterProfiler::GSEA(object(x)$symbol, TERM2GENE = db,
-        pvalueCutoff = cutoff))
-    x <- snapAdd(
-      x, "使用 {mode} 数据集, 以 `clusterProfiler::GSEA` 对 {less(names(object(x)$symbol))} 富集分析。"
+    .gsea_custom_db(
+      x, db, cutoff, pattern = pattern, pvalue = pvalue, 
+      db_anno = db_anno, db_filter = db_filter, mode = mode
     )
-    table_gsea <- dplyr::as_tibble(res.gsea@result)
-    table_gsea <- dplyr::mutate(table_gsea,
-      geneName_list = strsplit(core_enrichment, "/"),
-      Count = lengths(geneName_list),
-      GeneRatio = round(as.double(stringr::str_extract(leading_edge, "[0-9]+")) / 100, 2)
-    )
-    table_gsea <- set_lab_legend(table_gsea, glue::glue("GSEA pathway list of {mode} data"),
-        glue::glue("为 GSEA 按 {mode} ({names(mode)}) 数据集富集附表。")
-    )
-    if (!is.null(db_anno) && all(c("gs_id", "gs_description") %in% colnames(db_anno))) {
-      table_gsea <- map(
-        table_gsea, "ID", db_anno, "gs_id", "gs_description", col = "Description"
-      )
-      p.gsea <- plot_kegg(table_gsea)
-      p.gsea <- .set_lab(p.gsea, sig(x), glue::glue("GSEA pathway list of {mode}"))
-      p.gsea <- setLegend(p.gsea, "为 GSEA 按 {mode} ({names(mode)}) 数据集富集图。")
-    } else {
-      p.gsea <- NULL
-    }
-    if (!is.null(pattern)) {
-      p.code <- vis(
-        x, pattern, res.gsea = res.gsea, table_gsea = table_gsea, 
-        pvalue = pvalue
-      )
-    } else {
-      p.code <- NULL
-    }
-    x@params$res.gsea <- res.gsea
-    x@params$db.gsea <- db
-    x$db_anno <- db_anno
-    x@tables[[ 3 ]] <- namel(table_gsea)
-    p.code <- .set_lab(p.code, sig(x), "GSEA plot of pathway")
-    x@plots[[ 3 ]] <- namel(p.code, p.gsea)
-    return(x)
   })
+
+.gsea_custom_db <- function(x, db, cutoff = .05, pattern = NULL, pvalue = FALSE, 
+    db_anno = NULL, db_filter = NULL, mode = c(
+      "curated gene sets" = "C2",
+      "hallmark gene sets" = "H",
+      "positional gene sets" = "C1",
+      "regulatory target gene sets" = "C3",
+      "computational gene sets" = "C4",
+      "ontology gene sets" = "C5",
+      "oncogenic signature gene sets" = "C6"
+      ))
+{
+  ## general analysis
+  if (missing(db)) {
+    mode <- match.arg(mode)
+    db_anno <- e(msigdbr::msigdbr(species = "Homo sapiens", category = mode))
+    if (!is.null(db_filter)) {
+      db_anno <- dplyr::filter(
+        db_anno, grpl(gs_description, db_filter, TRUE)
+      )
+    }
+    db <- dplyr::select(db_anno, gs_id, symbol = gene_symbol)
+    x <- methodAdd(x, "以 R 包 `msigdbr` ({packageVersion('msigdbr')}) 获取 MSigDB 数据库基因集，用于 clusterProfiler GSEA 富集分析。")
+    x <- snapAdd(x, "以 `msigdbr` 获取 {mode} ({names(mode)}) 基因集。")
+  }
+  if (FALSE) {
+    insDb <- lapply(split(db, ~ term),
+      function(data) intersect(data$symbol, names(object(x)$symbol)))
+    p.pie_insDb <- new_pie(rep(names(insDb), lengths(insDb)))
+    table_insDb <- dplyr::filter(db, symbol %in% names(object(x)$symbol))
+  }
+  ## enrichment
+  res.gsea <- e(clusterProfiler::GSEA(object(x)$symbol, TERM2GENE = db,
+      pvalueCutoff = cutoff))
+  x <- snapAdd(
+    x, "使用 {mode} 数据集, 以 `clusterProfiler::GSEA` 对 {less(names(object(x)$symbol))} 富集分析。"
+  )
+  table_gsea <- dplyr::as_tibble(res.gsea@result)
+  table_gsea <- dplyr::mutate(table_gsea,
+    geneName_list = strsplit(core_enrichment, "/"),
+    Count = lengths(geneName_list),
+    GeneRatio = round(as.double(stringr::str_extract(leading_edge, "[0-9]+")) / 100, 2)
+  )
+  table_gsea <- set_lab_legend(table_gsea, glue::glue("GSEA pathway list of {mode} data"),
+    glue::glue("为 GSEA 按 {mode} ({names(mode)}) 数据集富集附表。")
+  )
+  if (!is.null(db_anno) && all(c("gs_id", "gs_description") %in% colnames(db_anno))) {
+    table_gsea <- map(
+      table_gsea, "ID", db_anno, "gs_id", "gs_description", col = "Description"
+    )
+    p.gsea <- plot_kegg(table_gsea)
+    p.gsea <- .set_lab(p.gsea, sig(x), glue::glue("GSEA pathway list of {mode}"))
+    p.gsea <- setLegend(p.gsea, "为 GSEA 按 {mode} ({names(mode)}) 数据集富集图。")
+  } else {
+    p.gsea <- NULL
+  }
+  if (!is.null(pattern)) {
+    p.code <- vis(
+      x, pattern, res.gsea = res.gsea, table_gsea = table_gsea, 
+      pvalue = pvalue
+    )
+  } else {
+    p.code <- NULL
+  }
+  x@params$res.gsea <- res.gsea
+  x@params$db.gsea <- db
+  x$db_anno <- db_anno
+  x <- tablesAdd(x, table_gsea)
+  p.code <- .set_lab(p.code, sig(x), "GSEA plot of pathway")
+  x <- plotsAdd(x, p.code, p.gsea)
+  return(x)
+}
 
 setMethod("vis", signature = c(x = "job_gsea"),
   function(x, pattern, map = NULL, res.gsea = NULL, table_gsea = NULL,
