@@ -105,6 +105,7 @@
     `scrna:strna` = "空间转录组常规分析 (大致同单细胞数据) [scrna-method]",
     `scrna:anno:scsa` = "SCSA、ChatGPT-4 细胞注释[scrna-method]",
     `scrna:monocle` = "Monocle3 拟时分析[scrna-method]",
+    `monocle` = "",
     `scrna:sub:pseudo` = "以拟时分析区分细胞亚群 (__dep__)[scrna-method]",
     `ppi` = "STRINGdb 构建 PPI 网络[rna-method]",
     `scrna:integrate` = "不同来源的 scRNA-seq 数据整合 (__dep__)",
@@ -180,6 +181,10 @@
     `seurat5n` = "单细胞数据分析[rna-method]",
     `lnctard` = "LncRNA调控靶点[gene]",
     `gtopdb` = "IUPHAR/BPS Guide to PHARMACOLOGY 药理学靶点和配体数据库",
+    `rms` = "列线图构建与评估",
+    `gBan` = "",
+    `locate` = "",
+    `regulaNet` = "",
     `deseq2` = "",
     `mlearn` = ""
   )

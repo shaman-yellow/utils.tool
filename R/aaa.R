@@ -33,6 +33,9 @@ add_filename_suffix <- function(file, suffix, sep = "_") {
 }
 
 new_from_package <- function(Class, package, ...) {
+  if (!requireNamespace(package)) {
+    stop('!requireNamespace(package).')
+  }
   ClassDef <- getClass(Class, where = asNamespace(package))
   value <- .Call(methods:::C_new_object, ClassDef)
   initialize(value, ...)
@@ -783,6 +786,13 @@ reset_object_name <- function(old, new, env = .GlobalEnv) {
 }
 
 bind <- function(..., co = ", ", quote = FALSE) {
+  args <- list(...)
+  if (length(args) == 1 && is(args[[1]], "list") && !is.null(names(args[[1]]))) {
+    arg <- unlist(args[[1]])
+    return(
+      paste0(paste0(names(arg), " = ", arg), collapse = ", ")
+    )
+  }
   if (quote) {
     paste0('"', ..., '"', collapse = co)
   } else {

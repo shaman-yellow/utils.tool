@@ -131,12 +131,29 @@ timeName <- function(prefix) {
 }
 
 get_seq.pro <- function(ids, mart, unique = TRUE, fasta = TRUE, 
-  from = "hgnc_symbol", to = "peptide", type = c("max", "min"), 
-  distinct = TRUE, max_long = 3000L)
+  from = "hgnc_symbol", type = c("max", "min"), 
+  distinct = TRUE, max_long = 3000L, trunc = TRUE)
 {
   ids <- unique(ids)
-  data <- e(biomaRt::getSequence(id = ids, type = from, seqType = to, mart = mart))
-  data <- filter(data, !grepl("unavailable", !!rlang::sym(to)))
+  to <- "peptide"
+  transcript_info <- e(biomaRt::getBM(
+      attributes = c(from, "ensembl_peptide_id", "transcript_is_canonical"),
+      filters = from, values = ids, mart = mart
+      ))
+  if (!nrow(transcript_info)) {
+    stop('!nrow(transcript_info).')
+  }
+  which_not_in_data(transcript_info, from, ids, "All transcripts")
+  transCano <- dplyr::filter(transcript_info, !is.na(transcript_is_canonical) & transcript_is_canonical == 1)
+  which_not_in_data(transCano, from, ids, "Canonical transcripts")
+  data <- e(
+    biomaRt::getSequence(
+      id = transCano$ensembl_peptide_id, type = "ensembl_peptide_id",
+      seqType = to, mart = mart
+    )
+  )
+  data <- merge(transCano, data, by = "ensembl_peptide_id")
+  which_not_in_data(data, from, ids, "Peptide for Canonical transcripts")
   if (unique) {
     data <- dplyr::mutate(data, long = nchar(!!rlang::sym(to)))
     type <- match.arg(type)
@@ -152,10 +169,14 @@ get_seq.pro <- function(ids, mart, unique = TRUE, fasta = TRUE,
       data <- dplyr::distinct(data, hgnc_symbol, .keep_all = TRUE)
     }
   }
+  if (trunc) {
+    data[[ to ]] <- sub("\\*$", "", data[[ to ]])
+  }
+  data <- tibble::as_tibble(data)
   if (fasta) {
     fasta <- apply(data, 1,
       function(vec) {
-        c(paste0(">", vec[[2]]), vec[[1]])
+        c(paste0("> ", vec[[from]], "|", vec[["ensembl_peptide_id"]]), vec[[to]])
       })
     fasta <- .fasta(unlist(fasta))
     namel(data, fasta)

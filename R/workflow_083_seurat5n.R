@@ -35,9 +35,9 @@ job_seurat5n <- function(dirs, names = NULL, mode = c("sc", "st"), st.filename =
       }
     })
   x <- .job_seurat5n(object = object)
-  if (!is.null(names)) {
-    x <- snapAdd(x, "读取 {bind(names)} 样本的数据集。")
-  }
+  # if (!is.null(names)) {
+  #   x <- snapAdd(x, "读取 {bind(names)} 样本的数据集。")
+  # }
   object(x) <- e(SeuratObject:::merge.Seurat(object(x)[[1]], object(x)[-1]))
   object(x)[[ "percent.mt" ]] <- e(Seurat::PercentageFeatureSet(object(x), pattern = "^MT-"))
   p.qc_pre <- plot_qc.seurat(x)
@@ -54,20 +54,21 @@ setMethod("step0", signature = c(x = "job_seurat5n"),
   })
 
 setMethod("step1", signature = c(x = "job_seurat5n"),
-  function(x, min.features, max.features, max.percent.mt = 5)
+  function(x, min.features, max.features, max.count, max.percent.mt = 5)
   {
     step_message("Quality control (QC).")
     if (!is.null(min.features)) {
       object(x) <- e(SeuratObject:::subset.Seurat(
           object(x), subset = nFeature_RNA > min.features &
-            nFeature_RNA < max.features & percent.mt < max.percent.mt
+            nFeature_RNA < max.features & percent.mt < max.percent.mt &
+            nCount_RNA < max.count
           ))
       p.qc_aft <- plot_qc.seurat(x)
       p.qc_aft <- .set_lab(p.qc_aft, sig(x), "After Quality control")
       p.qc_aft <- setLegend(p.qc_aft, "为数据过滤后的 QC 图。")
       x@params$p.qc_aft <- p.qc_aft
-      x <- snapAdd(x, "前期质量控制，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。过滤后，所有样本共包含{ncol(object(x))}个细胞用于后续分析。")
-      x <- methodAdd(x, "一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。")
+      x <- methodAdd(x, "前期质量控制，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。保留总基因表达量小于 {max.count} 细胞。过滤后，所有样本共包含{ncol(object(x))}个细胞用于后续分析。")
+      # x <- methodAdd(x, "一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。")
     }
     return(x)
   })
@@ -96,7 +97,7 @@ setMethod("step2", signature = c(x = "job_seurat5n"),
           ))
       message(glue::glue("Shift assays to {SeuratObject::DefaultAssay(object(x))}"))
       x <- methodAdd(
-        x, "使用 `Seurat::SCTransform` 对数据集归一化。"
+        x, "使用 `Seurat::SCTransform` 对数据集归一化 (<https://satijalab.org/seurat/articles/sctransform_vignette>) 。"
       )
     } else {
       object(x) <- e(Seurat::NormalizeData(object(x)))
@@ -108,56 +109,86 @@ setMethod("step2", signature = c(x = "job_seurat5n"),
     }
     object(x) <- e(Seurat::RunPCA(object(x)))
     p.pca_rank <- e(Seurat::ElbowPlot(object(x), ndims))
-    p.pca_rank <- wrap(pretty_elbowplot(p.pca_rank), 4, 4)
-    p.pca_rank <- .set_lab(p.pca_rank, sig(x), "Standard deviations of PCs")
-    p.pca_rank <- setLegend(p.pca_rank, "为主成分 (PC) 的 Standard deviations。")
-    x@plots[[ 2 ]] <- namel(p.pca_rank)
+    # add Seurat::PCAPlot
+    p.pca_rank <- set_lab_legend(
+      wrap(pretty_elbowplot(p.pca_rank), 4, 4),
+      glue::glue("{x@sig} Standard deviations of PCs"),
+      glue::glue("主成分 (PC) 的标准化方差 (Standard deviations)。")
+    )
+    x <- plotsAdd(x, p.pca_rank)
     x <- methodAdd(x, "随后 PCA 聚类 (`RunPCA`)。")
-    x <- snapAdd(x, "数据归一化，PCA 聚类 (Seurat 标准工作流，见方法章节) 后，绘制 PC standard deviations 图。")
+    # x <- snapAdd(x, "数据归一化，PCA 聚类 (Seurat 标准工作流，见方法章节) 后。")
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_seurat5n"),
-  function(x, dims = 1:15, resolution = 1.2, use = c("HarmonyIntegration", "CCAIntegration"), ...)
+  function(x, dims = 1:15, resolution = 1.2,
+    use = c("HarmonyIntegration", "CCAIntegration", "RPCAIntegration"), ...)
   {
     step_message("Identify clusters of cells")
-    if (!is.null(x$JoinLayers) && x$JoinLayers) {
-      message("Job is 'job_seurat5n', but 'JoinLayers' has been performed, so `callNextMethod`.")
-      x <- callNextMethod(x, dims, resolution, ...)
-      return(x)
-    }
-    object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims, reduction = "pca"))
-    object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution,
-        cluster.name = "unintegrated_clusters"))
-    object(x) <- e(Seurat::RunUMAP(object(x), dims = dims,
-        reduction = "pca", reduction.name = "umap_unintegrated"))
-    p.umapUint <-  e(Seurat::DimPlot(object(x), reduction = "umap_unintegrated",
-        group.by = c("orig.ident", "seurat_clusters"), cols = color_set(TRUE)))
-    p.umapUint <- .set_lab(wrap(p.umapUint, 10, 5), sig(x), "UMAP Unintegrated")
-    p.umapUint <- setLegend(p.umapUint, "为去除批次效应之前的 UMAP 聚类图。")
-    ## integrated
     use <- match.arg(use)
-    methods <- list(CCAIntegration = Seurat::CCAIntegration,
-      HarmonyIntegration = Seurat::HarmonyIntegration)
-    use <- match.arg(use, names(methods))
-    object(x) <- e(Seurat::IntegrateLayers(object = object(x),
-        method = methods[[ use ]], orig.reduction = "pca",
-        new.reduction = use, verbose = FALSE))
-    object(x)[["RNA"]] <- e(SeuratObject::JoinLayers(object(x)[["RNA"]]))
-    ## SeuratObject::DefaultDimReduc, search in case of UMAP
-    object(x)@reductions$umap_unintegrated <- NULL
-    ## method of job_seurat
-    x <- callNextMethod(
-      x, dims, resolution, reduction = use, ...
-    )
+    if (!is.null(x$JoinLayers) && x$JoinLayers) {
+      message("Job is 'job_seurat5n', but 'JoinLayers' has been performed.")
+      object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims, reduction = use))
+      object(x) <- e(
+        Seurat::FindClusters(object(x), resolution = resolution, ...)
+      )
+      object(x) <- e(
+        Seurat::RunUMAP(object(x), dims = dims, reduction = use, ...)
+      )
+    } else {
+      if (is.null(x$.before_IntegrateLayers)) {
+        object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims, reduction = "pca"))
+        object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution,
+            cluster.name = "unintegrated_clusters"))
+        object(x) <- e(Seurat::RunUMAP(object(x), dims = dims,
+            reduction = "pca", reduction.name = "umap_unintegrated"))
+        x$.before_IntegrateLayers <- TRUE
+      }
+      p.umapUint <-  e(Seurat::DimPlot(object(x), reduction = "umap_unintegrated",
+          group.by = c("orig.ident", "seurat_clusters"), cols = color_set(TRUE)))
+      p.umapUint <- .set_lab(wrap(p.umapUint, 10, 5), sig(x), "UMAP Unintegrated")
+      p.umapUint <- setLegend(p.umapUint, "为去除批次效应之前的 UMAP 聚类图。")
+      x <- plotsAdd(x, p.umapUint)
+      ## integrated
+      methods <- list(CCAIntegration = Seurat::CCAIntegration,
+        HarmonyIntegration = Seurat::HarmonyIntegration,
+        RPCAIntegration = Seurat::RPCAIntegration
+      )
+      use <- match.arg(use, names(methods))
+      object <- object(x)
+      res <- try(e(Seurat::IntegrateLayers(object = object,
+            method = methods[[ use ]], orig.reduction = "pca",
+            new.reduction = use, verbose = FALSE,
+            normalization.method = if (object@active.assay == "SCT") "SCT" else "LogNormalize")))
+      if (!inherits(res, "try-error")) {
+        object(x) <- res
+      } else {
+        warning("Got error while perform `Seurat::IntegrateLayers`, return the job.")
+        return(x)
+      }
+      object(x)[["RNA"]] <- e(SeuratObject::JoinLayers(object(x)[["RNA"]]))
+      ## SeuratObject::DefaultDimReduc, search in case of UMAP
+
+      object(x)@reductions$umap_unintegrated <- NULL
+      ## method of job_seurat
+      x <- callNextMethod(
+        x, dims, resolution, reduction = use, ...
+      )
+      x <- methodAdd(
+        x, "以 `Seurat::IntegrateLayers` 集成数据，去除批次效应 (使用 {use} 方法)。", add = FALSE
+      )
+    }
     p.umapInt <-  e(Seurat::DimPlot(object(x),
         group.by = c("orig.ident", "seurat_clusters"), cols = color_set(TRUE)))
+    p.umapLabel <-  e(Seurat::DimPlot(object(x),
+        group.by = c("seurat_clusters"), 
+        cols = color_set(TRUE), label = TRUE))
     p.umapInt <- .set_lab(wrap(p.umapInt, 10, 5), sig(x), "UMAP Integrated")
-    p.umapInt <- setLegend(p.umapInt, "为 去除批次效应之后的 UMAP 聚类图。")
-    plots <- namel(p.umapUint, p.umapInt)
-    x@plots[[ 3 ]] <- c(x@plots[[ 3 ]], plots)
-    x <- methodAdd(x, "以 `Seurat::IntegrateLayers` 集成数据，去除批次效应 (使用 {use} 方法)。在 1-{max(dims)} PC 维度下，以 `Seurat::FindNeighbors` 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 `Seurat::FindClusters` 函数识别细胞群并以 `Seurat::RunUMAP` 进行 UMAP 聚类。", add = FALSE)
-    x <- snapAdd(x, "去除批次效应后 (详见方法章节) ，在 1-{max(dims)} PC 维度，{resolution} 分辨率下，对细胞群 UMAP 聚类。", add = FALSE)
+    p.umapInt <- setLegend(p.umapInt, "去除批次效应之后的 UMAP 聚类图。")
+    x <- plotsAdd(x, p.umapInt, p.umapLabel)
+    x <- methodAdd(x, "在 1-{max(dims)} PC 维度下，以 `Seurat::FindNeighbors` 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 `Seurat::FindClusters` 函数识别细胞群并以 `Seurat::RunUMAP` 进行 UMAP 聚类。")
+    # x <- snapAdd(x, "去除批次效应后 (详见方法章节) ，在 1-{max(dims)} PC 维度，{resolution} 分辨率下，对细胞群 UMAP 聚类。", add = FALSE)
     x$JoinLayers <- TRUE
     return(x)
   })

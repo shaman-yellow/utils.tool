@@ -207,14 +207,22 @@ get_bindingdb_data <- function(url = "https://www.bindingdb.org/bind/downloads/B
 }
 
 get_drugbank_data <- function(url = "https://go.drugbank.com/releases/5-1-11/downloads/all-full-database",
-  user = c("202011113511016@zcmu.edu.cn", "qiu23224856"),
-  save = .prefix("drugbank/drugbank_all_full_database.xml.zip", "db"),
+  user = c("12419085@zju.edu.cn"), password = NULL,
+  dir_save = .prefix("drugbank", "db"), 
   file_unzip = paste0(dirname(save), "/full database.xml"))
 {
+  save <- file.path(dir_save, "drugbank_all_full_database.xml.zip")
   if (!file.exists(file_unzip)) {
     if (!file.exists(save)) {
-      dir.create(dirname(save), FALSE)
-      cdRun("wget ", " --http-user=", user[1], " --http-passwd=", user[2], " ", url, " -O ", save)
+      dir.create(dir_save, FALSE)
+      if (is.null(password)) {
+        if (interactive()) {
+          password <- readline("Input the password: ")
+        } else {
+          stop("No password available.")
+        }
+      }
+      cdRun("wget ", " --http-user=", user[1], " --http-passwd=", password, " ", url, " -O ", save)
     }
     utils::unzip(save, exdir = dirname(save))
   }

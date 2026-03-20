@@ -201,20 +201,23 @@ setMethod("regroup", signature = c(x = "job_deseq2", ref = "character"),
     return(x)
   })
 
-.guess_level_deseq2 <- function(x, which) {
+.guess_compare_deseq2 <- function(x, which) {
   .get_group_from_contrast_character(names(x@tables$step2$t.results)[which])
 }
 
 setMethod("focus", signature = c(x = "job_deseq2"),
   function(x, ref, ref.use = "guess", which = 1L, run_roc = TRUE,
-    which.roc = 1L, level.roc = .guess_level_deseq2(x, which.roc),
-    .name = "m", use = c("adj.P.Val", "P.Value"), sig = FALSE, clear = "auto", ...)
+    which.roc = 1L, level.roc = .guess_compare_deseq2(x, which.roc),
+    .name = "m", use = c("adj.P.Val", "P.Value"), 
+    sig = FALSE, clear = "auto", test = "wilcox.test", ...)
   {
     # if which set to NULL, wilcox.test will be used.
     # else, the test results in 'results' table will be extracted.
     use <- match.arg(use)
-    data <- DESeq2::counts(object(x), normalized = TRUE)
-    data <- log2(data + 1)
+    if (x@step < 1L) {
+      stop('x@step < 1L.')
+    }
+    data <- SummarizedExperiment::assay(x$vst)
     fakeLmJob <- .job_limma(sig = x@sig, step = 2L)
     allData <- lapply(
       x@tables$step2$t.results, dplyr::rename,
@@ -235,7 +238,7 @@ setMethod("focus", signature = c(x = "job_deseq2"),
     fakeLmJob <- focus(
       fakeLmJob, ref = ref, ref.use = ref.use,
       .name = .name, which = which, data.which = data.which, sig = sig, 
-      , use = use, ...
+      , use = use, test = test, ...
     )
     where <- paste0("focusedDegs_", .name)
     if (identical(clear, "auto")) {
@@ -257,7 +260,7 @@ setMethod("focus", signature = c(x = "job_deseq2"),
     x <- snapAdd(x, snap, step = .name)
     pvalue <- resStat$p.BoxPlotOfDEGs$pvalue
     x <- snapAdd(
-      x, "{bind(names(pvalue))}表达差异的统计学显著性 P 为 {bind(pvalue)}。", step = .name
+      x, "{bind(names(pvalue))}表达差异的 {test} 统计学显著性 P 为 {bind(pvalue)}。", step = .name
     )
     if (run_roc) {
       snaps <- bind(
@@ -265,6 +268,31 @@ setMethod("focus", signature = c(x = "job_deseq2"),
       )
       x <- snapAdd(x, "\n\n{snaps}", step = .name)
     }
+    return(x)
+  })
+
+setMethod("asjob_iobr", signature = c(x = "job_deseq2"),
+  function(x, idType = "Symbol", source = c("local", "biomart"), ...)
+  {
+    if (x@step < 1L) {
+      stop('x@step < 1L.')
+    }
+    mtx <- SummarizedExperiment::assay(object(des.iua))
+    message("Transform the count to TPM.")
+    message(glue::glue("The data dim: {bind(dim(mtx))}"))
+    require(IOBR)
+    dir.create("tmp", FALSE)
+    source <- match.arg(source)
+    args <- list(countMat = mtx, idType = idType, source = source)
+    mtx <- expect_local_data(
+      "tmp", "iobr_tpm", IOBR::count2tpm, args
+    )
+    # mtx <- e(IOBR::count2tpm(mtx, idType = idType, source = source, ...))
+    message(glue::glue("The data dim: {bind(dim(mtx))}"))
+    metadata <- data.frame(x$vst@colData)
+    vst <- SummarizedExperiment::assay(x$vst)
+    x <- job_iobr(mtx, metadata = metadata)
+    x$vst <- vst
     return(x)
   })
 

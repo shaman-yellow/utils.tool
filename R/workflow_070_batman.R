@@ -351,12 +351,19 @@ try_get_syn <- function(cids, db_dir = .prefix("synonyms", "db")) {
     if (length(query)) {
       syns <- e(PubChemR::get_synonyms(query))
       syns <- e(PubChemR::synonyms(syns))
+      iupac <- e(PubChemR::get_properties(query, namespace = "cid", properties = "IUPACName"))
+      iupac <- e(PubChemR::retrieve(iupac, .combine.all = TRUE))
+      iupac <- dplyr::select(iupac, CID, Synonyms = IUPACName)
+      syns <- dplyr::bind_rows(syns, iupac)
       db <- upd(db, syns)
     }
     syns <- dplyr::filter(db@db, CID %in% !!cids)
   }
   syns <- dplyr::rename(syns, syno = Synonyms)
   syns <- dplyr::filter(syns, !!!.filter_pick.general)
+  which_not_in_data(
+    syns, "CID", cids, "Filter general names"
+  )
   syns <- dplyr::group_by(syns, CID)
   syns <- dplyr::reframe(syns, Synonym = PickGeneral(syno))
   dplyr::ungroup(syns)

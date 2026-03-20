@@ -336,9 +336,10 @@ setMethod("step5", signature = c(x = "job_lasso"),
     return(x)
   })
 
-plot_roc <- function(roc, cols = ggsci::pal_npg()(9), groups = NULL) {
+plot_roc <- function(roc, from = .05, to = .2, x = .5, cols = ggsci::pal_npg()(9), groups = NULL)
+{
   if (is(roc, "list")) {
-    pos <- seq(.05, .3, length.out = length(roc))
+    pos <- seq(from, to, length.out = length(roc))
     if (!is.null(groups)) {
       if (!all(names(roc) %in% names(groups))) {
         stop('!all(names(roc) %in% names(groups)).')
@@ -354,18 +355,18 @@ plot_roc <- function(roc, cols = ggsci::pal_npg()(9), groups = NULL) {
         function(n) {
           plot(roc[[n]], col = cols[n], add = n > 1)
           graphics::text(
-            .7, pos[n], paste0(names(roc)[n], " AUC: ", signif(roc[[n]]$auc[[1]], 2)),
-            cex = 1.2, col = cols[n], adj = c(0, 0)
+            x, pos[n], paste0(names(roc)[n], " AUC: ", signif(roc[[n]]$auc[[1]], 2)),
+            cex = .9, col = cols[n], adj = c(0, 0)
           )
         })
     })
   } else {
     expr <- expression({
       plot(roc)
-      text(.1, .1, paste0("AUC: ", round(roc$auc[[1]], 2)), cex = 1.2)
+      text(.1, .1, paste0("AUC: ", round(roc$auc[[1]], 2)), cex = .9)
     })
   }
-  wrap(as_grob(expr, environment()), 6, 6)
+  wrap(as_grob(expr, environment()), 5, 4)
 }
 
 plot_sig <- function(data, x = colnames(data)[1], y = colnames(data)[2],

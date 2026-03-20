@@ -11,6 +11,20 @@ setClassUnion(
   "can_not_be_draw", c("recordedplot", "aplot", "pheatmap")
 )
 
+.funPlot <- setClass("funPlot",
+  contains = c("can_not_be_draw"),
+  representation = representation(fun = "function", args = "list"),
+  prototype = NULL)
+
+funPlot <- function(fun, args) {
+  .funPlot(fun = fun, args = args)
+}
+
+setMethod("show", signature = c(object = "funPlot"),
+  function(object){
+    do.call(object@fun, object@args)
+  })
+
 files <- setClass("files", 
   contains = c("character"),
   representation = representation(),
@@ -1302,10 +1316,11 @@ setMethod("draw_sampletree", signature = c(x = "wgcData"),
   })
 
 wrap_scale <- function(data, n_width, n_height, min_width = NULL, min_height = NULL,
-  pre_width = 2, pre_height = 2, max_width = 15, max_height = 12, size = .4, ...)
+  pre_width = 2, pre_height = 2, max_width = 15, max_height = 12, 
+  size = .4, w.size = size, h.size = size, ...)
 {
-  width <- n_width * size + pre_width
-  height <- n_height * size  + pre_height
+  width <- n_width * w.size + pre_width
+  height <- n_height * h.size  + pre_height
   if (!is.null(min_width)) {
     width <- max(width, min_width)
   }
@@ -1424,7 +1439,8 @@ setGeneric("cal_corp",
   })
 
 setMethod("cal_corp", signature = c(x = "df", y = "df"),
-  function(x, y, row_var = "row_var", col_var = "col_var", trans = FALSE, fast = TRUE)
+  function(x, y, row_var = "row_var", col_var = "col_var",
+    trans = FALSE, fast = TRUE, method = "pearson", ...)
   {
     x <- data.frame(x)
     y <- data.frame(y)
@@ -1443,7 +1459,7 @@ setMethod("cal_corp", signature = c(x = "df", y = "df"),
       y <- t(y)
     }
     if (fast) {
-      cor <- agricolae::correlation(x, y)
+      cor <- agricolae::correlation(x, y, method = method, ...)
       # message("as_data_long ...")
       data <- as_data_long(cor$correlation, cor$pvalue, row_var, col_var, "cor", "pvalue")
       # message("as_data_long finished.")
@@ -1999,14 +2015,20 @@ set_appendix <- function() {
 }
 
 autor_preset <- function(echo = FALSE, eval = FALSE, 
-  autor_relocate = TRUE, autor_legends_gather = FALSE,
-  method_into_snap = TRUE, ...)
+  # autor_relocate: move files to a new directory while `order_packaging` 
+  autor_relocate = FALSE, autor_legends_gather = FALSE,
+  autor_locate_file = FALSE, legend_as_caption = TRUE, method_into_snap = TRUE,
+  autor_show_cite_IF = FALSE, autor_chinese_marks = TRUE, ...)
 {
   options(
     autor_unnamed_number = 1, autor_relocate = autor_relocate,
     autoLegendsVisuable = autor_legends_gather,
     autor_legends_gather = autor_legends_gather,
-    method_into_snap = method_into_snap
+    method_into_snap = method_into_snap,
+    autor_locate_file = autor_locate_file,
+    legend_as_caption = legend_as_caption,
+    autor_chinese_marks = autor_chinese_marks,
+    autor_show_cite_IF = autor_show_cite_IF
   )
   knitr::opts_chunk$set(
     echo = echo, eval = eval, message = FALSE, warning = FALSE,
@@ -2175,7 +2197,11 @@ setMethod("autor", signature = c(x = "list", name = "character"),
 setMethod("autor", signature = c(x = "can_not_be_draw", name = "character"),
   function(x, name, ...){
     file <- autosv(x, name, ...)
-    autor(file, name, ...)
+    if (getOption("legend_as_caption", TRUE)) {
+      autor(fig(file), name, caption = Legend(x), ...)
+    } else {
+      autor(fig(file), name, ...)
+    }
     if (!is.null(lich <- attr(x, "lich"))) {
       abstract(lich, name)
       file <- autosv(lich, name <- paste0(name, "-content"))
@@ -2188,7 +2214,11 @@ setClassUnion("can_be_draw", c("gg.obj", "heatdata", "grob.obj"))
 setMethod("autor", signature = c(x = "can_be_draw", name = "character"),
   function(x, name, ...){
     file <- autosv(x, name, ...)
-    autor(file, name, ...)
+    if (getOption("legend_as_caption", TRUE)) {
+      autor(fig(file), name, caption = Legend(x), ...)
+    } else {
+      autor(fig(file), name, ...)
+    }
   })
 
 suppressMessages(setMethod("autor", signature = c(x = "layout_tbl_graph"),
@@ -2293,7 +2323,7 @@ setGeneric("include",
 
 ## include for fig
 setMethod("include", signature = c(x = "fig"),
-  function(x, name, ...){
+  function(x, name, caption = NULL, ...){
     if (knitr::is_latex_output()) {
       cat("\n\\def\\@captype{figure}\n")
       cat("\\begin{center}\n",
@@ -2302,7 +2332,10 @@ setMethod("include", signature = c(x = "fig"),
         "}\\label{fig:", name, "}\n",
         "\\end{center}\n", sep = "")
     } else {
-      inclu.fig(as.character(x), saveDir = "report_picture", name = name)
+      inclu.fig(
+        as.character(x), saveDir = "report_picture", name = name,
+        caption = caption
+      )
     }
   })
 
@@ -2647,6 +2680,9 @@ locate_file <- function(name, des = "File path: ", relocate = getOption("autor_r
   } else {
     file <- autoRegisters[[ name ]]
   }
+  if (!getOption("autor_locate_file", FALSE)) {
+    return()
+  }
   if (!file.exists(autoRegisters[[ name ]]))
     stop("file.exists(autoRegisters[[ name ]] == FALSE)")
   if (needTex()) {
@@ -2897,8 +2933,7 @@ new_upset <- function(..., lst = NULL, trunc = "left", width = 30, convert = TRU
   data <- do.call(dplyr::mutate, c(list(data), lst))
   data <- .upset(as_tibble(data), params = namel(trunc, width))
   if (convert) {
-    show(data)
-    p <- wrap(recordPlot())
+    p <- wrap(data)
     p$ins <- ins(lst = raw.lst)
     lich <- list(All_intersection = p$ins)
     if (!is.null(ins)) {
@@ -2926,190 +2961,6 @@ setdev <- function(width, height) {
   name <- names(dev.cur())
   if (name == "null device")
     dev.new(width = width, height = height)
-}
-
-## logistic
-new_lrm <- function(data, formula, rev.level = FALSE, lang = c("cn", "en"), B = 500, ...)
-{
-  fun_escape_bug_of_rms <- function() {
-    wh <- which(vapply(seq_len(ncol(data)), function(n) is.factor(data[[ n ]]), FUN.VALUE = logical(1)))
-    if (any(grpl(colnames(data)[ wh ], "\\s"))) {
-      stop("`Due to the bug of `rms`, the names of columns of which is factor, can not contains blank")
-    }
-  }
-  fun_escape_bug_of_rms()
-  if (is.character(formula)) {
-    message("Detected `formula` input with 'character', use as 'y'.")
-    if (length(formula) > 1) {
-      stop("length(formula) > 1")
-    }
-    if (!formula %in% colnames(data)) {
-      stop("The 'y' not found in colnames of data.")
-    }
-    formula <- paste0(formula, " ~ ",
-      paste0(
-        paste0("`", colnames(data)[ colnames(data) != formula ], "`"),
-        collapse = " + "
-      )
-    )
-    message("Guess Formula: ", formula)
-    formula <- as.formula(formula)
-  }
-  isColChar <- apply(data, 2, is.character)
-  if (any(isColChar)) {
-    message("Convert all character columns as factor.")
-    data <- dplyr::mutate(data, dplyr::across(dplyr::where(is.character), as.factor))
-  }
-  lang <- match.arg(lang)
-  y <- as.character(formula[[ 2 ]])
-  outcome <- data[[ y ]]
-  if (rev.level) {
-    data[[ y ]] <- factor(outcome, levels = rev(levels(outcome)))
-  }
-  message("Check levels: ", paste0(levels <- levels(data[[ y ]]), collapse = ", "))
-  set_rms_datadist(data)
-  fit <- e(rms::lrm(formula, data = data, x = TRUE, y = TRUE))
-  # 95\\% CL
-  # exp(confint.default(lrm.eff$fit))
-  if (TRUE) {
-    message("Use boot to calculate average C-index ...")
-    ## use boot to calculate average C-index and 95\\% CI
-    fun_c_index <- function(data, indices) {
-      data <- data[ indices, ]
-      fit <- rms::lrm(formula, data = data)
-      fit$stats[ c("C", "P") ]
-    }
-    boot <- boot::boot(data, fun_c_index, R = B)
-    boot.ci <- boot::boot.ci(boot, .95, type = "basic")
-    fun <- function() {
-      means <- apply(boot$t, 2, mean)
-      ci <- tail(boot.ci$basic[1, ], n = 2)
-      new_lich(list(`Re-sample` = B, `C-index` = means[1],
-          `P-value` = means[2], "95\\% CI" = paste0(ci, collapse = " ~ "))
-      )
-    }
-    lich <- fun()
-    lich <- .set_lab(lich, "bootstrap others")
-    boots <- namel(boot, boot.ci, lich)
-  }
-  if (FALSE) {
-    old <- getOption("prType")
-    options(prType = "html")
-    html <- paste0(print(lrm.supp$fit))
-    coefs <- get_table.html(html)
-    options(prType = old)
-  } else {
-    coefs <- NULL
-  }
-  cal <- rms::calibrate(fit, method = "boot", B = B)
-  if (lang == "cn") {
-    xlab <- paste0("预测", levels[2], "概率")
-    ylab <- paste0("实际", levels[2], "概率")
-  } else {
-    xlab <- "Predicted Probability"
-    ylab <- "observed Probability"
-  }
-  p.cal <- as_grob(
-    expression(plot(cal, xlim = c(0, 1), ylim = c(0, 1),
-        xlab = xlab, ylab = ylab, subtitle = FALSE)), environment()
-  )
-  if (lang == "cn") {
-    message("Try convert English legend as Chinese.")
-    labels <- p.cal$children[[15]]$label
-    if (identical(labels, c("Apparent", "Bias-corrected", "Ideal"))) {
-      p.cal$children[[15]]$label <- c("表观状态", "误差纠正", "理想状态")
-    }
-  }
-  p.cal <- wrap(p.cal, 7, 7)
-  p.cal <- .set_lab(p.cal, "bootstrap calibration")
-  roc <- new_roc(data[[ y ]], predict(fit), lang = lang, ...)
-  .add_internal_job(.job(method = "R package `rms` used for Logistic regression and nomogram visualization"))
-  namel(fit, coefs, data, levels, cal, p.cal, roc, lang, boots)
-}
-
-set_rms_datadist <- function(data) {
-  .RMS_datadist <- e(rms::datadist(data))
-  assign(".RMS_datadist", .RMS_datadist, envir = .GlobalEnv)
-  message("A global variable defined herein: `.RMS_datadist`.")
-  options(datadist = ".RMS_datadist")
-}
-
-new_nomo <- function(lrm, fun_label = lrm$levels[2], lang = lrm$lang,
-  lp = FALSE, fun_at = seq(.1, .9, by = .1))
-{
-  if (!is(lrm, "list")) {
-    stop("the `lrm` should be object 'list' return by `new_lrm`")
-  }
-  lang <- match.arg(lang, c("cn", "en"))
-  set_rms_datadist(lrm$data)
-  fun_label <- if (lang == "en") {
-    paste0("Risk of ", fun_label)
-  } else {
-    paste0(fun_label, "风险")
-  }
-  nomo <- e(rms::nomogram(lrm$fit, fun = stats::plogis,
-      funlabel = fun_label, lp = lp, fun.at = fun_at))
-  if (lang == "en") {
-    plot(nomo, lplabel = "Linear Predictor",
-      points.label = 'Points', total.points.label = 'Total Points'
-    )
-  } else {
-    plot(nomo, lplabel = "线性预测",
-      points.label = '分数', total.points.label = '总分'
-    )
-  }
-  p.nomo <- wrap(recordPlot(), 10, .6 * length(lrm$fit$coefficients) + .3)
-  p.nomo <- .set_lab(p.nomo, "nomogram plot")
-  namel(p.nomo, nomo)
-}
-
-new_roc <- function(y, x, ..., plot.thres = NULL, lang = c("en", "cn"), cn.mode = c("zhen", "1-"))
-{
-  lang <- match.arg(lang)
-  roc <- pROC::roc(y, x, ..., ci = TRUE)
-  if (TRUE) {
-    # try get p-value
-    # https://stackoverflow.com/questions/61997453/how-to-get-p-value-after-roc-analysis-with-proc-package
-    fun_p <- function() {
-      v <- pROC::var(roc)
-      b <- roc$auc - .5
-      se <- sqrt(v)
-      z <- (b / se)
-      2 * pt(-abs(z), df = Inf)
-    }
-    p.value <- fun_p()
-  }
-  thres <- pROC::coords(roc, "best")
-  if (lang == "cn") {
-    cn.mode <- match.arg(cn.mode)
-    if (cn.mode == "zhen") {
-      xlab <- "假阳性率"
-      ylab <- "真阳性率"
-    } else {
-      xlab <- "1-特异性"
-      ylab <- "敏感性"
-    }
-  } else {
-    xlab <- "Specificity"
-    ylab <- "Sensitivity"
-  }
-  p.roc <- as_grob(
-    expression(pROC::plot.roc(roc, print.thres = plot.thres, print.auc = TRUE,
-        print.auc.x = .4, print.auc.y = .05,
-        xlab = xlab, ylab = ylab)), environment()
-  )
-  p.roc <- wrap(p.roc, 7, 7)
-  p.roc <- .set_lab(p.roc, "ROC")
-  .add_internal_job(.job(method = "R package `pROC` used for building ROC curve"))
-  lich <- new_lich(
-    list(AUC = as.double(roc$auc),
-      "95\\% CI" = roc$ci[-2],
-      `P-value` = p.value
-    )
-  )
-  lich <- .set_lab(lich, "ROC others")
-  data <- tibble::tibble(Sensitivities = roc$sensitivities, Specificities = roc$specificities)
-  namel(p.roc, thres, roc, p.value, lich, data)
 }
 
 new_allu <- function(data, col.fill = 1, axes = 1:2,

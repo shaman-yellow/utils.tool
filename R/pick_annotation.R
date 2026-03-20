@@ -108,7 +108,7 @@ pick_synonym <-
 #' @rdname pick_annotation
 .filter_pick.general <-
   list(quote(!is.na(syno)),
-    quote(!grepl('[0-9]{3}', syno)),
+    quote(!grepl('[0-9]{5}', syno)),
     quote(!grepl('^[A-Z-]{1,5}$', syno)),
     quote(!grepl('^[A-Z0-9]{1,}$', syno)),
     quote(!grepl('(?<=-)[A-Z0-9]{5,}$', syno, perl = TRUE)),
@@ -122,7 +122,7 @@ pick_synonym <-
 #' @rdname pick_annotation
 PickGeneral <- function(syno,
   ps = c("^[a-zA-Z]*$", "^[a-zA-Z-]*$",
-    "^[a-zA-Z0-9-]*$", "^[^:]*$")
+    "^[a-zA-Z0-9-]*$", "^[^:]*$", "^[(]")
   ){
   if (is.null(syno)) return(NA)
   unlist(lapply(ps, function(p) syno[grepl(p, syno)]))[1]

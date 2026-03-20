@@ -79,7 +79,6 @@ setMethod("step1", signature = c(x = "job_geo"),
       anno.db = try(.get_biocPackage.gpl(about[[ 1 ]]@annotation), TRUE)
     )
     x <- methodAdd(x, "以 R 包 `GEOquery` ({packageVersion('GEOquery')}) 获取 {object(x)} 数据集。")
-    x <- snapAdd(x, "以 `GEOquery` 获取 {object(x)} 的数据信息。")
     return(x)
   })
 
@@ -141,12 +140,20 @@ setMethod("step2", signature = c(x = "job_geo"),
       dir <- file.path(baseDir, object(x))
       continue <- 1L
       if (dir.exists(dir)) {
-        continue <- sureThat(glue::glue("File exists ({dir}), continue?"))
+        if (interactive()) {
+          continue <- sureThat(glue::glue("File exists ({dir}), continue?"))
+        } else {
+          continue <- FALSE
+        }
       }
       if (continue) {
         if (!hasFile) {
-          e(GEOquery::getGEOSuppFiles(object(x), filter_regex = filter_regex,
-              baseDir = baseDir))
+          res <- try(e(GEOquery::getGEOSuppFiles(object(x), filter_regex = filter_regex,
+              baseDir = baseDir)))
+          if (inherits(res, "try-error")) {
+            message(glue::glue("Download Failed. Please manualy download the file to:\n{baseDir}/{object(x)}"))
+            stop("...")
+          }
         }
         x$dir <- dir
         files <- list.files(dir, "\\.tar", full.names = TRUE)

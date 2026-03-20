@@ -17,7 +17,7 @@ setGeneric("asjob_mlearn",
   function(x, ...) standardGeneric("asjob_mlearn"))
 
 setMethod("asjob_mlearn", signature = c(x = "job_deseq2"),
-  function(x, ref, group = "group", levels = .guess_level_deseq2(x, 1L), seed = 987456L)
+  function(x, ref, group = "group", levels = rev(.guess_compare_deseq2(x, 1L)), seed = 987456L)
   {
     if (x@step < 1L) {
       stop('x@step < 1L.')
@@ -44,7 +44,7 @@ setMethod("asjob_mlearn", signature = c(x = "job_deseq2"),
     x <- .job_mlearn(object = data)
     x$metadata <- metadata
     x$levels <- levels
-    x$target <- factor(metadata[[ group ]], levels = rev(levels))
+    x$target <- factor(metadata[[ group ]], levels = levels)
     x$seed <- seed
     return(x)
   })

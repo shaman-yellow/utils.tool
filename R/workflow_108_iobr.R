@@ -10,7 +10,7 @@
     cite = "[@Enhancing_immun_Zeng_2024]",
     method = "",
     tag = "iobr",
-    analysis = "IOBR 肿瘤免疫微环境分析"
+    analysis = "IOBR 免疫浸润分析"
     ))
 
 job_iobr <- function(object, metadata)
@@ -26,15 +26,11 @@ setGeneric("asjob_iobr", group = list("asjob_series"),
 setMethod("asjob_iobr", signature = c(x = "job_limma"),
   function(x, use = .guess_symbol(x), project = x$project)
   {
-    snap <- snap(x)
+    stop('The input should be TPM!!!')
     object <- extract_unique_genes.job_limma(x)
     mtx <- object$E
     rownames(mtx) <- gname(object$genes[[ use ]])
-    x <- snapAdd(
-      job_iobr(mtx, metadata = object$targets), 
-      "对数据集 ({project}) 进行 IOBR 免疫微环境评估。"
-    )
-    x <- snapAdd(x, snap)
+    x <- job_iobr(mtx, metadata = object$targets)
     return(x)
   })
 
@@ -44,61 +40,130 @@ setMethod("step0", signature = c(x = "job_iobr"),
   })
 
 setMethod("step1", signature = c(x = "job_iobr"),
-  function(x, method = c("cibersort"), cache = "iobr")
+  function(x, method = "cibersort",
+    run_all = FALSE, workers = 1,
+    cache = "tmp", tumor = FALSE, ..., rerun = FALSE)
   {
     step_message("Calculating ...")
-    method <- match.arg(method)
-    require(IOBR)
-    dir.create(cache)
-    hash <- digest::digest(list(object(x), method))
-    file_cache <- add_filename_suffix(
-      file.path(cache, "iobr.rds"), hash
+    methods <- c(
+      "cibersort",
+      "xcell",
+      "estimate",
+      "timer", "quantiseq", "svr", "lsei",
+      "mcpcounter",
+      "epic",
+      "ips",
+      "quantiseq",
+      "svr",
+      "lsei"
     )
-    if (is.null(x$res)) {
-      if (file.exists(file_cache)) {
-        x$res <- readRDS(file_cache)
-      } else {
-        x$res <- e(IOBR::deconvo_tme(
-            eset = object(x), method = method, arrays = FALSE
-            ))
+    method <- match.arg(method, methods)
+    require(IOBR)
+    dir.create(cache, FALSE)
+    if (run_all) {
+      methods <- methods
+    } else {
+      methods <- method
+    }
+    args <- list(...)
+    args$tumor <- tumor
+    args$eset <- object(x)
+    set.seed(x$seed)
+    x$allres <- pbapply::pbsapply(
+      methods, simplify = FALSE, cl = workers,
+      function(method) {
+        args$method <- method
+        if (method == "cibersort" || method == "xcell") {
+          args$eset <- log2(args$eset + 1)
+        }
+        try(expect_local_data(cache, "iobr", IOBR::deconvo_tme, args, rerun = rerun))
       }
+    )
+    x$res <- x$allres[[ method ]]
+    x <- methodAdd(x, "以 R 包 `IOBR` ({packageVersion('IOBR')}) 选择算法 {method} 对数据集免疫浸润分析。")
+    if (isNamespaceLoaded("IOBR")) {
+      detach("package:IOBR")
     }
-    if (!file.exists(file_cache)) {
-      saveRDS(x$res, file_cache)
-    }
-    x <- snapAdd(x, "使用算法为 {method}。")
     x$method <- method
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_iobr"),
-  function(x, group.by = "group")
+  function(x, group.by = "group", cut.p = .05, cut.cor = .3, 
+    add_noise = TRUE, keep_all = if (x$method == "xcell") FALSE else TRUE)
   {
     step_message("Significant test.")
-    data <- x$res
-    data <- map(data, "ID", x$metadata, "sample", group.by, col = "group")
+    if (!is.null(x$allres)) {
+      lst <- x$allres
+    } else {
+      lst <- setNames(list(data), x$method)
+    }
+    x$all_filter <- lst <- lapply(lst, 
+      function(data) {
+        data <- dplyr::rename_with(data, ~ sub("_[^_]+$", "", .x), -ID)
+        data <- map(data, "ID", x$metadata, "sample", group.by, col = "group")
+        if (x$method == "cibersort") {
+          if (!is.null(cut.p)) {
+            data <- trace_filter(data, `P-value` < !!cut.p)
+            snap_filter <- snap(data)
+            snap <- glue::glue("根据 cibersort 算法得到的 P-value，{snap_filter}{try_snap(data$group)}。")
+          } else {
+            snap <- NULL
+          }
+          data <- dplyr::select(data, -Correlation, -`P-value`, -RMSE)
+        }
+        namel(data, snap)
+      })
+    data <- mtx <- lst[[ x$method ]]$data
+    if (x$method == "cibersort" && !is.null(cut.p)) {
+      x <- snapAdd(x, "{lst[[ x$method ]]$snap}")
+      x <- methodAdd(x, "剔除 P-value &gt; {cut.p} 的低可靠性样本。")
+    }
     if (length(unique(data$group)) != 2) {
       stop('length(unique(data$group) != 2).')
     }
     data <- e(tidyr::pivot_longer(
-      data, c(-ID, -group), names_to = "type", values_to = "level"
-    ))
-    data <- dplyr::mutate(
-      data, type = s(type, glue::glue("_{x$method}$"), "", TRUE)
+        data, c(-ID, -group), names_to = "type", values_to = "level"
+        ))
+    p.stack <- ggplot(data, aes(x = ID, y = level, fill = type)) +
+      geom_bar(stat = "identity", width = .7) +
+      facet_grid(~ group, scales = "free_x", space = "free") +
+      theme_light() +
+      labs(y = "Relative Proportion", x = "Sample", fill = "Type") +
+      theme(axis.text.x = element_blank()) +
+      scale_fill_manual(values = color_set(TRUE))
+    p.stack <- wrap_scale(
+      p.stack, length(unique(data$ID)), 
+      10, pre_width = 3, pre_height = 1, size = .3
     )
-    data <- e(dplyr::filter(data, !grpl(type, "Correlation|P-value|RMSE")))
+    p.stack <- set_lab_legend(
+      p.stack,
+      glue::glue("{x@sig} Infiltration Landscape"),
+      glue::glue("免疫细胞渗透比例")
+    )
     data <- e(dplyr::group_by(data, type))
     fun <- function(level, group) {
       data <- data.frame(level = level, group = group)
       wilcox.test(level ~ group, data = data)$p.value
     }
-    dataSig <- e(dplyr::summarise(data, pvalue = fun(level, group)))
-    dataSig <- add_anno(dataSig)
-    dataSig <- set_lab_legend(
-      dataSig,
+    groupCor <- e(dplyr::summarise(data, pvalue = fun(level, group)))
+    groupCor <- add_anno(groupCor)
+    groupCor <- set_lab_legend(
+      groupCor,
       glue::glue("{x@sig} {x$method} wilcox test data"),
       glue::glue("为 {x$method} 算法 wilcox test 组间比较附表。")
     )
+    s.com <- dplyr::filter(groupCor, pvalue < cut.p)$type
+    feature(x) <- as_feature(s.com, "IOBR 免疫浸润分析差异细胞", nature = "cells")
+    x <- snapAdd(x, "以 wilcox.test 组间差异分析，有显著区别 (p &lt; {cut.p}) 的差异细胞：{bind(s.com)}。")
+    if (x$method == "xcell") {
+      data <- dplyr::mutate(data, level = log2(level))
+      ylab <- "log2(level)"
+      exSnap <- " 对 xCell 算法得出的富集分数检验显著性，而图中的箱形图为了展示于同一尺度，做了 log2 变换"
+    } else {
+      ylab <- "level"
+      exSnap <- ""
+    }
     p.boxplot <- ggplot(data) +
       geom_jitter(aes(x = type, y = level, fill = group, group = group),
         stroke = 0, shape = 21, color = "transparent",
@@ -106,7 +171,8 @@ setMethod("step2", signature = c(x = "job_iobr"),
       geom_boxplot(
         aes(x = type, y = level, color = group),
         outlier.shape = NA, fill = "transparent", notchwidth = .7) +
-      geom_text(data = dataSig, aes(x = type, label = sig, y = max(data$level))) +
+      geom_text(data = groupCor, aes(x = type, label = sig, y = max(data$level))) +
+      labs(y = ylab) +
       scale_color_manual(values = color_set()) +
       scale_fill_manual(values = color_set()) +
       theme_minimal() +
@@ -115,12 +181,160 @@ setMethod("step2", signature = c(x = "job_iobr"),
     p.boxplot <- set_lab_legend(
       wrap(p.boxplot, 11, 5),
       glue::glue("{x@sig} {x$method} Immune infiltration"),
-      glue::glue("为 {x$method} 算法的免疫微环境分析箱形图 (wilcox.test)。")
+      glue::glue("为 {x$method} 算法的免疫微环境分析箱形图 (使用 wilcox.test{exSnap}) (*, P &lt; 0.05; **, p&lt; 0.01; ***, p &gt; 0.001) 。")
     )
-    x <- plotsAdd(x, p.boxplot = p.boxplot)
-    x <- tablesAdd(x, t.dataSig = dataSig)
-    s.com <- dplyr::filter(dataSig, pvalue < .05)$type
-    x <- snapAdd(x, "组间差异分析，有显著区别的是 {bind(s.com)}")
+    mtx <- dplyr::select(mtx, -ID, -group)
+    if (!keep_all) {
+      mtx <- dplyr::select(mtx, dplyr::all_of(s.com))
+    }
+    if (add_noise) {
+      mtx <- add_noise(mtx, seed = x$seed)
+    }
+    x$data_noise <- mtx
+    res_cor.test <- psych::corr.test(
+      mtx, method = "spearman"
+    )
+    x <- methodAdd(x, "以 R 包 `psych` ({packageVersion('psych')}) 对免疫浸润细胞之间进行关联分析 (Spearman) 。将|cor| &gt; 0.3 且 p &lt; {cut.p} 的分析结果判定为具有统计学意义。")
+    t.cells_cor <- add_anno(.corp(as_data_long(
+      res_cor.test$r, res_cor.test$p, "cells_x", "cells_y", 
+      "cor", "pvalue"
+    )))
+    t.cells_cor <- set_lab_legend(
+      t.cells_cor,
+      glue::glue("{x@sig} cells correlation"),
+      glue::glue("免疫浸润细胞相关性分析附表。")
+    )
+    s.cc <- dplyr::filter(
+      t.cells_cor, cells_x %in% s.com, cells_y %in% s.com,
+      cells_x != cells_y,
+      pvalue < cut.p, abs(cor) > cut.cor
+    )
+    if (nrow(s.cc)) {
+      s.cc <- paste0(s.cc$cells_x, " 和 ", s.cc$cells_y)
+      x <- snapAdd(x, "差异免疫浸润细胞之间显著关联的是：{bind(s.cc)}。 ")
+    } else {
+      x <- snapAdd(x, "差异免疫浸润细胞之间未发现显著关联。 ")
+    }
+    colors <- ifelse(
+      colnames(res_cor.test$p) %in% s.com, "red", "grey"
+    )
+    p.cor <- funPlot(corrplot::corrplot, list(
+        corr = res_cor.test$r, p.mat = res_cor.test$p,
+        type = "lower", insig = "blank", tl.col = colors
+        ))
+    p.cor <- wrap(p.cor, 7, 6)
+    if (keep_all) {
+      exSnap <- "热图的细胞名若显示为红色，则为差异细胞；"
+    } else {
+      exSnap <- "展示差异细胞之间的关联性；"
+    }
+    p.cor <- set_lab_legend(
+      p.cor,
+      glue::glue("{x@sig} Correlation immune cells"),
+      glue::glue("免疫细胞相关性分析热图 ({exSnap}热图中颜色表示相关系数的大小，颜色越深表示相关系数越高，如果不显著，则显示为空白)。")
+    )
+    x <- plotsAdd(x, p.boxplot, p.stack, p.cor)
+    x <- tablesAdd(x, t.groupCor = groupCor, t.cells_cor)
+    return(x)
+  })
+
+add_noise <- function(mtx, level = 1e-6, seed = 12345) {
+  var_values <- apply(mtx, 2, var, na.rm = TRUE)
+  zero_var_cols <- names(var_values[var_values == 0 | is.na(var_values)])
+  if (length(zero_var_cols)) {
+    message("Column with variance of 0: ", bind(zero_var_cols))
+    set.seed(seed)
+    for (col in zero_var_cols) {
+      # Add minimal random noise
+      mtx[, col] <- mtx[, col] + rnorm(nrow(mtx), 0, level)
+    }
+  }
+  return(mtx)
+}
+
+setMethod("step3", signature = c(x = "job_iobr"),
+  function(x, ref, recode = NULL, cut.p = .05, cut.cor = .3, 
+    add_noise = TRUE, keep_all = if (x$method == "xcell") FALSE else TRUE, use_vst = FALSE)
+  {
+    step_message("Correlation for cells and genes.")
+    mtx <- data.frame(dplyr::select(x$all_filter[[ x$method ]]$data, -group))
+    rownames(mtx) <- mtx$ID
+    data.cell <- t(as.matrix(dplyr::select(mtx, -ID)))
+    if (!keep_all) {
+      data.cell <- data.cell[ rownames(data.cell) %in% feature(x), ]
+    }
+    if (use_vst) {
+      if (is.null(x$vst)) {
+        stop('is.null(x$vst).')
+      }
+      data.expr <- x$vst
+    } else {
+      data.expr <- object(x)
+    }
+    if (!is.null(recode)) {
+      if (!is(recode, "list")) {
+        recode <- as.list(recode)
+      }
+      rownames(data.expr) <- dplyr::recode(
+        rownames(data.expr), !!!recode, .default = rownames(data.expr)
+      )
+    }
+    if (is(ref, "feature")) {
+      ref.snap <- snap(ref)
+    } else {
+      ref.snap <- "基因"
+    }
+    if (is.list(ref)) {
+      ref <- unlist(ref)
+    }
+    data.expr <- data.expr[rownames(data.expr) %in% ref, ]
+    if (any(isNot <- !ref %in% rownames(data.expr))) {
+      stop(glue::glue("Not cover: {bind(ref[isNot])}"))
+    }
+    data.expr <- data.expr[, match(colnames(data.cell), colnames(data.expr))]
+    data.expr <- t(data.expr)
+    data.cell <- t(data.cell)
+    if (add_noise) {
+      data.cell <- add_noise(data.cell)
+    }
+    dataCor <- psych::corr.test(data.expr, data.cell, method = "spearman")
+    x <- methodAdd(x, "以 R 包 `psych` ({packageVersion('psych')}) 对基因与免疫浸润细胞之间进行关联分析 (Spearman) 。将|cor| &gt; 0.3 且 p &lt; {cut.p} 的分析结果判定为具有统计学意义。")
+    colors <- ifelse(
+      colnames(dataCor$p) %in% feature(x), "red", "grey"
+    )
+    p.GeneCellCor <- funPlot(corrplot::corrplot, list(
+        method = "square", corr = dataCor$r, p.mat = dataCor$p, insig = "p-value",
+        tl.col = colors
+        ))
+    if (!keep_all) {
+      p.GeneCellCor <- wrap(p.GeneCellCor, 7, 4)
+    } else {
+      p.GeneCellCor <- wrap(p.GeneCellCor, 10, 6)
+    }
+    if (keep_all) {
+      exSnap <- "热图的细胞名若显示为红色，则为差异细胞；"
+    } else {
+      exSnap <- "展示差异细胞之间的关联性；"
+    }
+    p.GeneCellCor <- set_lab_legend(
+      p.GeneCellCor,
+      glue::glue("{x@sig} correlation of Immune cells and selected genes"),
+      glue::glue("{ref.snap}和免疫细胞相关性分析 ({exSnap}热图中颜色表示相关系数的大小，颜色越深表示相关系数越高。如果不显著，则显示出对应的 P-value)。")
+    )
+    x <- plotsAdd(x, p.GeneCellCor)
+    t.geneCellCor <- add_anno(
+      .corp(as_data_long(dataCor$r, dataCor$p, "genes", "cells", "cor", "pvalue"))
+    )
+    s.gc <- dplyr::filter(
+      t.geneCellCor, cells %in% feature(x),
+      pvalue < cut.p, abs(cor) > cut.cor
+    )
+    if (nrow(s.gc)) {
+      s.gc <- paste0(s.gc$genes, " 和 ", s.gc$cells)
+      x <- snapAdd(x, "差异免疫浸润细胞与{ref.snap}之间显著关联的是：{bind(s.gc)}。")
+    } else {
+      x <- snapAdd(x, "差异免疫浸润细胞与{ref.snap}之间未发现显著关联。 ")
+    }
     return(x)
   })
 

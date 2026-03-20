@@ -22,7 +22,7 @@ setGeneric("asjob_cellchat", group = list("asjob_series"),
 
 setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
   function(x, group.by = x$group.by, assay = SeuratObject::DefaultAssay(object(x)), 
-    sample = .5, ...)
+    sample = .5, force = TRUE, ...)
   {
     step_message("Prarameter red{{`group.by`}}, red{{`assay`}}, 
       and red{{`...`}} would passed to `CellChat::createCellChat`.",
@@ -31,7 +31,7 @@ setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
     if (x@step < 2) {
       stop("x@step < 2. At least, preprocessed assay data should be ready.")
     }
-    if (!missing(sample) || ncol(object(x)) > 5e4) {
+    if (!force && (!missing(sample) || ncol(object(x)) > 5e4)) {
       message(glue::glue("Too many cells, sampling for analysis."))
       x <- asjob_seurat_sub(x, sample = sample)
     }
@@ -61,7 +61,8 @@ setMethod("step0", signature = c(x = "job_cellchat"),
   })
 
 setMethod("step1", signature = c(x = "job_cellchat"),
-  function(x, workers = 4, python = NULL, py_config = FALSE, debug = FALSE, 
+  function(x, workers = 4, python = getOption("cellchat_python"),
+    py_config = FALSE, debug = FALSE, 
     org = c("human", "mouse"), smooth = FALSE, ...)
   {
     step_message("One step forward computation of most. ")
@@ -92,9 +93,13 @@ setMethod("step1", signature = c(x = "job_cellchat"),
     }
     if (!is.null(python)) {
       e(base::Sys.setenv(RETICULATE_PYTHON = python))
+      e(reticulate::use_python(python))
       e(reticulate::py_config())
     } else if (py_config) {
       e(reticulate::py_config())
+    }
+    if (!reticulate::py_module_available(module = "umap")) {
+      stop('!reticulate::py_module_available(module = "umap").')
     }
     if (!debug) {
       p.showdb <- e(CellChat::showDatabaseCategory(db))
@@ -106,7 +111,11 @@ setMethod("step1", signature = c(x = "job_cellchat"),
       object(x) <- e(CellChat::identifyOverExpressedGenes(object(x)))
       object(x) <- e(CellChat::identifyOverExpressedInteractions(object(x)))
       if (smooth && !is.null(ppi)) {
-        object(x) <- e(CellChat::smoothData(object(x), adj = ppi))
+        if (exists("smoothData", envir = asNamespace("CellChat"))) {
+          object(x) <- e(CellChat::smoothData(object(x), adj = ppi))
+        } else {
+          object(x) <- e(CellChat::projectData(object(x), ppi))
+        }
         object(x) <- e(
           CellChat::computeCommunProb(object(x), raw.use = FALSE)
         )
@@ -148,8 +157,8 @@ setMethod("step1", signature = c(x = "job_cellchat"),
     #  the number of interactions, and the stronger the interaction
     #  weights/strength between the two cell types
     if (!debug) {
-      x@plots[[ 1 ]] <- c(namel(p.showdb, p.commHpAll), p.comms)
-      x@tables[[ 1 ]] <- namel(lp_net, pathway_net)
+      x <- plotsAdd(x, p.showdb, p.commHpAll, p.comms)
+      x <- tablesAdd(x, lp_net, pathway_net)
     }
     x <- methodAdd(x, "参照 {x@info} 分析 scRNA-seq 数据。")
     x <- snapAdd(x, "对 {showStrings(object(x)@meta[[x$group.by]], trunc = FALSE)} 细胞通讯分析。")
@@ -193,6 +202,13 @@ setMethod("step2", signature = c(x = "job_cellchat"),
       cell_comm_heatmap <- NULL
     }
     lr_comm_bubble <- e(CellChat::netVisual_bubble(object(x), remove.isolate = FALSE))
+    t.lr_comm_bubble <- .get_ggplot_content(lr_comm_bubble)
+    t.lr_comm_bubble <- set_lab_legend(
+      tibble::as_tibble(t.lr_comm_bubble),
+      glue::glue("{x@sig} ligand receptor interactions bubble plot"),
+      glue::glue("配体-受体相互作用气泡图。")
+    )
+    x <- tablesAdd(x, t.lr_comm_bubble)
     lr_comm_bubble <- set_lab_legend(
       lr_comm_bubble,
       glue::glue("{x@sig} communication probability and significant"),
@@ -200,9 +216,10 @@ setMethod("step2", signature = c(x = "job_cellchat"),
     )
     gene_expr_violin <- e(sapply(pathways, simplify = FALSE,
       function(name) {
-        CellChat::plotGeneExpression(object(x),
+        p <- CellChat::plotGeneExpression(object(x),
             signaling = name, group.by = NULL) +
           theme(legend.position = "none")
+        wrap(p)
       }))
     if (FALSE) {
       # this plot saved as RDS too large.
@@ -239,7 +256,7 @@ setMethod("step2", signature = c(x = "job_cellchat"),
     lr_role_heatmap <- setLegend(
       lr_role_heatmap, glue::glue("为细胞间的 {names(lr_role_heatmap)} 类型通路信号强度 ")
     )
-    x@plots[[ 2 ]] <- namel(cell_comm_heatmap, lr_comm_bubble, gene_expr_violin,
+    x <- plotsAdd(x, cell_comm_heatmap, lr_comm_bubble, gene_expr_violin,
       role_comps_heatmap, role_weight_scatter, lr_role_heatmap)
     return(x)
   })

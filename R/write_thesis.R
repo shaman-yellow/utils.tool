@@ -7,7 +7,7 @@ inclu.fig <- function(image, land = FALSE, saveDir = "thesis_fig", dpi = 300,
     list(width = 10, height = 6.2)
   } else {
     list(width = 6.2, height = 5)
-  }, name = NULL)
+  }, name = NULL, caption = NULL)
 {
   if (!file.exists(saveDir))
     dir.create(saveDir)
@@ -58,8 +58,13 @@ inclu.fig <- function(image, land = FALSE, saveDir = "thesis_fig", dpi = 300,
   }
   knitr::opts_current$set(fig.height = height, fig.width = width)
   if (knitr::pandoc_to("docx")) {
-    content <- officer::external_img(savename, width, height)
-    writeLines(c("", assis_docx_img(content), ""))
+    content <- officer::external_img(
+      savename, width, height
+    )
+    content <- officer::fpar(
+      content, fp_p = officer::fp_par(text.align = "center")
+    )
+    writeLines(c("", assis_docx_par(content), ""))
     if (missing(name)) {
       label <- knitr::opts_current$get("autor_label")
     } else {
@@ -76,7 +81,10 @@ inclu.fig <- function(image, land = FALSE, saveDir = "thesis_fig", dpi = 300,
         bkm = label,
         prop = officer::fp_text_lite(bold = TRUE)
       )
-      caption <- officer::block_caption(as_caption(label), "Image Caption", autonum = run_num)
+      if (is.null(caption)) {
+        caption <- as_caption(label)
+      }
+      caption <- officer::block_caption(caption, "Image Caption", autonum = run_num)
       content <- officer:::to_wml_block_caption_pandoc(caption)
       writeLines(c("", content, ""))
     }

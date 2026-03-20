@@ -104,7 +104,7 @@ setMethod("write", signature = c(x = "fasta"),
   function(x, name, max = 500, dir = "fasta") {
     dir.create(dir, FALSE)
     if (is.null(max)) {
-      file <- paste0(dir, "/", name, ".fasta")
+      file <- file.path(dir, paste0(name, ".fasta"))
       writeLines(gs(as.character(x), "\\*$", ""), file)
       return(file)
     } else {
@@ -112,7 +112,7 @@ setMethod("write", signature = c(x = "fasta"),
       lapply(group(x),
         function(x) {
           n <<- n + 1
-          file <- paste0(dir, "/", name, "_", n, ".fasta")
+          file <- file.path(dir, paste0(name, "_", n, ".fasta"))
           writeLines(gs(x, "\\*$", ""), file)
           return(file)
         })

@@ -722,11 +722,8 @@ plot_genes_heatmap <- function(data, metadata) {
 
 setMethod("clear", signature = c(x = "job_limma"),
   function(x, save = TRUE, suffix = NULL, name = substitute(x, parent.frame(1))){
-    if (save) {
-      file <- paste0(name, ".", x@step, suffix, ".rds")
-      message("Save RDS: ", file)
-      saveRDS(x, file)
-    }
+    eval(name)
+    callNextMethod(x, save = save, suffix = suffix, name = name)
     object(x) <- NULL
     x@params$normed_data <- NULL
     return(x)
@@ -734,7 +731,8 @@ setMethod("clear", signature = c(x = "job_limma"),
 
 setMethod("focus", signature = c(x = "job_limma"),
   function(x, ref, ref.use = .guess_symbol(x), which = 1L,
-    use = c("adj.P.Val", "P.Value"), .name = NULL, sig = FALSE,
+    use = c("adj.P.Val", "P.Value"), 
+    .name = NULL, sig = FALSE, test = "wilcox.test",
     data.which = if (!is.null(which)) attr(x@tables$step2$tops[[ which ]], "all") else NULL, ...)
   {
     if (is(ref, "feature")) {
@@ -774,7 +772,8 @@ setMethod("focus", signature = c(x = "job_limma"),
       data <- NULL
     }
     x <- map(
-      x, ref, ref.use, use = use, which = which, data.which = data.which, name = .name, ...
+      x, ref, ref.use, use = use, which = which, data.which = data.which, 
+      name = .name, test = test, ...
     )
     if (!is.null(.name)) {
       lst <- namel(
@@ -853,17 +852,7 @@ setMethod("map", signature = c(x = "job_limma"),
       data <- dplyr::mutate(data, group = factor(group, levels = !!group))
     }
     p <- .map_boxplot2(data, pvalue, fun_plot = fun_plot, ...)
-    if (is(p, "S7_object")) {
-      anno_pvalue <- p@layers$geom_text$data
-    } else {
-      anno_pvalue <- tail(p$layers, n = 1)[[1]]$data
-    }
-    if (!is(anno_pvalue, "data.frame") || any(!c("var", "labs") %in% colnames(anno_pvalue))) {
-      stop("Can not extract pvalue from ggpval annotation.")
-    }
-    pvalue <- setNames(
-      as.numeric(strx(anno_pvalue$labs, "[0-9.]+")), anno_pvalue$var
-    )
+    pvalue <- attr(p, "pvalue")
     if (is.null(which)) {
       legend <- "以 wilcox.test 检验基因 ({bind(ref)}) 的表达。"
     } else {
@@ -1033,9 +1022,21 @@ dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x),
 }
 
 .map_boxplot2 <- function(data, pvalue, x = "group", y = "value",
-  xlab = "Group", ylab = "Value", ids = "var", test = "wilcox.test", 
+  xlab = "Group", ylab = "Value", ids = "var", order_facet = NULL, test = "wilcox.test", 
   annotation = NULL, fun_plot = geom_boxplot, ...)
 {
+  if (!is.null(order_facet)) {
+    stop('!is.null(order_facet), change the order of "facet" is not allowed by ggpval.')
+    data[[ ids ]] <- factor(data[[ ids ]], levels = order_facet)
+  }
+  if (test == "fp.test") {
+    if (!requireNamespace("RVAideMemoire")) {
+      stop('!requireNamespace("RVAideMemoire").')
+    }
+    message("Use `fp.test` from package RVAideMemoire: ")
+    assign("fp.test", RVAideMemoire::fp.test, envir = .GlobalEnv)
+    # fp.test <- RVAideMemoire::fp.test
+  }
   p <- ggplot(data, aes(x = !!rlang::sym(x), y = !!rlang::sym(y), color = !!rlang::sym(x))) +
     fun_plot(outlier.shape = NA, fill = "transparent") +
     geom_jitter(aes(x = !!rlang::sym(x), y = !!rlang::sym(y), fill = !!rlang::sym(x)),
@@ -1055,6 +1056,13 @@ dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x),
     p <- ggpval::add_pval(
       p, heights = hs, pval_text_adj = (fn[5] - fn[1]) / 15, 
       test = test, annotation = annotation
+    )
+    anno_pvalue <- tail(.get_ggplot_content(p, "layers"), n = 1)[[1]]$data
+    if (!is(anno_pvalue, "data.frame") || any(!c(ids, "labs") %in% colnames(anno_pvalue))) {
+      stop("Can not extract pvalue from ggpval annotation.")
+    }
+    attr(p, "pvalue") <- setNames(
+      as.numeric(strx(anno_pvalue$labs, "[0-9.]+")), anno_pvalue$var
     )
   }
   p

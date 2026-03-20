@@ -100,7 +100,7 @@ setMethod("step1", signature = c(x = "job_gds"),
       "\\bKO\\b|\\bWT\\b|_WT_|_KO_|wildtype|mutant|knock|deficien|absen",
       "|SuperSeries|transgenic|CD[0-9]+"
       ),
-    extras = NULL, deep_inspect = TRUE,
+    extras = NULL, deep_inspect = FALSE,
     control = "normal|control|healthy|ctrl|adjacent|\\bN[0-9]+\\b|\\bC[0-9]+\\b",
     expects = NULL, cl = 5, force = FALSE
   )

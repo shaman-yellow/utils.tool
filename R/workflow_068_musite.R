@@ -35,13 +35,13 @@ setMethod("step0", signature = c(x = "job_musite"),
   })
 
 setMethod("step1", signature = c(x = "job_musite"),
-  function(x, org = c("hsa", "mmu"), save = "Seq")
+  function(x, org = c("hsa", "mmu"), dir_save = "Seq")
   {
     step_message("Prepare protein sequences.")
     org <- match.arg(org)
     x$mart <- new_biomart(org)
     x$seqs <- get_seq.pro(object(x), x$mart)
-    x$seqs_file <- write(x$seqs$fasta, save, max = NULL)
+    x$file_seqs <- write(x$seqs$fasta, dir_save, max = NULL)
     x <- snapAdd(x, "以 `biomaRt` 获取蛋白质 ({less(object(x))}) 的序列 (Peptide)。")
     x <- methodAdd(x, "以 `biomaRt` {cite_show('MappingIdentifDurinc2009')} 获取蛋白质 ({org}) 的序列 (`biomaRt::getSequence` 获取 peptide)。")
     return(x)
@@ -69,7 +69,7 @@ setMethod("step2", signature = c(x = "job_musite"),
     output_file <- paste0(x$output, "/res_results.txt")
     if (!file.exists(output_file)) {
       cdRun(pg(x), " ", pg("musitePTM"),
-        " -input ", x$seqs_file,
+        " -input ", x$file_seqs,
         " -output ", x$output, "/res",
         " -model-prefix \"", models, "\""
       )
@@ -158,7 +158,7 @@ setMethod("step3", signature = c(x = "job_musite"),
     step_message("Visualize the PDB structure")
     output_file <- paste0(x$output, "/ptm2Structure.json")
     cdRun(pg(x), " ", pg("musitePTM2S"),
-      " -ptmInput ", x$seqs_file,
+      " -ptmInput ", x$file_seqs,
       " -ptmOutput ", x$output, "/res_results.txt",
       " -o ", x$output,
       " -maxPDB ", n

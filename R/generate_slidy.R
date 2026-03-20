@@ -96,26 +96,30 @@ cite_show <- function(keys, as.character = TRUE,
           Class = ifsets$Class[which], fuzzy = fuzzy, title = title)
       })
     if (as.character) {
-      text <- vapply(eles,
-        function(x) {
-          if (is.null(x$IF) || !length(x$IF)) {
-            noIF <- TRUE
-          } else if (is.na(x$IF)) {
-            noIF <- TRUE
-          } else {
-            noIF <- FALSE
-          }
-          if (noIF) {
-            if (length(x$journal)) {
-              paste0("(", x$year, ", ", x$journal, ")")
+      if (autor_show_cite_IF) {
+        text <- vapply(eles,
+          function(x) {
+            if (is.null(x$IF) || !length(x$IF)) {
+              noIF <- TRUE
+            } else if (is.na(x$IF)) {
+              noIF <- TRUE
             } else {
-              paste0("(", x$year, ")")
+              noIF <- FALSE
             }
-          } else {
-            paste0("(", x$year, ", **IF:", x$IF, "**, ", x$Class, ", ", x$journal, ")")
-          }
-        }, character(1))
-      paste0(text, "[@", keys, "]")
+            if (noIF) {
+              if (length(x$journal)) {
+                paste0("(", x$year, ", ", x$journal, ")")
+              } else {
+                paste0("(", x$year, ")")
+              }
+            } else {
+              paste0("(", x$year, ", **IF:", x$IF, "**, ", x$Class, ", ", x$journal, ")")
+            }
+          }, character(1))
+        paste0(text, "[@", keys, "]")
+      } else {
+        paste0("[@", keys, "]")
+      }
     } else eles
   })
   res <- try(eval(expr), silent = TRUE)

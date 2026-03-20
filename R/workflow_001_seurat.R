@@ -139,13 +139,13 @@ setMethod("step3", signature = c(x = "job_seurat"),
     p.umap <- .set_lab(p.umap, sig(x), "UMAP", "Clustering")
     x@plots[[ 3 ]] <- namel(p.umap)
 
-    x <- snapAdd(x, "在 1-{max(dims)} PC 维度，{resolution} 分辨率下，对细胞群 UMAP 聚类。")
+    # x <- snapAdd(x, "在 1-{max(dims)} PC 维度，{resolution} 分辨率下，对细胞群 UMAP 聚类。")
     x <- methodAdd(x, "在 1-{max(dims)} PC 维度下，以 Seurat::FindNeighbors 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 Seurat::FindClusters 函数识别细胞群并以 Seurat::RunUMAP 进行 UMAP 聚类。")
     return(x)
   })
 
 setMethod("step4", signature = c(x = "job_seurat"),
-  function(x, use = "SingleR", use.level = c("label.main", "label.fine"),
+  function(x, use = "", use.level = c("label.main", "label.fine"),
     ref = celldex::HumanPrimaryCellAtlasData())
   {
     if (use == "scAnno") {
@@ -190,17 +190,19 @@ setMethod("step4", signature = c(x = "job_seurat"),
       x@plots[[ 4 ]] <- namel(p.score_SingleR, p.map_SingleR)
       x@params$group.by <- "SingleR_cell"
       x <- methodAdd(x, "以 R 包 `SingleR` ({packageVersion('SingleR')}) 注释细胞群。")
+    } else {
+      message("Do nothing.")
     }
     return(x)
   })
 
 setMethod("step5", signature = c(x = "job_seurat"),
   function(x, workers = NULL, min.pct = .25, logfc.threshold = .25, 
-    force = FALSE, topn = 5)
+    force = FALSE, topn = 5, assay = object(x)@active.assay)
   {
     step_message("Find all Marders for Cell Cluster.")
-    cache_markers <- file.path(create_job_cache(), "markers.tsv")
-    if (file.exists(cache_markers)) {
+    cache_markers <- file.path(create_job_cache_dir(x), "markers.tsv")
+    if (!force && file.exists(cache_markers)) {
       markers <- read_tsv(cache_markers)
     } else {
       if (is.remote(x)) {
@@ -232,6 +234,9 @@ setMethod("step5", signature = c(x = "job_seurat"),
               logfc.threshold <- as.double(args[5])
               ## run
               object <- readRDS(file_rds)
+              if (object@active.assay == "SCT") {
+                object <- Seurat::PrepSCTFindMarkers(object)
+              }
               options(future.globals.maxSize = Inf)
               future::plan(future::multicore, workers = workers)
               markers <- Seurat::FindAllMarkers(object, min.pct = min.pct,
@@ -259,16 +264,23 @@ setMethod("step5", signature = c(x = "job_seurat"),
         markers <- ftibble(file_markers)
         markers <- dplyr::mutate(markers, rownames = gene, .before = 1)
       } else {
-        fun <- function(x) {
-          markers <- as_tibble(
-            e(Seurat::FindAllMarkers(object(x), min.pct = min.pct,
-                logfc.threshold = logfc.threshold, only.pos = TRUE))
-          )
+        if (object(x)@active.assay == "SCT" && is.null(x$.PrepSCTFindMarkers)) {
+          cli::cli_alert_info("Seurat::PrepSCTFindMarkers")
+          object(x) <- Seurat::PrepSCTFindMarkers(object(x))
+          x$.PrepSCTFindMarkers <- TRUE
         }
         if (!is.null(workers)) {
-          markers <- parallel(x, fun, workers)
-        } else {
-          markers <- fun(x)
+          options(future.globals.maxSize = Inf)
+          future::plan(future::multicore, workers = workers)
+        }
+        markers <- as_tibble(
+          e(
+            Seurat::FindAllMarkers(object(x), min.pct = min.pct, assay = assay,
+              logfc.threshold = logfc.threshold, only.pos = TRUE)
+          )
+        )
+        if (!nrow(markers)) {
+          stop('!nrow(markers), no markers got.')
         }
       }
       write_tsv(markers, cache_markers)
@@ -277,20 +289,21 @@ setMethod("step5", signature = c(x = "job_seurat"),
     markers <- dplyr::filter(markers, p_val_adj < .05)
     markers <- .set_lab(markers, sig(x), "significant markers of cell clusters")
     markers <- setLegend(markers, "为所有细胞群的 Marker (LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}; 矫正 P 值阈值 {0.05})")
-    if (TRUE) {
+    if (FALSE) {
       tops <- dplyr::slice_max(dplyr::group_by(markers, cluster), avg_log2FC, n = topn)
       p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = TRUE))
       p.toph <- wrap(p.toph, 14, 12)
-      x@plots[[ 5 ]] <- namel(p.toph)
+      x <- plotsAdd(x, p.toph)
     }
-    x@tables[[ 5 ]] <- list(all_markers = markers, all_markers_no_filter = all_markers_no_filter)
-    x <- snapAdd(x, "计算所有细胞群的 Marker。")
+    x <- tablesAdd(x, all_markers = markers, all_markers_no_filter = all_markers_no_filter)
+    # x <- snapAdd(x, "计算所有细胞群的 Marker。")
     x <- methodAdd(x, "以 `Seurat::FindAllMarkers` (LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}) 为所有细胞群寻找 Markers。")
     return(x)
   })
 
 setMethod("step6", signature = c(x = "job_seurat"),
-  function(x, tissue, ref.markers = NULL, method = c("cellMarker", "gpt", "scsa"),
+  function(x, tissue, ref.markers = NULL, show.markers = ref.markers,
+    method = c("cellMarker", "gpt", "scsa"),
     # scsa
     org = c("Human", "Mouse"), filter.p = 0.01, filter.fc = .5, res.col = "scsa_cell",
     # cellMarker
@@ -298,18 +311,28 @@ setMethod("step6", signature = c(x = "job_seurat"),
     # plot markers
     exclude_pattern = "derived|progenitor|Transitional|Memory|switch|white blood cell",
     exclude = NULL, include = NULL, show = NULL, notShow = NULL,
-    reset = NULL, keep_markers = 3,
+    renameCell = NULL, keep_markers = 3,
     # chatGPT 
     filter.pct = .25, toClipboard = TRUE, post_modify = FALSE,
-    n = 30, variable = FALSE, hp_type = c("pretty", "seurat"), ...)
+    n = 30, variable = FALSE, hp_type = c("pretty", "seurat"), 
+    forceCluster = NULL, rerun = FALSE, ...)
   {
+    .check_is_scsa_available()
     args <- c(as.list(environment()), list(...))
     args$init <- FALSE
     do.call(anno, args)
   })
 
+.check_is_scsa_available <- function() {
+  message(glue::glue("Check SCSA available ..."))
+  if (!file.exists(pg("scsa_db"))) {
+    stop('!file.exists(pg("scsa_db")), the scsa database no exits.')
+  }
+}
+
 setMethod("anno", signature = c(x = "job_seurat"),
-  function(x, tissue, ref.markers = NULL, method = c("cellMarker", "gpt", "scsa"),
+  function(x, tissue, ref.markers = NULL, show.markers = ref.markers,
+    method = c("cellMarker", "gpt", "scsa"),
     # scsa
     org = c("Human", "Mouse"), filter.p = 0.01, filter.fc = .5, res.col = "scsa_cell",
     # cellMarker
@@ -317,11 +340,11 @@ setMethod("anno", signature = c(x = "job_seurat"),
     # plot markers
     exclude_pattern = "derived|progenitor|Transitional|Memory|switch|white blood cell",
     exclude = NULL, include = NULL, show = NULL, notShow = NULL,
-    reset = NULL, keep_markers = 3,
+    renameCell = NULL, keep_markers = 3,
     # chatGPT 
     filter.pct = .25, toClipboard = TRUE, post_modify = FALSE,
     n = 30, variable = FALSE, hp_type = c("pretty", "seurat"), 
-    ..., init = TRUE)
+    forceCluster = NULL, ..., init = TRUE)
   {
     if (x@step < 5L) {
       stop('x@step < 5L.')
@@ -398,9 +421,9 @@ setMethod("anno", signature = c(x = "job_seurat"),
         p.props_gpt <- .set_lab(p.props_gpt, sig(x), "ChatGPT4 Cell Proportions in each sample")
         p.props_gpt <- setLegend(p.props_gpt, "为 ChatGPT-4 注释的细胞群在各个样本中的占比。")
         x <- plotsAdd(x, p.map_gpt, p.markers, p.props_gpt)
-        x <- snapAdd(
-          x, "根据细胞群 Markers (检出率至少为 {filter.pct}，选取 Top {n}) ，让 ChatGPT-4 对细胞类型注释。"
-        )
+        # x <- snapAdd(
+        #   x, "根据细胞群 Markers (检出率至少为 {filter.pct}，选取 Top {n}) ，让 ChatGPT-4 对细胞类型注释。"
+        # )
         x <- methodAdd(
           x, "以 ChatGPT-4 注释细胞类型 {cite_show('Assessing_GPT_4_Hou_W_2024')}。将每一个细胞群的 Top {n} 基因提供给 ChatGPT，使其注释细胞类型。询问信息为：\n\n{text_roundrect(query$message, 'docx')}"
         )
@@ -437,16 +460,32 @@ setMethod("anno", signature = c(x = "job_seurat"),
       lst <- scsa_annotation(
         x = x, tissue = if (method == "scsa") tissue else "All",
         ref.markers = ref.markers, filter.p = filter.p,
-        filter.fc = filter.fc, org = org, reset = reset, res.col = res.col
+        filter.fc = filter.fc, org = org, renameCell = renameCell, 
+        forceCluster = forceCluster, res.col = res.col, ...
       )
       x <- lst$x
-      x <- tablesAdd(x, scsa_res_all = lst$scsa_res_all)
       x@params$group.by <- lst$res.col
       p.props_scsa <- plot_cells_proportion(
         object(x)@meta.data, "orig.ident", "scsa_cell"
       )
-      p.props_scsa <- .set_lab(p.props_scsa, sig(x), "SCSA Cell Proportions in each sample")
-      p.props_scsa <- setLegend(p.props_scsa, "为 SCSA 注释的细胞群在各个样本中的占比。")
+      if (!is.null(p.props_scsa$setGroup) && p.props_scsa$setGroup) {
+        p.props_scsa_stat <- .map_boxplot2(
+          p.props_scsa$.data, TRUE, "group", "Ratio", ylab = "Ratio", ids = "Cells"
+        )
+        p.props_scsa_stat <- set_lab_legend(
+          p.props_scsa_stat,
+          glue::glue("{x@sig} Cell Proportion intergroup comparison"),
+          glue::glue("细胞群占比的组间差异分析")
+        )
+        x <- plotsAdd(x, p.props_scsa_stat)
+      }
+      p.props_scsa <- set_lab_legend(
+        p.props_scsa,
+        glue::glue("{x@sig} SCSA annotation Cell Proportions in each sample"),
+        glue::glue("为 SCSA 注释的细胞群在各个样本中的占比。")
+      )
+      t.props_scsa <- p.props_scsa$.data
+      x <- tablesAdd(x, scsa_res_all = lst$scsa_res_all, t.props_scsa)
       p.markers <- NULL
       if (method == "cellMarker" && is.null(ref.markers)) {
         ## .plot_marker_heatmap
@@ -454,18 +493,18 @@ setMethod("anno", signature = c(x = "job_seurat"),
         x <- map(
           x, job_markers, markers = split(
             validMarkers$markers, validMarkers$cell
-          ), group.by = "scsa_cell", max = keep_markers, show = show, notShow = notShow
+            ), group.by = "scsa_cell", max = keep_markers, show = show, notShow = notShow
         )
         p.markers <- x$p.cellMarker
-      } else if (!is.null(ref.markers)) {
+      } else if (!is.null(show.markers)) {
         p.markers <- .plot_marker_heatmap(
-          x, split(ref.markers$markers, ref.markers$cell), "scsa_cell",
+          x, split(show.markers$markers, show.markers$cell), "scsa_cell",
           show = show, max = keep_markers, notShow = notShow, ...
         )
         p.markers <- set_lab_legend(
-          wrap(p.markers, 7, 7),
+          p.markers,
           paste(sig(x), "Marker Validation"),
-          "使用特异性 Marker 对细胞注释结果的验证热图。"
+          "使用特异 Marker 对细胞注释结果的验证热图。"
         )
       }
       x <- plotsAdd(
@@ -473,13 +512,22 @@ setMethod("anno", signature = c(x = "job_seurat"),
         p.markers = p.markers
       )
       if (method == "scsa" || !is.null(ref.markers)) {
-        x <- snapAdd(x, "{if (!is.null(ref.markers)) '使用特异性 Marker，' else ''}以 SCSA 对细胞群注释。")
+        # x <- snapAdd(x, "{if (!is.null(ref.markers)) '使用特异性 Marker，' else ''}以 SCSA 对细胞群注释。")
+        if (!is.null(ref.markers) && !is.null(snap <- snap(ref.markers))) {
+          if (grpl(snap, "PMID") || is.numeric(snap)) {
+            exSnap <- glue::glue("结合文献 ({snap}) 的 Marker ")
+          } else {
+            exSnap <- glue::glue("{snap}")
+          }
+        } else {
+          exSnap <- ""
+        }
         x <- methodAdd(
-          x, "以 Python 工具 `SCSA` ({cite_show('ScsaACellTyCaoY2020')}) (<https://github.com/bioinfo-ibms-pumc/SCSA>) 对细胞群注释。"
+          x, "以 Python 工具 `SCSA` ({cite_show('ScsaACellTyCaoY2020')}) (<https://github.com/bioinfo-ibms-pumc/SCSA>) {exSnap}对细胞群注释。"
         )
       } else if (method == "cellMarker") {
         x$job_markers <- job_markers
-        x <- snapAdd(x, "使用 CellMarker 数据库的 Marker 基因 (Tissue: {tissue})，以 SCSA 对细胞群注释。")
+        # x <- snapAdd(x, "使用 CellMarker 数据库的 Marker 基因 (Tissue: {tissue})，以 SCSA 对细胞群注释。")
         x <- methodAdd(
           x, "以 Python 工具 `SCSA` ({cite_show('ScsaACellTyCaoY2020')}) (<https://github.com/bioinfo-ibms-pumc/SCSA>)，结合 CellMarker 数据库 ({cite_show('CellMarker_a_m_Zhang_2019')})，对细胞群注释。"
         )
@@ -693,6 +741,13 @@ setMethod("ids", signature = c(x = "job_seurat"),
     ids
   })
 
+setMethod("clear", signature = c(x = "job_seurat"),
+  function(x, ..., name = rlang::as_label(substitute(x, parent.frame(1)))){
+    name <- eval(name)
+    x$final_metadata <- as_tibble(object(x)@meta.data, idcol = "cell")
+    callNextMethod(x, ..., name = name)
+  })
+
 plot_var2000 <- function(x) {
   top20 <- head(SeuratObject::VariableFeatures(x), 20)
   p.var2000 <- e(Seurat::VariableFeaturePlot(x))
@@ -803,6 +858,12 @@ plot_qc.seurat <- function(x) {
   p.qc
 }
 
+.vis_seurat_label <- function(x, ...) {
+  wrap(Seurat::DimPlot(object(x),
+    group.by = c("seurat_clusters"), 
+    cols = color_set(TRUE), label = TRUE, ...))
+}
+
 setMethod("vis", signature = c(x = "job_seurat"),
   function(x, group.by = x@params$group.by,
     pt.size = .7, mode = c("cell", "sample", "type"),
@@ -847,7 +908,7 @@ setMethod("vis", signature = c(x = "job_seurat"),
 setMethod("focus", signature = c(x = "job_seurat"),
   function(x, features, group.by = x@params$group.by, 
     sp = FALSE, name = "genes", vln = TRUE, dim = TRUE, 
-    cols = c("lightgrey", "blue"),
+    dot = TRUE, cols = c("lightgrey", "blue"), facetTest = NULL,
     return_type = c("job", "list"), ...)
   {
     if (is(features, "feature")) {
@@ -858,37 +919,120 @@ setMethod("focus", signature = c(x = "job_seurat"),
     }
     layout <- calculate_layout(length(features))
     ncol <- layout[[ "cols" ]]
-    p.vln <- p.dim <- NULL
+    ps <- list()
     if (vln) {
       p.vln <- e(Seurat::VlnPlot(
           object(x), features = features, group.by = group.by,
           pt.size = 0, alpha = .3, cols = color_set(), combine = FALSE
           ))
+      if (!is.null(facetTest)) {
+        ps$plist.vlnFacet <- .facet_seurat_vlnPlot(
+          p.vln, facetTest, x
+        )
+        x <- snapAdd(x, snap(ps$plist.vlnFacet), step = name)
+      }
       p.vln <- lapply(p.vln, function(x) x + theme(legend.position = "none"))
       p.vln <- wrap_layout(patchwork::wrap_plots(p.vln, ncol = ncol), layout)
-      p.vln <- .set_lab(
-        p.vln, sig(x), paste("violing plot of expression level", name)
+      p.vln <- set_lab_legend(
+        p.vln,
+        glue::glue("{x@sig} violing plot of {name}"),
+        glue::glue("基因 {less(features)} 表达水平的小提琴图。")
       )
-      p.vln <- setLegend(p.vln, "基因 {less(features)} 表达水平的小提琴图。")
+      ps$p.vln <- p.vln
     }
     if (dim) {
       p.dim <- wrap_layout(patchwork::wrap_plots(e(Seurat::FeaturePlot(
               object(x), 
               features = features, combine = FALSE, cols = cols
               )), ncol = ncol), layout)
-      p.dim <- .set_lab(
-        p.dim, sig(x), paste("dimension plot of expression level", name)
+      p.dim <- set_lab_legend(
+        p.dim,
+        glue::glue("{x@sig} dimension plot of {name}"),
+        glue::glue("基因 {less(features)} 表达水平的 Dimension reduction plot。")
       )
-      p.dim <- setLegend(p.dim, "基因 {less(features)} 表达水平的 Dimension reduction plot.")
+      ps$p.dim <- p.dim
+    }
+    if (dot) {
+      p.dot <- e(Seurat::DotPlot(
+          object(x), features = features, group.by = group.by
+          )) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+      p.dot <- set_lab_legend(
+        wrap_scale_heatmap(
+          p.dot, features, object(x)@meta.data[[group.by]]
+          ),
+        glue::glue("{x@sig} dot plot of {name}"),
+        glue::glue("基因 {less(features)} 表达水平的气泡图。")
+      )
+      ps$p.dot <- p.dot
     }
     return_type <- match.arg(return_type)
     if (return_type == "job") {
-      x[[ paste0("focus_", name) ]] <- namel(p.vln, p.dim)
+      x[[ paste0("focus_", name) ]] <- ps
       return(x)
     } else {
       return(namel(p.vln, p.dim))
     }
   })
+
+.facet_seurat_vlnPlot <- function(plist, facet, x) {
+  if (!is(x, "job")) {
+    stop('!is(x, "job")')
+  }
+  metadata <- dplyr::select(object(x)@meta.data, !!rlang::sym(facet))
+  metadata <- as_tibble(metadata, idcol = "cell")
+  lst <- lapply(plist,
+    function(p) {
+      if (!is(p, "gg.obj")) {
+        stop('!is(p, "gg.obj").')
+      }
+      data <- .get_ggplot_content(p, "data")
+      data <- as_tibble(data, idcol = "cell")
+      if (colnames(data)[3] != "ident") {
+        stop('colnames(data)[3] != "ident".')
+      }
+      title <- colnames(data)[2]
+      data <- setNames(data, c("cell", "value", "group"))
+      data <- map(data, "cell", metadata, "cell", facet, col = "var")
+      layout <- calculate_layout(length(unique(data$var)))
+      p <- .map_boxplot2(data, TRUE, ylab = "Expression", ncol = layout[[ "cols" ]])
+      p <- p + ggtitle(title)
+      p <- wrap_layout(p, layout)
+      p <- set_lab_legend(
+        p,
+        glue::glue("{x@sig} wilcox test of {title} in Cells"),
+        glue::glue("{title} 在各类细胞中的表达量差异分析箱线图")
+      )
+      list(p = p, title = title)
+    })
+  setNames(
+    lapply(lst, function(x) x$p),
+    vapply(lst, function(x) x$title, character(1))
+  )
+}
+
+.get_ggplot_content <- function(x, slot = "data") {
+  if (is(x, "S7_object")) {
+    slot(x, slot)
+  } else {
+    x[[ slot ]]
+  }
+}
+
+wrap_scale_heatmap <- function(data, w = NULL, h = NULL, ...,
+  w.size = .2, h.size = .2, pre_width = 4, pre_height = 3)
+{
+  if (!is.null(w)) {
+    n_width <- length(unique(w))
+  }
+  if (!is.null(h)) {
+    n_height <- length(unique(h))
+  }
+  wrap_scale(
+    data, n_width = n_width, n_height = n_height,
+    w.size = w.size, h.size = h.size, pre_width = pre_width, 
+    pre_height = pre_height, ...
+  )
+}
 
 setMethod("map", signature = c(x = "job_seurat", ref = "character"),
   function(x, ref, slot = "scale.data", ...){
@@ -1157,11 +1301,11 @@ prepare_10x <- function(target, pattern, single = FALSE, col.gene = 1, check = T
   if (!single) {
     files <- list.files(target, "\\.gz$", full.names = TRUE)
     files <- files[ grepl(pattern, files) ]
-    dir <- paste0(target, "/", get_realname(files)[1])
+    dir <- tools::file_path_sans_ext(files[1])
     dir.create(dir, FALSE)
     lapply(files,
       function(x)
-        file.rename(x, paste0(dir, "/", gs(basename(x), ".*_", "")))
+        file.rename(x, file.path(dir, gs(basename(x), ".*_", "")))
     )
     expected <- c("barcodes.tsv.gz", "features.tsv.gz", "matrix.mtx.gz")
     alls <- list.files(dir, full.names = TRUE)
@@ -1384,13 +1528,40 @@ identify.mouseMacroPhe <- function(x, use = "scsa_cell",
   return(x)
 }
 
+scsa_check <- function(x, cell, cluster = "auto", showPos = FALSE, distinct = TRUE)
+{
+  if (!is(x, "job_seurat")) {
+    stop('!is(x, "job_seurat").')
+  }
+  data <- x@tables$step6$scsa_res_all
+  if (showPos) {
+    data <- dplyr::arrange(data, desc(Z.score))
+    data <- dplyr::distinct(
+      data, Cell.Type, .keep_all = TRUE
+    )
+    print(data, n = Inf)
+    return(invisible(data))
+  }
+  res <- dplyr::distinct(data, Cluster, .keep_all = TRUE)
+  res <- dplyr::filter(res, Cell.Type == !!cell)
+  if (identical(cluster, "auto")) {
+    resCluster <- dplyr::filter(data, Cluster %in% res$Cluster)
+  } else {
+    resCluster <- dplyr::filter(data, Cluster %in% !!cluster)
+  }
+  print(resCluster, n = Inf)
+  print(res, n = Inf)
+  invisible(res)
+}
+
 scsa_annotation <- function(
   x, tissue, ref.markers = NULL, onlyUseRefMarkers = !is.null(ref.markers),
-  filter.p = 0.01, filter.fc = .5, reset = NULL,
+  filter.p = 0.01, filter.fc = .5, renameCell = NULL,
   org = c("Human", "Mouse"),
   cmd = pg("scsa"), 
   db = pg("scsa_db"), scsaEnv = pg("scsaEnv"), res.col = "scsa_annotation",
-  cache = "scsa", ...)
+  cache = "scsa", forceCluster = NULL, rerun = FALSE, 
+  allow_gap = 20, add_label = FALSE, dir_cache = "tmp", ...)
 {
   if (grpl(tissue, "(?<!\\\\)\\s", perl = TRUE)) {
     tissue <- gs(tissue, "\\s", "\\\\ ")
@@ -1411,11 +1582,12 @@ scsa_annotation <- function(
       list(
         x@sig, x@tables$step5$all_markers_no_filter,
         tissue, ref.markers, onlyUseRefMarkers, filter.p, filter.fc, org
-      ), "md5"
+      ), "xxhash64", serializeVersion = 3
     )
   )
   message(glue::glue("Got hash: {hash}"))
-  cache <- paste0(cache, "_", hash)
+  dir.create(dir_cache, FALSE)
+  cache <- file.path(dir_cache, paste0(cache, "_", hash))
   dir.create(cache, FALSE)
   mkfile <- function(name, fileext = NULL) {
     file.path(cache, paste0(name, fileext))
@@ -1425,7 +1597,7 @@ scsa_annotation <- function(
   message(glue::glue("Marker file: {marker_file}"))
   result_file <- mkfile("result_file")
   message(glue::glue("Results file: {result_file}"))
-  if (!file.exists(result_file)) {
+  if (rerun || !file.exists(result_file)) {
     if (!is.null(ref.markers)) {
       .check_columns(ref.markers, c("cell", "markers"))
       ref.markers <- dplyr::relocate(ref.markers, cell, markers)
@@ -1440,6 +1612,12 @@ scsa_annotation <- function(
     all_markers <- dplyr::rename(x@tables$step5$all_markers_no_filter, avg_logFC = avg_log2FC)
     all_markers <- dplyr::select(all_markers, -rownames)
     all_markers <- dplyr::mutate(all_markers, gene = gs(gene, "\\.[0-9]*", ""))
+    if (!is.null(ref.markers)) {
+      message(glue::glue("All input reference markers number: {length(unique(ref.markers$markers))}"))
+      which_not_in_data(
+        all_markers, "gene", unique(ref.markers$markers), "Not found in Seurat results: "
+      )
+    }
     data.table::fwrite(all_markers, marker_file)
     if (!is.null(scsaEnv)) {
       activate_env(scsaEnv, pg("conda"))
@@ -1456,31 +1634,81 @@ scsa_annotation <- function(
   }
   scsa_res <- dplyr::rename_all(ftibble(result_file), make.names)
   scsa_res <- scsa_res_all <- dplyr::arrange(scsa_res, Cluster, dplyr::desc(Z.score))
+  ## check score of top1 with top2
+  Ambiguity <- sapply(
+    split(scsa_res, ~ Cluster), simplify = FALSE,
+    function(data) {
+      allow <- diff(range(data$Z.score)) / allow_gap
+      topdiff <- data$Z.score[1] - data$Z.score[2]
+      is <- topdiff < allow
+      top3 <- head(data$Cell.Type, n = 3)
+      score <- head(data$Z.score, n = 3)
+      namel(is, top3, score, cluster = data$Cluster[1])
+    }
+  )
+  isAmbiguity <- vapply(Ambiguity, function(x) x$is, logical(1))
+  if (any(isAmbiguity)) {
+    .ambi <- names(isAmbiguity)[isAmbiguity]
+    x$scsaAmbiguity <- Ambiguity
+    details <- vapply(Ambiguity[isAmbiguity], FUN.VALUE = character(1), 
+      function(obj) {
+        glue::glue(
+          "\tCluster {obj$cluster}: {bind(obj$top3)} -> {bind(round(obj$score, 2))}"
+        )
+      })
+    details <- bind(details, co = "\n")
+    warning(crayon::red(glue::glue("Too Ambiguous Cluster: {bind(.ambi)}\n{details}")))
+  }
   ## add into seurat object
   scsa_res <- dplyr::distinct(scsa_res, Cluster, .keep_all = TRUE)
-  if (!is.null(reset)) {
-    if (is.null(names(reset))) {
-      stop('is.null(names(reset)).')
+  if (!is.null(forceCluster)) {
+    if (!is.numeric(forceCluster) || is.null(names(forceCluster))) {
+      stop('!is.numeric(forceCluster) || is.null(names(forceCluster)).')
     }
-    if (is.character(reset)) {
-      reset <- as.list(reset)
+    forceCluster <- as_df.lst(forceCluster, "cell", "cluster")
+    forceCluster$cluster <- as.integer(forceCluster$cluster)
+    if (any(is.na(forceCluster$cluster))) {
+      stop('set to integer, but: any(is.na(forceCluster$cluster)).')
+    }
+    scsa_res <- map(
+      scsa_res, "Cluster", forceCluster, "cluster", "cell", col = "forced"
+    )
+    if (any(notIn <- !forceCluster$cluster %in% scsa_res$Cluster)) {
+      scsa_res <- tibble::add_row(
+        scsa_res, Cluster = forceCluster$cluster[notIn], 
+        forced = forceCluster$cell[notIn]
+      )
+    }
+    scsa_res <- dplyr::mutate(
+      scsa_res, Cell.Type = ifelse(
+        is.na(forced), Cell.Type, forced
+      )
+    )
+  }
+  if (!is.null(renameCell)) {
+    if (is.null(names(renameCell))) {
+      stop('is.null(names(renameCell)).')
+    }
+    if (is.character(renameCell)) {
+      renameCell <- as.list(renameCell)
     }
     scsa_res <- dplyr::mutate(
       scsa_res, Cell.Type = dplyr::recode(
-        Cell.Type, !!!reset, .default = Cell.Type
+        Cell.Type, !!!renameCell, .default = Cell.Type
       )
     )
   }
   clusters <- object(x)@meta.data$seurat_clusters
   cell_types <- scsa_res$Cell.Type[match(clusters, scsa_res$Cluster)]
   cell_types <- ifelse(is.na(cell_types), "Unknown", cell_types)
-  if (!is.null(reset)) {
-    cell_types <- dplyr::recode(cell_types, !!!reset, .default = cell_types)
+  if (!is.null(renameCell)) {
+    cell_types <- dplyr::recode(cell_types, !!!renameCell, .default = cell_types)
   }
   object(x)@meta.data[[ res.col ]] <- factor(cell_types)
   ## plot
   p.map_scsa <- e(Seurat::DimPlot(
-      object(x), reduction = "umap", label = FALSE, pt.size = .7,
+      object(x), reduction = "umap", label = add_label,
+      pt.size = if (dim(object(x))[2] > 30000) .3 else .5,
       group.by = res.col, cols = color_set()
       ))
   p.map_scsa <- wrap(as_grob(p.map_scsa), 7, 4)
@@ -1602,8 +1830,8 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
 
 .plot_marker_heatmap <- function(x, markers, group.by,
   show = NULL, extra.after = NULL,
-  order.by = c("smart", "raw"), 
-  max = 2, soft = TRUE, notShow = NULL, scale = FALSE)
+  order.by = c("raw", "smart"), 
+  max = 2, soft = TRUE, notShow = NULL, scale = FALSE, ...)
 {
   if ((is(markers, "list") || is(markers, "feature")) && !is.null(max)) {
     lst <- markers
@@ -1710,14 +1938,53 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
       values = avgExpr$Expression, category = "seq", rev = FALSE
     )
   }
-  p.markers <- tidyHeatmap::heatmap(
-    avgExpr, Gene, Cell, Expression, cluster_columns = FALSE, 
-    palette_value = fun_palette,
-    cluster_rows = FALSE
+  if (FALSE) {
+    p.markers <- tidyHeatmap::heatmap(
+      avgExpr, Gene, Cell, Expression, cluster_columns = FALSE, 
+      palette_value = fun_palette,
+      cluster_rows = FALSE
+    )
+    p.markers@arguments <- list()
+  } else {
+    dotData <- e(Seurat::DotPlot(
+        object(x), features = levels(avgExpr$Gene),
+        assay = object(x)@active.assay,
+        group.by = group.by
+        ))
+    dotData <- .get_ggplot_content(dotData)
+    dotData <- dplyr::mutate(
+      dotData, features.plot = factor(features.plot, levels = levels(avgExpr$Gene))
+      # cut the outlier?
+      # avg.exp.scaled = pmin(pmax(avg.exp.scaled, -2), 2)
+    )
+    p.markers <- .marker_plot_point(dotData)
+  }
+  wrap_scale(
+    p.markers, length(unique(avgExpr$Cell)), 
+    length(levels(avgExpr$Gene)), 
+    w.size = .2, h.size = .1, pre_width = 3, pre_height = 2
   )
-  p.markers@arguments <- list()
-  p.markers
 }
+
+.marker_plot_point <- function(data) {
+  p <- ggplot(data, aes(x = id, y = features.plot)) +
+    geom_point(aes(fill = avg.exp.scaled, size = pct.exp),
+      color = 'black', shape = 21, stroke = 0.01) +
+    xlab("") + ylab("") +
+    labs(x = "", y = "", fill = "Avg.exp.scaled", size = "Pct.exp") +
+    scale_fill_gradientn(colors = c("#5DBCFF", "#6DCCFF", "white", "#EDCAE0", "#F484AE")) +
+    theme(
+      text = element_text(size = 10),
+      panel.grid.major = element_line(colour = "grey90", size = 0.2),
+      panel.grid.minor = element_blank(),
+      panel.background = element_blank(),
+      axis.line = element_line(colour = "black"),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+      axis.text.y = element_text(angle = 0, vjust = 0.5, hjust = 1)
+      )
+    p
+}
+
 
 find_outliers <- function(x, try_gap = TRUE) {
   iqr <- find_outliers_iqr(x)
@@ -1761,8 +2028,8 @@ find_outliers_iqr <- function(x, coef = 1.5) {
   skewness + dispersion + gap
 }
 
-plot_cells_proportion <- function(metadata, sample = "orig.ident", 
-  cell = "ChatGPT_cell", relative = TRUE)
+plot_cells_proportion <- function(metadata, sample = "orig.ident",
+  cell = "ChatGPT_cell", relative = TRUE, group = "auto")
 {
   ntypes <- length(unique(metadata[[ cell ]]))
   fun_mutate <- function(x) {
@@ -1771,18 +2038,41 @@ plot_cells_proportion <- function(metadata, sample = "orig.ident",
     }
     return(x)
   }
-  stat <- table(fun_mutate(metadata[[ cell ]]), metadata[[ sample ]])
-  if (relative) {
-    stat <- prop.table(stat, 1)
+  if (identical(group, "auto")) {
+    group <- "group"
   }
-  data <- data.frame(stat)
-  p.props <- ggplot(data, aes(x = Var1, y = Freq, fill = Var2)) +
+  setGroup <- FALSE
+  if (!is.null(group) && !is.null(metadata[[group]])) {
+    lst <- split(metadata, metadata[[ group ]])
+    setGroup <- TRUE
+  } else {
+    lst <- list(metadata)
+  }
+  lst <- lapply(lst, 
+    function(metadata) {
+      stat <- table(metadata[[ sample ]], fun_mutate(metadata[[ cell ]]))
+      if (relative) {
+        stat <- prop.table(stat, 1)
+      }
+      data <- data.frame(stat)
+      data <- dplyr::rename(data, Sample = Var1, Cells = Var2, Ratio = Freq)
+    })
+  data <- dplyr::bind_rows(lst, .id = "group")
+  p.props <- ggplot(data, aes(x = Sample, y = Ratio, fill = Cells)) +
     geom_bar(stat = "identity", width = .7, size = .5) +
     coord_flip() +
-    labs(x = "Cells", y = "Ratio", fill = "Sample") +
+    labs(x = "Sample", y = "Ratio", fill = "Cells") +
     scale_fill_manual(values = color_set()) +
     rstyle("theme")
-  wrap(p.props, 7, .4 * ntypes)
+  if (setGroup) {
+    p.props <- p.props + ggforce::facet_col(
+      ~ group, space = "free", scales = "free"
+    )
+  }
+  p.props <- wrap(p.props, 7, .4 * ntypes)
+  p.props$.data <- tibble::as_tibble(data)
+  p.props$setGroup <- setGroup
+  p.props
 }
 
 get_high_expressed <- function(x, features, threshold = 0, cutoff = .3,

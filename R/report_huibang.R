@@ -2,7 +2,7 @@
 # huibang
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-setup.hb <- function(project = guess_project(), ws = getRemoteWs(), 
+setup.sshfs <- function(project = guess_project(), ws = getRemoteWs(), 
   remote = "remote", path = "remote")
 {
   if (!dir.exists(path)) {
@@ -15,6 +15,7 @@ setup.hb <- function(project = guess_project(), ws = getRemoteWs(),
     stop('length(list.files(path, all.files = TRUE, include.dirs = TRUE)).')
   }
   # umount remote
+  cdRun(glue::glue("nohup sshfs {remote}:{ws} ../{path} >/dev/null 2>&1 &"))
   cdRun(glue::glue("nohup sshfs {remote}:{ws}/{project} {path} >/dev/null 2>&1 &"))
   repeat {
     Sys.sleep(1)
@@ -39,14 +40,22 @@ setup.hb <- function(project = guess_project(), ws = getRemoteWs(),
   if (!upd && file.exists(file.path(to, archive_package))) {
     stop('!upd && file.exists(file.path(to, archive_package))')
   }
+  pathPkgFrom <- file.path(from, archive_package)
+  # if (file.exists(pathPkgFrom)) {
+  #   message(glue::glue('file.exists(pathPkgFrom), remove ...'))
+  #   file.remove(pathPkgFrom)
+  # }
   cdRun(
-    "git ls-files -z | xargs -0 tar -czf ", archive_package,
+    "git ls-files -c -o --exclude-standard -z | xargs -0 tar -czf ", archive_package,
     path = from
   )
   file.copy(
-    file.path(from, archive_package), to, TRUE
+    pathPkgFrom, to, TRUE
   )
   exdir <- file.path(to, pkg)
+  if (dir.exists(exdir)) {
+    unlink(exdir, TRUE)
+  }
   dir.create(exdir, FALSE)
   if (remoteUntar) {
     ws <- getRemoteWs()
@@ -140,7 +149,10 @@ guess_number.hb <- function(path = "remote", p.pattern = "r\\.[0-9]{2}",
   sprintf("%02d", max + 1)
 }
 
-spsv <- function(object, name = "figure", prefix = "tmp_") {
+spsv <- function(object, name = NULL, prefix = "tmp_") {
+  if (is.null(name)) {
+    name <- formal_name(rlang::as_label(substitute(object)))
+  }
   write_graphics(object, name = name, mkdir = ".")
 }
 
@@ -155,24 +167,105 @@ take_positions <- function(plots, envir = .GlobalEnv) {
   }
 }
 
-loadJob <- function(path, env = .GlobalEnv, name = "AUTO") {
-  if (identical(name, "AUTO")) {
-    name <- basename(path)
-    name <- tools::file_path_sans_ext(name)
-    name <- tools::file_path_sans_ext(name)
+smart_wrap_expr <- function(plots, size = 3, ..., envir = .GlobalEnv)
+{
+  calls <- substitute(plots)
+  if (as_label(calls[[1]]) != "{") {
+    stop('as_label(calls[[1]]) != "{"')
   }
-  object <- readRDS(path)
-  assign(name, object, envir = env)
-  writeJobSlotsAutoCompletion(name, envir = env)
+  plots <- lapply(calls[-1],
+    function(call) {
+      eval(parse(text = as_label(call)), envir = envir)
+    })
+  smart_wrap(plots, size = size, ...)
 }
 
+expect_package <- function(pkg, version, prio_lib = getOption("prio_lib")) {
+  if (!requireNamespace(pkg)) {
+    stop('!requireNamespace(pkg)')
+  }
+  if (packageVersion(pkg) >= version) {
+    message("Pacakge ", pkg, " as expected.")
+    return()
+  }
+  if (packageVersion(pkg) < version) {
+    message(glue::glue("Detach the loaded namespace, search in preferred lib path."))
+    unloadNamespace(asNamespace(pkg))
+    loadNamespace(pkg, lib.loc = prio_lib)
+  }
+  if (packageVersion(pkg, lib.loc = prio_lib) < version) {
+    stop('packageVersion(pkg, lib.loc = prio_lib) < version.')
+  } else {
+    message(glue::glue("Successfully loaded the latter R package"))
+  }
+}
+
+
+save_small.huibang <- function(name, cutoff = 50, dir = "rdata_smallObject")
+{
+  dir.create(dir, FALSE)
+  file <- file.path(dir, glue::glue("{name}.rdata"))
+  message(glue::glue("Save rdata: {file}"))
+  save_small(cutoff = cutoff, file = file)
+}
+
+
 setup.huibang <- function() {
+  conflicted::conflict_prefer("map", "utils.tool")
   options(
+    prio_lib = "/data/nas1/huanglichuang_OD/conda/envs/extra_pkgs/lib/R/library/",
+    warning.length = 5000,
+    max.print = 500L,
+    path_jobSave = "rds_jobSave",
+    future.globals.maxSize = 5e10,
     wd_prefix = "/data/nas1/huanglichuang_OD/project/",
     db_prefix = "/data/nas1/huanglichuang_OD/project/",
-    op_prefix = "/data/nas1/huanglichuang_OD/project/"
+    op_prefix = "/data/nas1/huanglichuang_OD/project/",
+    file_batman_compounds_info = "/data/nas2/database/graphban/db/BATMAN_TCM/cids_result.csv",
+    cellchat_python = "/data/nas1/huanglichuang_OD/conda/envs/extra_pkgs/bin/python",
+    rdkit_python = "/data/nas1/huanglichuang_OD/conda/envs/extra_pkgs/bin/python",
+    path_jobLoadFrom = list(remote = "./rds_jobSave/"),
+    pg_local_recode = list(
+      # fusion = "~/fusion_twas",
+      # ldscPython = "{conda}/bin/conda run -n ldsc python",
+      # ldsc = "~/ldsc",
+      # annovar = "~/disk_sda1/annovar",
+      # vep = "~/ensembl-vep/vep",
+      # vep_cache = "~/disk_sda1/.vep",
+      # vina = "vina",
+      # python = "{conda}/bin/python3",
+      # conda = "{conda}/bin/conda",
+      # conda_env = "{conda}/envs",
+      # qiime = "{conda}/bin/conda run -n qiime2 qiime",
+      # musitePython = "{conda}/bin/conda run -n musite python3",
+      # musitePTM = "~/MusiteDeep_web/MusiteDeep/predict_multi_batch.py",
+      # musitePTM2S = "~/MusiteDeep_web/PTM2S/ptm2Structure.py",
+      # hobEnv = "hobpre",
+      # hobPython = "{conda}/bin/conda run -n hobpre python",
+      # hobPredict = "~/HOB/HOB_predict.py",
+      # hobModel = "~/HOB/model",
+      # hobExtra = "~/HOB/pca_hob.m",
+      # dl = normalizePath("~/D-GCAN/DGCAN"),
+      # dl_dataset = normalizePath("~/D-GCAN/dataset"),
+      # dl_model = normalizePath("~/D-GCAN/DGCAN/model"),
+      # scfeaPython = "{conda}/bin/conda run -n scFEA python",
+      # scfea = "~/scFEA/src/scFEA.py",
+      # scfea_db = "~/scFEA/data",
+      # musiteModel = normalizePath("~/MusiteDeep_web/MusiteDeep/models"),
+      # mk_prepare_ligand.py = "mk_prepare_ligand.py",
+      # prepare_receptor = "prepare_receptor",
+      # prepare_gpf.py = "prepare_gpf.py",
+      # autogrid4 = "autogrid4",
+      # pymol = "/usr/bin/python3 -m pymol",
+      # sirius = .prefix("sirius/bin/sirius", "op"),
+      # obgen = "obgen",
+      conda = "/data/nas2/software/miniconda3/bin/conda",
+      scsaEnv = "scsa",
+      scsa = "conda run -n scsa python3 /data/nas1/huanglichuang_OD/SCSA/SCSA.py",
+      scsa_db = "/data/nas1/huanglichuang_OD/SCSA/whole_v2.db"
+    )
   )
-  options("download.file.method" = "wget")
+  options("download.file.method" = "wget", "download.file.extra" = "--no-check-certificate")
 }
 
 run_in_project_nohup <- function(script = "", remote = "remote") {
