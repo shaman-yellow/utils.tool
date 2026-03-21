@@ -41,7 +41,7 @@ order_packaging.complex <- function(target = "output.pdf",
 write_complexDocx <- function(report, savename, title,
   yml = file.path(.expath, "complex.yml"), ...)
 {
-  write_biocStyle(report, savename, title, yml, ...)
+  play_overture(report, savename, title, yml, ...)
 }
 
 formatName.complex <- function(file, info) {

@@ -425,7 +425,7 @@ setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
       sig <- ""
     }
     analysis <- glue::glue("{analysis}{sig}")
-    x <- as_feature(x, analysis, nature = nature, type = type)
+    x <- as_feature(x, analysis, nature = match.arg(nature), type = type)
     x@from <- from
     return(x)
   })
@@ -1372,49 +1372,82 @@ setMethod("ref", signature = c(x = "character_ref"),
     return(x)
   })
 
-setMethod("label", signature = c(x = "ANY"),
-  function(x, ...){
+aref <- function(x, ...) {
+  res <- ref(x, render = FALSE, ...)
+  glue::glue("⟦ref('{res$ref}', autoRef = '{res$type}')⟧")
+}
+
+.as_refer <- function(x, type) {
+  if (knitr::pandoc_to("docx")) {
+    x <- assis_docx_str(officer::run_reference(x))
+    glue::glue(" (Fig. {x}) ")
+  } else {
+    glue::glue(" ({capitalize(type)}. \\@ref({type}:{x})) ")
+  }
+}
+
+setMethod("ref", signature = c(x = "ANY"),
+  function(x, render = TRUE, ...){
     if (is.null(lab(x))) {
       stop('is.null(lab(x)), no "lab" found, use `lab` to set it.')
     }
-    x <- as_chunk_label(lab(x))
-    ref(x, ...)
+    label <- as_chunk_label(lab(x))
+    ref(label, obj = x, render = render, ...)
   })
 
 setMethod("ref", signature = c(x = "character"),
-  function(x, legend = NULL, try = FALSE,
-    visuable = getOption("autoLegendsVisuable", TRUE), ...)
+  function(x, legend = FALSE, try = FALSE,
+    visuable = getOption("autoLegendsVisuable", TRUE), 
+    obj = NULL, render = TRUE, autoRef = NULL, ...)
   {
-    if (is.null(legend)) {
-      autor_legend_env <- getOption("autor_legend_env")
-      if (any(names(autor_legend_env) == x)) {
-        # case: manualy cite the figure or table.
-        legend <- FALSE
+    if (!is.null(autoRef)) {
+      if (knitr::pandoc_to("docx") || knitr::is_latex_output()) {
+        if (exists("autoRegisters", where = .GlobalEnv) && any(names(autoRegisters) == x)) {
+          ref <- .as_refer(x, autoRef)
+        } else {
+          ref <- ""
+        }
       } else {
-        # case: legends show before the figure or tables (gather legends)
-        legend <- TRUE
+        ref <- ""
+      }
+      return(ref)
+    }
+    if (is.null(legend)) {
+      if (getOption("autor_show_legend_after_ref", FALSE)) {
+        autor_legend_env <- getOption("autor_legend_env")
+        if (any(names(autor_legend_env) == x)) {
+          # case: manualy cite the figure or table.
+          legend <- FALSE
+        } else {
+          # case: legends show before the figure or tables (gather legends)
+          legend <- TRUE
+        }
+      } else {
+        legend <- FALSE
       }
     }
-    codes_list <- knitr::knit_code$get()
-    if (!length(codes_list)) {
-      message("Not in rendering circumstance.")
-      return("")
-    }
-    codes <- codes_list[[x]]
-    if (is.null(codes)) {
-      if (try) {
+    if (is.null(obj)) {
+      codes_list <- knitr::knit_code$get()
+      if (!length(codes_list)) {
+        message("Not in rendering circumstance, and is.null(obj), don't know how to cite target.")
         return("")
       }
-      stop('is.null(codes), can not found ref target, please check the character.')
+      codes <- codes_list[[x]]
+      if (is.null(codes)) {
+        if (try) {
+          return("")
+        }
+        stop('is.null(codes), can not found ref target, please check the character.')
+      }
+      objName <- stringr::str_extract(codes, "(?<=autor\\().*(?=\\)$)")
+      objName <- objName[ !is.na(objName) ]
+      if (!length(objName)) {
+        stop('!length(objName), can not match object name in "autor()".')
+      } else if (length(objName) > 1) {
+        stop("Too many object name matched in 'autor()'.")
+      }
+      obj <- eval(parse(text = objName), parent.frame(2))
     }
-    objName <- stringr::str_extract(codes, "(?<=autor\\().*(?=\\)$)")
-    objName <- objName[ !is.na(objName) ]
-    if (!length(objName)) {
-      stop('!length(objName), can not match object name in "autor()".')
-    } else if (length(objName) > 1) {
-      stop("Too many object name matched in 'autor()'.")
-    }
-    obj <- eval(parse(text = objName), parent.frame(2))
     if (legend) {
       if (!visuable || is.null(Legend(obj))) {
         placeHolder <- ""
@@ -1425,9 +1458,17 @@ setMethod("ref", signature = c(x = "character"),
       placeHolder <- ""
     }
     if (is(obj, "df") || is(obj, "data.frame")) {
-      glue::glue("Tab. \\@ref(tab:{x}) {placeHolder}")
+      if (render) {
+        glue::glue("Tab. \\@ref(tab:{x}) {placeHolder}")
+      } else {
+        list(ref = x, type = "tab")
+      }
     } else if (is(obj, "can_not_be_draw") || is(obj, "can_be_draw") || is(obj, "fig")) {
-      glue::glue("Fig. \\@ref(fig:{x}) {placeHolder}")
+      if (render) {
+        glue::glue("Fig. \\@ref(fig:{x}) {placeHolder}")
+      } else {
+        list(ref = x, type = "fig")
+      }
     }
   })
 
@@ -1458,7 +1499,7 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
       line_label <- paste0("#| ", label)
     }
     SendCmdToNvim(glue::glue('append(line(".") - 1, "{line_label}")'), PACKAGE = "nvimcom")
-    if (ref) {
+    if (getOption("autor_show_legend_after_ref", FALSE) && ref) {
       line_ref <- glue::glue("`r ref(\"{label}\")`")
       print(line_ref)
       SendCmdToNvim(glue::glue("Add_auto_label_ref('{line_ref}')"), PACKAGE = "nvimcom")
@@ -1666,11 +1707,44 @@ setReplaceMethod("Legend", signature = c(x = "ANY"),
     return(x)
   })
 
+.protect_and_apply <- function(x, fun, protect_pattern = "⟦[^⟦⟧]*⟧")
+{
+  if (length(x) > 1) {
+    stop('length(x) > 1.')
+  }
+  if (!length(x)) {
+    return(x)
+  }
+  protected <- stringr::str_extract_all(x, protect_pattern)[[1]]
+  placeholders <- paste0("<<P", seq_along(protected), ">>")
+  for (i in seq_along(protected)) {
+    x <- stringr::str_replace(x, stringr::fixed(protected[i]), placeholders[i])
+  }
+  x <- fun(x)
+  for (i in seq_along(protected)) {
+    x <- stringr::str_replace(x, stringr::fixed(placeholders[i]), protected[i])
+  }
+  x
+}
+
 convert_to_chinese_marks <- function(x) {
-  gs(
-    gs(gs(gs(x, ",", "，"), "[ ]{0,1}\\(", "（"), "\\)[ ]{0,1}", "）"), 
-    ";[ ]{0,1}", "；"
-  )
+  fun_replace <- function(x) {
+    x <- gs(
+      gs(gs(gs(x, ",", "，"), "[ ]{0,1}\\(", "（"), "\\)[ ]{0,1}", "）"), 
+      ";[ ]{0,1}", "；"
+    )
+    cn_all <- "\\u4E00-\\u9FFF\\u3000-\\u303F\\uFF00-\\uFFEF"
+    cn_punct <- "\\u3000-\\u303F\\uFF00-\\uFFEF"
+    en <- "A-Za-z"
+    pattern_cn_between <- paste0("(?<=[", cn_all, "])\\s+(?=[", cn_all, "])")
+    pattern_en_to_punct <- paste0("(?<=[", en, "])\\s+(?=[", cn_punct, "])")
+    pattern_punct_to_en <- paste0("(?<=[", cn_punct, "])\\s+(?=[", en, "])")
+    x <- stringr::str_replace_all(x, pattern_cn_between, "")
+    x <- stringr::str_replace_all(x, pattern_en_to_punct, "")
+    x <- stringr::str_replace_all(x, pattern_punct_to_en, "")
+  }
+  .protect_and_apply(x, fun_replace)
+  x
 }
 
 set_lab_legend <- function(object, lab, legend = lab, labs = NULL, ...) {
@@ -2134,59 +2208,6 @@ set_sig <- function(x, substitute, envir = parent.frame(2)) {
   return(x)
 }
 
-setGeneric("step1", group = list("step_series"),
-  function(x, ...) {
-    # if (identical(sig(x), character(0))) {
-    legal <- TRUE
-    if (!length(x@sig)) {
-      if (identical(parent.frame(1), .GlobalEnv)) {
-        name <- rlang::as_label(substitute(x))
-        if (grepl("^[A-Za-z][A-Za-z0-9_.]*$", name)) {
-          sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
-          attr(sig, "name") <- name
-          sig(x) <- sig 
-        } else {
-          legal <- FALSE
-        }
-      } else {
-        legal <- FALSE
-      }
-    }
-    # }
-    if (is.null(x$seed)) {
-      if (is.null(seed <- getOption("step_seed"))) {
-        x$seed <- 987456L
-      } else {
-        x$seed <- seed
-      }
-    }
-    x <- checkAddStep(x, 1L)
-    if (interactive()) {
-      # you can set `x$.append_heading <- FALSE` to cancel that.
-      x$.append_heading <- TRUE
-      x$.append_snap <- TRUE
-    }
-    x <- standardGeneric("step1")
-    x <- stepPostModify(x, 1)
-    if (interactive() && identical(parent.frame(1), .GlobalEnv)) {
-      if (legal && !is.null(x$.append_snap) && x$.append_snap) {
-        job_append_method(x, oname = attr(sig(x), "name"))
-      }
-      x$.append_snap <- NULL
-      if (legal && !is.null(x$.append_heading) && x$.append_heading) {
-        job_append_heading(x)
-      }
-      x$.append_heading <- NULL
-    }
-    x
-  })
-
-setMethod("step1", signature = c(x = "job"),
-  function(x){
-    step_message("Do nothing.")
-    return(x)
-  })
-
 job_append_heading <- function (x, mutate = TRUE, heading = NULL) {
   if (getOption("job_appending", FALSE)) {
     if (is(x, "job")) {
@@ -2276,86 +2297,142 @@ job_append_method <- function(x, step = NULL, append = FALSE, method = TRUE, ona
   }
 }
 
+setGeneric("step1", group = list("step_series"),
+  function(x, ...) {
+    # if (identical(sig(x), character(0))) {
+    legal <- TRUE
+    if (!length(x@sig)) {
+      if (identical(parent.frame(1), .GlobalEnv)) {
+        name <- rlang::as_label(substitute(x))
+        if (grepl("^[A-Za-z][A-Za-z0-9_.]*$", name)) {
+          sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
+          attr(sig, "name") <- name
+          sig(x) <- sig 
+        } else {
+          legal <- FALSE
+        }
+      } else {
+        legal <- FALSE
+      }
+    }
+    # }
+    if (is.null(x$seed)) {
+      if (is.null(seed <- getOption("step_seed"))) {
+        x$seed <- 987456L
+      } else {
+        x$seed <- seed
+      }
+    }
+    x <- checkAddStep(x, 1L)
+    if (interactive()) {
+      # you can set `x$.append_heading <- FALSE` to cancel that.
+      x$.append_heading <- TRUE
+      x$.append_snap <- TRUE
+    }
+    x <- standardGeneric("step1")
+    x <- stepPostModify(x, 1, args = list(...))
+    if (interactive() && identical(parent.frame(1), .GlobalEnv)) {
+      if (legal && !is.null(x$.append_snap) && x$.append_snap) {
+        job_append_method(x, oname = attr(sig(x), "name"))
+      }
+      x$.append_snap <- NULL
+      if (legal && !is.null(x$.append_heading) && x$.append_heading) {
+        job_append_heading(x)
+      }
+      x$.append_heading <- NULL
+    }
+    x
+  })
+
 setGeneric("step2", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 2L)
     x <- standardGeneric("step2")
-    stepPostModify(x, 2)
+    stepPostModify(x, 2, args = list(...))
   })
 
 setGeneric("step3", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 3L)
     x <- standardGeneric("step3")
-    stepPostModify(x, 3)
+    stepPostModify(x, 3, args = list(...))
   })
 
 setGeneric("step4", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 4L)
     x <- standardGeneric("step4")
-    stepPostModify(x, 4)
+    stepPostModify(x, 4, args = list(...))
   })
 
 setGeneric("step5", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 5L)
     x <- standardGeneric("step5")
-    stepPostModify(x, 5)
+    stepPostModify(x, 5, args = list(...))
   })
 
 setGeneric("step6", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 6L)
     x <- standardGeneric("step6")
-    stepPostModify(x, 6)
+    stepPostModify(x, 6, args = list(...))
   })
 
 setGeneric("step7", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 7L)
     x <- standardGeneric("step7")
-    stepPostModify(x, 7)
+    stepPostModify(x, 7, args = list(...))
   })
 
 setGeneric("step8", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 8L)
     x <- standardGeneric("step8")
-    stepPostModify(x, 8)
+    stepPostModify(x, 8, args = list(...))
   })
 
 setGeneric("step9", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 9L)
     x <- standardGeneric("step9")
-    stepPostModify(x, 9)
+    stepPostModify(x, 9, args = list(...))
   })
 
 setGeneric("step10", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 10L)
     x <- standardGeneric("step10")
-    stepPostModify(x, 10)
+    stepPostModify(x, 10, args = list(...))
   })
 
 setGeneric("step11", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 11L)
     x <- standardGeneric("step11")
-    stepPostModify(x, 11)
+    stepPostModify(x, 11, args = list(...))
   })
 
 setGeneric("step12", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 12L)
     x <- standardGeneric("step12")
-    stepPostModify(x, 12)
+    stepPostModify(x, 12, args = list(...))
   })
 
-stepPostModify <- function(x, n = NULL, formal = TRUE, showH1 = TRUE) {
+stepPostModify <- function(x, n = NULL, formal = TRUE, 
+  showH1 = TRUE, args = NULL)
+{
   if (showH1) {
     cli::cli_h1("Job finished & Start post modify")
+  }
+  if (!is.null(args) && length(args)) {
+    isSave <- vapply(args, FUN.VALUE = logical(1), 
+      function(x) {
+        (is(x, "character") || is(x, "numeric")) && length(x) < 10
+      })
+    x$.args[[ paste0("step", n) ]] <- args[ isSave ]
   }
   xname <- attr(x@sig, "name")
   news <- c()
@@ -2430,6 +2507,12 @@ stepPostModify <- function(x, n = NULL, formal = TRUE, showH1 = TRUE) {
   validObject(x)
   x
 }
+
+setMethod("step1", signature = c(x = "job"),
+  function(x){
+    step_message("Do nothing.")
+    return(x)
+  })
 
 .strwrapCh <- function(x) {
   paste0(strwrap(split_text_by_width(x, 70), , 4), collapse = "\n")

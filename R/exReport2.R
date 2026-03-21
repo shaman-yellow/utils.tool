@@ -8,7 +8,7 @@ exclude_yaml <- function(lines) {
   lines[-yaml.pos]
 }
 
-write_biocStyle <- function(
+play_overture <- function(
   report, savename, title, bioyml = file.path(.expath, "biocstyle.yml"),
   bib = NULL, ...)
 {
@@ -38,7 +38,58 @@ write_biocStyle <- function(
     lines <- c("---", bioyml, "---", "", lines)
   }
   writeLines(lines, savename)
-  rmarkdown::render(savename)
+  rmarkdown::render(savename, clean = FALSE)
+}
+
+parse_overture <- function(lines, env = .GlobalEnv) {
+  isQuos <- grpl(lines, "^```")
+  inchunk <- FALSE
+  isInChunk <- vapply(seq_along(lines), function(n) {
+    if (isQuos[n]) {
+      inchunk <<- !inchunk
+    }
+    inchunk
+  }, logical(1))
+  whichInChunk <- which(isInChunk & !isQuos)
+  isOverture <- grpl(lines, "<!-- OVERTURE_[A-Z]+ -->")
+  inOverture <- FALSE
+  groupOv <- rep(0, length(lines))
+  num <- 0L
+  isInOverture <- vapply(seq_along(lines), FUN.VALUE = logical(1),
+    function(n) {
+      if (isOverture[n]) {
+        if (!inOverture) {
+          num <<- num + 1L
+        }
+        inOverture <<- !inOverture
+      }
+      if (inOverture) {
+        groupOv[n] <<- num
+      }
+      inOverture
+    })
+  ovlnums <- split(seq_along(lines), groupOv)
+  ovlnums <- ovlnums[ names(ovlnums) != "0" ]
+  res <- lapply(seq_along(ovlnums),
+    function(n) {
+      lnums <- ovlnums[[ as.character(n) ]]
+      fields <- c(lnums, max(lnums) + 1L)
+      lnumCodes <- lnums[ lnums %in% whichInChunk ]
+      res <- eval(parse(text = lines[lnumCodes]), envir = env)
+      if (is.null(res)) {
+        res <- ""
+      } else if (!is.character(res)) {
+        stop('!is.character(res), the eval results of codes in Overture should be character.')
+      }
+      namel(fields, res)
+    })
+  lapply(rev(seq_along(res)),
+    function(n) {
+      args <- res[[n]]
+      lines <<- lines[ -args$fields ]
+      lines <<- append(lines, args$res, min(args$fields) - 1L)
+    })
+  lines
 }
 
 parse_chunk_location <- function(lines) {
@@ -90,19 +141,19 @@ parse_chunk_location <- function(lines) {
 write_thesisDocx <- function(report, savename, title,
   yml = file.path(.expath, "ch_thesis.yml"), ...)
 {
-  write_biocStyle(report, savename, title, yml, ...)
+  play_overture(report, savename, title, yml, ...)
 }
 
 write_thesisDocxEn <- function(report, savename, title,
   yml = file.path(.expath, "en_thesis.yml"), ...)
 {
-  write_biocStyle(report, savename, title, yml, ...)
+  play_overture(report, savename, title, yml, ...)
 }
 
 write_articlePdf <- function(report, savename = "output.Rmd", title = "",
   yml = file.path(.expath, "articleWithCode.yml"), ...)
 {
-  write_biocStyle(report, savename, title, yml, ...)
+  play_overture(report, savename, title, yml, ...)
 }
 
 kable_less <- function(x, ...) {

@@ -30,7 +30,7 @@ inclu.fig <- function(image, land = FALSE, saveDir = "thesis_fig", dpi = 300,
     } else need_trim <- FALSE
   }
   ## trim the border
-  if (!need_trim) {
+  if (need_trim) {
     # gc()
     pic_trim(savename)
   }
@@ -628,6 +628,7 @@ custom_docx_document2 <- function(...){
     args$reference_docx <- path
   }
   args <- list(
+    number_sections = FALSE,
     reference_docx = args$reference_docx,
     keep_md = TRUE,
     df_print = "tibble",
@@ -669,27 +670,33 @@ custom_docx_document2 <- function(...){
       stop('!file.exists(output_file), I can not found the post-knit md file.')
     }
     lines <- readLines(output_file)
-    all_placeHolder <- stringr::str_extract_all(lines, "<!-- autor_legend:[a-zA-Z0-9-]*? -->")
-    n <- 0L
-    autor_legend_env <- getOption("autor_legend_env")
-    lines <- vapply(lines,
-      function(line) {
-        n <<- n + 1L
-        if (length(alls <- all_placeHolder[[ n ]])) {
-          replace <- ""
-          label <- ""
-          for (i in alls) {
-            label <- stringr::str_extract(i, "(?<=autor_legend:)[a-zA-Z0-9-]*")
-            replace <- autor_legend_env[[ label ]]
-            if (!is.null(replace) && length(replace)) {
-              line <- sub(i, replace, line)
-              # only for once
-              autor_legend_env[[ label ]] <- NULL
+    lines <- vapply(lines, FUN.VALUE = character(1),
+      function(x) {
+        glue::glue(x, .open = "⟦", .close = "⟧")
+      })
+    if (getOption("autor_show_legend_after_ref", FALSE)) {
+      all_placeHolder <- stringr::str_extract_all(lines, "<!-- autor_legend:[a-zA-Z0-9-]*? -->")
+      n <- 0L
+      autor_legend_env <- getOption("autor_legend_env")
+      lines <- vapply(lines,
+        function(line) {
+          n <<- n + 1L
+          if (length(alls <- all_placeHolder[[ n ]])) {
+            replace <- ""
+            label <- ""
+            for (i in alls) {
+              label <- stringr::str_extract(i, "(?<=autor_legend:)[a-zA-Z0-9-]*")
+              replace <- autor_legend_env[[ label ]]
+              if (!is.null(replace) && length(replace)) {
+                line <- sub(i, replace, line)
+                # only for once
+                autor_legend_env[[ label ]] <- NULL
+              }
             }
           }
-        }
-        return(line)
-      }, character(1))
+          return(line)
+        }, character(1))
+    }
     writeLines(lines, output_file)
   }
   output_formats$post_knit <- new_fun

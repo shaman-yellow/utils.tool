@@ -85,7 +85,6 @@ setMethod("step1", signature = c(x = "job_venn"),
     step_message("Intersection.")
     p.venn <- new_venn(lst = object(x), ...)
     lab(p.venn) <- paste(sig(x), lab(p.venn))
-    x@plots[[ 1L ]] <- namel(p.venn)
     x$.append_heading <- FALSE
     if (identical(parent.frame(1), .GlobalEnv)) {
       job_append_heading(
@@ -94,6 +93,8 @@ setMethod("step1", signature = c(x = "job_venn"),
         )
       )
     }
+    x <- snapAdd(x, "对{bind(names(object(x)))} 取交集，得到{length(p.venn$ins)}个交集{aref(p.venn)}。")
+    x <- plotsAdd(x, p.venn)
     x$.feature <- as_feature(p.venn$ins, x)
     return(x)
   })

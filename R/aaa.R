@@ -986,6 +986,12 @@ xdg_open_url <- function(object, ...) {
   }
 }
 
+capitalize <- function (string) 
+{
+  capped <- grep("^[A-Z]", string, invert = TRUE)
+  substr(string[capped], 1, 1) <- toupper(substr(string[capped], 1, 1))
+  return(string)
+}
 
 # my_add_pval <- function(
 #   ggplot_obj, pairs = NULL, test = "wilcox.test", heights = NULL,

@@ -22,7 +22,7 @@ funPlot <- function(fun, args) {
 
 setMethod("show", signature = c(object = "funPlot"),
   function(object){
-    do.call(object@fun, object@args)
+    show(do.call(object@fun, object@args))
   })
 
 files <- setClass("files", 
@@ -2018,6 +2018,7 @@ autor_preset <- function(echo = FALSE, eval = FALSE,
   # autor_relocate: move files to a new directory while `order_packaging` 
   autor_relocate = FALSE, autor_legends_gather = FALSE,
   autor_locate_file = FALSE, legend_as_caption = TRUE, method_into_snap = TRUE,
+  autor_show_legend_after_ref = FALSE,
   autor_show_cite_IF = FALSE, autor_chinese_marks = TRUE, ...)
 {
   options(
@@ -2028,7 +2029,8 @@ autor_preset <- function(echo = FALSE, eval = FALSE,
     autor_locate_file = autor_locate_file,
     legend_as_caption = legend_as_caption,
     autor_chinese_marks = autor_chinese_marks,
-    autor_show_cite_IF = autor_show_cite_IF
+    autor_show_cite_IF = autor_show_cite_IF,
+    autor_show_legend_after_ref = autor_show_legend_after_ref
   )
   knitr::opts_chunk$set(
     echo = echo, eval = eval, message = FALSE, warning = FALSE,
@@ -2663,7 +2665,7 @@ sumTbl <- function(x, key, sum.ex = NULL, mustSum = getOption("abstract.mustSum"
 locate_file <- function(name, des = "File path: ", relocate = getOption("autor_relocate", FALSE)) {
   if (!exists('autoRegisters'))
     stop("!exists('autoRegisters')")
-  ## The `chunk_location` is setup by 'write_biocStyle'
+  ## The `chunk_location` is setup by 'play_overture'
   chunk_location <- getOption("chunk_location")
   autoRegisters_relocate <- getOption("autoRegisters_relocate")
   if (relocate && !is.null(chunk_location) && !is.null(autoRegisters_relocate)) {

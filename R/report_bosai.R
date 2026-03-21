@@ -232,7 +232,7 @@ td <- function(character_date) {
 write_bosaiDocx <- function(report, savename, title,
   yml = file.path(.expath, "bosai.yml"), ...)
 {
-  write_biocStyle(report, savename, title, yml, ...)
+  play_overture(report, savename, title, yml, ...)
 }
 
 order_publish.bosai <- function(file = "index.Rmd", output = "output.Rmd", title = "",
@@ -366,7 +366,7 @@ assis_docx_par <- function(x) {
   c("```{=openxml}", officer::to_wml(x), "```")
 }
 
-assis_docx_img <- function(x) {
+assis_docx_str <- function(x) {
   paste0("`", officer::to_wml(x), "`{=openxml}")
 }
 
