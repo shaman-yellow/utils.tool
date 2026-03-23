@@ -549,13 +549,13 @@ pattern_contrasts <- function(group, formula, pattern = paste0(signature, "$"),
   if (length(formula) != 3) {
     stop('length(formula) != 3, not "X - Y"?')
   }
-  if (!identical(rlang::as_label(formula[[1]]), "-")) {
+  if (!identical(rlang::expr_text(formula[[1]]), "-")) {
     stop(
-      '!identical(rlang::as_label(formula[[1]]), "-"), not versus?'
+      '!identical(rlang::expr_text(formula[[1]]), "-"), not versus?'
     )
   }
   if (missing(signature)) {
-    signature <- vapply(c(formula[[2]], formula[[3]]), rlang::as_label, character(1))
+    signature <- vapply(c(formula[[2]], formula[[3]]), rlang::expr_text, character(1))
   }
   pattern <- paste0(pattern, collapse = "|")
   subtypes <- gs(group, pattern, "")
@@ -737,13 +737,15 @@ setMethod("focus", signature = c(x = "job_limma"),
   {
     if (is(ref, "feature")) {
       x <- snapAdd(
-        x, "聚焦于{snap(ref)}的差异表达。", 
+        x,
+        "聚焦于{snap(ref)}的差异表达。", 
         add = FALSE, step = if (is.null(.name)) "m" else .name
       )
       ref <- resolve_feature(ref)
     } else {
       x <- snapAdd(
-        x, "聚焦于{less(ref)}的差异表达。", 
+        x,
+        "聚焦于{less(ref)}的差异表达。", 
         add = FALSE, step = if (is.null(.name)) "m" else .name
       )
     }
@@ -782,6 +784,15 @@ setMethod("focus", signature = c(x = "job_limma"),
     } else {
       lst <- namel(p.BoxPlotOfDEGs = x@plots$step2$p.BoxPlotOfDEGs, data = data)
     }
+    pvalue <- lst$p.BoxPlotOfDEGs$pvalue
+    s.test <- switch(
+      test, wilcox.test = "Wilcoxon 秩和检验",
+      fp.test = "Fligner-Policello 检验"
+    )
+    x <- snapAdd(
+      x, "{bind(names(pvalue))} 表达差异的 {s.test} 统计学显著性 P 为 {bind(pvalue)}。",
+      step = .name
+    )
     if (!is.null(.name)) {
       x[[ paste0("focusedDegs_", .name) ]] <- lst
     } else {

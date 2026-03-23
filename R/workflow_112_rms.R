@@ -66,30 +66,34 @@ setMethod("step1", signature = c(x = "job_rms"),
     p.nomo <- set_lab_legend(
       p.nomo,
       glue::glue("{x@sig} nomogram"),
-      glue::glue("风险评估列线图")
+      glue::glue("风险评估列线图|||第一部分为 Points，表示风险分数为某个取值时的单项得分；第二部分为变量，变量后面线段的取值范围表示该变量对结局事件的总贡献值。线段上的刻度表示变量的不同取值；第三部分为 Total Points，表示变量取值的单项得分的总分。")
     )
     x <- methodAdd(x, "以 R 包 `regplot` ({packageVersion('regplot')}) 绘制该评估模型的列线图 (优化的列线图)。")
+    x <- snapAdd(x, "列线图{aref(p.nomo)}将复杂的回归方程，转变为了可视化的图形，使预测模型的结果更具有可读性，方便对患者进行评估。如图{aref(p.nomo)}，每一个关键基因对应一个评分，各关键基因评分相加对应总评分，根据总评分预测疾病发病风险。")
     p.rocs <- x$res_lrm$p.rocs
     p.rocs <- set_lab_legend(
       p.rocs,
       glue::glue("{x@sig} ROC evaluation of diagnostic indicators"),
-      glue::glue("各诊断指标的ROC")
+      glue::glue("各诊断指标的ROC|||纵轴为灵敏度，横轴为特异度，虚线为基准线（最低标准），曲线为对应指标的 ROC 曲线。其中 ROC 曲线距离基准线越远，则说明该模型的预测效果越好。ROC 曲线接近左上角，说明模型预测准确率很高。")
     )
     x <- methodAdd(x, "以 R 包 `pROC` ({packageVersion('pROC')}) 绘制该诊断模型的受试者工作特征 (ROC) 曲线，以曲线下面积 (Area Under the Curve，AUC) 评估模型效能。")
-    x <- snapAdd(x, "ROC 评估各诊断指标：{bind(x$res_lrm$aucs)} (AUC 介于 0.7-1 提示模型具有较好的预测效能)。")
+    x <- snapAdd(x, "ROC 评估{aref(p.rocs)}各诊断指标：{bind(x$res_lrm$aucs)} (AUC 介于 0.7-1 提示模型具有较好的预测效能)。")
     p.cal <- x$res_lrm$p.cal
     exLegend <- if (packageVersion("rms") >= "8.1.1") {
       "；C.L.为置信区间，如果对角线在 C.L. 内，模型校准良好"
     } else {
       ""
     }
+    hl.pvalue <- x$res_lrm$hl.test$p.value
     p.cal <- set_lab_legend(
       p.cal,
       glue::glue("{x@sig} calibration curve"),
-      glue::glue("列线图校准曲线 (Ideal 表示理想情况下预测概率与实际概率完全一致的情况，Apparent 表示模型预测概率的表观校准情况，Bias-corrected 表示经过偏差校正后的校准情况{exLegend})。")
+      glue::glue("列线图校准曲线|||Ideal 表示理想情况下预测概率与实际概率完全一致的情况，Apparent 表示模型预测概率的表观校准情况，Bias-corrected 表示经过偏差校正后的校准情况{exLegend}。Hosmer-Lemesho 检验 P = {fmt(hl.pvalue)}。")
     )
     x <- methodAdd(x, "以 R 包 `rms` 对列线图绘制校准曲线，评估模型预测风险与实际患病风险的一致性（校准曲线越贴近对角线，表明一致性越高。")
-    x <- snapAdd(x, "对于 rms 校准数据，{clinical_thresholds(x$res_lrm$cal)}")
+    # x <- snapAdd(x, "对于 rms 校准数据，{clinical_thresholds(x$res_lrm$cal)}")
+    x <- snapAdd(x, "校准曲线{aref(p.cal)}斜率接近 1 且 P &gt; 0.05，说明列线图的预测准确性较好。")
+    x <- snapAdd(x, "Hosmer-Lemesho 检验 P 为{fmt(hl.pvalue)} (P &gt; 0.05 说明通过 HL 检验，预测值与真实值之间并无非常明显的差异)。")
     x <- plotsAdd(x, p.nomo, p.rocs, p.cal)
     return(x)
   })
@@ -100,12 +104,7 @@ setMethod("step2", signature = c(x = "job_rms"),
     data <- x$res_lrm$data
     markers <- colnames(data)[ colnames(data) != x$target ]
     markers <- c(as.list(markers), list("nomogram"))
-    if (is.factor(data[[ x$target ]])) {
-      if (length(levels(data[[ x$target ]])) != 2) {
-        stop('length(levels(data[[ x$target ]])) != 2.')
-      }
-      data[[ x$target ]] <- as.integer(data[[ x$target ]]) - 1L
-    }
+    data[[x$target]] <- .check_events_for_factor(data[[x$target]])
     nomogram <- plogis(predict(x$res_lrm$fit, type = "lp"))
     data <- dplyr::mutate(data, nomogram = !!nomogram)
     cli::cli_h1("rmda::decision_curve")
@@ -119,13 +118,13 @@ setMethod("step2", signature = c(x = "job_rms"),
     p.dcas <- funPlot(rmda::plot_decision_curve,
       list(x = dcas, curve.names = unlist(markers), confidence.intervals = FALSE)
     )
-    x <- methodAdd(x, "以 R 包 `rmda` ({packageVersion('rmda')}) 进行决策曲线分析 (Decision curve analysis，DCA) 并绘制 DCA 曲线。")
-    x <- snapAdd(x, "DCA 分析可知，Nomogram 在阈值范围内的净收益高于 All 和 None 策略，同时高于其他独立诊断因子，显示出其在预测中的潜在价值。")
     p.dcas <- set_lab_legend(
       p.dcas,
       glue::glue("{x@sig} Decision curve analysis"),
-      glue::glue("决策曲线分析 (Decision curve analysis)，用于评估不同模型在不同阈值下的净收益。")
+      glue::glue("决策曲线分析 (Decision curve analysis)|||DCA 用于评估不同模型在不同阈值下的净收益。横坐标为风险阈值，纵坐标为净获益率，平行于 x 轴的虚线 None 是不对任何人进行干预，抛物线形状的虚线 All 是对所有人进行干预，实线代表各指标的干预效果。")
     )
+    x <- methodAdd(x, "以 R 包 `rmda` ({packageVersion('rmda')}) 进行决策曲线分析 (Decision curve analysis，DCA) 并绘制 DCA 曲线。")
+    x <- snapAdd(x, "DCA 分析{{aref(p.dcas)}}可知，Nomogram 在阈值范围内的净收益高于 All 和 None 策略，同时高于其他独立诊断因子，显示出其在预测中的潜在价值。")
     x <- plotsAdd(x, p.dcas)
     return(x)
   })
@@ -242,11 +241,24 @@ new_lrm <- function(data, formula, rev.level = FALSE,
     ylab <- "observed Probability"
   }
   # rms::plot.calibrate
-  p.cal <- funPlot(rms:::plot.calibrate.default,
+  # p <- predict(fit, type = "fitted")
+  # y <- fit$y
+  # ResourceSelection::hoslem.test(y, p, g = 10)
+  fun_plot_calibrate_with_hl <- function(..., p)
+  {
+    rms:::plot.calibrate.default(...)
+    text(
+      x = .1, y = .8, labels = glue::glue("Hosmer-Lemeshow P = {fmt(p)}"), cex = 1.2, adj = 0
+    )
+  }
+  hl.test <- e(
+    ResourceSelection::hoslem.test(.check_events_for_factor(fit$y), predict(fit, type = "fitted"))
+  )
+  p.cal <- funPlot(fun_plot_calibrate_with_hl,
     list(
       x = cal, xlim = c(0, 1), ylim = c(0, 1),
       xlab = xlab, ylab = ylab, riskdist = TRUE,
-      subtitle = TRUE
+      subtitle = TRUE, p = hl.test$p.value
     )
   )
   if (lang == "cn") {
@@ -256,7 +268,7 @@ new_lrm <- function(data, formula, rev.level = FALSE,
       p.cal$children[[15]]$label <- c("表观状态", "误差纠正", "理想状态")
     }
   }
-  roc <- new_roc(data[[ y ]], predict(fit), lang = lang, ...)
+  roc <- new_roc(fit$y, predict(fit), lang = lang, ...)
   coefs <- names(fit$coefficients)[ names(fit$coefficients) != "Intercept" ]
   rocs <- lapply(coefs,
     function(coef) {
@@ -268,7 +280,7 @@ new_lrm <- function(data, formula, rev.level = FALSE,
   # rocs <- 
   .add_internal_job(.job(method = "R package `rms` used for Logistic regression and nomogram visualization"))
   namel(
-    fit, coefs, data, levels, cal, p.cal, roc, p.rocs, 
+    fit, coefs, data, levels, cal, p.cal, hl.test, roc, p.rocs, 
     aucs, lang, boots
   )
 }
@@ -309,7 +321,7 @@ new_nomo <- function(lrm, fun_label = lrm$levels[2], lang = lrm$lang,
     funPlot(rms:::plot.nomogram, args), 8, .6 * length(lrm$fit$coefficients) + 2
   )
   p.nomo <- .set_lab(p.nomo, "nomogram plot")
-  p.nomo_reg <- funPlot(regplot::regplot,
+  p.nomo_reg <- wrap(funPlot(regplot::regplot,
     list(
       reg = lrm$fit,
       interval = "confidence",
@@ -319,7 +331,7 @@ new_nomo <- function(lrm, fun_label = lrm$levels[2], lang = lrm$lang,
       title = paste(lrm$levels[2], "Diagnosis"),
       showP = TRUE
     )
-  )
+  ))
   namel(p.nomo, p.nomo_reg, nomo)
 }
 
@@ -371,4 +383,16 @@ new_roc <- function(y, x, ..., plot.thres = NULL, lang = c("en", "cn"), cn.mode 
   data <- tibble::tibble(Sensitivities = roc$sensitivities, Specificities = roc$specificities)
   namel(p.roc, thres, roc, p.value, lich, data)
 }
+
+.check_events_for_factor <- function(events) {
+  if (is.factor(events)) {
+    if (length(levels(events)) != 2) {
+      stop('length(levels(events)) != 2.')
+    }
+    events <- as.integer(events) - 1L
+  }
+  events
+}
+
+fmt <- function(x) formatC(x, digits = 4, format = "fg")
 

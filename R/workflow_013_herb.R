@@ -566,15 +566,3 @@ get_tcm.base <- function(id, link_prefix) {
   data <- strsplit(data, "\r\n")[[1]]
   data
 }
-
-get_coords.sin <- function(num = 100, nWave = 4) {
-  x <- seq(0, nWave * 2 * pi, length.out = num)
-  tibble::tibble(x = x, y = sin(x))
-}
-
-get_coords.spiral <- function(num = 100, nCir = 3, minRad = 1, maxRad = 3) {
-  ang <- seq(0, by = 2 * pi * nCir / num, length.out = num)
-  rad <- seq(minRad, maxRad, length.out = num)
-  tibble::tibble(x = sin(ang) * rad, y = cos(ang) * rad)
-}
-

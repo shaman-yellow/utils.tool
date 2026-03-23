@@ -11,6 +11,8 @@ setClassUnion(
   "can_not_be_draw", c("recordedplot", "aplot", "pheatmap")
 )
 
+.type_must_record_then_write <- c("regplot")
+
 .funPlot <- setClass("funPlot",
   contains = c("can_not_be_draw"),
   representation = representation(fun = "function", args = "list"),
@@ -485,6 +487,15 @@ set_showtext <- function() {
   options(SHOWTEXT = TRUE)
 }
 
+.write_graphics_after_recordplot_for_wrap_funPlot <- function(data, ...) {
+  pdf(tempfile(), data@width, data@height)
+  withr::defer(dev.off())
+  show(data)
+  data@data <- recordPlot()
+  withr::deferred_run()
+  write_graphics(data, ...)
+}
+
 write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".pdf"), page = -1,
   mkdir = get_savedir("figs"))
 {
@@ -505,14 +516,13 @@ write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".
   } else {
     pdf(file)
   }
+  withr::defer(dev.off())
   if (showtext) {
     showtext::showtext_begin()
+    withr::defer(showtext::showtext_end())
   }
   show(data)
-  if (showtext) {
-    showtext::showtext_end()
-  }
-  dev.off()
+  withr::deferred_run()
   len <- qpdf::pdf_length(file)
   if (len > 1) {
     if (page == -1)
@@ -548,8 +558,8 @@ write_grob <- function(grob, name, width = 7, height = 7, ...,
   if (!file.exists(mkdir))
     dir.create(mkdir)
   pdf(file <- paste0(mkdir, "/", file), width = width, height = height)
+  on.exit(dev.off())
   draw(grob)
-  dev.off()
   return(file)
 }
 
@@ -1406,6 +1416,9 @@ setMethod("show", signature = c(object = "wrap"),
     setdev(width = object@width, height = object@height)
     if (is(object@data, "grob.obj")) {
       grid.draw(object@data)
+    } else if (is(object@data, "pheatmap")) {
+      requireNamespace("pheatmap")
+      print(object@data)
     } else {
       print(object@data)
     }
@@ -1975,7 +1988,7 @@ needTex <- function() {
   }
 }
 
-set_index <- function(fig = TRUE, tab = TRUE, for_docx = FALSE) {
+set_index <- function(fig = FALSE, tab = FALSE, for_docx = TRUE) {
   if (knitr::is_latex_output()) {
     symbol <- function(num) {
       paste0("\n\n\\begin{center}\\vspace{1.5cm}\\pgfornament[anchor=center,ydelta=0pt,width=8cm]{",
@@ -1995,6 +2008,15 @@ set_index <- function(fig = TRUE, tab = TRUE, for_docx = FALSE) {
     cat("\\newpage\n\n")
     cat("\\pagenumbering{arabic}\n\n")
   } else if (knitr::pandoc_to("docx") && for_docx) {
+    index <- officer::fpar(
+      officer::ftext(
+        "目录", officer::fp_text(
+          font.size = 14,
+          eastasia.family = "SimSun",
+          font.family = "Times New Roman"
+        )), fp_p = officer::fp_par(text.align = "center", line_spacing = 1.5)
+    )
+    writeLines(assis_docx_par(index))
     toc <- c("<!---BLOCK_TOC--->")
     if (fig) {
       toc <- c(toc, "\\newpage", "<!---BLOCK_TOC{seq_id: 'fig'}--->")
@@ -2017,21 +2039,25 @@ set_appendix <- function() {
 autor_preset <- function(echo = FALSE, eval = FALSE, 
   # autor_relocate: move files to a new directory while `order_packaging` 
   autor_relocate = FALSE, autor_legends_gather = FALSE,
-  autor_locate_file = FALSE, legend_as_caption = TRUE, method_into_snap = TRUE,
+  autor_locate_file = FALSE, autor_legend_as_caption = TRUE, autor_method_into_snap = FALSE,
   autor_show_legend_after_ref = FALSE,
+  autor_show_lich = FALSE,
   autor_show_cite_IF = FALSE, autor_chinese_marks = TRUE, ...)
 {
   options(
     autor_unnamed_number = 1, autor_relocate = autor_relocate,
     autoLegendsVisuable = autor_legends_gather,
     autor_legends_gather = autor_legends_gather,
-    method_into_snap = method_into_snap,
+    autor_method_into_snap = autor_method_into_snap,
     autor_locate_file = autor_locate_file,
-    legend_as_caption = legend_as_caption,
+    autor_legend_as_caption = autor_legend_as_caption,
     autor_chinese_marks = autor_chinese_marks,
     autor_show_cite_IF = autor_show_cite_IF,
-    autor_show_legend_after_ref = autor_show_legend_after_ref
+    autor_show_legend_after_ref = autor_show_legend_after_ref,
+    autor_show_lich = autor_show_lich
   )
+  # Disabled knitr's automatic capture to prevent contamination during `regplot` plotting
+  knitr::knit_hooks$set(plot = function(x, options) NULL )
   knitr::opts_chunk$set(
     echo = echo, eval = eval, message = FALSE, warning = FALSE,
     fig.cap = character(0), collapse = FALSE,
@@ -2095,7 +2121,7 @@ autosv <- function(x, name, ..., showtext = FALSE, cache = TRUE, force = FALSE) 
               }))
         }
       }
-      file <- select_savefun(x)(x, name, ...)
+      capture.output(file <- select_savefun(x)(x, name, ...))
       if (showtext) {
         options(SHOWTEXT = FALSE)
       }
@@ -2167,7 +2193,7 @@ setMethod("autor", signature = c(x = "ANY", name = "missing"),
     if (grpl(name, "^unnamed-chunk") && !is.null(lab(x))) {
       name <- lab(x)
       # if (is.null(name)) {
-        # code <- rlang::as_label(substitute(x))
+        # code <- rlang::expr_text(substitute(x))
         # stop(glue::glue('Chunk should set label, or object with "lab" (set by `lab({code}) <- `)'))
       # }
       ## save into the environment
@@ -2183,11 +2209,10 @@ setMethod("autor", signature = c(x = "ANY", name = "missing"),
     }
     knitr::opts_current$set(autor_label = name)
     autor(x, name, ...)
-    if (!getOption("autor_legends_gather", FALSE)) {
-      writeLines(
-        c("", ref(name, legend = TRUE, visuable = TRUE), "")
-      )
+    if (!is.null(note <- Legend(x, "note"))) {
+      abstract(note, name, NULL)
     }
+    invisible()
   })
 
 setMethod("autor", signature = c(x = "list", name = "character"),
@@ -2199,7 +2224,7 @@ setMethod("autor", signature = c(x = "list", name = "character"),
 setMethod("autor", signature = c(x = "can_not_be_draw", name = "character"),
   function(x, name, ...){
     file <- autosv(x, name, ...)
-    if (getOption("legend_as_caption", TRUE)) {
+    if (getOption("autor_legend_as_caption", TRUE)) {
       autor(fig(file), name, caption = Legend(x), ...)
     } else {
       autor(fig(file), name, ...)
@@ -2216,7 +2241,7 @@ setClassUnion("can_be_draw", c("gg.obj", "heatdata", "grob.obj"))
 setMethod("autor", signature = c(x = "can_be_draw", name = "character"),
   function(x, name, ...){
     file <- autosv(x, name, ...)
-    if (getOption("legend_as_caption", TRUE)) {
+    if (getOption("autor_legend_as_caption", TRUE)) {
       autor(fig(file), name, caption = Legend(x), ...)
     } else {
       autor(fig(file), name, ...)
@@ -2438,6 +2463,11 @@ setMethod("select_savefun", signature = c(x = "list"),
 
 setMethod("select_savefun", signature = c(x = "can_not_be_draw"),
   function(x){
+    if (is(x, "wrap") && is(x@data, "funPlot")) {
+      if (any(.type_must_record_then_write == environmentName(environment(x@data@fun)))) {
+        return(get_fun(".write_graphics_after_recordplot_for_wrap_funPlot"))
+      }
+    }
     get_fun("write_graphics")
   })
 
@@ -2516,6 +2546,21 @@ setMethod("abstract", signature = c(x = "df", name = "character", latex = "NULL"
     locate_file(name)
   })
 
+setMethod("abstract", signature = c(x = "character", name = "character", latex = "NULL"),
+  function(x, name, latex, ...){
+    note <- glue::glue("注：{x}")
+    note <- officer::fpar(
+      officer::ftext(
+        note, officer::fp_text(
+          font.size = 10.5,
+          eastasia.family = "SimSun",
+          font.family = "Times New Roman"
+        )), fp_p = officer::fp_par(text.align = "center", line_spacing = 1.5)
+    )
+    writeLines(assis_docx_par(note))
+  }
+)
+
 ## abstract for table
 setMethod("abstract", signature = c(x = "df", name = "character", latex = "logical"),
   function(x, name, latex, ..., key = 1, abs = NULL, summary = TRUE, sum.ex = NULL){
@@ -2564,6 +2609,9 @@ setMethod("abstract", signature = c(x = "fig", name = "character", latex = "NULL
 
 setMethod("abstract", signature = c(x = "lich", name = "character", latex = "NULL"),
   function(x, name, latex, ..., abs = NULL){
+    if (!getOption("autor_show_lich", FALSE)) {
+      return("")
+    }
     if (length(x) > 5) {
       x <- head(x, n = 5)
       x <- c(x, list("(Others)" = "..."))
@@ -2814,6 +2862,37 @@ setMethod("as_tibble", signature = c(x = "df"),
 # ==========================================================================
 # for fast combine object
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+take_positions <- function(plots, envir = .GlobalEnv, fun_wrap = "autor") {
+  calls <- substitute(plots)
+  if (as_label(calls[[1]]) != "{") {
+    stop('as_label(calls[[1]]) != "{"')
+  }
+  if (.is_in_overture()) {
+    labels <- vapply(calls[-1],
+      function(call) {
+        res <- try(label(eval(parse(text = rlang::expr_text(call)))), TRUE)
+        if (inherits(res, "try-error")) {
+          stop(glue::glue("Overture: can not can label from `{rlang::expr_text(call)}`"))
+        }
+        res
+      }, character(1))
+    field_label <- glue::glue("#| {labels}")
+    codes <- vapply(calls[-1], rlang::expr_text, character(1))
+    codes <- paste0(fun_wrap, "(", codes, ")")
+    chunk_start <- '```{r eval = TRUE, echo = FALSE, results = "asis"}'
+    chunk_end <- '```'
+    paste0(
+      paste(chunk_start, field_label, codes, chunk_end, sep = "\n"),
+      collapse = "\n\n"
+    )
+  } else {
+    for (i in rev(seq_along(calls)[-1])) {
+      dev.new()
+      print(eval(parse(text = rlang::expr_text(calls[[i]])), envir = envir))
+    }
+  }
+}
 
 search_job_frame_wrap <- function(pattern, fun_extract, 
   exclude = NULL, env = .GlobalEnv)

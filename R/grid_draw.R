@@ -1062,8 +1062,7 @@ sym_fill <- function(long, short){
 #' @aliases glayer
 #' @description \code{glayer}: ...
 #' @rdname rect
-glayer <- 
-  function(n = 5, to = .2, gp = gpar(fill = "white"), fun = rectGrob){
+glayer <- function(n = 5, to = .2, gp = gpar(fill = "white"), fun = rectGrob){
     grob <- fun(x = seq(0, to, length.out = n),
       y = seq(0, to, length.out = n),
       height = 1 - to,
@@ -1108,8 +1107,25 @@ fast_layout <- function(edges, layout = "fr", nodes = NULL, ...){
   graph <- tidygraph::as_tbl_graph(graph)
   graph <- dplyr::mutate(graph, centrality_degree = tidygraph::centrality_degree(mode = 'all'),
     cent = centrality_degree)
-  ggraph::create_layout(graph, layout, ...)
+  if (layout == "spiral") {
+    layout <- get_coords.spiral(length(dplyr::as_tibble(graph)$name))
+    ggraph::create_layout(graph, layout, ...)
+  } else {
+    ggraph::create_layout(graph, layout, ...)
+  }
 }
+
+get_coords.sin <- function(num = 100, nWave = 4) {
+  x <- seq(0, nWave * 2 * pi, length.out = num)
+  tibble::tibble(x = x, y = sin(x))
+}
+
+get_coords.spiral <- function(num = 100, nCir = num %/% 20, minRad = 1, maxRad = 3) {
+  ang <- seq(0, by = 2 * pi * nCir / num, length.out = num)
+  rad <- seq(minRad, maxRad, length.out = num)
+  tibble::tibble(x = sin(ang) * rad, y = cos(ang) * rad)
+}
+
 
 #' @export random_graph
 #' @aliases random_graph

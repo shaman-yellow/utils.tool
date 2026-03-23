@@ -186,8 +186,8 @@ setMethod("step4", signature = c(x = "job_seurat"),
           ))
       p.map_SingleR <- p.map_SingleR
       p.map_SingleR <- wrap(p.map_SingleR, 10, 7)
-      x@tables[[ 4 ]] <- namel(anno_SingleR)
-      x@plots[[ 4 ]] <- namel(p.score_SingleR, p.map_SingleR)
+      x <- tablesAdd(x, anno_SingleR)
+      x <- plotsAdd(x, p.score_SingleR, p.map_SingleR)
       x@params$group.by <- "SingleR_cell"
       x <- methodAdd(x, "以 R 包 `SingleR` ({packageVersion('SingleR')}) 注释细胞群。")
     } else {
@@ -198,7 +198,7 @@ setMethod("step4", signature = c(x = "job_seurat"),
 
 setMethod("step5", signature = c(x = "job_seurat"),
   function(x, workers = NULL, min.pct = .25, logfc.threshold = .25, 
-    force = FALSE, topn = 5, assay = object(x)@active.assay)
+    force = FALSE, topn = 5, assay = object(x)@active.assay, test.use = "wilcox")
   {
     step_message("Find all Marders for Cell Cluster.")
     cache_markers <- file.path(create_job_cache_dir(x), "markers.tsv")
@@ -240,7 +240,8 @@ setMethod("step5", signature = c(x = "job_seurat"),
               options(future.globals.maxSize = Inf)
               future::plan(future::multicore, workers = workers)
               markers <- Seurat::FindAllMarkers(object, min.pct = min.pct,
-                logfc.threshold = logfc.threshold, only.pos = TRUE)
+                logfc.threshold = logfc.threshold, 
+                only.pos = TRUE, test.use = test.use)
               write.table(
                 markers, output, sep = ",", col.names = TRUE, row.names = FALSE, quote = FALSE
               )
@@ -276,7 +277,7 @@ setMethod("step5", signature = c(x = "job_seurat"),
         markers <- as_tibble(
           e(
             Seurat::FindAllMarkers(object(x), min.pct = min.pct, assay = assay,
-              logfc.threshold = logfc.threshold, only.pos = TRUE)
+              logfc.threshold = logfc.threshold, only.pos = TRUE, test.use = test.use)
           )
         )
         if (!nrow(markers)) {
@@ -287,8 +288,11 @@ setMethod("step5", signature = c(x = "job_seurat"),
     }
     all_markers_no_filter <- markers
     markers <- dplyr::filter(markers, p_val_adj < .05)
-    markers <- .set_lab(markers, sig(x), "significant markers of cell clusters")
-    markers <- setLegend(markers, "为所有细胞群的 Marker (LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}; 矫正 P 值阈值 {0.05})")
+    markers <- set_lab_legend(
+      markers,
+      glue::glue("{x@sig} significant markers of cell clusters"),
+      glue::glue("为所有细胞群的 Marker (LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}; 检验方法为 {test.use})。")
+    )
     if (FALSE) {
       tops <- dplyr::slice_max(dplyr::group_by(markers, cluster), avg_log2FC, n = topn)
       p.toph <- e(Seurat::DoHeatmap(object(x), features = tops$gene, raster = TRUE))
@@ -297,25 +301,24 @@ setMethod("step5", signature = c(x = "job_seurat"),
     }
     x <- tablesAdd(x, all_markers = markers, all_markers_no_filter = all_markers_no_filter)
     # x <- snapAdd(x, "计算所有细胞群的 Marker。")
-    x <- methodAdd(x, "以 `Seurat::FindAllMarkers` (LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}) 为所有细胞群寻找 Markers。")
+    x <- methodAdd(x, "以 `Seurat::FindAllMarkers` (LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}; 检验方法为 {test.use}) 为所有细胞群寻找 Markers。")
     return(x)
   })
 
 setMethod("step6", signature = c(x = "job_seurat"),
   function(x, tissue, ref.markers = NULL, show.markers = ref.markers,
-    method = c("cellMarker", "gpt", "scsa"),
+    method = c("cellMarker", "gpt", "scsa"), forceCluster = NULL,
     # scsa
     org = c("Human", "Mouse"), filter.p = 0.01, filter.fc = .5, res.col = "scsa_cell",
     # cellMarker
     type = c("Normal cell"),
     # plot markers
-    exclude_pattern = "derived|progenitor|Transitional|Memory|switch|white blood cell",
+    exclude_pattern = NULL,
     exclude = NULL, include = NULL, show = NULL, notShow = NULL,
     renameCell = NULL, keep_markers = 3,
     # chatGPT 
     filter.pct = .25, toClipboard = TRUE, post_modify = FALSE,
-    n = 30, variable = FALSE, hp_type = c("pretty", "seurat"), 
-    forceCluster = NULL, rerun = FALSE, ...)
+    n = 30, variable = FALSE, hp_type = c("pretty", "seurat"), rerun = FALSE, ...)
   {
     .check_is_scsa_available()
     args <- c(as.list(environment()), list(...))
@@ -332,19 +335,19 @@ setMethod("step6", signature = c(x = "job_seurat"),
 
 setMethod("anno", signature = c(x = "job_seurat"),
   function(x, tissue, ref.markers = NULL, show.markers = ref.markers,
-    method = c("cellMarker", "gpt", "scsa"),
+    method = c("cellMarker", "gpt", "scsa"), forceCluster = NULL,
     # scsa
     org = c("Human", "Mouse"), filter.p = 0.01, filter.fc = .5, res.col = "scsa_cell",
     # cellMarker
     type = c("Normal cell"),
     # plot markers
-    exclude_pattern = "derived|progenitor|Transitional|Memory|switch|white blood cell",
+    exclude_pattern = NULL,
+    # "derived|progenitor|Transitional|Memory|switch|white blood cell"
     exclude = NULL, include = NULL, show = NULL, notShow = NULL,
     renameCell = NULL, keep_markers = 3,
     # chatGPT 
     filter.pct = .25, toClipboard = TRUE, post_modify = FALSE,
-    n = 30, variable = FALSE, hp_type = c("pretty", "seurat"), 
-    forceCluster = NULL, ..., init = TRUE)
+    n = 30, variable = FALSE, hp_type = c("pretty", "seurat"), ..., init = TRUE)
   {
     if (x@step < 5L) {
       stop('x@step < 5L.')
@@ -475,14 +478,14 @@ setMethod("anno", signature = c(x = "job_seurat"),
         p.props_scsa_stat <- set_lab_legend(
           p.props_scsa_stat,
           glue::glue("{x@sig} Cell Proportion intergroup comparison"),
-          glue::glue("细胞群占比的组间差异分析")
+          glue::glue("细胞群占比的组间差异分析|||横坐标为为不同细胞簇类型，纵坐标为细胞类型所占比例，纵坐标越高表示该细胞类型所占比例越大。不同颜色代表不同分组。")
         )
         x <- plotsAdd(x, p.props_scsa_stat)
       }
       p.props_scsa <- set_lab_legend(
         p.props_scsa,
         glue::glue("{x@sig} SCSA annotation Cell Proportions in each sample"),
-        glue::glue("为 SCSA 注释的细胞群在各个样本中的占比。")
+        glue::glue("注释的细胞群在各个样本中的占比|||不同颜色代表不同细胞类型，纵坐标为不同样本，横坐标为细胞类型所占百分比。")
       )
       t.props_scsa <- p.props_scsa$.data
       x <- tablesAdd(x, scsa_res_all = lst$scsa_res_all, t.props_scsa)
@@ -497,15 +500,33 @@ setMethod("anno", signature = c(x = "job_seurat"),
         )
         p.markers <- x$p.cellMarker
       } else if (!is.null(show.markers)) {
+        p.markers_cluster <- .plot_marker_heatmap(
+          x, split(show.markers$markers, show.markers$cell), "seurat_clusters",
+          show = show, max = keep_markers, notShow = notShow, ...
+        )
+        p.markers_cluster <- set_lab_legend(
+          p.markers_cluster,
+          glue::glue("{sig(x)} Marker in cluster dotplot"),
+          glue::glue("细胞标志基因在不同聚类中的表达水平气泡图|||横坐标为不同cluster，纵坐标为不同标志基因，气泡越大表示在该 cluster表达该基因的细胞越多，颜色越深代表该 cluster 细胞平均表达基因的水平越高。")
+        )
         p.markers <- .plot_marker_heatmap(
           x, split(show.markers$markers, show.markers$cell), "scsa_cell",
           show = show, max = keep_markers, notShow = notShow, ...
         )
         p.markers <- set_lab_legend(
           p.markers,
-          paste(sig(x), "Marker Validation"),
-          "使用特异 Marker 对细胞注释结果的验证热图。"
+          glue::glue("{sig(x)} Marker in cell type dotplot"),
+          glue::glue("细胞标志基因在不同细胞类型中的表达水平气泡图|||横坐标为不同细胞类型，纵坐标为不同标志基因，气泡越大表示在该细胞类型表达该基因的细胞越多，颜色越深代表该细胞类型的细胞平均表达该基因的水平越高。")
         )
+        t.validMarkers <- reframe_col(
+          show.markers, "markers", function(x) bind(x)
+        )
+        t.validMarkers <- set_lab_legend(
+          t.validMarkers,
+          glue::glue("{x@sig} annotation validate markers"),
+          glue::glue("细胞注释的标记基因")
+        )
+        x <- tablesAdd(x, t.validMarkers)
       }
       x <- plotsAdd(
         x, p.map_scsa = lst$p.map_scsa, p.props_scsa = p.props_scsa, 
@@ -533,6 +554,7 @@ setMethod("anno", signature = c(x = "job_seurat"),
         )
       }
     }
+    x <- snapAdd(x, "")
     return(x)
   })
 
@@ -742,7 +764,7 @@ setMethod("ids", signature = c(x = "job_seurat"),
   })
 
 setMethod("clear", signature = c(x = "job_seurat"),
-  function(x, ..., name = rlang::as_label(substitute(x, parent.frame(1)))){
+  function(x, ..., name = rlang::expr_text(substitute(x, parent.frame(1)))){
     name <- eval(name)
     x$final_metadata <- as_tibble(object(x)@meta.data, idcol = "cell")
     callNextMethod(x, ..., name = name)
@@ -1712,8 +1734,11 @@ scsa_annotation <- function(
       group.by = res.col, cols = color_set()
       ))
   p.map_scsa <- wrap(as_grob(p.map_scsa), 7, 4)
-  p.map_scsa <- .set_lab(p.map_scsa, sig(x), "SCSA", "Cell type annotation")
-  p.map_scsa <- setLegend(p.map_scsa, "为 SCSA 细胞注释结果的 UMAP 图。")
+  p.map_scsa <- set_lab_legend(
+    p.map_scsa,
+    glue::glue("{x@sig} SCSA Cell type annotation"),
+    glue::glue("细胞注释结果的 UMAP 图|||不同颜色代表不同细胞簇类型，横纵坐标为UMAP的两个维度。")
+  )
   .add_internal_job(.job(method = "`SCSA` (python) used for cell type annotation",
       cite = "[@ScsaACellTyCaoY2020]"))
   namel(x, p.map_scsa, res.col, scsa_res_all, scsa_res)
@@ -2172,3 +2197,4 @@ pgc <- pattern_gradientColor <- function(pattern, names,
     })
   unlist(palette)
 }
+

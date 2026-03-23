@@ -382,12 +382,13 @@ setGeneric("as_feature",
   function(x, ref, ...) standardGeneric("as_feature"))
 
 setMethod("as_feature", signature = c(x = "ANY", ref = "character"),
-  function(x, ref, nature = c("genes", "compounds", "feature", "flux", "cells"), type = "disease")
+  function(x, ref, nature = c("genes", "compounds", "feature", "flux", "cells", "pathways"), type = "disease")
   {
     nature <- match.arg(nature)
     nature <- switch(
       nature, "genes" = "基因集", "compounds" = "化合物", 
-      "feature" = "特征集", "flux" = "代谢通量", "cells" = "细胞"
+      "feature" = "特征集", "flux" = "代谢通量", "cells" = "细胞",
+      "pathways" = "通路"
     )
     type <- dplyr::recode(type, "disease" = "疾病", .default = type)
     if (is(x, "character")) {
@@ -538,10 +539,10 @@ setReplaceMethod("snap", signature = c(x = "feature"),
   })
 
 setMethod("snap", signature = c(x = "job", ref = "numeric_or_character_or_logical"),
-  function(x, ref, meth = TRUE, methInto = getOption("method_into_snap", FALSE))
+  function(x, ref, methInto = getOption("autor_method_into_snap", FALSE))
   {
     if (is.logical(ref)) {
-      ref <- names(snap(x))
+      ref <- snap(x)$.order
       ref <- ref[ ref != ".order" ]
     } else {
       ref <- paste0("step", ref)
@@ -560,15 +561,15 @@ setMethod("snap", signature = c(x = "job", ref = "numeric_or_character_or_logica
     }
     res <- unlist(lapply(ref, fun, fun_extract = snap))
     snaps <- paste0(res[ res != "" ], collapse = "")
-    if (meth && methInto) {
+    if (methInto) {
       ref <- names(meth(x)@.xData)
       ref <- ref[ ref != ".order" ]
       res <- unlist(lapply(ref, fun, fun_extract = get_fun("meth")))
       meths <- paste0(res[ res != "" ], collapse = "")
       meths <- gs(meths, "\n[#]* [^\n]+\n", "")
-      snaps <- paste0(fun(start), meths, "\n\n-----------\n\n", snaps)
+      snaps <- paste0(fun(start), meths, "\n\n", snaps)
     }
-    snaps
+    paste0(snaps, "\n\n")
   })
 
 trace_filter <- function(data, ..., quosures = NULL) {
@@ -579,7 +580,7 @@ trace_filter <- function(data, ..., quosures = NULL) {
   before <- data
   data <- dplyr::filter(data, !!!(quosures))
   cols <- colnames(data)
-  labels <- lapply(quosures, rlang::as_label)
+  labels <- lapply(quosures, rlang::expr_text)
   snaps <- vapply(labels,
     function(label) {
       alls <- stringr::str_extract_all(label, "[a-zA-Z0-9_.]+|`.*?`")[[1]]
@@ -770,7 +771,9 @@ setMethod("meth", signature = c(x = "job", ref = "logical"),
     if (ref) {
       lapply(x@.xData$.order, function(name) x[[ name ]])
     } else {
-      vapply(x@.xData$.order, function(name) x[[ name ]], character(1))
+      paste0(paste0(
+        vapply(x@.xData$.order, function(name) x[[ name ]], character(1)), collapse = ""
+      ), "\n\n")
     }
   })
 
@@ -806,7 +809,7 @@ collate_details <- function(tag = "meth", envir = parent.frame(1)) {
     "## 数据分析平台", "",
     glue::glue("在 {paste(sys[[ 'sysname' ]], sys[[ 'nodename' ]], sys[[ 'machine' ]])} ({sys[[ 'release' ]]}) 上，使用 {R.Version()$version.string} (https://www.r-project.org/) 对数据统计分析与整合分析。")
   )
-  if (getOption("method_into_snap", TRUE)) {
+  if (getOption("autor_method_into_snap", TRUE)) {
     extra <- "详细见各分析部分。"
     return(writeLines(c(base, extra)))
   }
@@ -1317,7 +1320,7 @@ setMethod("less", signature = c(x = "numeric_or_character"),
     } else {
       out <- x
     }
-    if (is.null(quote) && any(grpl(out, "[^a-zA-Z0-9]"))) {
+    if (is.null(quote) && any(grpl(out, "[^a-zA-Z0-9-]"))) {
       out <- paste0("\"", out, "\"")
     }
     if (length(x) > n) {
@@ -1373,25 +1376,48 @@ setMethod("ref", signature = c(x = "character_ref"),
   })
 
 aref <- function(x, ...) {
-  res <- ref(x, render = FALSE, ...)
-  glue::glue("⟦ref('{res$ref}', autoRef = '{res$type}')⟧")
+  if (length(x) > 1) {
+    res <- lapply(x, ref, render = FALSE, ...)
+    refs <- vapply(res, function(x) x$ref, character(1))
+    value <- paste0(paste0("'", refs, "'"), collapse = ", ")
+    value <- glue::glue("c({value})")
+    glue::glue("⟦ref({value}, autoRef = '{res[[1]]$type}')⟧")
+  } else {
+    res <- ref(x, render = FALSE, ...)
+    glue::glue("⟦ref('{res$ref}', autoRef = '{res$type}')⟧")
+  }
 }
 
 .as_refer <- function(x, type) {
   if (knitr::pandoc_to("docx")) {
-    x <- assis_docx_str(officer::run_reference(x))
-    glue::glue(" (Fig. {x}) ")
+    if (length(x) > 1) {
+      x <- vapply(x,
+        function(x){
+          assis_docx_str(officer::run_reference(x))
+        }, FUN.VALUE = character(1))
+      res <- glue::glue(" {capitalize(type)}. {x} ")
+      paste0("(", bind(res, co = ", "), ")")
+    } else {
+      x <- assis_docx_str(officer::run_reference(x))
+      glue::glue(" ({capitalize(type)}. {x}) ")
+    }
   } else {
-    glue::glue(" ({capitalize(type)}. \\@ref({type}:{x})) ")
+    res <- glue::glue("{capitalize(type)}. \\@ref({type}:{x})")
+    paste0("(", bind(res, co = ", "), ")")
   }
 }
 
+setMethod("label", signature = c(x = "ANY"),
+  function(x){
+    if (is.null(lab(x))) {
+      rlang::abort('is.null(lab(x)), no "lab" found, use `lab` to set it.')
+    }
+    as_chunk_label(lab(x))
+  })
+
 setMethod("ref", signature = c(x = "ANY"),
   function(x, render = TRUE, ...){
-    if (is.null(lab(x))) {
-      stop('is.null(lab(x)), no "lab" found, use `lab` to set it.')
-    }
-    label <- as_chunk_label(lab(x))
+    label <- label(x)
     ref(label, obj = x, render = render, ...)
   })
 
@@ -1402,7 +1428,7 @@ setMethod("ref", signature = c(x = "character"),
   {
     if (!is.null(autoRef)) {
       if (knitr::pandoc_to("docx") || knitr::is_latex_output()) {
-        if (exists("autoRegisters", where = .GlobalEnv) && any(names(autoRegisters) == x)) {
+        if (exists("autoRegisters", envir = .GlobalEnv) && all(x %in% names(autoRegisters))) {
           ref <- .as_refer(x, autoRef)
         } else {
           ref <- ""
@@ -1693,11 +1719,31 @@ setGeneric("Legend<-",
   function(x, value) standardGeneric("Legend<-"))
 
 setMethod("Legend", signature = c(x = "ANY"),
-  function(x){
-    if (getOption("autor_chinese_marks", FALSE)) {
-      convert_to_chinese_marks(attr(x, ".LEGEND"))
+  function(x, type = c("legend", "note", "all")){
+    res <- attr(x, ".LEGEND")
+    if (length(res)) {
+      res <- strsplit(res, split = "\\|\\|\\|")[[1]]
     } else {
-      attr(x, ".LEGEND")
+      return(NULL)
+    }
+    type <- match.arg(type)
+    if (type == "legend") {
+      res <- res[1]
+    } else if (type == "note") {
+      if (length(res) > 1) {
+        res <- res[2]
+      } else {
+        return(NULL)
+      }
+    } else if (type == "all") {
+      if (length(res) > 1) {
+        res <- paste0(res, collapse = "")
+      }
+    }
+    if (getOption("autor_chinese_marks", FALSE)) {
+      convert_to_chinese_marks(res)
+    } else {
+      res
     }
   })
 
@@ -1810,7 +1856,8 @@ jobSlotAdd <- function(x, name, ..., reset, step) {
     list()
   }
   db <- db[ !names(db) %in% names(objs) ]
-  slot(x, name)[[ step ]] <- c(db, .set_lab_batch(objs, labs, sig(x)))
+  objs <- .set_lab_batch(objs, labs, sig(x))
+  slot(x, name)[[ step ]] <- c(db, objs)
   return(x)
 }
 
@@ -1995,6 +2042,9 @@ methodAdd_onExit <- function(x, static, funName = "methodAdd",
     FUN = function(obj, lab) {
       if (is.null(lab(obj))) {
         if (length(obj) >= 1 && is(obj, "list")) {
+          if (all(vapply(obj, function(x) !is.null(lab(x)), logical(1)))) {
+            return(obj)
+          }
           if (is.null(names(obj))) {
             names <- paste0("n", seq_along(obj))
           } else {
@@ -2303,7 +2353,7 @@ setGeneric("step1", group = list("step_series"),
     legal <- TRUE
     if (!length(x@sig)) {
       if (identical(parent.frame(1), .GlobalEnv)) {
-        name <- rlang::as_label(substitute(x))
+        name <- rlang::expr_text(substitute(x))
         if (grepl("^[A-Za-z][A-Za-z0-9_.]*$", name)) {
           sig <- toupper(gs(gs(gs(name, "^[a-zA-Z0-9]+", ""), "\\.", " "), "^[ ]*", ""))
           attr(sig, "name") <- name
@@ -2802,7 +2852,7 @@ setGeneric("clear",
 
 setMethod("clear", signature = c(x = "job"),
   function(x, save = TRUE, lite = TRUE, suffix = NULL,
-    name = rlang::as_label(substitute(x, parent.frame(1))),
+    name = rlang::expr_text(substitute(x, parent.frame(1))),
     path_jobSave = getOption("path_jobSave", "."), 
     path_lite = file.path(path_jobSave, "lite"))
   {
@@ -3187,8 +3237,8 @@ copy_job <- function(x) {
   return(object)
 }
 
-resolve_job_comments <- function(obj, name = rlang::as_label(substitute(obj)), 
-  maxdepth = 10L, path_output = "R_jobsContents", override = FALSE, format = TRUE)
+resolve_job_comments <- function(obj, try_open = FALSE, name = rlang::expr_text(substitute(obj)), 
+  maxdepth = 10L, path_output = "R_jobsComments", override = FALSE, format = TRUE)
 {
   if (!is(obj, "job")) {
     stop('!is(obj, "job").')
@@ -3197,8 +3247,17 @@ resolve_job_comments <- function(obj, name = rlang::as_label(substitute(obj)),
   name <- eval(name)
   dir.create(path_output, FALSE)
   file_output <- file.path(path_output, paste0(name, ".R"))
+  fun_open <- function(file) {
+    if (try_open) {
+      if (interactive() && requireNamespace("nvimcom", quietly = TRUE)) {
+        SendCmdToNvim_lua(glue::glue("vim.cmd([[tabe {file}]])"))
+      }
+    }
+  }
   if (!override && file.exists(file_output)) {
-    stop(glue::glue('file.exists(file_output): {file_output}.'))
+    message(glue::glue('file.exists(file_output): {file_output}.'))
+    fun_open(file_output)
+    return()
   }
   # meth(x), snap(x)
   methSnaps <- sapply(c("meth", "snap"), simplify = FALSE, 
@@ -3217,7 +3276,11 @@ resolve_job_comments <- function(obj, name = rlang::as_label(substitute(obj)),
           if (is.null(names(x))) {
             childPath <- paste0(path, "[[", i, "]]")
           } else {
-            childPath <- paste0(path, "$", names(x)[i])
+            name <- names(x)[i]
+            if (grpl(name, "[^a-zA-Z0-9_.]|^[^a-zA-Z.]")) {
+              name <- paste0("'", name, "'")
+            }
+            childPath <- paste0(path, "$", name)
           }
           rapp(x[[i]], childPath)
         })
@@ -3225,9 +3288,9 @@ resolve_job_comments <- function(obj, name = rlang::as_label(substitute(obj)),
       setNames(res, path)
     } else if (is(x, target)) {
       comments <- structure(list(
-        legend = as.character(Legend(x)),
-        label = as.character(lab(x))
-      ), class = "comments")
+          legend = as.character(Legend(x)),
+          label = as.character(lab(x))
+          ), class = "comments")
       setNames(list(comments), path)
     }
   }
@@ -3245,6 +3308,7 @@ resolve_job_comments <- function(obj, name = rlang::as_label(substitute(obj)),
   if (format && file.exists(file_output)) {
     e(styler::style_file(file_output))
   }
+  fun_open(file_output)
   file_output
 }
 
@@ -3312,7 +3376,7 @@ treeObj <- function(obj, stops = c("gg", "wrap", "data.frame", "lrm", "Mart"),
   lapply(list.files(path, full.names = TRUE), loadJob)
 }
 
-upd_all_job_comments <- function(path_comments = "R_jobsContents", envir = .GlobalEnv)
+upd_all_job_comments <- function(path_comments = "R_jobsComments", envir = .GlobalEnv)
 {
   files <- list.files(path_comments, pattern = "\\.R$", full.names = TRUE)
   objectNames <- tools::file_path_sans_ext(basename(files))
@@ -3346,9 +3410,9 @@ upd_all_job_comments <- function(path_comments = "R_jobsContents", envir = .Glob
     stop('!dir.exists(path), can not found the directory for job load.')
   }
   file_jobs <- list.files(
-    path, pattern = glue::glue("^{name}.*\\.rds"), full.names = TRUE
+    path, pattern = glue::glue("^{name}.[0-9]+\\.rds"), full.names = TRUE
   )
-  if (length(file_jobs)) {
+  fun_load <- function(file_jobs) {
     steps <- as.integer(tools::file_ext(tools::file_path_sans_ext(file_jobs)))
     file <- file_jobs[which.max(steps)]
     size <- structure(as.double(file.info(file)[1, 1]), class = "object_size")
@@ -3360,8 +3424,26 @@ upd_all_job_comments <- function(path_comments = "R_jobsContents", envir = .Glob
     }
     message(glue::glue("File size: {size} Mb, loading..."))
     loadJob(file)
+  }
+  if (length(file_jobs)) {
+    fun_load(file_jobs)
   } else {
-    message(glue::glue("Searching in {path}\nNo RDS file of Job: {name}."))
+    if (remote) {
+      message(glue::glue("Searching in {path}\nNo RDS file of Job: {name}."))
+    } else {
+      message(glue::glue("Local loading no RDS file of Job: {name}, try found in workspace."))
+      path <- getOption("path_jobSave")
+      if (!length(path)) {
+        message("No 'path_jobSave' set in options.")
+        return()
+      }
+      file_jobs <- list.files(
+        path, pattern = glue::glue("^{name}.*\\.rds"), full.names = TRUE
+      )
+      if (length(file_jobs)) {
+        fun_load(file_jobs)
+      }
+    }
   }
 }
 
@@ -3501,8 +3583,13 @@ build_completion_for_package <- function(pkgname) {
     }
     file
   }
-  nvimcom:::nvim.bol(isFileExists(paste0(bdir, "/objls_", pkgname, "_", pvl)), pkgname)
-  nvim.buildArgsWithoutDescription(isFileExists(paste0(bdir, "/args_", pkgname)), pkgname)
+  nvimcom:::nvim.bol(isFileExists(file.path(bdir, paste0("objls_", pkgname, "_", pvl))), pkgname)
+  nvimcom:::nvim.build.srcref(
+    isFileExists(file.path(bdir, paste0("srcref_", pkgname))), pkgname
+  )
+  nvim.buildArgsWithoutDescription(
+    isFileExists(file.path(bdir, paste0("args_", pkgname))), pkgname
+  )
 }
 
 #' Build completion of augments without description
@@ -4057,6 +4144,16 @@ SendCmdToNvim <- function(cmd = "print('test')", ...) {
   sym <- routines$.C[["nvimcom_msg_to_nvim"]]
   if (!is.null(sym)) {
     cmd <- glue::glue('vim.cmd([[call {cmd}]])')
+    .C(sym, cmd, PACKAGE = "nvimcom")
+  } else {
+    .C("nvimcom_msg_to_nvim", cmd, PACKAGE = "nvimcom")
+  }
+}
+
+SendCmdToNvim_lua <- function(cmd = "print('test')", ...) {
+  routines <- getDLLRegisteredRoutines("nvimcom")
+  sym <- routines$.C[["nvimcom_msg_to_nvim"]]
+  if (!is.null(sym)) {
     .C(sym, cmd, PACKAGE = "nvimcom")
   } else {
     .C("nvimcom_msg_to_nvim", cmd, PACKAGE = "nvimcom")

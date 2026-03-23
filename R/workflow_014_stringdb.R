@@ -33,7 +33,7 @@ setGeneric("asjob_stringdb", group = list("asjob_series"),
 
 setMethod("asjob_stringdb", signature = c(x = "job_herb"),
   function(x){
-    job_stringdb(data = x@params$ppi_used)
+    job_stringdb(data = x$ppi_used)
   })
 
 setMethod("asjob_stringdb", signature = c(x = "character"),
@@ -60,38 +60,40 @@ setMethod("step0", signature = c(x = "job_stringdb"),
   })
 
 setMethod("step1", signature = c(x = "job_stringdb"),
-  function(x, tops = 30, layout = "kk", species = 9606, score_threshold = 400,
+  function(x, tops = 30, layout = "spiral", species = 9606, score_threshold = 400,
     network_type = "phy", input_directory = .prefix("stringdb_physical_v12.0", name = "db"),
     version = "12.0", label = FALSE, HLs = NULL, use.anno = TRUE, link_data = "detailed",
     file_anno = .prefix("stringdb_physical_v12.0/9606.protein.physical.links.full.v12.0.txt.gz", name = "db"),
-    filter.exp = 0, filter.text = 0, MCC = FALSE)
+    filter.exp = 0, filter.text = 0, MCC = TRUE)
   {
     step_message("Create PPI network.")
     x$network_type <- network_type <- match.arg(network_type, c("physical", "full"))
     if (!dir.exists(input_directory)) {
       dir.create(input_directory)
     }
-    if (is.null(x@params$sdb)) {
+    if (is.null(x$sdb)) {
       message("Use STRINGdb network type of '", network_type, "'")
       sdb <- new_stringdb(
         score_threshold = score_threshold, species = species, network_type = network_type,
         input_directory = input_directory, version = version, link_data = link_data
       )
-      x@params$sdb <- sdb
+      x$sdb <- sdb
     } else {
-      sdb <- x@params$sdb 
+      sdb <- x$sdb 
     }
-    if (is.null(x@params$res.str)) {
+    if (is.null(x$res.str)) {
       res.str <- create_interGraph(sdb, data.frame(object(x)), col = "Symbol")
-      x@params$res.str <- res.str
+      x$res.str <- res.str
     } else {
-      res.str <- x@params$res.str
+      res.str <- x$res.str
     }
-    if (is.null(x@params$graph)) {
-      graph <- fast_layout.str(res.str, sdb, layout = layout, seed = x$seed)
-      x@params$graph <- graph
+    if (is.null(x$graph)) {
+      graph <- fast_layout(x$res.str$graph, layout = layout)
+      graph$name <- x$res.str$mapped$Symbol[match(graph$name, x$res.str$mapped$STRING_id)]
+      # igraph <- dedup.edges(igraph)
+      x$graph <- graph
     } else {
-      graph <- x@params$graph 
+      graph <- x$graph 
     }
     edges <- as_tibble(igraph::as_data_frame(res.str$graph))
     edges <- dplyr::distinct(edges, from, to, .keep_all = TRUE)
@@ -120,11 +122,16 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     edges <- .set_lab(edges, sig(x), "PPI annotation")
     attr(edges, "lich") <- new_lich(des_edges)
     x$edges <- edges
-    if (network_type == "full") {
+    if (FALSE && network_type == "full") {
       p.ppi <- NULL
     } else {
       p.ppi <- plot_network.str(graph, label = label)
-      p.ppi <- .set_lab(wrap(p.ppi, 4.5, 3), sig(x), "raw PPI network")
+      h.ppi <- nrow(x$res.str$mapped) %/% 10
+      p.ppi <- set_lab_legend(
+        wrap(p.ppi, h.ppi + 2, h.ppi),
+        glue::glue("{x@sig} PPI network"),
+        glue::glue("PPI 网络图|||每个节点表示一个蛋白 (基因)，连线表示可能存在的相互作用。")
+      )
     }
     ## hub genes
     if (MCC) {
@@ -146,23 +153,24 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     )
     p.mcc <- .set_lab(wrap(p.mcc), sig(x), paste0("Top", tops, " MCC score"))
     p.mcc <- setLegend(p.mcc, "PPI {snap.mcc}网络图")
-    x@plots[[1]] <- namel(p.ppi, p.mcc)
-    x@tables[[1]] <- c(list(mapped = relocate(res.str$mapped, Symbol, STRING_id)),
-      namel(hub_genes)
-    )
-    x@params$tops <- tops
+    x <- plotsAdd(x, p.ppi, p.mcc)
+    x <- tablesAdd(x, hub_genes, mapped = dplyr::relocate(res.str$mapped, Symbol, STRING_id))
+    x$tops <- tops
     if (MCC) {
-      ex <- glue::glue("以 Cytohubba {cite_show('CytohubbaIdenChin2014')} 的算法计算 MCC score (在 R 中计算) 。")
+      ex <- glue::glue("以 Cytohubba {cite_show('CytohubbaIdenChin2014')} 的算法在 R 中计算 MCC (Maximal Clique Centrality) 。")
     } else {
       ex <- ""
     }
-    meth(x)$step1 <- glue::glue("以 R 包 `STEINGdb` ({packageVersion('STRINGdb')}) {cite_show('TheStringDataSzklar2021')} 构建 PPI 网络。数据版本为 {version}，互作类型为 {network_type}。置信评分 (confidence score) 阈值为 {score_threshold / 1000}。{ex}随后，以 `ggraph` 可视化网络 ({packageVersion('ggraph')})。")
+    nAll <- nrow(x$res.str$mapped)
+    nIsolate <- nAll - length(unique(c(x$edges$from, x$edges$to)))
+    x <- methodAdd(x, "以 R 包 `STEINGdb` ({packageVersion('STRINGdb')}) {cite_show('TheStringDataSzklar2021')} 构建 PPI 网络。数据版本为 {version}，互作类型为 {network_type}。置信评分 (confidence score) 阈值为 {score_threshold / 1000}。{ex}随后，以 `ggraph` 可视化网络 ({packageVersion('ggraph')})。")
+    x <- snapAdd(x, "PPI 网络图 {aref(p.ppi)} 共包含 {nAll} 个蛋白 (基因)，存在 {nrow(edges)} 对相互作用，孤立蛋白数量为{nIsolate}。")
     return(x)
   })
 
 setMethod("filter", signature = c(x = "job_stringdb"),
   function(x, ref.x, ref.y, lab.x = "Source", lab.y = "Target",
-    use = "preferred_name", data = x@params$graph, level.x = NULL,
+    use = "preferred_name", data = x$graph, level.x = NULL,
     lab.fill = "log2FC",
     ## this top is used for 'from' or 'to'
     top = 10, use.top = c("from", "to"),
@@ -263,14 +271,14 @@ setMethod("filter", signature = c(x = "job_stringdb"),
   })
 
 setMethod("asjob_enrich", signature = c(x = "job_stringdb"),
-  function(x, tops = x@params$tops){
+  function(x, tops = x$tops){
     ids <- head(x@tables$step1$hub_genes$Symbol, tops)
     job_enrich(list(hub_genes = ids), x@tables$step1$hub_genes)
   })
 
 setMethod("vis", signature = c(x = "job_stringdb"),
   function(x, HLs){
-    p <- ggraph(x@params$graph_mcc) +
+    p <- ggraph(x$graph_mcc) +
       geom_edge_arc(
         aes(color = ifelse(node1.Symbol == !!HLs | node2.Symbol == !!HLs,
             paste0(node1.Symbol, " <-> ", node2.Symbol), "...Others"))) +
@@ -284,7 +292,7 @@ setMethod("vis", signature = c(x = "job_stringdb"),
       theme_void()
     p <- wrap(p, 12, 9)
     p <- .set_lab(p, sig(x), "MCC score of PPI top feature")
-    data <- get_edges()(x@params$graph_mcc)
+    data <- get_edges()(x$graph_mcc)
     data <- dplyr::filter(data, node1.Symbol %in% !!HLs | node2.Symbol %in% !!HLs)
     data <- dplyr::select(data, node1.Symbol, node2.Symbol)
     namel(p.mcc = p, data)
@@ -323,10 +331,9 @@ create_interGraph <- function(sdb, data, col = "name", rm.na = TRUE) {
 
 fast_layout.str <- function(res.str, sdb, layout = "fr", seed = runif(1, max = 1000000000)) {
   ## get annotation
-  target <- paste0(sdb$input_directory, "/", sdb$species, ".protein.info.v",
-    sdb$version, ".txt")
-  dir.create(dir <- paste0(sdb$input_directory, "/temp"), FALSE)
-  if (!file.exists(file <- paste0(dir, "/", basename(target)))) {
+  target <- file.path(sdb$input_directory, paste0(sdb$species, ".protein.info.v", sdb$version, ".txt"))
+  dir.create(dir <- file.path(sdb$input_directory, "temp"), FALSE)
+  if (!file.exists(file <- file.path(dir, basename(target)))) {
     file.copy(gfile <- paste0(target, ".gz"), dir)
     R.utils::gunzip(paste0(file, ".gz"))
   }
@@ -354,7 +361,7 @@ dedup.edges <- function(igraph){
   add_attr.igraph(igraph)
 }
 
-add_attr.igraph <- function(igraph, data, by.x = "name", by.y, dedup.edges = TRUE)
+add_attr.igraph <- function(igraph, data, by.x = "name", by.y, dedup.edges = FALSE)
 {
   comps <- igraph::as_data_frame(igraph, "both")
   if (!missing(data)) {
@@ -380,9 +387,11 @@ plot_network.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
   arr.len = 2, edge.color = 'grey70', edge.width = .4, label = FALSE)
 {
   if (label) {
-    layer.nodes <- geom_node_label(aes(label = preferred_name), size = label.size)
+    layer.nodes <- geom_node_label(aes(label = name), size = label.size)
   } else {
-    layer.nodes <- geom_node_point(aes(x = x, y = y, color = centrality_degree))
+    layer.nodes <- geom_node_point(
+      aes(x = x, y = y, color = centrality_degree),
+      stroke = .3, alpha = .8, size = 8)
   }
   p <- ggraph(graph) +
     geom_edge_fan(aes(x = x, y = y),
@@ -392,6 +401,11 @@ plot_network.str <- function(graph, scale.x = 1.1, scale.y = 1.1,
     scale_y_continuous(limits = zoRange(graph$y, scale.y)) +
     theme_minimal() +
     theme(axis.text = element_blank(), axis.title = element_blank())
+  if (!label) {
+    pal <- color_set2()
+    p <- p + geom_node_text(aes(label = name), size = 4) +
+      ggplot2::scale_color_gradient(low = pal[2], high = pal[1])
+  }
   p
 } 
 
@@ -528,7 +542,6 @@ get_subgraph.mcc <- function(igraph, resMcc, top = 10)
   edges <- dplyr::filter(data$edges, (from %in% !!tops) & (to %in% !!tops))
   nodes <- dplyr::distinct(nodes, name, .keep_all = TRUE)
   igraph <- igraph::graph_from_data_frame(edges, FALSE, nodes)
-  igraph <- dedup.edges(igraph)
   igraph
 }
 

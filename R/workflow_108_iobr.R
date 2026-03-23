@@ -181,7 +181,7 @@ setMethod("step2", signature = c(x = "job_iobr"),
     p.boxplot <- set_lab_legend(
       wrap(p.boxplot, 11, 5),
       glue::glue("{x@sig} {x$method} Immune infiltration"),
-      glue::glue("为 {x$method} 算法的免疫微环境分析箱形图 (使用 wilcox.test{exSnap}) (*, P &lt; 0.05; **, p&lt; 0.01; ***, p &gt; 0.001) 。")
+      glue::glue("为 {x$method} 算法的免疫微环境分析箱形图 (使用 wilcox.test{exSnap}) ({.md_p_significant}) 。")
     )
     mtx <- dplyr::select(mtx, -ID, -group)
     if (!keep_all) {

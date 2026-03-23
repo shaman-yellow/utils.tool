@@ -8,10 +8,24 @@ exclude_yaml <- function(lines) {
   lines[-yaml.pos]
 }
 
+.set_overture_on <- function() {
+  options("__OVERTURE__" = TRUE)
+}
+
+.set_overture_off <- function() {
+  options("__OVERTURE__" = FALSE)
+}
+
+.is_in_overture <- function() {
+  getOption("__OVERTURE__", FALSE)
+}
+
 play_overture <- function(
   report, savename, title, bioyml = file.path(.expath, "biocstyle.yml"),
-  bib = NULL, ...)
+  bib = NULL, dir_jobsComments = "R_jobsComments", ...)
 {
+  .set_overture_on()
+  on.exit(.set_overture_off())
   bioyml <- readLines(bioyml)
   if (length(x <- grep("^title:", bioyml))) {
     bioyml <- bioyml[-x]
@@ -26,6 +40,10 @@ play_overture <- function(
     bioyml <- gsub("(bibliography:).*", paste0("\\1 ", bib), bioyml)
   }
   lines <- exclude_yaml(readLines(report))
+  if (dir.exists(dir_jobsComments)) {
+    upd_all_job_comments(dir_jobsComments)
+  }
+  lines <- parse_overture(lines, ...)
   chunk_location <- parse_chunk_location(lines)
   options(chunk_location = chunk_location)
   autoRegisters_relocate <- new.env()
@@ -41,7 +59,7 @@ play_overture <- function(
   rmarkdown::render(savename, clean = FALSE)
 }
 
-parse_overture <- function(lines, env = .GlobalEnv) {
+parse_overture <- function(lines, env = .GlobalEnv, ...) {
   isQuos <- grpl(lines, "^```")
   inchunk <- FALSE
   isInChunk <- vapply(seq_along(lines), function(n) {

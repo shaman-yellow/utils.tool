@@ -84,7 +84,11 @@ setMethod("step1", signature = c(x = "job_venn"),
   function(x, ...){
     step_message("Intersection.")
     p.venn <- new_venn(lst = object(x), ...)
-    lab(p.venn) <- paste(sig(x), lab(p.venn))
+    p.venn <- set_lab_legend(
+      p.venn,
+      glue::glue("{x@sig} intersection of {bind(names(object(x)), co = ' with ')}"),
+      glue::glue("取 {bind(names(object(x)))} 交集的维恩图。|||图中共有 {length(p.venn$ins)} 个共同交集，分别为：{less(p.venn$ins, 20)}")
+    )
     x$.append_heading <- FALSE
     if (identical(parent.frame(1), .GlobalEnv)) {
       job_append_heading(

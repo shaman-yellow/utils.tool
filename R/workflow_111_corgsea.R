@@ -19,6 +19,9 @@ setGeneric("asjob_corgsea",
 setMethod("asjob_corgsea", signature = c(x = "job_deseq2"),
   function(x, ref, method = "spearman")
   {
+    if (!is(ref, "feature")) {
+      stop('!is(ref, "feature").')
+    }
     if (x@step < 1L) {
       stop('x@step < 1L.')
     }
@@ -32,6 +35,7 @@ setMethod("asjob_corgsea", signature = c(x = "job_deseq2"),
     cors <- e(stats::cor(data.ref, data.others, method = "spearman"))
     cors <- apply(cors, 1, sort, decreasing = TRUE, simplify = FALSE)
     x <- .job_corgsea(object = cors)
+    x <- snapAdd(x, "计算{snap(ref)}与其他基因的 Spearman 相关性系数，并以该系数为排序依据对全基因进行从大到小的排序。")
     return(x)
   })
 
@@ -42,7 +46,7 @@ setMethod("step0", signature = c(x = "job_corgsea"),
 
 setMethod("step1", signature = c(x = "job_corgsea"),
   function(x, db, cutoff = .05, pattern = NULL, pvalue = FALSE, 
-    cutoff.nes = 1, db_anno = NULL, db_filter = NULL, rerun = FALSE, mode = c(
+    cutoff.nes = 1, db_anno = NULL, rerun = FALSE, mode = c(
       "curated gene sets" = "C2",
       "hallmark gene sets" = "H",
       "positional gene sets" = "C1",
@@ -50,29 +54,21 @@ setMethod("step1", signature = c(x = "job_corgsea"),
       "computational gene sets" = "C4",
       "ontology gene sets" = "C5",
       "oncogenic signature gene sets" = "C6"
-      ))
+      ), mode_sub = "CP")
   {
     step_message("Custom database for GSEA enrichment.")
     ## general analysis
     if (missing(db)) {
       mode <- match.arg(mode)
-      if (packageVersion("msigdbr") < "10.0.0") {
-        db_anno <- e(msigdbr::msigdbr(species = "Homo sapiens", category = mode))
-      } else {
-        db_anno <- e(msigdbr::msigdbr(species = "Homo sapiens", collection = mode))
-      }
-      if (!is.null(db_filter)) {
-        db_anno <- dplyr::filter(
-          db_anno, grpl(gs_description, db_filter, TRUE)
-        )
-      }
-      db <- dplyr::select(db_anno, gs_id, symbol = gene_symbol)
-      x <- methodAdd(x, "以 R 包 `msigdbr` ({packageVersion('msigdbr')}) 获取 MSigDB 数据库基因集，用于 clusterProfiler GSEA 富集分析。")
-      x <- snapAdd(x, "以 `msigdbr` 获取 {mode} ({names(mode)}) 基因集。")
+      x <- .set_msig_db(x, mode, mode_sub)
+      db <- x$msig_db
+    }
+    if (is.null(db_anno)) {
+      db_anno <- x$db_anno
     }
     cli::cli_h1("clusterProfiler::GSEA")
     dir.create("tmp", FALSE)
-    res.gsea <- pbapply::pbsapply(names(object(x)), simplify = FALSE,
+    all.gsea <- pbapply::pbsapply(names(object(x)), simplify = FALSE,
       function(name) {
         glist <- object(x)[[name]]
         args <- list(geneList = glist, TERM2GENE = db, pvalueCutoff = cutoff)
@@ -102,12 +98,13 @@ setMethod("step1", signature = c(x = "job_corgsea"),
         } else {
           p.gsea <- NULL
         }
-        return(namel(table_gsea, p.gsea))
+        return(namel(table_gsea, p.gsea, res.gsea))
       }
     )
-    p.gsea <- lapply(res.gsea, function(x) x$p.gsea)
-    table_gsea <- lapply(res.gsea, function(x) x$table_gsea)
-    x <- methodAdd(x, "使用 {mode} 数据集, 以 `clusterProfiler::GSEA` 对基因列表富集分析。富集设定阈值 adjust P value (FDR) &lt; 0.05，|NES| &gt; 1。")
+    p.gsea <- lapply(all.gsea, function(x) x$p.gsea)
+    table_gsea <- lapply(all.gsea, function(x) x$table_gsea)
+    res.gsea <- lapply(all.gsea, function(x) x$res.gsea)
+    x <- methodAdd(x, "使用 {mode} 数据集, 以 `clusterProfiler::GSEA` 对基因列表富集分析。富集设定阈值 adjust P value (FDR) &lt; {cutoff}，|NES| &gt; {cutoff.nes}。")
     x@params$res.gsea <- res.gsea
     x@params$db.gsea <- db
     x$db_anno <- db_anno
@@ -116,9 +113,117 @@ setMethod("step1", signature = c(x = "job_corgsea"),
     return(x)
   })
 
-setMethod("set_remote", signature = c(x = "job_corgsea"),
-  function(x, wd)
-  {
-    x$wd <- wd
+setMethod("step2", signature = c(x = "job_corgsea"),
+  function(x, top = 10, intersect = TRUE){
+    step_message("Select and Visualization")
+    ins <- lapply(x@tables$step1$table_gsea,
+      function(data) {
+        head(data$ID, n = top)
+      })
+    ins <- ins(lst = ins)
+    if (!length(ins)) {
+      stop('!length(ins), no intersect found.')
+    }
+    insName <- dplyr::filter(x@tables$step1$table_gsea[[1]], ID %in% !!ins)$Description
+    x$.feature <- list()
+    p.codes <- sapply(names(x$res.gsea), simplify = FALSE, 
+      function(name) {
+        data <- x@tables$step1$table_gsea[[name]]
+        dataTop <- head(data, n = top)
+        idTop <- dataTop$ID
+        x$.feature[[name]] <<- dataTop$Description
+        p.code <- vis(
+          x, map = idTop, res.gsea = x$res.gsea[[name]],
+          table_gsea = data
+        )
+        p.code
+      })
+    alls <- names(x$res.gsea)
+    x <- snapAdd(x, "选取 {bind(alls)} 的 Top {top} 富集通路{aref(p.codes)}。")
+    x <- snapAdd(x, "对 {bind(alls)} 的 Top {top} 通路取交集，得到 {length(ins)} 个通路：{bind(insName)}。")
+    x <- plotsAdd(x, p.codes)
     return(x)
   })
+
+setClassUnion("job_gseaSet", c("job_corgsea", "job_gsea"))
+
+setMethod("vis", signature = c(x = "job_gseaSet"),
+  function(x, pattern, map = NULL, res.gsea = NULL, table_gsea = NULL,
+    mode = c("kegg", "gsea"), pvalue = FALSE)
+  {
+    mode <- match.arg(mode)
+    if (is.null(res.gsea)) {
+      res.gsea <- x[[ glue::glue("res.{mode}") ]]
+    }
+    if (is.null(table_gsea)) {
+      if (mode == "kegg") {
+        table_gsea <- x@tables$step1$table_kegg
+      } else if (mode == "gsea") {
+        table_gsea <- x@tables$step3$table_gsea
+      }
+    }
+    if (is.null(res.gsea) || is.null(table_gsea)) {
+      stop('is.null(res.gsea) || is.null(table_gsea).')
+    }
+    alls <- table_gsea$ID
+    if (is.null(alls)) {
+      stop('is.null(alls).')
+    }
+    if (is.null(map)) {
+      whichMapped <- which(grepl(pattern, table_gsea$Description, ignore.case = TRUE))
+      map <- alls[ whichMapped ]
+    } else {
+      whichMapped <- which(table_gsea$ID %in% map)
+    }
+    if (!length(map)) {
+      message(crayon::red("Not match any pathway, skip plot of 'p.code'."))
+      p.code <- NULL
+    } else {
+      p.code <- sapply(map, simplify = FALSE,
+        function(key) {
+          title <- dplyr::filter(table_gsea, ID == key)$Description
+          grob <- grid.grabExpr(
+            print(enrichplot::gseaplot2(res.gsea, key, pvalue_table = pvalue, title = title))
+          )
+          wrap(grob, 5, 4)
+        })
+      if (length(map) > 1) {
+        layout <- calculate_layout(length(map))
+        p.code <- patchwork::wrap_plots(
+          lapply(p.code, function(x) x@data), ncol = layout[["cols"]]
+        )
+        p.code <- wrap_layout(p.code, layout, 3)
+      } else {
+        p.code <- p.code[[1]]
+      }
+    }
+    ids <- table_gsea$ID[whichMapped]
+    des <- table_gsea$Description[whichMapped]
+    p.code <- set_lab_legend(
+      p.code,
+      glue::glue("{sig(x)} GSEA plot {bind(ids, co = '_')}"),
+      glue::glue("GSEA 富集条码图|||不同颜色代表不同的通路。第一部分是 ES 折线图，离垂直距离 x = 0 轴最远的峰值便是基因集的 ES 值，正值表示基因集在列表的顶部富集，负值表示基因集在列表的底部富集。第二部分为基因集成员位置图，用竖线标记了基因集中各成员出现在基因排序列表中的位置。第三部分是排序后所有基因 rank 值的分布，以灰色面积图显展示，左侧灰色 rank 值为正即与该关键基因呈正相关，右侧rank值为负是负相关。")
+    )
+    p.code
+  })
+
+
+.set_msig_db <- function(x, mode, sub) {
+  if (packageVersion("msigdbr") < "10.0.0") {
+    db_anno <- e(msigdbr::msigdbr(species = "Homo sapiens", category = mode))
+  } else {
+    db_anno <- e(msigdbr::msigdbr(species = "Homo sapiens", collection = mode))
+  }
+  x <- methodAdd(
+    x, "以 R 包 `msigdbr` ({packageVersion('msigdbr')}) 获取 MSigDB 数据库{mode}基因集。该基因集包含多个子集：{try_snap(db_anno, 'gs_subcat', 'gs_name')}。"
+  )
+  if (!is.null(sub)) {
+    select <- c("CP:REACTOME", "CP:KEGG", "CP:WIKIPATHWAYS")
+    db_anno <- dplyr::filter(db_anno, gs_subcat %in% !!select)
+    x <- methodAdd(x, "选取 {bind(select)} 子集用于后续分析。")
+  }
+  x$db_anno <- db_anno
+  x$msig_db <- dplyr::select(db_anno, gs_id, symbol = gene_symbol)
+  return(x)
+}
+

@@ -41,9 +41,7 @@ job_seurat5n <- function(dirs, names = NULL, mode = c("sc", "st"), st.filename =
   object(x) <- e(SeuratObject:::merge.Seurat(object(x)[[1]], object(x)[-1]))
   object(x)[[ "percent.mt" ]] <- e(Seurat::PercentageFeatureSet(object(x), pattern = "^MT-"))
   p.qc_pre <- plot_qc.seurat(x)
-  p.qc_pre <- .set_lab(p.qc_pre, sig(x), "Pre-Quality control")
-  p.qc_pre <- setLegend(p.qc_pre, "为 QC (质量控制) 图 (数据过滤前) 。")
-  x@params$p.qc_pre <- p.qc_pre
+  x$p.qc_pre <- p.qc_pre
   x <- methodAdd(x, "使用 Seurat R 包 ({packageVersion('Seurat')}) 进行单细胞数据质量控制 (QC) 和下游分析。依据 <{x@info}> 为指导对单细胞数据预处理。")
   return(x)
 }
@@ -64,10 +62,20 @@ setMethod("step1", signature = c(x = "job_seurat5n"),
             nCount_RNA < max.count
           ))
       p.qc_aft <- plot_qc.seurat(x)
-      p.qc_aft <- .set_lab(p.qc_aft, sig(x), "After Quality control")
-      p.qc_aft <- setLegend(p.qc_aft, "为数据过滤后的 QC 图。")
-      x@params$p.qc_aft <- p.qc_aft
-      x <- methodAdd(x, "前期质量控制，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。保留总基因表达量小于 {max.count} 细胞。过滤后，所有样本共包含{ncol(object(x))}个细胞用于后续分析。")
+      p.qc_aft <- set_lab_legend(
+        p.qc_aft,
+        glue::glue("{x@sig} After Quality control"),
+        glue::glue("数据过滤后的 QC 图|||{.seurat_qc_note}") #__REVISE__ set_lab_legend 2026-03-23_21:59:08
+      )
+      p.qc_pre <- set_lab_legend(
+        x$p.qc_pre,
+        glue::glue("{x@sig} before Quality control"),
+        glue::glue("质量控制 (QC) 图 (数据过滤前) |||{.seurat_qc_note}") #__REVISE__ set_lab_legend 2026-03-23_21:51:34
+      )
+      x <- plotsAdd(x, p.qc_pre = p.qc_pre, p.qc_aft = p.qc_aft)
+      x <- methodAdd(
+        x, "前期质量控制{aref(p.qc_pre)}，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。保留总基因表达量小于 {max.count} 细胞。过滤后{aref(p.qc_aft)}，所有样本共包含{ncol(object(x))}个细胞用于后续分析。" #__REVISE__ methodAdd 2026-03-23_22:06:48
+      )
       # x <- methodAdd(x, "一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。")
     }
     return(x)
@@ -97,7 +105,7 @@ setMethod("step2", signature = c(x = "job_seurat5n"),
           ))
       message(glue::glue("Shift assays to {SeuratObject::DefaultAssay(object(x))}"))
       x <- methodAdd(
-        x, "使用 `Seurat::SCTransform` 对数据集归一化 (<https://satijalab.org/seurat/articles/sctransform_vignette>) 。"
+        x, "使用 `Seurat::SCTransform` (默认参数) 对数据集归一化 (<https://satijalab.org/seurat/articles/sctransform_vignette>) 。" #__REVISE__ methodAdd 2026-03-23_22:41:41
       )
     } else {
       object(x) <- e(Seurat::NormalizeData(object(x)))
@@ -106,17 +114,38 @@ setMethod("step2", signature = c(x = "job_seurat5n"),
       x <- methodAdd(
         x, "执行标准 Seurat 分析工作流 (`NormalizeData`, `FindVariableFeatures`, `ScaleData`)。"
       )
+      p.varfeature <- e(Seurat::VariableFeaturePlot(object(x)))
+      p.varfeature <- set_lab_legend(
+        wrap(p.varfeature),
+        glue::glue("{x@sig} Variable Feature Plot"), #__REVISE__ set_lab_legend 2026-03-23_22:13:35
+        glue::glue("高变基因图|||红色代表高变基因，横坐标为基因在所有细胞中的表达水平（log10对数值），纵坐标为基因在所有细胞中的表达水平的标准差，数值越大，表示该基因在细胞中的表达水平越不稳定。生物学差异（如细胞类型、状态等差异）通常会导致某些基因在不同细胞之间表现出较大变异，因此更有可能提供关于生物学现象的信息。") #__REVISE__ set_lab_legend 2026-03-23_22:15:27
+      )
+      x <- plotsAdd(x, p.varfeature)
     }
     object(x) <- e(Seurat::RunPCA(object(x)))
+    x <- methodAdd(x, "随后 PCA 聚类 (`RunPCA`)。")
+    if (!sct) {
+      object(x) <- e(Seurat::JackStraw(object(x), dims = ndims))
+      p.jackPlot <- Seurat::JackStrawPlot(object(x))
+      p.jackPlot <- set_lab_legend(
+        wrap(p.jackPlot),
+        glue::glue("{x@sig} Jack Straw plot"),
+        glue::glue("Jackstraw 置换检验 |||通过对原始数据进行多次置换，构建一个零假设分布，然后将实际观测到的主成分得分与该零假设分布进行比较。每个点表示基因在某个主成分上的投影得分与随机背景的比较，大于或等于实际观测主成分得分的比例就是 p 值。p &lt; 0.05 通常认为在该显著性水平下，实际观测到的主成分得分显著高于随机情况下的得分，说明该主成分具有统计学意义，不是由随机因素导致的。通过量化主成分的显著性强度，与均匀分布（虚线）比较，判断哪些主成分更具有统计学意义，富含低p值基因较多的主成分更有统计学意义。")
+      )
+      x <- plotsAdd(x, p.jackPlot)
+      x <- methodAdd(x, "通过 Jackstraw 函数置换检验重新聚类以检验 PC 的选择结果{aref(p.jackPlot)}（P &lt; 0.05）。")
+    }
     p.pca_rank <- e(Seurat::ElbowPlot(object(x), ndims))
     # add Seurat::PCAPlot
     p.pca_rank <- set_lab_legend(
       wrap(pretty_elbowplot(p.pca_rank), 4, 4),
       glue::glue("{x@sig} Standard deviations of PCs"),
-      glue::glue("主成分 (PC) 的标准化方差 (Standard deviations)。")
+      glue::glue("主成分 (PC) 的标准化方差 (Standard deviations)|||横坐标为主成分数目，纵坐标代表基于每个主成分对方差解释率的排名（每个主成分的解释方差是其特征值（eigenvalue），表示它解释了总变异的比例），图中每个点表示一个主成分的方差解释比例。") #__REVISE__ set_lab_legend 2026-03-23_22:01:31
+    )
+    x <- methodAdd(
+      x, "使用 ElbowPlot 函数绘制肘图{aref(p.pca_rank)}，帮助确定用于下游分析的主成分以进行后续分析。" #__REVISE__ methodAdd 2026-03-23_22:27:28
     )
     x <- plotsAdd(x, p.pca_rank)
-    x <- methodAdd(x, "随后 PCA 聚类 (`RunPCA`)。")
     # x <- snapAdd(x, "数据归一化，PCA 聚类 (Seurat 标准工作流，见方法章节) 后。")
     return(x)
   })
@@ -147,8 +176,11 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
       }
       p.umapUint <-  e(Seurat::DimPlot(object(x), reduction = "umap_unintegrated",
           group.by = c("orig.ident", "seurat_clusters"), cols = color_set(TRUE)))
-      p.umapUint <- .set_lab(wrap(p.umapUint, 10, 5), sig(x), "UMAP Unintegrated")
-      p.umapUint <- setLegend(p.umapUint, "为去除批次效应之前的 UMAP 聚类图。")
+      p.umapUint <- set_lab_legend(
+        wrap(p.umapUint, 10, 5),
+        glue::glue("{x@sig} UMAP Unintegrated"),
+        glue::glue("去除批次效应之前的 UMAP 聚类图|||不同颜色代表不同cluster。横纵坐标是 UMAP 降维的两个维度。UMAP能够将高维空间中的数据映射到低维空间中，并保留数据集的局部特性。") #__REVISE__ set_lab_legend 2026-03-23_22:44:03
+      )
       x <- plotsAdd(x, p.umapUint)
       ## integrated
       methods <- list(CCAIntegration = Seurat::CCAIntegration,
@@ -169,7 +201,6 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
       }
       object(x)[["RNA"]] <- e(SeuratObject::JoinLayers(object(x)[["RNA"]]))
       ## SeuratObject::DefaultDimReduc, search in case of UMAP
-
       object(x)@reductions$umap_unintegrated <- NULL
       ## method of job_seurat
       x <- callNextMethod(
@@ -181,14 +212,17 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
     }
     p.umapInt <-  e(Seurat::DimPlot(object(x),
         group.by = c("orig.ident", "seurat_clusters"), cols = color_set(TRUE)))
+    p.umapInt <- set_lab_legend(
+      wrap(p.umapInt, 10, 5),
+      glue::glue("{x@sig} UMAP Integrated"), #__REVISE__ set_lab_legend 2026-03-23_22:45:48
+      glue::glue("去除批次效应之后的 UMAP 聚类图|||不同颜色代表不同cluster。横纵坐标是 UMAP 降维的两个维度。UMAP能够将高维空间中的数据映射到低维空间中，并保留数据集的局部特性。")
+    )
     p.umapLabel <-  e(Seurat::DimPlot(object(x),
         group.by = c("seurat_clusters"), 
         cols = color_set(TRUE), label = TRUE))
-    p.umapInt <- .set_lab(wrap(p.umapInt, 10, 5), sig(x), "UMAP Integrated")
-    p.umapInt <- setLegend(p.umapInt, "去除批次效应之后的 UMAP 聚类图。")
     x <- plotsAdd(x, p.umapInt, p.umapLabel)
     x <- methodAdd(x, "在 1-{max(dims)} PC 维度下，以 `Seurat::FindNeighbors` 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 `Seurat::FindClusters` 函数识别细胞群并以 `Seurat::RunUMAP` 进行 UMAP 聚类。")
-    # x <- snapAdd(x, "去除批次效应后 (详见方法章节) ，在 1-{max(dims)} PC 维度，{resolution} 分辨率下，对细胞群 UMAP 聚类。", add = FALSE)
+    x <- methodAdd(x, "在去除批次效应前，UMAP 图{aref(p.umapUint)}中各样本保持离散。去除批次效应后{aref(p.umapInt)}，各样本相互均匀混合，即批次效应已被良好地处理。")
     x$JoinLayers <- TRUE
     return(x)
   })
@@ -227,4 +261,6 @@ setMethod("asjob_limma", signature = c(x = "job_seurat"),
     x$from_seurat <- TRUE
     return(x)
   })
+
+.seurat_qc_note <- "**上方小提琴图**：每个样本对应一个‘小提琴’，小提琴的宽度代表相应数据的密度，宽度越大表示在该区域内的数据点越密集，更多数据点集中于此区域；宽度越小则表示密度越小，即数据相对较少；过滤标准：nCount 和 nFeature 过高可能是双细胞，过低可能是细胞碎片；percent.mt（线粒体基因表达比例，是细胞内线粒体基因表达量占所有基因表达量的比例）表明细胞状态，值过高可能是细胞正在经历压力或死亡。**下方点图**：每一个点代表一个细胞，不同颜色代表不同样本；左图横坐标为总基因表达数，纵坐标为线粒体基因比例；右图横坐标为 nCount（总基因表达数），纵坐标为 Feature（总基因数）；正常情况下，nCount 越多那么 nFeature 就越高，呈现出正相关关系，因此检测到的基因表达数应与检测到的基因数目在细胞间高度相关，而线粒体基因比例则不相关（若呈正相关，横坐标越大纵坐标也越大；若呈负相关，横坐标越大纵坐标应越小）。"
 

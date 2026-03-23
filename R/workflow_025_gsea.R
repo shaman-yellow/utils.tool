@@ -282,20 +282,16 @@ setMethod("step3", signature = c(x = "job_gsea"),
       "computational gene sets" = "C4",
       "ontology gene sets" = "C5",
       "oncogenic signature gene sets" = "C6"
-      ))
+      ), mode_sub = "CP")
 {
   ## general analysis
   if (missing(db)) {
     mode <- match.arg(mode)
-    db_anno <- e(msigdbr::msigdbr(species = "Homo sapiens", category = mode))
-    if (!is.null(db_filter)) {
-      db_anno <- dplyr::filter(
-        db_anno, grpl(gs_description, db_filter, TRUE)
-      )
-    }
-    db <- dplyr::select(db_anno, gs_id, symbol = gene_symbol)
-    x <- methodAdd(x, "以 R 包 `msigdbr` ({packageVersion('msigdbr')}) 获取 MSigDB 数据库基因集，用于 clusterProfiler GSEA 富集分析。")
-    x <- snapAdd(x, "以 `msigdbr` 获取 {mode} ({names(mode)}) 基因集。")
+    x <- .set_msig_db(x, mode, mode_sub)
+    db <- x$msig_db
+  }
+  if (is.null(db_anno)) {
+    db_anno <- x$db_anno
   }
   if (FALSE) {
     insDb <- lapply(split(db, ~ term),
@@ -344,67 +340,6 @@ setMethod("step3", signature = c(x = "job_gsea"),
   x <- plotsAdd(x, p.code, p.gsea)
   return(x)
 }
-
-setMethod("vis", signature = c(x = "job_gsea"),
-  function(x, pattern, map = NULL, res.gsea = NULL, table_gsea = NULL,
-    mode = c("kegg", "gsea"), pvalue = FALSE)
-  {
-    if (x@step < 1L) {
-      stop('x@step < 1L.')
-    }
-    mode <- match.arg(mode)
-    if (is.null(res.gsea)) {
-      res.gsea <- x[[ glue::glue("res.{mode}") ]]
-    }
-    if (is.null(table_gsea)) {
-      if (mode == "kegg") {
-        table_gsea <- x@tables$step1$table_kegg
-      } else if (mode == "gsea") {
-        table_gsea <- x@tables$step3$table_gsea
-      }
-    }
-    if (is.null(res.gsea) || is.null(table_gsea)) {
-      stop('is.null(res.gsea) || is.null(table_gsea).')
-    }
-    alls <- table_gsea$ID
-    if (is.null(alls)) {
-      stop('is.null(alls).')
-    }
-    if (is.null(map)) {
-      whichMapped <- which(grepl(pattern, table_gsea$Description, ignore.case = TRUE))
-      map <- alls[ whichMapped ]
-    } else {
-      whichMapped <- which(table_gsea$ID %in% map)
-    }
-    if (!length(map)) {
-      message(crayon::red("Not match any pathway, skip plot of 'p.code'."))
-      p.code <- NULL
-    } else {
-      p.code <- sapply(map, simplify = FALSE,
-        function(key) {
-          title <- dplyr::filter(table_gsea, ID == key)$Description
-          grob <- grid.grabExpr(
-            print(enrichplot::gseaplot2(res.gsea, key, pvalue_table = pvalue, title = title))
-          )
-          wrap(grob, 5, 4)
-        })
-      if (length(map) > 1) {
-        layout <- calculate_layout(length(map))
-        p.code <- patchwork::wrap_plots(
-          lapply(p.code, function(x) x@data), ncol = layout[["cols"]]
-        )
-        p.code <- wrap_layout(p.code, layout, 3)
-      } else {
-        p.code <- p.code[[1]]
-      }
-    }
-    ids <- table_gsea$ID[whichMapped]
-    p.code <- set_lab_legend(
-      p.code, glue::glue("{sig(x)} GSEA plot {bind(ids, co = '_')}"),
-      glue::glue("为 GSEA {bind(ids)} 富集图。")
-    )
-    p.code
-  })
 
 # setMethod("filter", signature = c(x = "job_gsea"),
   # function(x, ref, use = c("entrezgene_id", "symbol")){

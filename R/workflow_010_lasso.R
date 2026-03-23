@@ -366,7 +366,7 @@ plot_roc <- function(roc, from = .05, to = .2, x = .5, cols = ggsci::pal_npg()(9
       text(.1, .1, paste0("AUC: ", round(roc$auc[[1]], 2)), cex = .9)
     })
   }
-  wrap(as_grob(expr, environment()), 5, 4)
+  wrap(as_grob(expr, environment()), 8, 6)
 }
 
 plot_sig <- function(data, x = colnames(data)[1], y = colnames(data)[2],

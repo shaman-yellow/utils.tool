@@ -40,8 +40,12 @@ setMethod("step1", signature = c(x = "job_locate"),
     p.locateChr <- set_lab_legend(
       p.locateChr,
       glue::glue("{x@sig} Chromosome localization"),
-      glue::glue("染色体定位")
+      glue::glue("基因于染色体定位|||外圈数字表示染色体（1-22表示1-22条人类染色体，XY对应性染色体）")
     )
+    snap <- glue::glue(
+      "基因 {x$gene_data$Gene} 位于 {s(x$gene_data$Chromosome, 'chr', '')} 染色体上"
+    )
+    x <- snapAdd(x, "如图所示{aref(p.locateChr)}，{bind(snap)}。")
     x <- methodAdd(x, "染色体定位分析可有效揭示基因在染色体上的分布特征。以 R 包 `RCircos` ({packageVersion('RCircos')}) 生成基因染色体定位图谱。")
     x <- plotsAdd(x, p.locateChr)
     return(x)
@@ -59,7 +63,7 @@ setMethod("step2", signature = c(x = "job_locate"),
     data <- dplyr::distinct(
       data, RNA_Symbol, Subcellular_Localization, .keep_all = TRUE
     )
-    x$data <- data
+    x$locateData <- data
     p.locateScore <- wrap_scale(
       .plot_subcellular_scores(data), 
       length(unique(data$Subcellular_Localization)), 
@@ -70,8 +74,11 @@ setMethod("step2", signature = c(x = "job_locate"),
     p.locateScore <- set_lab_legend(
       p.locateScore,
       glue::glue("{x@sig} RNA Subcellular Localization Distribution"),
-      glue::glue("RNA亚细胞定位分布 (RNA 亚细胞定位关联信息来自不同类型的资源，包括实验证据和预测证据；实验证据对置信度评分的贡献应该比预测证据更大；强有力的实验证据应该比薄弱的实验证据提供更可靠的证据；有更多证据支持的 RNA 亚细胞定位关联应比证据较少支持的关联具有更高的置信度评分 <http://www.rnalocate.org/help>)。")
+      glue::glue("RNA 亚细胞定位分布|||纵坐标为不同基因，横坐标为的预测的蛋白质亚细胞定位得分：RNA 亚细胞定位关联信息来自不同类型的资源，包括实验证据和预测证据；实验证据对置信度评分的贡献应该比预测证据更大；强有力的实验证据应该比薄弱的实验证据提供更可靠的证据；有更多证据支持的 RNA 亚细胞定位关联应比证据较少支持的关联具有更高的置信度评分 (<http://www.rnalocate.org/help>)。")
     )
+    top <- dplyr::distinct(data, RNA_Symbol, .keep_all = TRUE)
+    snap <- glue::glue("蛋白 {top$RNA_Symbol} 分布于 {top$Subcellular_Localization}")
+    x <- snapAdd(x, "如图{aref(p.locateScore)}，最有证据证明 {bind(snap)}。")
     x <- plotsAdd(x, p.locateScore)
     return(x)
   })

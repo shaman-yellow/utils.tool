@@ -58,8 +58,16 @@ formatName.complex <- function(file, info) {
 
 
 set_cover.complex <- function(info, title = info$title, author = "黄礼闯", date = Sys.Date(),
-  coverpage = NULL, institution = "铂赛")
+  coverpage = NULL, institution = "...")
 {
+  if (missing(info)) {
+    file_info <- ".items_analysis.rds"
+    if (file.exists(file_info)) {
+      info <- readRDS(file_info)
+    } else {
+      stop('file.exists(file_info), and missing `info`...')
+    }
+  }
   env <- environment()
   if (is.null(coverpage)) {
     if (info$type == "思路设计") {
@@ -79,7 +87,9 @@ set_cover.complex <- function(info, title = info$title, author = "黄礼闯", da
     if (knitr::is_latex_output()) {
       stop('knitr::is_latex_output()')
     } else if (knitr::pandoc_to("docx")) {
-      content <- get_docx_cover.complex_analysis(info$id, env)
+      content <- get_docx_cover.complex_analysis(
+        info$title, info, env
+      )
     }
   }
   content <- vapply(content, glue::glue, character(1),
@@ -97,22 +107,36 @@ set_cover.complex <- function(info, title = info$title, author = "黄礼闯", da
 #   .get_docx_coverStyle.complex("生物医药合作项目开发", items, 6, 3, env = env)
 # }
 
-get_docx_cover.complex_analysis <- function(title, env) {
-  .get_docx_coverStyle.complex(title, 10, 3, env = env)
+get_docx_cover.complex_analysis <- function(title, items, env) {
+  .get_docx_coverStyle.complex(title, items, env = env)
 }
 
-.get_docx_coverStyle.complex <- function(header, header.before = 10, header.after = 3,
+.get_docx_coverStyle.complex <- function(title, items, header.before = 8, header.after = 12,
   env, lineNChar = 45)
 {
-  header <- paste0("项目编号: ", header)
-  fp_header <- officer::fp_par("center", line_spacing = 2)
-  fp_tlarge <- officer::fp_text(font.size = 25, font.family = "SimSun", bold = TRUE)
-  par_title <- list(officer::fpar(officer::ftext(header, fp_tlarge), fp_p = fp_header))
+  par_title <- officer::fpar(
+    officer::ftext(title,
+      officer::fp_text(
+        eastasia.family = "SimSun", font.family = "Times New Roman", font.size = 18, bold = TRUE
+        )), fp_p = officer::fp_par(line_spacing = 1.5, text.align = "center")
+  )
+  fp_text_id <- officer::fp_text(
+    bold = TRUE, font.size = 16, font.family = "Times New Roman", eastasia.family = "SimSun"
+  )
+  par_id <- officer::fpar(
+    officer::ftext(glue::glue("项目编号："), fp_text_id),
+    officer::run_linebreak(),
+    officer::ftext(glue::glue("Project-{s(items$id, '[a-z]+', '')}"), fp_text_id),
+    fp_p = officer::fp_par(text.align = "center", line_spacing = 1.5)
+  )
   blank <- officer::fpar()
   content <- c(
-    rep(list(blank), header.before), par_title
+    rep(list(blank), header.before), list(par_title),
+    rep(list(blank), header.after), list(par_id)
   )
   content <- unlist(lapply(content, assis_docx_par))
   c("", content, "", "\\newpage", "")
 }
+
+.md_p_significant <- "\\\\*, P < 0.05; \\\\*\\\\*, p < 0.01; \\\\*\\\\*\\\\*, p < 0.001"
 

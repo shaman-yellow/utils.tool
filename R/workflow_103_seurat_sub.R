@@ -55,7 +55,6 @@ setMethod("asjob_seurat_sub", signature = c(x = "job_seurat"),
     object(x)@meta.data <- cbind(
       object(x)@meta.data, metadata[ orderSub,  ]
     )
-    Terror <<- x
     snapAdd_onExit("x", "提取 {bind(group)} 对其二次降维聚类以分析其亚群。")
     x <- getsub(x, !!rlang::sym(group.by) %in% !!group)
     x <- .job_seurat_sub(object = object(x))

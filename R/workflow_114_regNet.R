@@ -129,8 +129,8 @@ setMethod("step1", signature = c(x = "job_regNet"),
       } else {
         miRNetR <- callr::r(
           map_genes_in_miRNetR,
-          list(genes = targets, wd = .prefix("miRNetR", "db"), extra = "--no-check-certificate"),
-          stdout = "|", stderr = "|"
+          list(genes = targets, wd = .prefix("miRNetR", "db"),
+            extra = "--no-check-certificate"), show = TRUE
           )$mir.res
         miRNetR <- tibble::as_tibble(miRNetR)
       }
@@ -163,6 +163,8 @@ setMethod("step2", signature = c(x = "job_regNet"),
     ins <- dplyr::distinct(ins, mirna_name, gene_name)
     message(glue::glue("Got data: {try_snap(ins, 'gene_name', 'mirna_name')}"))
     x$ins_mirna <- ins
+    ins.snap <- try_snap(ins, "gene_name", "mirna_name")
+    x <- snapAdd(x, "将数据库 {bind(names(sets))} 预测或记录的 mRNA 的上游 miRNA，二者 mRNA-miRNA 关系对取交集，共得到 {nrow(ins)} 对调控关系【{ins.snap}】。")
     x <- methodAdd(x, "取以上数据库的交集，确定高可信度的miRNA-mRNA调控配对。")
     return(x)
   })
@@ -216,6 +218,8 @@ setMethod("step4", signature = c(x = "job_regNet"),
     ins <- .merge_list_by_cols(sets, by = c("lncrna_name", "mirna_name"))
     ins <- dplyr::distinct(ins, lncrna_name, mirna_name)
     message(glue::glue("Got data: {try_snap(ins, 'mirna_name', 'lncrna_name')}"))
+    ins.snap <- try_snap(ins, "mirna_name", "lncrna_name")
+    x <- snapAdd(x, "将数据库 {bind(names(sets))} 预测或记录的 miRNA 的上游 lncRNA，二者 miRNA-lncRNA 关系对取交集，共得到 {nrow(ins)} 对调控关系【{ins.snap}】。")
     x <- methodAdd(x, "取两个数据库结果的交集筛选出高可信度的 lncRNA-miRNA 调控配对。")
     x$ins_lncrna <- ins
     return(x)
@@ -257,8 +261,9 @@ setMethod("step5", signature = c(x = "job_regNet"),
     p.regNet <- set_lab_legend(
       p.regNet,
       glue::glue("{x@sig} expression regulation networking"),
-      glue::glue("lncRNA-miRNA-mRNA 表达网络分析")
+      glue::glue("lncRNA-miRNA-mRNA 表达网络分析|||图中的节点表示对应 RNA 类型，边代表相互作用。")
     )
+    x <- snapAdd(x, "构建 lncRNA-miRNA-mRNA 表达网络{aref(p.regNet)}，如图所示，共 {nrow(nodes)} 个节点，{nrow(edges)} 个边。")
     x <- methodAdd(x, "以 R 包 `ggraph` ({packageVersion('ggraph')}) 与 `ggplot2` ({packageVersion('ggplot2')}) 对 lncRNA-miRNA-mRNA 转录后调控网络进行整合，可视化多层级分子调控网络的整体结构。")
     x <- plotsAdd(x, p.regNet)
     return(x)
@@ -324,7 +329,7 @@ get_url_data <- function(expect_filename, url,
 }
 
 which_not_in_data <- function(data, col, items, prefix = NULL) {
-  name <- rlang::as_label(substitute(data))
+  name <- rlang::expr_text(substitute(data))
   whichNot <- !items %in% data[[ col ]]
   if (any(whichNot)) {
     if (!is.null(prefix)) {

@@ -151,20 +151,10 @@ guess_number.hb <- function(path = "remote", p.pattern = "r\\.[0-9]{2}",
 
 spsv <- function(object, name = NULL, prefix = "tmp_") {
   if (is.null(name)) {
-    name <- formal_name(rlang::as_label(substitute(object)))
+    name <- formal_name(rlang::expr_text(substitute(object)))
   }
-  write_graphics(object, name = name, mkdir = ".")
-}
-
-take_positions <- function(plots, envir = .GlobalEnv) {
-  calls <- substitute(plots)
-  if (as_label(calls[[1]]) != "{") {
-    stop('as_label(calls[[1]]) != "{"')
-  }
-  for (i in rev(seq_along(calls)[-1])) {
-    dev.new()
-    print(eval(parse(text = as_label(calls[[i]])), envir = envir))
-  }
+  fun <- select_savefun(object)
+  fun(object, name = name, mkdir = ".")
 }
 
 smart_wrap_expr <- function(plots, size = 3, ..., envir = .GlobalEnv)
@@ -214,10 +204,12 @@ setup.huibang <- function() {
   conflicted::conflict_prefer("map", "utils.tool")
   options(
     prio_lib = "/data/nas1/huanglichuang_OD/conda/envs/extra_pkgs/lib/R/library/",
+    digits = 4,
     warning.length = 5000,
     max.print = 500L,
     path_jobSave = "rds_jobSave",
     future.globals.maxSize = 5e10,
+    auto_convert_plots = TRUE,
     wd_prefix = "/data/nas1/huanglichuang_OD/project/",
     db_prefix = "/data/nas1/huanglichuang_OD/project/",
     op_prefix = "/data/nas1/huanglichuang_OD/project/",
@@ -268,7 +260,9 @@ setup.huibang <- function() {
   options("download.file.method" = "wget", "download.file.extra" = "--no-check-certificate")
 }
 
-run_in_project_nohup <- function(script = "", remote = "remote") {
+run_in_project_nohup <- function(script = "", remote = "remote", fun_map = basename)
+{
+  script <- fun_map(script)
   ws <- getRemoteWs()
   pr <- guess_project()
   dir_project <- paste0(ws, "/", pr)

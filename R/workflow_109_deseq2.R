@@ -98,7 +98,7 @@ setMethod("step2", signature = c(x = "job_deseq2"),
     t.results <- .set_lab(t.results, sig(x), names(t.results), "Contrast all result table")
     t.results <- setLegend(t.results, glue::glue("差异分析 {names(t.results)} 的全部基因的结果表格。"))
     res <- .stat_by_logfc(t.sigResults, "log2FoldChange", get = x$idcol)
-    x <- snapAdd(x, "显著基因统计：\n\n{res$snap}\n\n")
+    x <- snapAdd(x, "显著基因统计：\n\n{res$snap}\n\n\n")
     feature(x) <- res$sets
     x <- tablesAdd(x, t.results, t.sigResults)
     x <- methodAdd(
@@ -253,15 +253,8 @@ setMethod("focus", signature = c(x = "job_deseq2"),
           )
         })
     }
-      snap <- fakeLmJob@snap[[ paste0("step", .name) ]]
-    if (clear) {
-      x@snap[[ paste0("step", .name) ]] <- ""
-    }
-    x <- snapAdd(x, snap, step = .name)
-    pvalue <- resStat$p.BoxPlotOfDEGs$pvalue
-    x <- snapAdd(
-      x, "{bind(names(pvalue))}表达差异的 {test} 统计学显著性 P 为 {bind(pvalue)}。", step = .name
-    )
+    snap <- fakeLmJob@snap[[ paste0("step", .name) ]]
+    x <- snapAdd(x, snap, step = .name, add = !clear)
     if (run_roc) {
       snaps <- bind(
         paste0("- ", vapply(roc, function(x) x$snap, character(1)), "\n"), co = "\n"

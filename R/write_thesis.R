@@ -6,7 +6,7 @@ inclu.fig <- function(image, land = FALSE, saveDir = "thesis_fig", dpi = 300,
   scale = if (land) {
     list(width = 10, height = 6.2)
   } else {
-    list(width = 6.2, height = 5)
+    list(width = 6.2, height = 3)
   }, name = NULL, caption = NULL)
 {
   if (!file.exists(saveDir))
@@ -632,6 +632,7 @@ custom_docx_document2 <- function(...){
     reference_docx = args$reference_docx,
     keep_md = TRUE,
     df_print = "tibble",
+    pandoc_args = c("-f", "markdown-smart"),
     tables = list(
       style = "Table", width = 1, topcaption = TRUE, tab.lp = "tab:",
       caption = list(
