@@ -41,18 +41,8 @@ setMethod("asjob_testThis", signature = c(x = "feature"),
   })
 
 setMethod("step1", signature = c(x = "job_testThis"),
-  function(x){
+  function(x, a, b, c, d, ...){
     step_message("Quality control (QC).")
-    p.ggplotTest <- ggplot(eg, aes(x = x, y = y, color = z)) + geom_point()
-    p.ggplotTest <- wrap(p.ggplotTest)
-    x <- plotsAdd(x, p.ggplotTest)
-    y <- x <- tablesAdd(x, t.eg = eg)
-    x <- 1:10
-    snapAdd_onExit("x", "这是第二个说明。")
-    x <- y
-    x <- snapAdd(x, "这是一个说明。")
-    text <- "__test__"
-    fea <- as_feature("test", .job_enrich())
     return(x)
   })
 

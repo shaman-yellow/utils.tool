@@ -17,7 +17,7 @@ setGeneric("asjob_monocle2",
   function(x, ...) standardGeneric("asjob_monocle2"))
 
 setMethod("asjob_monocle2", signature = c(x = "job_seurat"),
-  function(x, group.by = x$group.by, nfeatures = 1000)
+  function(x, compare = NULL, compare.by = "group", group.by = x$group.by, nfeatures = 1000)
   {
     if (!requireNamespace("monocle", quietly = TRUE)) {
       stop('!requireNamespace("monocle").')
@@ -29,6 +29,15 @@ setMethod("asjob_monocle2", signature = c(x = "job_seurat"),
     VariableFeatures <- e(Seurat::VariableFeatures(object(x)))
     if (!length(VariableFeatures)) {
       stop('!length(VariableFeatures).')
+    }
+    diff_genes <- NULL
+    if (!is.null(compare)) {
+      if (length(compare) != 2) {
+        stop('length(compare) != 2.')
+      }
+      Seurat::Idents(object(x)) <- compare.by
+      diff_genes <- e(Seurat::FindMarkers(object(x), compare[1], compare[2]))
+      snap(diff_genes) <- glue::glue("使用 Seurat::FindMarkers 默认参数进行组间比较 {bind(compare, co = ' vs ')}")
     }
     # metadata$Cluster <- object(x)@active.ident
     cells <- unique(metadata[[group.by]])
@@ -53,6 +62,7 @@ setMethod("asjob_monocle2", signature = c(x = "job_seurat"),
     x <- .job_monocle2(object = object)
     x$VariableFeatures <- VariableFeatures
     x$group.by <- group.by
+    x$diff_genes <- diff_genes
     return(x)
   })
 
@@ -72,12 +82,26 @@ setMethod("step1", signature = c(x = "job_monocle2"),
   })
 
 setMethod("step2", signature = c(x = "job_monocle2"),
-  function(x, order.by = x$VariableFeatures){
+  function(x, mode = c("diff", "var"), top = 300, group = "group"){
     step_message("DDRTree.")
+    mode <- match.arg(mode)
     require(DDRTree)
-    message(glue::glue("Use {length(order.by)} for ordering_genes."))
-    # use variable features, or use DEGs with control vs model?
-    # An_atlas_of_epi_Han_G_2024
+    if (mode == "var") {
+      order.by <- x$VariableFeatures
+    } else {
+      # use variable features, or use DEGs with control vs model?
+      # [@An_atlas_of_epi_Han_G_2024] 38418883
+      message(glue::glue("Use Top {top} DEGs as ordering principle."))
+      if (!is.null(x$diff_genes)) {
+        order.by <- head(rownames(x$diff_genes), n = top)
+        if (any(!order.by %in% rownames(object(x)))) {
+          stop('any(!order.by %in% rownames(object(x))).')
+        }
+        x <- methodAdd(x, "参考已发表文献{cite_show('An_atlas_of_epi_Han_G_2024')}(PMID: 38418883)，根据差异表达基因排序选取 Top {top} ({snap(x$diff_genes)})，进而以 `monocle::setOrderingFilter` 对细胞轨迹排序。")
+      } else {
+        stop('!is.null(x$diff_genes).')
+      }
+    }
     object(x) <- e(monocle::setOrderingFilter(object(x), ordering_genes = order.by))
     object(x) <- e(monocle::reduceDimension(object(x), reduction_method = "DDRTree"))
     object(x) <- e(monocle::orderCells(object(x)))
@@ -124,6 +148,7 @@ setMethod("step3", signature = c(x = "job_monocle2"),
 setMethod("step4", signature = c(x = "job_monocle2"),
   function(x, ref, use = x$use){
     step_message("Plot genes in pseudotime.")
+    require(monocle)
     if (!is(ref, "feature")) {
       stop('!is(ref, "feature").')
     }
@@ -159,9 +184,9 @@ setMethod("mutate", signature = c(x = "job_monocle2"),
 
 # diff_genes <- differentialGeneTest(cds[expressed_genes,], 
 #                                   fullModelFormulaStr = "~Status")
-# sig_disease_genes <- subset(diff_genes, qval < 0.01)
-# ordering_genes <- rownames(sig_disease_genes)[
-#   order(abs(sig_disease_genes$fold_change), decreasing = TRUE)[1:300]
+# sig_genes <- subset(diff_genes, qval < 0.01)
+# ordering_genes <- rownames(sig_genes)[
+#   order(abs(sig_genes$fold_change), decreasing = TRUE)[1:300]
 # ]
 
 setMethod("set_remote", signature = c(x = "job_monocle2"),

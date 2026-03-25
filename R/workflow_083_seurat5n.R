@@ -82,7 +82,7 @@ setMethod("step1", signature = c(x = "job_seurat5n"),
   })
 
 setMethod("step2", signature = c(x = "job_seurat5n"),
-  function(x, ndims = 20, sct = FALSE, workers = NULL){
+  function(x, ndims = 20, sct = FALSE, jk = FALSE, workers = NULL){
     step_message("Run standard anlaysis workflow or `SCTransform`.")
     if (is.remote(x)) {
       if (is.null(workers)) {
@@ -124,8 +124,9 @@ setMethod("step2", signature = c(x = "job_seurat5n"),
     }
     object(x) <- e(Seurat::RunPCA(object(x)))
     x <- methodAdd(x, "随后 PCA 聚类 (`RunPCA`)。")
-    if (!sct) {
+    if (jk && !sct) {
       object(x) <- e(Seurat::JackStraw(object(x), dims = ndims))
+      object(x) <- e(Seurat::ScoreJackStraw(object(x)))
       p.jackPlot <- Seurat::JackStrawPlot(object(x))
       p.jackPlot <- set_lab_legend(
         wrap(p.jackPlot),

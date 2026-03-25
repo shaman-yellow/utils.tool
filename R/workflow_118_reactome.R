@@ -21,6 +21,10 @@ setMethod("asjob_reactome", signature = c(x = "job_seurat"),
     cellType = x$group.by, ids = c(compare.by, sample.by, cellType))
   {
     object <- object(x)
+    if (is.null(ref)) {
+      fea <- as_feature(levels(Seurat::Idents(object)), "关键细胞", "cell")
+    }
+    snapAdd_onExit("x", "将{snap(fea)}进行通路富集分析。")
     if (is.null(object@meta.data[[compare.by]])) {
       stop('is.null(object@meta.data[[compare.by]]).')
     }
@@ -36,10 +40,6 @@ setMethod("asjob_reactome", signature = c(x = "job_seurat"),
     message(
       glue::glue("Clusters for enrichment: {less(levels(Seurat::Idents(object)), 10)}")
     )
-    if (is.null(ref)) {
-      fea <- as_feature(levels(Seurat::Idents(object)), "关键细胞", "cell")
-    }
-    snapAdd_onExit("x", "将{snap(fea)}进行通路富集分析。")
     message("Replace aggregation with a sparse matrix algorithm")
     cli::cli_alert_info(".reactome_prepare")
     object <- .reactome_prepare(object, verbose = TRUE)
@@ -155,7 +155,7 @@ setMethod("step3", signature = c(x = "job_reactome"),
         )
         args <- list(
           .data = data, .row = quote(Name), .column = quote(Cell),
-          .value = quote(value), cluster_columns = FALSE, column_names_rot = 45,
+          .value = quote(value), cluster_columns = FALSE, column_names_rot = 90,
           cluster_rows = TRUE, group_by = quote(group),
           row_names_max_width = grobWidth(textGrob(rownames(data), gpar(fontsize = 10, fontface = 1)))
         )
@@ -180,7 +180,7 @@ setMethod("step3", signature = c(x = "job_reactome"),
     p.hps <- set_lab_legend(
       p.hps,
       glue::glue("{x@sig} top {names(p.hps)} ReactomeGSA heatmap"),
-      glue::glue("ReactomeGSA 富集结果中各细胞类型按显著性排列靠前的{cn}")
+      glue::glue("ReactomeGSA 富集结果中各细胞类型按显著性排列靠前的{cn}|||横轴分布的是不同细胞类型，对应于各自组别；纵向为富集通路的名称。")
     )
     x <- plotsAdd(x, p.hps)
     return(x)

@@ -56,17 +56,21 @@ setMethod("step1", signature = c(x = "job_deseq2"),
     object(x) <- e(DESeq2::DESeq(object(x)))
     x$vst <- e(DESeq2::vst(object(x), blind = FALSE))
     p.pca <- DESeq2::plotPCA(x$vst, intgroup = "group")
-    p.pca <- .set_lab(
-      wrap(p.pca, 7, 6), sig(x), "PCA of VST data"
+    p.pca <- set_lab_legend(
+      wrap(p.pca, 7, 6),
+      glue::glue("{x@sig} PCA of VST data"),
+      glue::glue("样本 PCA 聚类图")
     )
-    p.pca <- setLegend(p.pca, "样本 PCA 聚类图。")
     cook_data <- log10(object(x)@assays@data[[ "cooks" ]])
     colnames(cook_data) <- colnames(object(x))
     p.boxplot <- as_grob(expression(boxplot(cook_data)))
-    p.boxplot <- .set_lab(p.boxplot, sig(x), "boxplot of cook distance")
-    p.boxplot <- setLegend(p.boxplot, "样本 cook 距离箱线图。")
+    p.boxplot <- set_lab_legend(
+      p.boxplot,
+      glue::glue("{x@sig} boxplot of cook distance"),
+      glue::glue("样本 cook 距离箱线图。")
+    )
     x <- plotsAdd(x, p.pca, p.boxplot)
-    x <- methodAdd(x, "使用 'DESeq()' 函数进行标准化和差异分析。DESeq 函数会针对每个基因和每个样本计算一个称为 Cook 距离的异常值诊断测试。绘制 Cook 距离的箱线图，以查看是否存在某个样本始终高于其他样本。为进一步质控数据，另一方面，对数据集以 vst 函数处理，随后绘制 PCA 图检查样本是否存在批次效应或离群样本。")
+    x <- methodAdd(x, "使用 DESeq 函数进行标准化和差异分析。DESeq 函数会针对每个基因和每个样本计算一个称为 Cook 距离的异常值诊断测试。绘制 Cook 距离的箱线图，以查看是否存在某个样本始终高于其他样本。为进一步质控数据，另一方面，对数据集以 vst 函数处理，随后绘制 PCA 图检查样本是否存在批次效应或离群样本。")
     return(x)
   })
 
@@ -89,14 +93,20 @@ setMethod("step2", signature = c(x = "job_deseq2"),
         dplyr::arrange(data, dplyr::desc(abs(!!rlang::sym(order.by))))
       })
     names(t.results) <- sub(" - ", " vs ", colnames(contrast))
-    t.sigResults <- lapply(t.results, 
+    t.sigResults <- lapply(t.results,
       function(data) {
         dplyr::filter(data, !!rlang::sym(use) < cut.p, abs(log2FoldChange) > cut.fc)
       })
-    t.sigResults <- .set_lab(t.sigResults, sig(x), names(t.sigResults), "Contrast significant result table")
-    t.sigResults <- setLegend(t.sigResults, glue::glue("差异分析 {names(t.results)} 的显著基因的结果表格。"))
-    t.results <- .set_lab(t.results, sig(x), names(t.results), "Contrast all result table")
-    t.results <- setLegend(t.results, glue::glue("差异分析 {names(t.results)} 的全部基因的结果表格。"))
+    t.sigResults <- set_lab_legend(
+      t.sigResults,
+      glue::glue("{x@sig} {names(t.sigResults)} Contrast significant result table"),
+      glue::glue("差异分析 {names(t.results)} 的显著基因的结果表格")
+    )
+    t.results <- set_lab_legend(
+      t.results,
+      glue::glue("{x@sig} {names(t.results)} Contrast all result table"),
+      glue::glue("差异分析 {names(t.results)} 的全部基因的结果表格")
+    )
     res <- .stat_by_logfc(t.sigResults, "log2FoldChange", get = x$idcol)
     x <- snapAdd(x, "显著基因统计：\n\n{res$snap}\n\n\n")
     feature(x) <- res$sets

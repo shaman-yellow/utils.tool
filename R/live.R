@@ -1352,13 +1352,13 @@ wrap <- function(data, width = 10, height = 8, showtext = NULL, force = FALSE)
     width <- if (width > 20) 20 else width
     height <- if (height > 14) 14 else height
   }
+  snap <- snap(data)
   if (is(data, "wrap")) {
     data@width <- width
     data@height <- height
     if (!is.null(showtext)) {
       data@showtext <- showtext
     }
-    data
   } else {
     if (is(data, "gg.obj")) {
       data <- as_grob(data)
@@ -1366,8 +1366,12 @@ wrap <- function(data, width = 10, height = 8, showtext = NULL, force = FALSE)
     if (is.null(showtext)) {
       showtext <- FALSE
     }
-    .wrap(data = data, width = width, height = height, showtext = showtext)
+    data <- .wrap(data = data, width = width, height = height, showtext = showtext)
   }
+  if (!is.null(snap)) {
+    snap(data) <- snap
+  }
+  data
 }
 
 .wrap <- setClass("wrap", 

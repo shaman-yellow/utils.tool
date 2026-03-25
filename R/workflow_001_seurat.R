@@ -102,10 +102,12 @@ setMethod("step2", signature = c(x = "job_seurat"),
         features = SeuratObject::VariableFeatures(object(x)), reduction.name = "pca"
         ))
     p.pca_rank <- e(Seurat::ElbowPlot(object(x), ndims))
-    p.pca_rank <- wrap(pretty_elbowplot(p.pca_rank), 4, 4)
-    p.pca_rank <- .set_lab(p.pca_rank, sig(x), "Standard deviations of PCs")
-    p.pca_rank <- setLegend(p.pca_rank, "为主成分 (PC) 的 Standard deviations。")
-    x@plots[[ 2 ]] <- namel(p.pca_rank)
+    p.pca_rank <- set_lab_legend(
+      wrap(pretty_elbowplot(p.pca_rank), 4, 4),
+      glue::glue("{x@sig} Standard deviations of PCs"),
+      glue::glue("为主成分 (PC) 的 Standard deviations|||")
+    )
+    x <- plotsAdd(x, p.pca_rank)
     x <- methodAdd(x, "执行标准 Seurat 分析工作流 (`NormalizeData`, `FindVariableFeatures`, `ScaleData`, `RunPCA`)。以 `ElbowPlot` 判断后续分析的 PC 维度。")
     x <- snapAdd(x, "数据归一化，PCA 聚类 (Seurat 标准工作流)。")
     message("Dim: ", paste0(dim(object(x)), collapse = ", "))
@@ -135,10 +137,12 @@ setMethod("step3", signature = c(x = "job_seurat"),
     object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution))
     object(x) <- e(Seurat::RunUMAP(object(x), dims = dims, reduction = reduction))
     p.umap <- e(Seurat::DimPlot(object(x), cols = color_set(TRUE)))
-    p.umap <- wrap(p.umap, 6, 5)
-    p.umap <- .set_lab(p.umap, sig(x), "UMAP", "Clustering")
-    x@plots[[ 3 ]] <- namel(p.umap)
-
+    p.umap <- set_lab_legend(
+      wrap(p.umap, 6, 5),
+      glue::glue("{x@sig} UMAP Clustering"),
+      glue::glue("UMAP 聚类图|||不同颜色代表不同cluster。横纵坐标是 UMAP 降维的两个维度。UMAP能够将高维空间中的数据映射到低维空间中，并保留数据集的局部特性。")
+    )
+    x <- plotsAdd(x, p.umap)
     # x <- snapAdd(x, "在 1-{max(dims)} PC 维度，{resolution} 分辨率下，对细胞群 UMAP 聚类。")
     x <- methodAdd(x, "在 1-{max(dims)} PC 维度下，以 Seurat::FindNeighbors 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 Seurat::FindClusters 函数识别细胞群并以 Seurat::RunUMAP 进行 UMAP 聚类。")
     return(x)
@@ -198,10 +202,13 @@ setMethod("step4", signature = c(x = "job_seurat"),
 
 setMethod("step5", signature = c(x = "job_seurat"),
   function(x, workers = NULL, min.pct = .25, logfc.threshold = .25, 
-    force = FALSE, topn = 5, assay = object(x)@active.assay, test.use = "wilcox")
+    force = FALSE, topn = 5, assay = object(x)@active.assay, 
+    test.use = "wilcox", dir_cache = "tmp")
   {
     step_message("Find all Marders for Cell Cluster.")
-    cache_markers <- file.path(create_job_cache_dir(x), "markers.tsv")
+    cache_markers <- file.path(
+      create_job_cache_dir(x, dir_cache), "markers.tsv"
+    )
     if (!force && file.exists(cache_markers)) {
       markers <- read_tsv(cache_markers)
     } else {
@@ -239,8 +246,9 @@ setMethod("step5", signature = c(x = "job_seurat"),
               }
               options(future.globals.maxSize = Inf)
               future::plan(future::multicore, workers = workers)
+              Seurat::Idents(object(x)) <- "seurat_clusters"
               markers <- Seurat::FindAllMarkers(object, min.pct = min.pct,
-                logfc.threshold = logfc.threshold, 
+                logfc.threshold = logfc.threshold, group.by = "seurat_clusters",
                 only.pos = TRUE, test.use = test.use)
               write.table(
                 markers, output, sep = ",", col.names = TRUE, row.names = FALSE, quote = FALSE
@@ -274,11 +282,11 @@ setMethod("step5", signature = c(x = "job_seurat"),
           options(future.globals.maxSize = Inf)
           future::plan(future::multicore, workers = workers)
         }
+        Seurat::Idents(object(x)) <- "seurat_clusters"
         markers <- as_tibble(
-          e(
-            Seurat::FindAllMarkers(object(x), min.pct = min.pct, assay = assay,
-              logfc.threshold = logfc.threshold, only.pos = TRUE, test.use = test.use)
-          )
+          e(Seurat::FindAllMarkers(object(x), min.pct = min.pct, assay = assay,
+              logfc.threshold = logfc.threshold, only.pos = TRUE, 
+              test.use = test.use, group.by = "seurat_clusters"))
         )
         if (!nrow(markers)) {
           stop('!nrow(markers), no markers got.')
@@ -313,7 +321,6 @@ setMethod("step6", signature = c(x = "job_seurat"),
     # cellMarker
     type = c("Normal cell"),
     # plot markers
-    exclude_pattern = NULL,
     exclude = NULL, include = NULL, show = NULL, notShow = NULL,
     renameCell = NULL, keep_markers = 3,
     # chatGPT 
@@ -340,9 +347,7 @@ setMethod("anno", signature = c(x = "job_seurat"),
     org = c("Human", "Mouse"), filter.p = 0.01, filter.fc = .5, res.col = "scsa_cell",
     # cellMarker
     type = c("Normal cell"),
-    # plot markers
-    exclude_pattern = NULL,
-    # "derived|progenitor|Transitional|Memory|switch|white blood cell"
+    # plot markers "derived|progenitor|Transitional|Memory|switch|white blood cell"
     exclude = NULL, include = NULL, show = NULL, notShow = NULL,
     renameCell = NULL, keep_markers = 3,
     # chatGPT 
@@ -352,135 +357,94 @@ setMethod("anno", signature = c(x = "job_seurat"),
     if (x@step < 5L) {
       stop('x@step < 5L.')
     }
+    if (is.null(ref.markers)) {
+      stop('is.null(ref.markers).')
+    }
     if (init) {
       x <- init(x)
       message(glue::glue("Set step as 6."))
       x@step <- 6L
     }
     method <- match.arg(method)
-    if (method == "gpt") {
-      stop("deprecated")
-    } else if (method == "scsa" || method == "cellMarker") {
-      step_message("Use SCSA to annotate cell types (<https://github.com/bioinfo-ibms-pumc/SCSA>).")
-      # lst <- do.call(scsa_annotation, as.list(environment()))
-      if (method == "cellMarker" && is.null(ref.markers)) {
-        job_markers <- job_markers(
-          tissue, type = type, use_numbering = FALSE, 
-          org = org
-        )
-        tissue <- bind(unique(job_markers$db$tissueType))
-        ref.markers <- ref(job_markers)
-        if (!is.null(include)) {
-          ref.markers <- dplyr::filter(
-            ref.markers, grpl(cell, include, TRUE)
-          )
-        }
-        if (!is.null(exclude_pattern) || !is.null(exclude)) {
-          exclude_pattern <- paste0(
-            c(exclude_pattern, exclude), collapse = "|"
-          )
-          ref.markers <- dplyr::filter(
-            ref.markers, !grpl(cell, exclude_pattern, TRUE)
-          )
-        }
-      } else {
-        job_markers <- NULL
-      }
-      lst <- scsa_annotation(
-        x = x, tissue = if (method == "scsa") tissue else "All",
-        ref.markers = ref.markers, filter.p = filter.p,
-        filter.fc = filter.fc, org = org, renameCell = renameCell, 
-        forceCluster = forceCluster, res.col = res.col, ...
+    step_message("Use SCSA to annotate cell types (<https://github.com/bioinfo-ibms-pumc/SCSA>).")
+    # lst <- do.call(scsa_annotation, as.list(environment()))
+    lst <- scsa_annotation(
+      x = x, tissue = if (method == "scsa") tissue else "All",
+      ref.markers = ref.markers, filter.p = filter.p,
+      filter.fc = filter.fc, org = org, renameCell = renameCell, 
+      forceCluster = forceCluster, res.col = res.col, ...
+    )
+    x <- lst$x
+    x$group.by <- lst$res.col
+    x <- methodAdd(
+      x, "以 Python 工具 `SCSA` ({cite_show('ScsaACellTyCaoY2020')}) (<https://github.com/bioinfo-ibms-pumc/SCSA>) 结合特异 Marker 对细胞群注释。"
+    )
+    t.validMarkers <- reframe_col(
+      show.markers, "markers", function(x) bind(x)
+    )
+    t.validMarkers <- dplyr::relocate(
+      t.validMarkers, cell, markers
+    )
+    t.validMarkers <- set_lab_legend(
+      t.validMarkers,
+      glue::glue("{x@sig} annotation validate markers"),
+      glue::glue("细胞注释的标记基因")
+    )
+    x <- tablesAdd(x, t.validMarkers)
+    p.markers_cluster <- .plot_marker_heatmap(
+      x, split(show.markers$markers, show.markers$cell), "seurat_clusters",
+      show = show, max = keep_markers, notShow = notShow, ...
+    )
+    p.markers_cluster <- set_lab_legend(
+      p.markers_cluster,
+      glue::glue("{sig(x)} Marker in cluster dotplot"),
+      glue::glue("细胞标志基因在不同聚类中的表达水平气泡图|||横坐标为不同cluster，纵坐标为不同标志基因，气泡越大表示在该 cluster表达该基因的细胞越多，颜色越深代表该 cluster 细胞平均表达基因的水平越高。")
+    )
+    p.markers <- .plot_marker_heatmap(
+      x, split(show.markers$markers, show.markers$cell), res.col,
+      show = show, max = keep_markers, notShow = notShow, ...
+    )
+    p.markers <- set_lab_legend(
+      p.markers,
+      glue::glue("{sig(x)} Marker in cell type dotplot"),
+      glue::glue("细胞标志基因在不同细胞类型中的表达水平气泡图|||横坐标为不同细胞类型，纵坐标为不同标志基因，气泡越大表示在该细胞类型表达该基因的细胞越多，颜色越深代表该细胞类型的细胞平均表达该基因的水平越高。")
+    )
+    SeuratObject::Idents(object(x)) <- res.col
+    types <- levels(SeuratObject::Idents(object(x)))
+    x <- snapAdd(x, "结合 SCSA 所得 Z.score 得分，特异 Marker 基因{aref(t.validMarkers)}在 Seurat Cluster 的表达气泡图{aref(p.markers_cluster)}，以及 Marker 基因在注释后的验证气泡图 {aref(p.markers)}，一共注释了 {length(types)} 种不同的细胞：{bind(types)}。")
+    x <- plotsAdd(x, p.markers_cluster, p.markers)
+    p.map_scsa <- lst$p.map_scsa
+    p.map_scsa <- set_lab_legend(
+      p.map_scsa,
+      glue::glue("{x@sig} SCSA Cell type annotation"),
+      glue::glue("细胞注释结果的 UMAP 图|||不同颜色代表不同细胞簇类型，横纵坐标为UMAP的两个维度。")
+    )
+    p.props_scsa <- plot_cells_proportion(
+      object(x)@meta.data, "orig.ident", res.col
+    )
+    p.props_scsa <- set_lab_legend(
+      p.props_scsa,
+      glue::glue("{x@sig} SCSA annotation Cell Proportions in each sample"),
+      glue::glue("注释的细胞群在各个样本中的占比|||不同颜色代表不同细胞类型，纵坐标为不同样本，横坐标为细胞类型所占百分比。")
+    )
+    x <- snapAdd(x, "将这些细胞类型重新映射到 UMAP 图中{aref(p.map_scsa)}。这些细胞在不同样本中的分布如图所示{aref(p.props_scsa)}。")
+    x <- plotsAdd(x, p.map_scsa = p.map_scsa, p.props_scsa)
+    t.props_scsa <- p.props_scsa$.data
+    x <- tablesAdd(x, scsa_res_all = lst$scsa_res_all, t.props_scsa)
+    if (!is.null(p.props_scsa$setGroup) && p.props_scsa$setGroup) {
+      p.props_scsa_stat <- .map_boxplot2(
+        p.props_scsa$.data, TRUE, "group", "Ratio", ylab = "Ratio", ids = "Cells"
       )
-      x <- lst$x
-      x@params$group.by <- lst$res.col
-      p.props_scsa <- plot_cells_proportion(
-        object(x)@meta.data, "orig.ident", "scsa_cell"
+      p.props_scsa_stat <- set_lab_legend(
+        wrap(p.props_scsa_stat),
+        glue::glue("{x@sig} Cell Proportion intergroup comparison"),
+        glue::glue("细胞群占比的组间差异分析|||横坐标为为不同细胞簇类型，纵坐标为细胞类型所占比例，纵坐标越高表示该细胞类型所占比例越大。不同颜色代表不同分组。")
       )
-      if (!is.null(p.props_scsa$setGroup) && p.props_scsa$setGroup) {
-        p.props_scsa_stat <- .map_boxplot2(
-          p.props_scsa$.data, TRUE, "group", "Ratio", ylab = "Ratio", ids = "Cells"
-        )
-        p.props_scsa_stat <- set_lab_legend(
-          p.props_scsa_stat,
-          glue::glue("{x@sig} Cell Proportion intergroup comparison"),
-          glue::glue("细胞群占比的组间差异分析|||横坐标为为不同细胞簇类型，纵坐标为细胞类型所占比例，纵坐标越高表示该细胞类型所占比例越大。不同颜色代表不同分组。")
-        )
-        x <- plotsAdd(x, p.props_scsa_stat)
-      }
-      p.props_scsa <- set_lab_legend(
-        p.props_scsa,
-        glue::glue("{x@sig} SCSA annotation Cell Proportions in each sample"),
-        glue::glue("注释的细胞群在各个样本中的占比|||不同颜色代表不同细胞类型，纵坐标为不同样本，横坐标为细胞类型所占百分比。")
-      )
-      t.props_scsa <- p.props_scsa$.data
-      x <- tablesAdd(x, scsa_res_all = lst$scsa_res_all, t.props_scsa)
-      p.markers <- NULL
-      if (method == "cellMarker" && is.null(ref.markers)) {
-        ## .plot_marker_heatmap
-        validMarkers <- dplyr::filter(ref.markers, cell %in% lst$scsa_res$Cell.Type)
-        x <- map(
-          x, job_markers, markers = split(
-            validMarkers$markers, validMarkers$cell
-            ), group.by = "scsa_cell", max = keep_markers, show = show, notShow = notShow
-        )
-        p.markers <- x$p.cellMarker
-      } else if (!is.null(show.markers)) {
-        p.markers_cluster <- .plot_marker_heatmap(
-          x, split(show.markers$markers, show.markers$cell), "seurat_clusters",
-          show = show, max = keep_markers, notShow = notShow, ...
-        )
-        p.markers_cluster <- set_lab_legend(
-          p.markers_cluster,
-          glue::glue("{sig(x)} Marker in cluster dotplot"),
-          glue::glue("细胞标志基因在不同聚类中的表达水平气泡图|||横坐标为不同cluster，纵坐标为不同标志基因，气泡越大表示在该 cluster表达该基因的细胞越多，颜色越深代表该 cluster 细胞平均表达基因的水平越高。")
-        )
-        p.markers <- .plot_marker_heatmap(
-          x, split(show.markers$markers, show.markers$cell), "scsa_cell",
-          show = show, max = keep_markers, notShow = notShow, ...
-        )
-        p.markers <- set_lab_legend(
-          p.markers,
-          glue::glue("{sig(x)} Marker in cell type dotplot"),
-          glue::glue("细胞标志基因在不同细胞类型中的表达水平气泡图|||横坐标为不同细胞类型，纵坐标为不同标志基因，气泡越大表示在该细胞类型表达该基因的细胞越多，颜色越深代表该细胞类型的细胞平均表达该基因的水平越高。")
-        )
-        t.validMarkers <- reframe_col(
-          show.markers, "markers", function(x) bind(x)
-        )
-        t.validMarkers <- set_lab_legend(
-          t.validMarkers,
-          glue::glue("{x@sig} annotation validate markers"),
-          glue::glue("细胞注释的标记基因")
-        )
-        x <- tablesAdd(x, t.validMarkers)
-      }
-      x <- plotsAdd(
-        x, p.map_scsa = lst$p.map_scsa, p.props_scsa = p.props_scsa, 
-        p.markers = p.markers
-      )
-      if (method == "scsa" || !is.null(ref.markers)) {
-        # x <- snapAdd(x, "{if (!is.null(ref.markers)) '使用特异性 Marker，' else ''}以 SCSA 对细胞群注释。")
-        if (!is.null(ref.markers) && !is.null(snap <- snap(ref.markers))) {
-          if (grpl(snap, "PMID") || is.numeric(snap)) {
-            exSnap <- glue::glue("结合文献 ({snap}) 的 Marker ")
-          } else {
-            exSnap <- glue::glue("{snap}")
-          }
-        } else {
-          exSnap <- ""
-        }
-        x <- methodAdd(
-          x, "以 Python 工具 `SCSA` ({cite_show('ScsaACellTyCaoY2020')}) (<https://github.com/bioinfo-ibms-pumc/SCSA>) {exSnap}对细胞群注释。"
-        )
-      } else if (method == "cellMarker") {
-        x$job_markers <- job_markers
-        # x <- snapAdd(x, "使用 CellMarker 数据库的 Marker 基因 (Tissue: {tissue})，以 SCSA 对细胞群注释。")
-        x <- methodAdd(
-          x, "以 Python 工具 `SCSA` ({cite_show('ScsaACellTyCaoY2020')}) (<https://github.com/bioinfo-ibms-pumc/SCSA>)，结合 CellMarker 数据库 ({cite_show('CellMarker_a_m_Zhang_2019')})，对细胞群注释。"
-        )
-      }
+      sig.snap <- snap(p.props_scsa_stat)
+      x <- plotsAdd(x, p.props_scsa_stat)
+      # snap <- glue::glue("{bind(names(pvalue))} 的 wilcox.test 统计学显著性 P 为 {bind(pvalue)}。")
+      x <- snapAdd(x, "针对不同样本的不同分组，对细胞占比做差异分析{aref(p.props_scsa_stat)}。有显著差异的细胞为：{bind(sig.snap)}。")
     }
-    x <- snapAdd(x, "")
     return(x)
   })
 
@@ -877,14 +841,19 @@ setMethod("focus", signature = c(x = "job_seurat"),
         ps$plist.vlnFacet <- .facet_seurat_vlnPlot(
           p.vln, facetTest, x
         )
-        x <- snapAdd(x, snap(ps$plist.vlnFacet), step = name)
+        snaps <- vapply(ps$plist.vlnFacet, FUN.VALUE = character(1), 
+          function(p) {
+            glue::glue("{aref(p)}有显著性的细胞为:{snap(p)}")
+          })
+        snaps <- bind(glue::glue("{names(ps$plist.vlnFacet)} {snaps}"), co = "; ")
+        x <- snapAdd(x, "聚焦于 {bind(features)} 在各细胞中的表达趋势，使用 Wilcoxon 检验对基因表达量差异分析 (P &lt; 0.05)，{snaps}。", add = FALSE, step = name)
       }
       p.vln <- lapply(p.vln, function(x) x + theme(legend.position = "none"))
       p.vln <- wrap_layout(patchwork::wrap_plots(p.vln, ncol = ncol), layout)
       p.vln <- set_lab_legend(
         p.vln,
         glue::glue("{x@sig} violing plot of {name}"),
-        glue::glue("基因 {less(features)} 表达水平的小提琴图。")
+        glue::glue("基因 {less(features)} 表达水平的小提琴图。|||横坐标为各类细胞，纵坐标为基因表达量，小提琴图展示了该类型细胞的基因表达量的整体分布。")
       )
       ps$p.vln <- p.vln
     }
@@ -896,7 +865,7 @@ setMethod("focus", signature = c(x = "job_seurat"),
       p.dim <- set_lab_legend(
         p.dim,
         glue::glue("{x@sig} dimension plot of {name}"),
-        glue::glue("基因 {less(features)} 表达水平的 Dimension reduction plot。")
+        glue::glue("基因 {bind(features)} 表达水平的 Dimension reduction plot|||基因的表达量在降维后的图中的直观呈现，表达量越高，颜色越深。")
       )
       ps$p.dim <- p.dim
     }
@@ -909,7 +878,7 @@ setMethod("focus", signature = c(x = "job_seurat"),
           p.dot, features, object(x)@meta.data[[group.by]]
           ),
         glue::glue("{x@sig} dot plot of {name}"),
-        glue::glue("基因 {less(features)} 表达水平的气泡图。")
+        glue::glue("基因 {less(features)} 表达水平的气泡图。|||横坐标为基因，纵坐标为不同类型细胞，所示气泡点大小表示为基因的平均表达量。")
       )
       ps$p.dot <- p.dot
     }
@@ -948,7 +917,7 @@ setMethod("focus", signature = c(x = "job_seurat"),
       p <- set_lab_legend(
         p,
         glue::glue("{x@sig} wilcox test of {title} in Cells"),
-        glue::glue("{title} 在各类细胞中的表达量差异分析箱线图")
+        glue::glue("{title} 在各类细胞中的表达量差异分析箱线图|||横坐标表示不同分组，纵坐标表示基因的表达量，在图中已注释组间差异的 Wilcoxon 检验的 P 值。")
       )
       list(p = p, title = title)
     })
@@ -1529,7 +1498,7 @@ scsa_annotation <- function(
     digest::digest(
       list(
         x@sig, x@tables$step5$all_markers_no_filter,
-        tissue, ref.markers, onlyUseRefMarkers, filter.p, filter.fc, org
+        tissue, ref.markers[, 1:2], onlyUseRefMarkers, filter.p, filter.fc, org
       ), "xxhash64", serializeVersion = 3
     )
   )
@@ -1547,6 +1516,7 @@ scsa_annotation <- function(
   message(glue::glue("Results file: {result_file}"))
   if (rerun || !file.exists(result_file)) {
     if (!is.null(ref.markers)) {
+      ref.markers <- ref.markers[, 1:2]
       .check_columns(ref.markers, c("cell", "markers"))
       ref.markers <- dplyr::relocate(ref.markers, cell, markers)
       ref.markers_file <- mkfile("ref.markers_file", fileext = ".tsv")
@@ -1655,16 +1625,11 @@ scsa_annotation <- function(
   object(x)@meta.data[[ res.col ]] <- factor(cell_types)
   ## plot
   p.map_scsa <- e(Seurat::DimPlot(
-      object(x), reduction = "umap", label = add_label,
+      object(x), label = add_label,
       pt.size = if (dim(object(x))[2] > 30000) .3 else .5,
       group.by = res.col, cols = color_set()
       ))
   p.map_scsa <- wrap(as_grob(p.map_scsa), 7, 4)
-  p.map_scsa <- set_lab_legend(
-    p.map_scsa,
-    glue::glue("{x@sig} SCSA Cell type annotation"),
-    glue::glue("细胞注释结果的 UMAP 图|||不同颜色代表不同细胞簇类型，横纵坐标为UMAP的两个维度。")
-  )
   .add_internal_job(.job(method = "`SCSA` (python) used for cell type annotation",
       cite = "[@ScsaACellTyCaoY2020]"))
   namel(x, p.map_scsa, res.col, scsa_res_all, scsa_res)
@@ -1816,7 +1781,11 @@ prepare_GPTmessage_for_celltypes <- function(tissue,
   )
   avgExpr <- data.frame(avgExpr[[ 1 ]], check.names = FALSE)
   colnames(avgExpr) <- sort(unique(object(x)@meta.data[[ group.by ]]))
-  avgExpr <- dplyr::rename(as_tibble(avgExpr), Gene = rownames)
+  avgExpr <- as_tibble(avgExpr)
+  if (!any(colnames(avgExpr) == "rownames")) {
+    stop("Not match any marker genes in dataset?")
+  }
+  avgExpr <- dplyr::rename(avgExpr, Gene = rownames)
   avgExpr <- tidyr::pivot_longer(avgExpr, -Gene, names_to = "Cell", values_to = "Expression")
   avgExpr <- dplyr::mutate(
     avgExpr, Expression = log2(Expression + 1)
@@ -1982,7 +1951,7 @@ find_outliers_iqr <- function(x, coef = 1.5) {
 plot_cells_proportion <- function(metadata, sample = "orig.ident",
   cell = "ChatGPT_cell", relative = TRUE, group = "auto")
 {
-  ntypes <- length(unique(metadata[[ cell ]]))
+  ntypes <- length(unique(metadata[[ sample ]]))
   fun_mutate <- function(x) {
     if (is.factor(x)) {
       x <- droplevels(x)

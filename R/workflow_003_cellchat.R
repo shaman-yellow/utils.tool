@@ -101,6 +101,7 @@ setMethod("step1", signature = c(x = "job_cellchat"),
     if (!reticulate::py_module_available(module = "umap")) {
       stop('!reticulate::py_module_available(module = "umap").')
     }
+    x <- methodAdd(x, "参照工作流 <https://htmlpreview.github.io/?https://github.com/jinworks/CellChat/blob/master/tutorial/CellChat-vignette.html> 对单细胞数据集进行分析。")
     if (!debug) {
       p.showdb <- e(CellChat::showDatabaseCategory(db))
       p.showdb <- wrap(p.showdb, 8, 4)
@@ -110,6 +111,7 @@ setMethod("step1", signature = c(x = "job_cellchat"),
       ## cell communication
       object(x) <- e(CellChat::identifyOverExpressedGenes(object(x)))
       object(x) <- e(CellChat::identifyOverExpressedInteractions(object(x)))
+      x <- methodAdd(x, "以 CellChat::identifyOverExpressedGenes、CellChat::identifyOverExpressedInteractions，寻找高表达的信号基因之间的相互通讯。")
       if (smooth && !is.null(ppi)) {
         if (exists("smoothData", envir = asNamespace("CellChat"))) {
           object(x) <- e(CellChat::smoothData(object(x), adj = ppi))
@@ -122,7 +124,9 @@ setMethod("step1", signature = c(x = "job_cellchat"),
       } else {
         object(x) <- e(CellChat::computeCommunProb(object(x)))
       }
+      x <- methodAdd(x, "使用 CellChat::computeCommunProb 函数计算细胞间通讯的概率。")
       object(x) <- e(CellChat::filterCommunication(object(x), min.cells = 10))
+      x <- methodAdd(x, "通过 `CellChat::filterCommunication` 函数筛选掉在特定细胞组中仅少量细胞表达的细胞间通讯（min.cells 设置阈值为10），以提高分析的准确性。")
       lp_net <- as_tibble(CellChat::subsetCommunication(object(x)))
       object(x) <- e(CellChat::computeCommunProbPathway(object(x)))
       pathway_net <- as_tibble(CellChat::subsetCommunication(object(x), slot.name = "netP"))
@@ -160,7 +164,6 @@ setMethod("step1", signature = c(x = "job_cellchat"),
       x <- plotsAdd(x, p.showdb, p.commHpAll, p.comms)
       x <- tablesAdd(x, lp_net, pathway_net)
     }
-    x <- methodAdd(x, "参照 {x@info} 分析 scRNA-seq 数据。")
     x <- snapAdd(x, "对 {showStrings(object(x)@meta[[x$group.by]], trunc = FALSE)} 细胞通讯分析。")
     return(x)
   })

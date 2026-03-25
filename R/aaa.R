@@ -41,6 +41,20 @@ new_from_package <- function(Class, package, ...) {
   initialize(value, ...)
 }
 
+get_local_fun <- function(m) {
+  if (!is(m, "MethodDefinition")) {
+    rlang::abort("Input is not a MethodDefinition.")
+  }
+  fun <- try(eval(body_expr <- body(m)[2][[1]]))
+  if (inherits(fun, "try-error")) {
+    rlang::abort("Can not get local fun in the method.")
+  }
+  if (!is.function(fun)) {
+    rlang::abort("The `local` in the method is not function?")
+  }
+  fun
+}
+
 setFakeClasses <- function(classes) {
   lapply(classes,
     function(name) {
@@ -991,6 +1005,10 @@ capitalize <- function (string)
   capped <- grep("^[A-Z]", string, invert = TRUE)
   substr(string[capped], 1, 1) <- toupper(substr(string[capped], 1, 1))
   return(string)
+}
+
+.num_as_mb <- function(x) {
+  format(structure(x, class = "object_size"), units = "MB")
 }
 
 # my_add_pval <- function(

@@ -24,6 +24,7 @@ setMethod("asjob_cellchatn", signature = c(x = "list"),
     if (any(vapply(x, function(x) x@step < 2, logical(1)))) {
       stop('any(vapply(x, function(x) x@step < 2, logical(1))).')
     }
+    meth <- meth(x[[1]])$step1
     p.lr_comm_bubbles <- lapply(x, 
       function(x) {
         x@plots$step2$lr_comm_bubble
@@ -46,6 +47,7 @@ setMethod("asjob_cellchatn", signature = c(x = "list"),
       })
     object <- e(CellChat::mergeCellChat(lapply(x, function(x) object(x)), add.names = nms))
     x <- .job_cellchatn(object = object)
+    x$.pre_meth <- meth
     x$each_lr_comm <- namel(p.lr_comm_bubbles, t.lr_comm_bubble)
     x$args_inters <- args_inters
     x$group.by <- group.by
@@ -67,7 +69,7 @@ setMethod("step1", signature = c(x = "job_cellchatn"),
     p.inters_counts <- set_lab_legend(
       wrap(p.inters_counts, 14, 7),
       glue::glue("{x@sig} Comparison Number communication network"),
-      glue::glue("数量通讯网络。不同细胞的连线表示潜在的通讯关系，通讯强度数量越多，连线越粗。")
+      glue::glue("数量通讯网络|||不同细胞的连线表示潜在的通讯关系，通讯强度数量越多，连线越粗。")
     )
     p.inters_weights <- funPlot(
       .plot_interactions_across_datasets, x$args_inters$weight
@@ -75,9 +77,10 @@ setMethod("step1", signature = c(x = "job_cellchatn"),
     p.inters_weights <- set_lab_legend(
       wrap(p.inters_weights, 14, 7),
       glue::glue("{x@sig} Comparison Strength communication network"),
-      glue::glue("强度通讯网络。不同细胞的连线表示潜在的通讯关系，通讯强度数量越多，连线越粗。")
+      glue::glue("强度通讯网络|||不同细胞的连线表示潜在的通讯关系，通讯强度数量越多，连线越粗。")
     )
-    x <- methodAdd(x, "以 R 包 `CellChat` ({packageVersion('CellChat')}) 对数据集进行细胞通讯分析。")
+    x <- methodAdd(x, x$.pre_meth)
+    x <- methodAdd(x, "参照 <https://htmlpreview.github.io/?https://github.com/jinworks/CellChat/blob/master/tutorial/Comparison_analysis_of_multiple_datasets.html> 对多数据集单细胞数据进行组间比较分析。")
     x <- plotsAdd(x, p.inters_counts, p.inters_weights)
     return(x)
   })
@@ -105,7 +108,7 @@ setMethod("step2", signature = c(x = "job_cellchatn"),
     p.keyCellAsSource <- set_lab_legend(
       p.keyCellAsSource,
       glue::glue("{x@sig} key cell as source comparison"),
-      glue::glue("关键细胞作为通讯发送方与其他细胞之间的通讯在组间的比较。横坐标的不同颜色代表不同组别。")
+      glue::glue("关键细胞作为通讯发送方与其他细胞之间的通讯在组间的比较|||横坐标的不同颜色代表不同组别。")
     )
     p.keyCellAsTarget <- e(
       CellChat::netVisual_bubble(
@@ -114,11 +117,12 @@ setMethod("step2", signature = c(x = "job_cellchatn"),
         angle.x = 45
       )
     )
+    x <- methodAdd(x, "利用 netVisual_bubble 函数绘制气泡图对各个细胞类型中配体受体介导的相互作用。")
     data.keyCellAsTarget <- .get_ggplot_content(p.keyCellAsTarget)
     p.keyCellAsTarget <- set_lab_legend(
       p.keyCellAsTarget,
       glue::glue("{x@sig} key cell as target comparison"),
-      glue::glue("关键细胞作为通讯接收方与其他细胞之间的通讯在组间的比较。横坐标的不同颜色代表不同组别。")
+      glue::glue("关键细胞作为通讯接收方与其他细胞之间的通讯在组间的比较|||横坐标的不同颜色代表不同组别。")
     )
     p.allCells_LP_comm_each_group <- x$each_lr_comm$p.lr_comm_bubbles
     p.allCells_LP_comm_each_group <- set_lab_legend(
@@ -132,7 +136,7 @@ setMethod("step2", signature = c(x = "job_cellchatn"),
       "{names(lr_comm)} 组包含 {vapply(lr_comm, nrow, integer(1))} 对唯一互作"
     )
     x$keyCell_data <- namel(data.keyCellAsSource, data.keyCellAsTarget)
-    x <- snapAdd(x, "各组细胞间的配体、受体通讯统计，{bind(s.com)} (P value &lt; 0.05)。")
+    x <- snapAdd(x, "各组细胞间的配体、受体通讯统计{aref(p.allCells_LP_comm_each_group)}，{bind(s.com)} (P value &lt; 0.05)。")
     # x <- snapAdd(x, "其中，{keyCell} 作为互作发送方。")
     x <- plotsAdd(x, p.keyCellAsSource, p.keyCellAsTarget, p.allCells_LP_comm_each_group)
     return(x)

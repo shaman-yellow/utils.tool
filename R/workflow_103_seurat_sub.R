@@ -35,6 +35,25 @@ setMethod("asjob_seurat_sub", signature = c(x = "job_seurat"),
       stop('x@step != 1.')
     }
     .check_columns(metadata, c(cellName, group.by), "metadata")
+    if (!all(colnames(object(x)) %in% metadata[[cellName]])) {
+      stop('!all(colnames(object(x)) %in% metadata[[cellName]]).')
+    }
+    if (!any(metadata[[ group.by ]] %in% group)) {
+      stop('!any(metadata[[ group.by ]] %in% group).')
+    }
+    exclude <- NULL
+    if (TRUE) {
+      metaEx <- dplyr::filter(metadata, !!rlang::sym(group.by) %in% !!group)
+      freq <- table(metaEx$orig.ident)
+      if (any(freq < 2)) {
+        exclude <- names(freq)[ freq < 2 ]
+        methodAdd_onExit("x", " (去除了对应细胞 ({bind(group)}) 数量过少 (&lt; 2) 的样本，防止 Seurat 运行错误，这些样本为: {bind(exclude)}) ")
+        message(glue::glue("Pre exclude sample: {bind(exclude)}"))
+        message("Prevent only one target cell from remaining in the sample, causing dgcMatrix drop to become numeric and resulting in errors.")
+        metadata <- dplyr::filter(metadata, !orig.ident %in% exclude)
+        object(x) <- object(x)[, !object(x)@meta.data$orig.ident %in% exclude ]
+      }
+    }
     if (!is.null(get_after)) {
       metadata <- dplyr::select(
         metadata, !!rlang::sym(cellName), 
@@ -45,19 +64,32 @@ setMethod("asjob_seurat_sub", signature = c(x = "job_seurat"),
         metadata, !!rlang::sym(cellName), !!rlang::sym(group.by)
       )
     }
-    if (!all(colnames(object(x)) %in% metadata[[cellName]])) {
-      stop('!all(colnames(object(x)) %in% metadata[[cellName]]).')
-    }
-    if (!any(metadata[[ group.by ]] %in% group)) {
-      stop('!any(metadata[[ group.by ]] %in% group).')
-    }
     orderSub <- match(colnames(object(x)), metadata[[cellName]])
     object(x)@meta.data <- cbind(
       object(x)@meta.data, metadata[ orderSub,  ]
     )
-    snapAdd_onExit("x", "提取 {bind(group)} 对其二次降维聚类以分析其亚群。")
     x <- getsub(x, !!rlang::sym(group.by) %in% !!group)
+    isDropped <- vapply(
+      object(x)@assays$RNA@layers, FUN.VALUE = logical(1),
+      function(x) {
+        is.numeric(x)
+      }
+    )
+    if (any(isDropped)) {
+      sampleNames <- s(names(object(x)@assays$RNA@layers), "^counts\\.", "")
+      stop(glue::glue("Please remove the Dropped assay layers: {bind(sampleNames[isDropped])}"))
+      # object(x)@assays$RNA@layers <- object(x)@assays$RNA@layers[!isDropped]
+      # object(x)@assays$RNA@default <- length(object(x)@assays$RNA@layers)
+      # lgMap <- object(x)@assays$RNA@cells@.Data
+      # mata <- object(x)@meta.data <- dplyr::filter(object(x)@meta.data, !orig.ident %in% !!sampleNames)
+      # object(x)@assays$RNA@cells@.Data <- lgMap[
+      #   rownames(lgMap) %in% rownames(meta), colnames(lgMap) %in% meta$orig.ident
+      #   ]
+      # object(x)@active.ident <- as.factor(object(x)@meta.data$orig.ident)
+    }
+    validObject(object(x))
     x <- .job_seurat_sub(object = object(x))
+    x <- methodAdd(x, "提取 {bind(group)} 对其二次降维聚类 (重新对其按照完整工作流整合不同样本) 以分析其亚群。")
     x$group.by <- group.by
     return(x)
   })
@@ -120,12 +152,27 @@ setMethod("step1", signature = c(x = "job_seurat_sub"),
 #     return(x)
 #   })
 
-as_markers <- function(cell_markers, snap = NULL, df = NULL) {
+as_markers <- function(cell_markers, snap = NULL, df = NULL, ref = "pmid")
+{
   if (!is.null(df)) {
     colnames(df) <- c("cell", "markers")
     cell_markers <- df
   } else {
-    cell_markers <- as_df.lst(cell_markers, "cell", "markers")
+    type <- vapply(cell_markers, class, character(1))
+    if (all(type == "character")) {
+      cell_markers <- as_df.lst(cell_markers, "cell", "markers")
+    } else if (all(type == "list")) {
+      lst <- lapply(cell_markers, 
+        function(x) {
+          setNames(
+            tibble::tibble(markers = x[["markers"]], ref = bind(x[[ref]])),
+            c("markers", ref)
+          )
+        })
+      cell_markers <- dplyr::bind_rows(lst, .id = "cell")
+      refs <- bind(unique(unlist(strsplit(cell_markers[[ref]], ", "))))
+      snap(cell_markers) <- glue::glue("{toupper(ref)}: {refs}")
+    }
   }
   if (!is.null(snap)) {
     snap(cell_markers) <- snap

@@ -463,6 +463,9 @@ setMethod("snap", signature = c(x = "ANY", ref = "NULL"),
 
 setReplaceMethod("snap", signature = c(x = "ANY"),
   function(x, value, ...){
+    if (length(value) > 1) {
+      rlang::abort("`snap(x) <- `: `value` should be a length 1 character.")
+    }
     if (is.character(value)) {
       attr(x, ".SNAP") <- glue::glue(value, ..., .envir = parent.frame(2))
     } else if (is(value, "snap")) {
@@ -1376,7 +1379,7 @@ setMethod("ref", signature = c(x = "character_ref"),
   })
 
 aref <- function(x, ...) {
-  if (length(x) > 1) {
+  if (is(x, "list") && length(x) > 1) {
     res <- lapply(x, ref, render = FALSE, ...)
     refs <- vapply(res, function(x) x$ref, character(1))
     value <- paste0(paste0("'", refs, "'"), collapse = ", ")
@@ -1737,9 +1740,10 @@ setMethod("Legend", signature = c(x = "ANY"),
       }
     } else if (type == "all") {
       if (length(res) > 1) {
-        res <- paste0(res, collapse = "")
+        res <- paste0(res, collapse = "|||")
       }
     }
+    res <- gs(gs(res, "&gt;", ">"), "&lt;", "<")
     if (getOption("autor_chinese_marks", FALSE)) {
       convert_to_chinese_marks(res)
     } else {
@@ -1952,7 +1956,15 @@ setMethod("snapAdd", signature = c(x = "job", from = "character"),
     if (is.null(env)) {
       snap(x)[[ paste0("step", step) ]] <- paste0(former, from)
     } else {
-      snap(x)[[ paste0("step", step) ]] <- paste0(former, glue::glue(from, .envir = env))
+      mapped <- glue::glue(from, .envir = env)
+      if (length(from) != length(mapped)) {
+        rlang::abort(
+          glue::glue(
+            "While use `glue::glue`: length(from) != length(mapped). \n`from`: \n\t{from}"
+          )
+        )
+      }
+      snap(x)[[ paste0("step", step) ]] <- paste0(former, mapped)
     }
     return(x)
   })
@@ -2380,7 +2392,7 @@ setGeneric("step1", group = list("step_series"),
       x$.append_snap <- TRUE
     }
     x <- standardGeneric("step1")
-    x <- stepPostModify(x, 1, args = list(...))
+    x <- stepPostModify(x, 1, call = match.call())
     if (interactive() && identical(parent.frame(1), .GlobalEnv)) {
       if (legal && !is.null(x$.append_snap) && x$.append_snap) {
         job_append_method(x, oname = attr(sig(x), "name"))
@@ -2398,89 +2410,97 @@ setGeneric("step2", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 2L)
     x <- standardGeneric("step2")
-    stepPostModify(x, 2, args = list(...))
+    stepPostModify(x, 2, call = match.call())
   })
 
 setGeneric("step3", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 3L)
     x <- standardGeneric("step3")
-    stepPostModify(x, 3, args = list(...))
+    stepPostModify(x, 3, call = match.call())
   })
 
 setGeneric("step4", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 4L)
     x <- standardGeneric("step4")
-    stepPostModify(x, 4, args = list(...))
+    stepPostModify(x, 4, call = match.call())
   })
 
 setGeneric("step5", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 5L)
     x <- standardGeneric("step5")
-    stepPostModify(x, 5, args = list(...))
+    stepPostModify(x, 5, call = match.call())
   })
 
 setGeneric("step6", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 6L)
     x <- standardGeneric("step6")
-    stepPostModify(x, 6, args = list(...))
+    stepPostModify(x, 6, call = match.call())
   })
 
 setGeneric("step7", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 7L)
     x <- standardGeneric("step7")
-    stepPostModify(x, 7, args = list(...))
+    stepPostModify(x, 7, call = match.call())
   })
 
 setGeneric("step8", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 8L)
     x <- standardGeneric("step8")
-    stepPostModify(x, 8, args = list(...))
+    stepPostModify(x, 8, call = match.call())
   })
 
 setGeneric("step9", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 9L)
     x <- standardGeneric("step9")
-    stepPostModify(x, 9, args = list(...))
+    stepPostModify(x, 9, call = match.call())
   })
 
 setGeneric("step10", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 10L)
     x <- standardGeneric("step10")
-    stepPostModify(x, 10, args = list(...))
+    stepPostModify(x, 10, call = match.call())
   })
 
 setGeneric("step11", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 11L)
     x <- standardGeneric("step11")
-    stepPostModify(x, 11, args = list(...))
+    stepPostModify(x, 11, call = match.call())
   })
 
 setGeneric("step12", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 12L)
     x <- standardGeneric("step12")
-    stepPostModify(x, 12, args = list(...))
+    stepPostModify(x, 12, call = match.call())
   })
 
 stepPostModify <- function(x, n = NULL, formal = TRUE, 
-  showH1 = TRUE, args = NULL)
+  showH1 = TRUE, call = NULL, envir = parent.frame(2), exclude = "x")
 {
   if (showH1) {
     cli::cli_h1("Job finished & Start post modify")
   }
-  if (!is.null(args) && length(args)) {
+  if (is.call(call)) {
+    method <- selectMethod("step1", methods::signature(class(x)))
+    fun_local <- get_local_fun(method)
+    args <- try(
+      .get_complete_args(fun_local, call, envir, exclude = exclude), TRUE
+    )
+    if (inherits(args, "try-error")) {
+      rlang::abort("Can not get complete arguments list.")
+    }
     isSave <- vapply(args, FUN.VALUE = logical(1), 
       function(x) {
-        (is(x, "character") || is(x, "numeric")) && length(x) < 10
+        (is(x, "character") || is(x, "numeric")) && object.size(x) < 5000
       })
     x$.args[[ paste0("step", n) ]] <- args[ isSave ]
   }
@@ -2556,6 +2576,25 @@ stepPostModify <- function(x, n = NULL, formal = TRUE,
   x <- end_init(x)
   validObject(x)
   x
+}
+
+.get_complete_args <- function(fun, call, envir, exclude) {
+  call <- match.call(fun, call)
+  args <- as.list(call)[-1]
+  fmls <- formals(fun)
+  for (nm in names(fmls)) {
+    if (!any(names(args) == nm)) {
+      args[[nm]] <- fmls[[nm]]
+    }
+  }
+  isInFomals <- names(args) %in% names(fmls)
+  args <- c(args[isInFomals], args[!isInFomals])
+  if (!missing(exclude)) {
+    args <- args[ !args %in% exclude ]
+  }
+  isMissing <- vapply(args, identical, logical(1), y = quote(expr = ))
+  args <- args[ !isMissing ]
+  lapply(args, eval, envir = envir)
 }
 
 setMethod("step1", signature = c(x = "job"),
@@ -2854,14 +2893,22 @@ setMethod("clear", signature = c(x = "job"),
   function(x, save = TRUE, lite = TRUE, suffix = NULL,
     name = rlang::expr_text(substitute(x, parent.frame(1))),
     path_jobSave = getOption("path_jobSave", "."), 
-    path_lite = file.path(path_jobSave, "lite"))
+    path_lite = file.path(path_jobSave, "lite"), 
+    allow_qs = TRUE, nthreads = 5)
   {
     dir.create(path_jobSave, FALSE)
     filename <- paste0(name, ".", x@step, suffix, ".rds")
     if (save) {
       file <- file.path(path_jobSave, filename)
-      message("Save RDS: ", file)
-      saveRDS(x, file)
+      if (allow_qs && object.size(x) > 5e8) {
+        fileQs <- paste0(tools::file_path_sans_ext(file), ".qs")
+        message(glue::glue("Too large object ('{obj.size(x)}' > 476.8 Mb), use `qs::qsave`"))
+        message("Save qs: ", fileQs)
+        qs::qsave(x, fileQs, nthreads = nthreads)
+      } else {
+        message("Save RDS: ", file)
+        saveRDS(x, file)
+      }
     }
     object(x) <- NULL
     dir.create(path_lite, FALSE)
@@ -3288,7 +3335,7 @@ resolve_job_comments <- function(obj, try_open = FALSE, name = rlang::expr_text(
       setNames(res, path)
     } else if (is(x, target)) {
       comments <- structure(list(
-          legend = as.character(Legend(x)),
+          legend = as.character(Legend(x, "all")),
           label = as.character(lab(x))
           ), class = "comments")
       setNames(list(comments), path)
@@ -3373,7 +3420,10 @@ treeObj <- function(obj, stops = c("gg", "wrap", "data.frame", "lrm", "Mart"),
 }
 
 .load_all_remote_job <- function(path = getOption("path_jobLoadFrom")$local) {
-  lapply(list.files(path, full.names = TRUE), loadJob)
+  files <- list.files(path, pattern = "\\.rds$")
+  names <- unique(tools::file_path_sans_ext(tools::file_path_sans_ext(files)))
+  message(glue::glue("Found {length(names)} jobs: {less(names, 10)}"))
+  pbapply::pblapply(names, .try_loadJob, remote = FALSE)
 }
 
 upd_all_job_comments <- function(path_comments = "R_jobsComments", envir = .GlobalEnv)
@@ -3409,14 +3459,16 @@ upd_all_job_comments <- function(path_comments = "R_jobsComments", envir = .Glob
   if (!dir.exists(path)) {
     stop('!dir.exists(path), can not found the directory for job load.')
   }
+  pattern_file <- glue::glue("^{name}.[0-9]+\\.rds$|^{name}.[0-9]+\\.qs$")
   file_jobs <- list.files(
-    path, pattern = glue::glue("^{name}.[0-9]+\\.rds"), full.names = TRUE
+    path, pattern = pattern_file, full.names = TRUE
   )
   fun_load <- function(file_jobs) {
     steps <- as.integer(tools::file_ext(tools::file_path_sans_ext(file_jobs)))
     file <- file_jobs[which.max(steps)]
     size <- structure(as.double(file.info(file)[1, 1]), class = "object_size")
     size <- as.numeric(strx(format(size, units = "MB"), "[0-9.]+"))
+    message(glue::glue("Select file: {file}"))
     if (!remote) {
       if (size > 500 && !sureThat("File size is {size} Mb, continue?")) {
         return()
@@ -3438,7 +3490,7 @@ upd_all_job_comments <- function(path_comments = "R_jobsComments", envir = .Glob
         return()
       }
       file_jobs <- list.files(
-        path, pattern = glue::glue("^{name}.*\\.rds"), full.names = TRUE
+        path, pattern = pattern_file, full.names = TRUE
       )
       if (length(file_jobs)) {
         fun_load(file_jobs)
@@ -3447,13 +3499,22 @@ upd_all_job_comments <- function(path_comments = "R_jobsComments", envir = .Glob
   }
 }
 
-loadJob <- function(path, env = .GlobalEnv, name = "AUTO") {
+loadJob <- function(path, env = .GlobalEnv, name = "AUTO", nthreads = 5)
+{
   if (identical(name, "AUTO")) {
     name <- basename(path)
     name <- tools::file_path_sans_ext(name)
     name <- tools::file_path_sans_ext(name)
   }
-  object <- readRDS(path)
+  type <- tools::file_ext(path)
+  if (type == "qs") {
+    message(glue::glue("Detected filetype of {type}, use `qs::qread`..."))
+    object <- qs::qread(path, nthreads = nthreads)
+  } else if (type == "rds") {
+    object <- readRDS(path)
+  } else {
+    stop(glue::glue("Don not know how to load of type: {type}."))
+  }
   message(glue::glue("Assign object to GlobalEnv as: {name}"))
   assign(name, object, envir = env)
   writeJobSlotsAutoCompletion(name, envir = env)

@@ -1072,12 +1072,18 @@ dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x),
     if (!is(anno_pvalue, "data.frame") || any(!c(ids, "labs") %in% colnames(anno_pvalue))) {
       stop("Can not extract pvalue from ggpval annotation.")
     }
-    attr(p, "pvalue") <- setNames(
-      as.numeric(strx(anno_pvalue$labs, "[0-9.]+")), anno_pvalue$var
+    pvalue <- attr(p, "pvalue") <- setNames(
+      as.numeric(strx(anno_pvalue$labs, .pattern_numeric)), anno_pvalue[[ids]]
+    )
+    s.pvalue <- pvalue[pvalue < .05]
+    snap(p) <- bind(
+      glue::glue("{names(s.pvalue)} (P = {signif(s.pvalue, 4)})")
     )
   }
   p
 }
+
+.pattern_numeric <- "[-+]?(?:\\d*\\.\\d+|\\d+\\.?)(?:[eE][-+]?\\d+)?"
 
 .get_label_height <- function(x, factor = 1.5) {
   box_stats <- boxplot.stats(x)
