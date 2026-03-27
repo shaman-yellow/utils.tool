@@ -163,7 +163,7 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     }
     nAll <- nrow(x$res.str$mapped)
     nIsolate <- nAll - length(unique(c(x$edges$from, x$edges$to)))
-    x <- methodAdd(x, "以 R 包 `STEINGdb` ({packageVersion('STRINGdb')}) {cite_show('TheStringDataSzklar2021')} 构建 PPI 网络。数据版本为 {version}，互作类型为 {network_type}。置信评分 (confidence score) 阈值为 {score_threshold / 1000}。{ex}随后，以 `ggraph` 可视化网络 ({packageVersion('ggraph')})。")
+    x <- methodAdd(x, "以 R 包 `STEINGdb` ⟦pkgInfo('STRINGdb')⟧ {cite_show('TheStringDataSzklar2021')} 构建 PPI 网络。数据版本为 {version}，互作类型为 {network_type}。置信评分 (confidence score) 阈值为 {score_threshold / 1000}。{ex}随后，以 R 包 `ggraph` ⟦pkgInfo('ggraph')⟧ 可视化网络。")
     x <- snapAdd(x, "PPI 网络图 {aref(p.ppi)} 共包含 {nAll} 个蛋白 (基因)，存在 {nrow(edges)} 对相互作用，孤立蛋白数量为{nIsolate}。")
     return(x)
   })

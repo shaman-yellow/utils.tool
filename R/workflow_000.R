@@ -493,7 +493,7 @@ setMethod("snap", signature = c(x = "feature", ref = "missing"),
   })
 
 setMethod("snap", signature = c(x = "feature", ref = "logical"),
-  function(x, ref = FALSE, limit = 50, num = 3){
+  function(x, ref = FALSE, limit = 50, num = 10){
     if (ref) {
       if (is(x, "feature_list")) {
         stop('is(x, "feature_list"), only "feature_char" support.')
@@ -1378,8 +1378,22 @@ setMethod("ref", signature = c(x = "character_ref"),
     return(x)
   })
 
+atrans <- function(x) {
+  if (all(grpl(x, "^[A-Z0-9.-]+$"))) {
+    bind(x, co = ", ")
+  } else {
+    x <- bind(glue::glue("'{x}'"))
+    glue::glue("⟦.trans({x})⟧")
+  }
+}
+
+.trans <- function(...) {
+  x <- unlist(list(...))
+  paste0(x, collapse = ", ")
+} 
+
 aref <- function(x, ...) {
-  if (is(x, "list") && length(x) > 1) {
+  if (is(x, "list") && length(x) >= 1) {
     res <- lapply(x, ref, render = FALSE, ...)
     refs <- vapply(res, function(x) x$ref, character(1))
     value <- paste0(paste0("'", refs, "'"), collapse = ", ")
@@ -1553,7 +1567,7 @@ as_chunk_label <- function(x) {
         n <<- n + 1L
         group <- group[n]
         if (is.null(group)) {
-          stop('is.null(group).')
+          rlang::abort('is.null(group).')
         }
         if (is(obj, "can_be_draw")) {
           obj <- wrap(obj)
@@ -1800,6 +1814,11 @@ convert_to_chinese_marks <- function(x) {
 set_lab_legend <- function(object, lab, legend = lab, labs = NULL, ...) {
   if (!length(lab)) {
     stop('!length(lab).')
+  } else if (is(object, "list")) {
+    if (is.null(labs) && length(lab) == length(object)) {
+      labs <- lab
+      lab <- NULL
+    }
   }
   object <- .set_lab(object, lab, labs)
   object <- setLegend(object, legend)
@@ -2392,7 +2411,7 @@ setGeneric("step1", group = list("step_series"),
       x$.append_snap <- TRUE
     }
     x <- standardGeneric("step1")
-    x <- stepPostModify(x, 1, call = match.call())
+    x <- stepPostModify(x, 1, "step1", call = match.call())
     if (interactive() && identical(parent.frame(1), .GlobalEnv)) {
       if (legal && !is.null(x$.append_snap) && x$.append_snap) {
         job_append_method(x, oname = attr(sig(x), "name"))
@@ -2410,87 +2429,88 @@ setGeneric("step2", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 2L)
     x <- standardGeneric("step2")
-    stepPostModify(x, 2, call = match.call())
+    stepPostModify(x, 2, "step2", call = match.call())
   })
 
 setGeneric("step3", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 3L)
     x <- standardGeneric("step3")
-    stepPostModify(x, 3, call = match.call())
+    stepPostModify(x, 3, "step3", call = match.call())
   })
 
 setGeneric("step4", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 4L)
     x <- standardGeneric("step4")
-    stepPostModify(x, 4, call = match.call())
+    stepPostModify(x, 4, "step4", call = match.call())
   })
 
 setGeneric("step5", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 5L)
     x <- standardGeneric("step5")
-    stepPostModify(x, 5, call = match.call())
+    stepPostModify(x, 5, "step5", call = match.call())
   })
 
 setGeneric("step6", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 6L)
     x <- standardGeneric("step6")
-    stepPostModify(x, 6, call = match.call())
+    stepPostModify(x, 6, "step6", call = match.call())
   })
 
 setGeneric("step7", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 7L)
     x <- standardGeneric("step7")
-    stepPostModify(x, 7, call = match.call())
+    stepPostModify(x, 7, "step7", call = match.call())
   })
 
 setGeneric("step8", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 8L)
     x <- standardGeneric("step8")
-    stepPostModify(x, 8, call = match.call())
+    stepPostModify(x, 8, "step8", call = match.call())
   })
 
 setGeneric("step9", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 9L)
     x <- standardGeneric("step9")
-    stepPostModify(x, 9, call = match.call())
+    stepPostModify(x, 9, "step9", call = match.call())
   })
 
 setGeneric("step10", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 10L)
     x <- standardGeneric("step10")
-    stepPostModify(x, 10, call = match.call())
+    stepPostModify(x, 10, "step10", call = match.call())
   })
 
 setGeneric("step11", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 11L)
     x <- standardGeneric("step11")
-    stepPostModify(x, 11, call = match.call())
+    stepPostModify(x, 11, "step11", call = match.call())
   })
 
 setGeneric("step12", group = list("step_series"),
   function(x, ...) {
     x <- checkAddStep(x, 12L)
     x <- standardGeneric("step12")
-    stepPostModify(x, 12, call = match.call())
+    stepPostModify(x, 12, "step12", call = match.call())
   })
 
-stepPostModify <- function(x, n = NULL, formal = TRUE, 
-  showH1 = TRUE, call = NULL, envir = parent.frame(2), exclude = "x")
+stepPostModify <- function(x, n = NULL, name = "step1", formal = TRUE,
+  showH1 = TRUE, call = NULL, envir = parent.frame(2), 
+  exclude = "x")
 {
   if (showH1) {
     cli::cli_h1("Job finished & Start post modify")
   }
   if (is.call(call)) {
-    method <- selectMethod("step1", methods::signature(class(x)))
+    method <- selectMethod(name, methods::signature(class(x)))
     fun_local <- get_local_fun(method)
     args <- try(
       .get_complete_args(fun_local, call, envir, exclude = exclude), TRUE
@@ -2594,7 +2614,15 @@ stepPostModify <- function(x, n = NULL, formal = TRUE,
   }
   isMissing <- vapply(args, identical, logical(1), y = quote(expr = ))
   args <- args[ !isMissing ]
-  lapply(args, eval, envir = envir)
+  lapply(args,
+    function(x) {
+      res <- try(eval(x, envir = envir), TRUE)
+      if (inherits(res, "try-error")) {
+        x
+      } else {
+        res
+      }
+    })
 }
 
 setMethod("step1", signature = c(x = "job"),
@@ -3260,9 +3288,9 @@ setMethod("upd", signature = c(x = "job"),
               ))
           eval(parse(text = glue::glue("lab(obj{path}) <- '{x$label}'")), envir = env)
         }
-        if (isNotIdentical(Legend(element), x$legend)) {
+        if (isNotIdentical(Legend(element, "all"), x$legend)) {
           message(glue::glue(
-              "Replace legend of path '{path}':\n'{crayon::yellow(Legend(element))}'\n-> '{crayon::green(x$legend)}'\n\n"
+              "Replace legend of path '{path}':\n'{crayon::yellow(Legend(element, 'all'))}'\n-> '{crayon::green(x$legend)}'\n\n"
               ))
           eval(parse(text = glue::glue("Legend(obj{path}) <- '{x$legend}'")), envir = env)
         }
@@ -3457,7 +3485,7 @@ upd_all_job_comments <- function(path_comments = "R_jobsComments", envir = .Glob
   }
   path <- paths[[ from ]]
   if (!dir.exists(path)) {
-    stop('!dir.exists(path), can not found the directory for job load.')
+    stop('!dir.exists(path), ({path}) can not found the directory for job load.')
   }
   pattern_file <- glue::glue("^{name}.[0-9]+\\.rds$|^{name}.[0-9]+\\.qs$")
   file_jobs <- list.files(

@@ -264,7 +264,7 @@ setMethod("step5", signature = c(x = "job_regNet"),
       glue::glue("lncRNA-miRNA-mRNA 表达网络分析|||图中的节点表示对应 RNA 类型，边代表相互作用。")
     )
     x <- snapAdd(x, "构建 lncRNA-miRNA-mRNA 表达网络{aref(p.regNet)}，如图所示，共 {nrow(nodes)} 个节点，{nrow(edges)} 个边。")
-    x <- methodAdd(x, "以 R 包 `ggraph` ({packageVersion('ggraph')}) 与 `ggplot2` ({packageVersion('ggplot2')}) 对 lncRNA-miRNA-mRNA 转录后调控网络进行整合，可视化多层级分子调控网络的整体结构。")
+    x <- methodAdd(x, "以 R 包 `ggraph` ⟦pkgInfo('ggraph')⟧ 与 `ggplot2` ⟦pkgInfo('ggplot2')⟧ 对 lncRNA-miRNA-mRNA 转录后调控网络进行整合，可视化多层级分子调控网络的整体结构。")
     x <- plotsAdd(x, p.regNet)
     return(x)
   })

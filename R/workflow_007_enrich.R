@@ -13,7 +13,7 @@
   prototype = prototype(
     info = c("..."),
     cite = "[@ClusterprofilerWuTi2021]",
-    method = "R package `ClusterProfiler` used for gene enrichment analysis",
+    method = "R package `clusterProfiler` used for gene enrichment analysis",
     tag = "enrich:clusterProfiler",
     analysis = "ClusterProfiler 富集分析"
     ))
@@ -88,7 +88,7 @@ setMethod("step1", signature = c(x = "job_enrich"),
   function(x, organism = c("hsa", "mmu", "rno"),
     orgDb = switch(organism,
       hsa = "org.Hs.eg.db", mmu = "org.Mm.eg.db", rno = "org.Rn.eg.db"),
-    cl = 4, maxShow.kegg = 20,
+    cl = 4, maxShow.kegg = 20, exclude_disease = TRUE,
     maxShow.go = 10, use = c("p.adjust", "pvalue"))
   {
     step_message("Use clusterProfiler for enrichment.")
@@ -96,11 +96,24 @@ setMethod("step1", signature = c(x = "job_enrich"),
     organism <- match.arg(organism)
     orgDb <- match.arg(orgDb)
     use <- match.arg(use)
-    res.kegg <- multi_enrichKEGG(object(x), organism = organism)
+    res.kegg <- expect_local_data(
+      "tmp", "kegg", multi_enrichKEGG, 
+      list(lst.entrez_id = object(x), organism = organism)
+    )
+    if (exclude_disease) {
+      methodAdd_onExit("x", "对于 KEGG 富集分析，富集后根据 Category 去除 Human Diseases 条目，随后根据阈值统计结果。")
+      res.kegg <- lapply(res.kegg, 
+        function(x) {
+          dplyr::filter(x, category != "Human Diseases")
+        })
+    }
     p.kegg <- vis_enrich.kegg(res.kegg, maxShow = maxShow.kegg, use = use)
     use.p <- attr(p.kegg, "use.p")
-    p.kegg <- .set_lab(p.kegg, sig(x), names(p.kegg), "KEGG enrichment")
-    p.kegg <- setLegend(p.kegg, glue::glue("为 {.enNames(p.kegg)} GO 富集分析气泡图。"))
+    p.kegg <- set_lab_legend(
+      p.kegg,
+      glue::glue("{x@sig} {names(p.kegg)} KEGG enrichment"),
+      glue::glue("{.enNames(p.kegg)} KEGG 富集分析气泡图|||横坐标为 GeneRatio (目标基因在基因集中的比例与目标基因的总数的比值)；纵坐标代表富集到通路的名称；点的大小代表富集到的属于该通路的基因的数量；颜色代表-log10({use.p})，值越大代表富集到的通路越显著。")
+    )
     fun <- function(sets) {
       lapply(sets,
         function(set) {
@@ -110,13 +123,22 @@ setMethod("step1", signature = c(x = "job_enrich"),
         })
     }
     res.kegg <- lapply(res.kegg, mutate, geneName_list = fun(geneID_list))
-    res.kegg <- .set_lab(res.kegg, sig(x), names(res.kegg), "KEGG enrichment data")
-    res.kegg <- setLegend(res.kegg, glue::glue("为 {.enNames(res.kegg)} KEGG 富集分析统计表。"))
+    res.kegg <- set_lab_legend(
+      res.kegg,
+      glue::glue("{x@sig} {names(res.kegg)} KEGG enrichment data"),
+      glue::glue("为 {.enNames(res.kegg)} KEGG 富集分析统计表。")
+    )
     cli::cli_alert_info("clusterProfiler::enrichGO")
-    res.go <- multi_enrichGO(object(x), orgDb = orgDb, cl = cl)
+    res.go <- expect_local_data(
+      "tmp", "go", multi_enrichGO, list(lst.entrez_id = object(x), orgDb = orgDb, cl = cl),
+      ignore = "cl"
+    )
     p.go <- vis_enrich.go(res.go, maxShow = maxShow.go, use = use.p)
-    p.go <- .set_lab(p.go, sig(x), names(p.go), "GO enrichment")
-    p.go <- setLegend(p.go, glue::glue("为 {.enNames(p.go)} GO 富集分析气泡图。"))
+    p.go <- set_lab_legend(
+      p.go,
+      glue::glue("{x@sig} {names(p.go)} GO enrichment"),
+      glue::glue("为 {.enNames(p.go)} GO 富集分析气泡图|||横坐标为 GeneRatio (目标基因在基因集中的比例与目标基因的总数的比值)；纵坐标代表富集到通路的名称；点的大小代表富集到的属于该通路的基因的数量；颜色代表-log10({use.p})，值越大代表富集到的通路越显著。GO 富集囊括了三个子集 Cellular Component (CC), the Molecular Function (MF) and the Biological Process (BP)。")
+    )
     res.go <- lapply(res.go,
       function(data) {
         if (all(vapply(data, is.data.frame, logical(1)))) {
@@ -125,15 +147,48 @@ setMethod("step1", signature = c(x = "job_enrich"),
           dplyr::relocate(data, ont = .id)
         }
       })
-    res.go <- .set_lab(res.go, sig(x), names(res.go), "GO enrichment data")
-    res.go <- setLegend(res.go, glue::glue("为 {.enNames(res.go)} GO 富集分析统计表。"))
-    x@tables[[ 1 ]] <- namel(res.kegg, res.go)
-    x@plots[[ 1 ]] <- namel(p.kegg, p.go)
+    res.go <- set_lab_legend(
+      res.go,
+      glue::glue("{x@sig} {names(res.go)} GO enrichment data"),
+      glue::glue(" {.enNames(res.go)} GO 富集分析统计表。")
+    )
+    if (length(res.kegg) == 1) {
+
+      x <- snapAdd(
+        x, "KEGG 一共富集到 {.stat_table_by_pvalue(res.kegg[[1]], 10, use.p = use.p)}"
+      )
+      x <- snapAdd(
+        x, "GO 一共富集到 {.stat_table_by_pvalue(res.go[[1]], 5, 'ont', use.p = use.p)}"
+      )
+    }
+    x <- tablesAdd(x, res.kegg, res.go)
+    x <- plotsAdd(x, p.kegg, p.go)
     x@params$check_go <- check_enrichGO(res.go)
     x$organism <- organism
-    methodAdd_onExit("x", "以 ClusterProfiler R 包 ({packageVersion('clusterProfiler')}) {cite_show('ClusterprofilerWuTi2021')}进行 KEGG 和 GO 富集分析。以 {use} 表示显著水平。")
+    x <- methodAdd(x, "以 R 包 `clusterProfiler` ⟦pkgInfo('clusterProfiler')⟧进行 KEGG 和 GO 富集分析。以 {use.p} 表示显著水平。富集筛选条件为 {use.p} &lt; 0.05。")
     return(x)
   })
+
+
+.stat_table_by_pvalue <- function(data, n = 5, 
+  split = NULL, use.p = "p.adjust", colName = "Description", target = "通路", by = "富集")
+{
+  if (is.null(split)) {
+    data <- dplyr::arrange(data, !!rlang::sym(use.p))
+    data <- dplyr::filter(data, !!rlang::sym(use.p) < .05)
+    paths <- head(data[[colName]], n = n)
+    glue::glue("{nrow(data)} 个{target}，按 {use.p} 值从低到高排序的前 {length(paths)} 条{target}分别为：{atrans(paths)}。")
+  } else {
+    data <- dplyr::filter(data, !!rlang::sym(use.p) < .05)
+    ele <- split(data, data[[split]])
+    ele <- vapply(
+      ele, .stat_table_by_pvalue, character(1), 
+      n = n, use.p = use.p, target = target, by = by
+    )
+    ele.snap <- bind(glue::glue("在子集 {names(ele)} {by}到 {ele}"), co = "\n\n")
+    glue::glue("{nrow(data)} 个{target}。{ele.snap}")
+  }
+}
 
 .enNames <- function(x) {
   if (length(x) == 1 && names(x) == "ids") {

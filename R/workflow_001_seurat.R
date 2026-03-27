@@ -416,7 +416,7 @@ setMethod("anno", signature = c(x = "job_seurat"),
     p.map_scsa <- lst$p.map_scsa
     p.map_scsa <- set_lab_legend(
       p.map_scsa,
-      glue::glue("{x@sig} SCSA Cell type annotation"),
+      glue::glue("{x@sig} SCSA Cell UMAP mapping"),
       glue::glue("细胞注释结果的 UMAP 图|||不同颜色代表不同细胞簇类型，横纵坐标为UMAP的两个维度。")
     )
     p.props_scsa <- plot_cells_proportion(

@@ -3,7 +3,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 
-order_publish.complex <- function(file = "index.Rmd", output = "output.Rmd", title = "",
+project_publish.complex <- function(file = "index.Rmd", output = "output.Rmd", title = "",
   MyInstitution = getOption("MyInstitution"), ...)
 {
   if (MyInstitution == "complex") {
@@ -12,13 +12,13 @@ order_publish.complex <- function(file = "index.Rmd", output = "output.Rmd", tit
   browseURL(fun(file, output, title), "wps")
 }
 
-order_packaging.complex <- function(target = "output.pdf",
+project_packaging.complex <- function(target = "output.pdf",
   register = autoRegisters, idname = gidn(), external_file = NULL,
   ..., extras = NULL,
   codes = c(.getRICodes(), s(target, "_out.docx", ".Rmd")))
 {
   extras <- c(extras, codes)
-  order_packaging(
+  project_packaging(
     target, register, idname, extras = extras, external_file = external_file, ...
   )
 }

@@ -59,7 +59,7 @@ job_vennDEGs <- function(pattern, exclude = NULL,
   return(x)
 }
 
-job_venn <- function(..., lst = NULL)
+job_venn <- function(..., analysis = NULL, lst = NULL)
 {
   if (is.null(lst)) {
     object <- list(...)
@@ -68,10 +68,11 @@ job_venn <- function(..., lst = NULL)
   }
   if (all(vapply(object, is, logical(1), "feature"))) {
     snaps <- paste0("- ", vapply(object, snap, character(1)))
-    snapAdd_onExit("x", "数据集为：\n\n{bind(snaps, co = '\n')}\n\n")
+    snapAdd_onExit("x", "数据集为：\n\n{bind(snaps, co = '\n')}\n\n\n\n")
     object <- lapply(object, function(x) unlist(x@.Data))
   }
   x <- .job_venn(object = object)
+  x$analysis <- analysis
   return(x)
 }
 
@@ -87,7 +88,7 @@ setMethod("step1", signature = c(x = "job_venn"),
     p.venn <- set_lab_legend(
       p.venn,
       glue::glue("{x@sig} intersection of {bind(names(object(x)), co = ' with ')}"),
-      glue::glue("取 {bind(names(object(x)))} 交集的维恩图。|||图中共有 {length(p.venn$ins)} 个共同交集，分别为：{less(p.venn$ins, 20)}")
+      glue::glue("{bind(names(object(x)))} 交集维恩图|||不同颜色圆圈代表不同数据集，中间重叠部分表示同时存在多个集合中。图中 {length(p.venn$ins)} 交集为：{less(p.venn$ins, 20)}。")
     )
     x$.append_heading <- FALSE
     if (identical(parent.frame(1), .GlobalEnv)) {
@@ -99,7 +100,11 @@ setMethod("step1", signature = c(x = "job_venn"),
     }
     x <- snapAdd(x, "对{bind(names(object(x)))} 取交集，得到{length(p.venn$ins)}个交集{aref(p.venn)}。")
     x <- plotsAdd(x, p.venn)
-    x$.feature <- as_feature(p.venn$ins, x)
+    if (!is.null(x$analysis)) {
+      feature(x) <- as_feature(p.venn$ins, x$analysis, ...)
+    } else {
+      x$.feature <- as_feature(p.venn$ins, x, ...)
+    }
     return(x)
   })
 

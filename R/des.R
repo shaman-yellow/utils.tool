@@ -2,6 +2,18 @@
 # description for conception (colnames)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+detail <- function(label) {
+  switch(
+    label,
+    p.value = "P value",
+    p.adjust = "Adjust P value",
+    padj = "Adjust P value",
+    wilcox.test = "Wilcoxon 秩和检验",
+    note_roc = "纵轴为灵敏度，横轴为特异度，虚线为基准线（最低标准），曲线为对应指标的 ROC 曲线。其中 ROC 曲线距离基准线越远，则说明该模型的预测效果越好。ROC 曲线接近左上角，说明模型预测准确率很高。",
+    fp.test = "Fligner-Policello 检验"
+  )
+}
+
 .get_des <- function(ref) {
   db <- .get_db_des()
   lst <- db[ names(db) %in% ref ]

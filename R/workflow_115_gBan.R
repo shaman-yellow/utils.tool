@@ -44,7 +44,7 @@ setMethod("step1", signature = c(x = "job_gBan"),
     x$file_seqs <- write(
       x$seqs$fasta, name = "peptide", dir = dir_save, max = NULL
     )
-    x <- methodAdd(x, "以 `biomaRt` ({packageVersion('biomaRt')}) 获取多肽序列 (先以 Symbol 获取 'ensembl_peptide_id' 以及 'transcript_is_canonical'，从而选择经典转录本的 'ensembl_peptide_id' 获取多肽序列) 。")
+    x <- methodAdd(x, "以 `biomaRt` ⟦pkgInfo('biomaRt')⟧ 获取多肽序列 (先以 Symbol 获取 'ensembl_peptide_id' 以及 'transcript_is_canonical'，从而选择经典转录本的 'ensembl_peptide_id' 获取多肽序列) 。")
     x$smiles_compounds <- list()
     if (batman) {
       if (is.null(file_batman_compounds_info)) {
@@ -96,7 +96,7 @@ setMethod("step2", signature = c(x = "job_gBan"),
         list(smiles_list = compounds, mem = mem, cl = cl), ignore = "cl", rerun = rerun
       )
       x <- methodAdd(
-        x, "以 R 包 `rcdk` ({packageVersion('rcdk')}) 过滤无法解析的分子结构，剔除分子量 &gt; {w.cutoff}，含重金属 (以原子序号大于钙为条件过滤) 的化合物。"
+        x, "以 R 包 `rcdk` ⟦pkgInfo('rcdk')⟧ 过滤无法解析的分子结构，剔除分子量 &gt; {w.cutoff}，含重金属 (以原子序号大于钙为条件过滤) 的化合物。"
       )
     }
     input_compounds <- dplyr::filter(
@@ -263,7 +263,7 @@ setMethod("step7", signature = c(x = "job_gBan"),
     numNotGot <- sum(cids$CID == 0)
     message(glue::glue("Not got: {numNotGot}"))
     cids <- dplyr::filter(cids, CID != 0)
-    x <- snapAdd(x, "以 R 包 `PubChemR` ({packageVersion('PubChemR')}) 从 PubChem 数据库 (<https://pubchem.ncbi.nlm.nih.gov/>) 检索化合物信息。将 PubChem 有记录条目的化合物视为候选药物 (n = {nrow(cids)})，并获取其对应化合物名。")
+    x <- snapAdd(x, "以 R 包 `PubChemR` ⟦pkgInfo('PubChemR')⟧ 从 PubChem 数据库 (<https://pubchem.ncbi.nlm.nih.gov/>) 检索化合物信息。将 PubChem 有记录条目的化合物视为候选药物 (n = {nrow(cids)})，并获取其对应化合物名。")
     x$synos <- try_get_syn(cids$CID)
     feature(x) <- as_feature(
       x$synos$Synonym, "候选药物", nature = "compounds"

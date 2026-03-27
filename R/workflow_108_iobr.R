@@ -80,7 +80,7 @@ setMethod("step1", signature = c(x = "job_iobr"),
       }
     )
     x$res <- x$allres[[ method ]]
-    x <- methodAdd(x, "以 R 包 `IOBR` ({packageVersion('IOBR')}) 选择算法 {method} 对数据集免疫浸润分析。")
+    x <- methodAdd(x, "以 R 包 `IOBR` ⟦pkgInfo('IOBR')⟧ 选择算法 {method} 对数据集免疫浸润分析。")
     if (isNamespaceLoaded("IOBR")) {
       detach("package:IOBR")
     }
@@ -153,9 +153,6 @@ setMethod("step2", signature = c(x = "job_iobr"),
       glue::glue("{x@sig} {x$method} wilcox test data"),
       glue::glue("为 {x$method} 算法 wilcox test 组间比较附表。")
     )
-    s.com <- dplyr::filter(groupCor, pvalue < cut.p)$type
-    feature(x) <- as_feature(s.com, "IOBR 免疫浸润分析差异细胞", nature = "cells")
-    x <- snapAdd(x, "以 wilcox.test 组间差异分析，有显著区别 (p &lt; {cut.p}) 的差异细胞：{bind(s.com)}。")
     if (x$method == "xcell") {
       data <- dplyr::mutate(data, level = log2(level))
       ylab <- "log2(level)"
@@ -181,8 +178,11 @@ setMethod("step2", signature = c(x = "job_iobr"),
     p.boxplot <- set_lab_legend(
       wrap(p.boxplot, 11, 5),
       glue::glue("{x@sig} {x$method} Immune infiltration"),
-      glue::glue("为 {x$method} 算法的免疫微环境分析箱形图 (使用 wilcox.test{exSnap}) ({.md_p_significant}) 。")
+      glue::glue("为 {x$method} 算法的免疫微环境分析箱形图|||使用 wilcox.test{exSnap} ({.md_p_significant}) 。")
     )
+    s.com <- dplyr::filter(groupCor, pvalue < cut.p)$type
+    feature(x) <- as_feature(s.com, "IOBR 免疫浸润分析差异细胞", nature = "cells")
+    x <- snapAdd(x, "以 wilcox.test 组间差异分析{aref(p.boxplot)}，有显著区别 (p &lt; {cut.p}) 的差异细胞：{bind(s.com)}。")
     mtx <- dplyr::select(mtx, -ID, -group)
     if (!keep_all) {
       mtx <- dplyr::select(mtx, dplyr::all_of(s.com))
@@ -194,7 +194,7 @@ setMethod("step2", signature = c(x = "job_iobr"),
     res_cor.test <- psych::corr.test(
       mtx, method = "spearman"
     )
-    x <- methodAdd(x, "以 R 包 `psych` ({packageVersion('psych')}) 对免疫浸润细胞之间进行关联分析 (Spearman) 。将|cor| &gt; 0.3 且 p &lt; {cut.p} 的分析结果判定为具有统计学意义。")
+    x <- methodAdd(x, "以 R 包 `psych` ⟦pkgInfo('psych')⟧ 对免疫浸润细胞之间进行关联分析 (Spearman) 。将|cor| &gt; 0.3 且 p &lt; {cut.p} 的分析结果判定为具有统计学意义。")
     t.cells_cor <- add_anno(.corp(as_data_long(
       res_cor.test$r, res_cor.test$p, "cells_x", "cells_y", 
       "cor", "pvalue"
@@ -204,17 +204,6 @@ setMethod("step2", signature = c(x = "job_iobr"),
       glue::glue("{x@sig} cells correlation"),
       glue::glue("免疫浸润细胞相关性分析附表。")
     )
-    s.cc <- dplyr::filter(
-      t.cells_cor, cells_x %in% s.com, cells_y %in% s.com,
-      cells_x != cells_y,
-      pvalue < cut.p, abs(cor) > cut.cor
-    )
-    if (nrow(s.cc)) {
-      s.cc <- paste0(s.cc$cells_x, " 和 ", s.cc$cells_y)
-      x <- snapAdd(x, "差异免疫浸润细胞之间显著关联的是：{bind(s.cc)}。 ")
-    } else {
-      x <- snapAdd(x, "差异免疫浸润细胞之间未发现显著关联。 ")
-    }
     colors <- ifelse(
       colnames(res_cor.test$p) %in% s.com, "red", "grey"
     )
@@ -231,8 +220,19 @@ setMethod("step2", signature = c(x = "job_iobr"),
     p.cor <- set_lab_legend(
       p.cor,
       glue::glue("{x@sig} Correlation immune cells"),
-      glue::glue("免疫细胞相关性分析热图 ({exSnap}热图中颜色表示相关系数的大小，颜色越深表示相关系数越高，如果不显著，则显示为空白)。")
+      glue::glue("免疫细胞相关性分析热图|||({exSnap}热图中颜色表示相关系数的大小，颜色越深表示相关系数越高，如果不显著，则显示为空白)。")
     )
+    s.cc <- dplyr::filter(
+      t.cells_cor, cells_x %in% s.com, cells_y %in% s.com,
+      cells_x != cells_y,
+      pvalue < cut.p, abs(cor) > cut.cor
+    )
+    if (nrow(s.cc)) {
+      s.cc <- paste0(s.cc$cells_x, " 和 ", s.cc$cells_y)
+      x <- snapAdd(x, "差异免疫浸润细胞之间显著关联的是{aref(p.cor)}：{bind(s.cc)}。 ")
+    } else {
+      x <- snapAdd(x, "差异免疫浸润细胞之间未发现显著关联。 ")
+    }
     x <- plotsAdd(x, p.boxplot, p.stack, p.cor)
     x <- tablesAdd(x, t.groupCor = groupCor, t.cells_cor)
     return(x)
@@ -298,7 +298,7 @@ setMethod("step3", signature = c(x = "job_iobr"),
       data.cell <- add_noise(data.cell)
     }
     dataCor <- psych::corr.test(data.expr, data.cell, method = "spearman")
-    x <- methodAdd(x, "以 R 包 `psych` ({packageVersion('psych')}) 对基因与免疫浸润细胞之间进行关联分析 (Spearman) 。将|cor| &gt; 0.3 且 p &lt; {cut.p} 的分析结果判定为具有统计学意义。")
+    x <- methodAdd(x, "以 R 包 `psych` ⟦pkgInfo('psych')⟧ 对基因与免疫浸润细胞之间进行关联分析 (Spearman) 。将|cor| &gt; 0.3 且 p &lt; {cut.p} 的分析结果判定为具有统计学意义。")
     colors <- ifelse(
       colnames(dataCor$p) %in% feature(x), "red", "grey"
     )
@@ -319,7 +319,7 @@ setMethod("step3", signature = c(x = "job_iobr"),
     p.GeneCellCor <- set_lab_legend(
       p.GeneCellCor,
       glue::glue("{x@sig} correlation of Immune cells and selected genes"),
-      glue::glue("{ref.snap}和免疫细胞相关性分析 ({exSnap}热图中颜色表示相关系数的大小，颜色越深表示相关系数越高。如果不显著，则显示出对应的 P-value)。")
+      glue::glue("{ref.snap}和免疫细胞相关性分析|||{exSnap}热图中颜色表示相关系数的大小，颜色越深表示相关系数越高。如果不显著，则显示出对应的 P-value。")
     )
     x <- plotsAdd(x, p.GeneCellCor)
     t.geneCellCor <- add_anno(
@@ -331,9 +331,9 @@ setMethod("step3", signature = c(x = "job_iobr"),
     )
     if (nrow(s.gc)) {
       s.gc <- paste0(s.gc$genes, " 和 ", s.gc$cells)
-      x <- snapAdd(x, "差异免疫浸润细胞与{ref.snap}之间显著关联的是：{bind(s.gc)}。")
+      x <- snapAdd(x, "差异免疫浸润细胞与{ref.snap}之间显著关联的是{aref(p.GeneCellCor)}：{bind(s.gc)}。")
     } else {
-      x <- snapAdd(x, "差异免疫浸润细胞与{ref.snap}之间未发现显著关联。 ")
+      x <- snapAdd(x, "差异免疫浸润细胞与{ref.snap}之间未发现显著关联{aref(p.GeneCellCor)}。 ")
     }
     return(x)
   })

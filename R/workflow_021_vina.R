@@ -104,7 +104,7 @@ setMethod("step1", signature = c(x = "job_vina"),
     x$targets_annotation <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
       object(x)$hgnc_symbols, distinct = FALSE)
     if (nrow(x$targets_annotation)) {
-      x <- methodAdd(x, "以 R 包 `biomaRt` ({packageVersion('biomaRt')}) {cite_show('MappingIdentifDurinc2009')} 获取基因 Symbol 对应的蛋白结构 PDB (<https://www.rcsb.org/>) 数据库 ID。")
+      x <- methodAdd(x, "以 R 包 `biomaRt` ⟦pkgInfo('biomaRt')⟧ {cite_show('MappingIdentifDurinc2009')} 获取基因 Symbol 对应的蛋白结构 PDB (<https://www.rcsb.org/>) 数据库 ID。")
       # x <- snapAdd(x, "以 `biomaRt` 获取基因 Symbol 对应的蛋白结构 (PDB，详见方法章节)。")
       x$targets_annotation <- dplyr::filter(x$targets_annotation, pdb != "")
       x$targets_annotation <- dplyr::distinct(x$targets_annotation, pdb, .keep_all = TRUE)
@@ -130,7 +130,7 @@ setMethod("step1", signature = c(x = "job_vina"),
   if (!forceAF && nrow(x$targets_annotation)) {
     x$annoPdbs <- as_tibble(e(bio3d::pdb.annotate(x$targets_annotation$pdb)))
     x <- methodAdd(
-      x, "以 R 包 `bio3d` ({packageVersion('bio3d')}) 获取 PDB ID 对应的注释 (蛋白结构分辨率, resolution) 。"
+      x, "以 R 包 `bio3d` ⟦pkgInfo('bio3d')⟧ 获取 PDB ID 对应的注释 (蛋白结构分辨率, resolution) 。"
     )
     if (order) {
       annoPdbs <- dplyr::distinct(x$annoPdbs, structureId, resolution)
@@ -197,7 +197,7 @@ setMethod("step2", signature = c(x = "job_vina"),
       message("Read ", length(sdfset), " molecules.")
       apset <- e(ChemmineR::sdf2ap(sdfset))
       cluster <- e(ChemmineR::cmp.cluster(db = apset, cutoff = seq(0.9, 0.4, by = -0.1)))
-      x <- methodAdd(x, "以 R 包 `ChemmineR` ({packageVersion('ChemmineR')}) {cite_show('ChemminerACoCaoY2008')} 计算化合物结构相似度。")
+      x <- methodAdd(x, "以 R 包 `ChemmineR` ⟦pkgInfo('ChemmineR')⟧ {cite_show('ChemminerACoCaoY2008')} 计算化合物结构相似度。")
       cluster <- dplyr::select(cluster, 1, dplyr::starts_with("CLID"))
       nCl <- apply(cluster[, -1], 2, function(x) length(unique(x)))
       useWhich <- which( nCl < 30 )[1] + 1
@@ -385,11 +385,11 @@ setMethod("step3", signature = c(x = "job_vina"),
       genes_touch_AF <- x$pdb_notGot
     }
     res_af <- get_pdb_from_alphaFold(genes_touch_AF, dir_save)
-    # x <- methodAdd(x, "以 R 包 `UniProt.ws` ({packageVersion('UniProt.ws')}) 获取基因 (symbol) 的 `UniProtKB-Swiss-Prot` ID (Entry ID)。")
+    # x <- methodAdd(x, "以 R 包 `UniProt.ws` ⟦pkgInfo('UniProt.ws')⟧ 获取基因 (symbol) 的 `UniProtKB-Swiss-Prot` ID (Entry ID)。")
     if (forceAF || !is.null(extra_pdb.files)) {
       getFromAF <- unique(c(genes_touch_AF, names(extra_pdb.files)))
       x <- methodAdd(
-        x, "从数据库 `AlphaFold` (<https://alphafold.ebi.ac.uk/>) 获取 {bind(getFromAF)} 蛋白结构 (已有诸多文献报道使用 alphaFold 数据库提供的蛋白用于虚拟筛选 {cite_show('Bioinformatics_Salama_2025')}，{cite_show('Virtual_Screeni_Wang_2025')} {cite_show('Accurate_struct_Abrams_2024')})。"
+        x, "从数据库 `AlphaFold` (<https://alphafold.ebi.ac.uk/>) 获取 {bind(unique(getFromAF))} 蛋白结构 (已有诸多文献报道使用 alphaFold 数据库提供的蛋白用于虚拟筛选 {cite_show('Bioinformatics_Salama_2025')}，{cite_show('Virtual_Screeni_Wang_2025')} {cite_show('Accurate_struct_Abrams_2024')})。"
       )
     }
     # x <- snapAdd(x, "{if (forceAF) '' else '对于未从 `PDB` 数据库找到结构文件的，'}从数据库 `AlphaFold` 获取 {less(genes_touch_AF)} 预测的蛋白结构 (根据 `UniProtKB-Swiss-Prot` ID，详见方法章节)。")
@@ -636,7 +636,7 @@ setMethod("step4", signature = c(x = "job_vina"),
       x$remote_operation <- dplyr::bind_rows(res)
     }
     x <- methodAdd(
-      x, "运行 AutoDock-Vina {cite_show('AutodockVina1Eberha2021')} (parameters: scoring = {scoring}; exhaustiveness = {exhaustiveness})。"
+      x, "运行 AutoDock-Vina {cite_show('AutodockVina1Eberha2021')} (参数，计分方式 score 设定为 {scoring}; 穷尽性 exhaustiveness 设定为 {exhaustiveness})。"
     )
     # x <- snapAdd(x, "以 `Autodock-Vina` 进行自动分子对接。")
     if (.Platform$OS.type == "unix" && Sys.which("notify-send") != "") {
@@ -686,8 +686,6 @@ setMethod("step5", signature = c(x = "job_vina"),
     }
     res_dock <- dplyr::arrange(res_dock, Affinity)
     res_dock <- dplyr::filter(res_dock, !is.na(!!rlang::sym(facet)))
-    res_dock <- .set_lab(res_dock, sig(x), "All combining Affinity data")
-    res_dock <- setLegend(res_dock, "分子对接得分 (亲和度) 附表。")
     data <- dplyr::distinct(res_dock, PubChem_id, hgnc_symbol, .keep_all = TRUE)
     if (!is.null(cutoff.af)) {
       data <- dplyr::filter(data, Affinity < !!cutoff.af)
@@ -720,17 +718,27 @@ setMethod("step5", signature = c(x = "job_vina"),
     p.res_vina <- set_lab_legend(
       p.res_vina,
       glue::glue("{x@sig} Overall combining Affinity"),
-      glue::glue("分子对接亲和度得分可视化，能量越低，代表亲和度越高 (图中对接的配体已注释化合物名称、PubChem ID，对接的受体已注释对应的基因名，以及对应的 PDB ID 或者 AlphaFold 数据库 ID)。")
+      glue::glue("分子对接亲和度|||分子对接能量越低，代表亲和度越高 (图中对接的配体已注释化合物名称、PubChem ID，对接的受体已注释对应的基因名，以及对应的 PDB ID 或者 AlphaFold 数据库 ID)。")
     )
-    sig.data <- dplyr::filter(res_dock, Affinity < sig.af)
-    x <- snapAdd(x, "一共进行了 {nrow(res_dock)} 次对接。其中，有 {nrow(sig.data)} 对配体受体组合的结合能 &lt; {sig.af} kcal/mol (常规有效结合阈值)。")
-    x <- tablesAdd(x, res_dock, unique_tops = data)
+    res_dock <- set_lab_legend(
+      res_dock,
+      glue::glue("{x@sig} All combining Affinity data"),
+      glue::glue("分子对接得分 (亲和度) 附表。")
+    )
+    t.sigData <- dplyr::filter(res_dock, Affinity < sig.af)
+    t.sigData <- dplyr::select(
+      t.sigData, Compound = Ingredient_name, Protein = hgnc_symbol, 
+      Affinity, Compound_CID = PubChem_id, Protein_Structure_ID = PDB_ID
+    )
+    x <- snapAdd(x, "一共进行了 {nrow(res_dock)} 次对接{aref(p.res_vina)}。其中，有 {nrow(t.sigData)} 对配体受体组合的结合能 &lt; {sig.af} kcal/mol (常规有效结合阈值) 详细数据请见表格{aref(t.sigData)} (表格中，如蛋白结构 ID 以 AF 开头，则该蛋白结构获取于 AlphaFold 数据库，ID 为对应的数据库 ID) 。")
+    x <- tablesAdd(x, t.sigData, res_dock, unique_tops = data)
     x <- plotsAdd(x, p.res_vina)
     return(x)
   })
 
 setMethod("step6", signature = c(x = "job_vina"),
-  function(x, time = 30, top = 3, save = TRUE, unique = FALSE, symbol = NULL, cpd = NULL)
+  function(x, time = 30, top = 3, save = TRUE, unique = FALSE, 
+    symbol = NULL, cpd = NULL, rerun = FALSE)
   {
     step_message("Use pymol for all visualization.")
     data <- dplyr::filter(x@tables$step5$res_dock, Affinity < 0)
@@ -752,45 +760,59 @@ setMethod("step6", signature = c(x = "job_vina"),
     if (!is.null(top)) {
       data <- head(data, n = top)
     }
-    figs <- pbapply::pbapply(data, 1, simplify = FALSE,
-      function(v) {
-        vinaShow(
-          v[[ "Combn" ]], v[[ "PDB_ID" ]], timeLimit = time, save = save, dir = x$savedir
-        )
-      }
+    fun_draw <- function(data) {
+      figs <- pbapply::pbapply(data, 1, simplify = FALSE,
+        function(v) {
+          vinaShow(
+            v[[ "Combn" ]], v[[ "PDB_ID" ]], timeLimit = time, save = save, dir = x$savedir
+          )
+        }
+      )
+    }
+    figs <- expect_local_data(
+      "tmp", "vina_pymol", fun_draw, list(data = data), rerun = rerun
     )
     figs <- unlist(figs, recursive = FALSE)
-    lab(figs) <- paste(sig(x), "docking visualization")
-    names(figs) <- paste0("Top", seq_along(figs), "_", names(figs))
-    # x <- snapAdd(x, "使用 `pymol` 将分子对接结果可视化。")
-    figs <- setLegend(
-      figs, glue::glue("分子对接结果。蛋白(Symbol: {data$hgnc_symbol}) (PDB: {data$PDB_ID}) 与化合物 (name: {data$Ingredient_name}) (PubChem CID: {data$PubChem_id})，亲和度为 {data$Affinity}。")
+    names(figs) <- paste0(
+      "Top", seq_along(figs), "_", data$hgnc_symbol, "_", data$PubChem_id
     )
-    x@plots[[ 6 ]] <- figs
-    data <- .set_lab(data, sig(x), "Metadata of visualized Docking")
-    data <- dplyr::select(data, -dir, -file)
-    x@tables[[ 6 ]] <- namel(data)
+    figs <- set_lab_legend(
+      figs,
+      glue::glue("{x@sig} {data$hgnc_symbol} {data$PubChem_id} docking visualization"),
+      glue::glue("Top {seq_along(figs)} 亲和度分子对接结果|||蛋白(Symbol: {data$hgnc_symbol}) (Protein Structure ID: {data$PDB_ID}) 与化合物 (PubChem CID: {data$PubChem_id}) (name: {data$Ingredient_name})，亲和度为 {data$Affinity} kcal/mol。")
+    )
+    # x <- snapAdd(x, "使用 `pymol` 将分子对接结果可视化。")
+    x$data_selectVis <- data
+    x <- plotsAdd(x, figs)
     return(x)
   })
 
 setMethod("step7", signature = c(x = "job_vina"),
-  function(x, save = TRUE){
+  function(x, save = TRUE, rerun = FALSE){
     step_message("Show docking results in deep and in detail.")
-    data <- x@tables$step6$data
-    figs <- pbapply::pbapply(data, 1, simplify = FALSE,
-      function(v) {
-        vinaShow(
-          v[[ "Combn" ]], v[[ "PDB_ID" ]], save = save, detail = TRUE, dir = x$savedir
-        )
-      }
+    data <- x$data_selectVis
+    fun_draw <- function(data) {
+      figs <- pbapply::pbapply(data, 1, simplify = FALSE,
+        function(v) {
+          vinaShow(
+            v[[ "Combn" ]], v[[ "PDB_ID" ]], save = save, detail = TRUE, dir = x$savedir
+          )
+        }
+      )
+    }
+    figs <- expect_local_data(
+      "tmp", "vina_pymol_detail", fun_draw, list(data = data), rerun = rerun
     )
     figs <- unlist(figs, recursive = FALSE)
-    lab(figs) <- paste(sig(x), "docking interaction details")
-    names(figs) <- paste0("Top", seq_along(figs), "_", names(figs))
-    figs <- setLegend(
-      figs, glue::glue("分子对接结果局部细节。图中展示了蛋白(Symbol: {data$hgnc_symbol}) (PDB: {data$PDB_ID}) 与化合物 (name: {data$Ingredient_name}) (PubChem CID: {data$PubChem_id}) 之间的氢键结合。")
+    names(figs) <- paste0(
+      "Top", seq_along(figs), "_", data$hgnc_symbol, "_", data$PubChem_id
     )
-    x@plots[[ 7 ]] <- figs
+    figs <- set_lab_legend(
+      figs,
+      glue::glue("{x@sig} {data$hgnc_symbol} {data$PubChem_id} docking interaction details"),
+      glue::glue("Top {seq_along(figs)} 亲和度分子对接局部细节|||蛋白(Symbol: {data$hgnc_symbol}) (Protein Structure ID: {data$PDB_ID}) 与化合物 (PubChem CID: {data$PubChem_id}) (name: {data$Ingredient_name})，亲和度为 {data$Affinity} kcal/mol。图中蛋白与分子之间的虚线为可能存在的氢键结合。")
+    )
+    x <- plotsAdd(x, figs)
     return(x)
   })
 
@@ -860,11 +882,18 @@ setMethod("pull", signature = c(x = "job_vina"),
 
 pretty_docking <- function(protein, ligand, path,
   save = "annotation.png",
-  script = paste0(.expath, "/pretty_docking.pymol"))
+  script = paste0(.expath, "/pretty_docking.pymol"), detail = TRUE)
 {
   script <- readLines(script)
   script <- gs(script, "{{protein.pdbqt}}", protein, fixed = TRUE)
   script <- gs(script, "{{ligand.pdbqt}}", ligand, fixed = TRUE)
+  if (detail) {
+    # script <- c(script, "center Ligand", "zoom Ligand, 4", "clip slab, 10")
+  } else {
+    script <- c(
+      script, "center Protein", "zoom Protein, 4", "", "label all, ''"
+    )
+  }
   temp <- tempfile("Pymol", fileext = ".pml")
   writeLines(script, temp)
   cli::cli_alert_info(paste0("Pymol run script: ", temp))
@@ -984,8 +1013,8 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
   if (file.exists(img)) {
     file.remove(img)
   }
-  if (detail) {
-    pretty_docking(recep, out, wd, save = res)
+  if (TRUE) {
+    pretty_docking(recep, out, wd, save = res, detail = detail)
   } else {
     expr <- paste0(" png ", res, ",2500,2000,dpi=300")
     gett(expr)
@@ -996,7 +1025,7 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
         " ", pg("pymol"), " ",
         " -d \"load ", out, ";",
         " load ", recep, ";",
-        " ray; zoom; bg white; ", expr, "\" "), TRUE)
+        " ray; zoom; bg white; color grey70, Protein; ", expr, "\" "), TRUE)
   }
   if (is.character(backup)) {
     dir.create(backup, FALSE)

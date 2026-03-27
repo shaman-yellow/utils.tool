@@ -31,7 +31,7 @@ job_deseq2 <- function(counts, metadata, genes, project = NULL, formula = ~ 0 + 
   } else {
     x$project <- project
   }
-  x <- methodAdd(x, "差异表达分析 (Differential Expression Analysis) 使用 DESeq2 包 ({packageVersion('DESeq2')}) 进行基因差异表达分析。构建 'DESeqDataSet' 对象，将各样本的原始 Count 矩阵与分组信息导入。对于基因名重复，以基因表达量平均值排序后保留平均值最大的基因。")
+  x <- methodAdd(x, "差异表达分析 (Differential Expression Analysis) 使用 DESeq2 包 ⟦pkgInfo('DESeq2')⟧ 进行基因差异表达分析。构建 'DESeqDataSet' 对象，将各样本的原始 Count 矩阵与分组信息导入。对于基因名重复，以基因表达量平均值排序后保留平均值最大的基因。")
   return(x)
 }
 
@@ -108,50 +108,55 @@ setMethod("step2", signature = c(x = "job_deseq2"),
       glue::glue("差异分析 {names(t.results)} 的全部基因的结果表格")
     )
     res <- .stat_by_logfc(t.sigResults, "log2FoldChange", get = x$idcol)
-    x <- snapAdd(x, "显著基因统计：\n\n{res$snap}\n\n\n")
-    feature(x) <- res$sets
-    x <- tablesAdd(x, t.results, t.sigResults)
     x <- methodAdd(
       x, "对 DESeq 函数处理过后的数据获取差异基因。筛选差异表达基因（DEGs）的标准为 {use} &lt; {cut.p} 且 |log2(FoldChange)| &gt; {cut.fc}。"
     )
+    x <- snapAdd(x, "显著基因统计：\n{res$snap}\n")
+    feature(x) <- res$sets
+    x <- tablesAdd(x, t.results, t.sigResults)
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_deseq2"),
   function(x, top = 10, group = "group"){
     step_message("Draw plots.")
-    plots <- sapply(
+    use <- x$.args$step2$use[1]
+    use_detail <- switch(use, pvalue = "P value", "Adust P value")
+    fc <- x$.args$step2$cut.fc
+    cut.p <- x$.args$step2$cut.p
+    topDegs <- sapply(
       names(x@tables$step2$t.results), simplify = FALSE,
       function(name) {
         tops <- unlist(lapply(feature(x)[[ name ]], head, n = top))
         p.volcano <- plot_volcano(
-          x@tables$step2$t.results[[name]], x$idcol, use = "padj", fc = 1,
-          use.fc = "log2FoldChange", HLs = tops
+          x@tables$step2$t.results[[name]], x$idcol, use = use,
+          fc = fc, cut.p = cut.p, use.fc = "log2FoldChange", HLs = tops
         )
-        p.volcano <- .set_lab(
-          p.volcano, sig(x), name, "volcano of DEGs"
+        p.volcano <- set_lab_legend(
+          p.volcano,
+          glue::glue("{x@sig} {name} volcano of DEGs"),
+          glue::glue("{name} 差异表达基因的火山图|||横坐标为Log2(Fold Change)，纵坐标为-Log10({use_detail})，每个点代表一个基因；横向参考线代表-Log10({cut.p})=1.3，纵向参考线代表log2FC = ± {fc}；以参考线为划分，右上角的基因为疾病组相较对照组显著上调的差异表达基因，左上角的基因为显著下调的差异表达基因，其余基因为不具有显著统计学意义的基因（用灰色表示）；图中标注基因为按 |log2FC| 从高到低上下调 Top 10 差异表达基因。")
         )
-        p.volcano <- setLegend(p.volcano, "{name} 差异表达基因的火山图")
         data <- SummarizedExperiment::assay(x$vst)
         data <- data[ rownames(data) %in% tops, , drop = FALSE ]
         data <- t(scale(t(data)))
         data <- pmin(pmax(data, -2), 2)
-        p.hp <- pheatmap::pheatmap(data,
-          annotation_col = data.frame(SummarizedExperiment::colData(x$vst))[, group, drop = FALSE],
-          show_rownames = TRUE,
-          cluster_rows = TRUE,
-          cluster_cols = FALSE,
-          scale = "none")
-        p.hp <- .set_lab(
-          wrap_scale(
-            p.hp, ncol(data), nrow(data), size = .2
-          ), sig(x), name, glue::glue("heatmap of top {top} DEGs")
+        p.hp <- pheatmap::pheatmap(
+          data, annotation_col = data.frame(SummarizedExperiment::colData(x$vst))[, group, drop = FALSE],
+          show_rownames = TRUE, cluster_rows = TRUE, cluster_cols = FALSE, scale = "none"
         )
-        p.hp <- setLegend(p.hp, "Top {top} 差异表达基因热图。")
+        p.hp <- set_lab_legend(
+          wrap_scale(p.hp, ncol(data), nrow(data), size = .2),
+          glue::glue("{x@sig} {name} heatmap of top {top} DEGs"),
+          glue::glue("Top {top} 差异表达基因热图|||热图中纵坐标代表基因，横坐标代表每一个样本；每一个‘格子’代表该行对应的基因在该列对应的样本中的表达水平。")
+        )
         return(namel(p.hp, p.volcano, tops))
       }
     )
-    x@plots[[ 3 ]] <- list(topDegs = plots)
+    psVol <- lapply(topDegs, function(x) x$p.volcano)
+    psHp <- lapply(topDegs, function(x) x$p.hp)
+    x <- snapAdd(x, "为了直观显示差异基因的分布，以 R 包 `ggplot2` ⟦pkgInfo('ggplot2')⟧绘制火山图对差异基因进行可视化{aref(psVol)}。根据差异倍数 ∣log2FC| 从高到低排序的上下调 Top 10 差异表达基因，以 R 包 `ComplexHeatmap` ⟦pkgInfo('ComplexHeatmap')⟧ 绘制DEGs的表达热图{aref(psHp)}。")
+    x <- plotsAdd(x, topDegs)
     return(x)
   })
 
@@ -216,7 +221,7 @@ setMethod("regroup", signature = c(x = "job_deseq2", ref = "character"),
 }
 
 setMethod("focus", signature = c(x = "job_deseq2"),
-  function(x, ref, ref.use = "guess", which = 1L, run_roc = TRUE,
+  function(x, ref, ref.use = "guess", which = NULL, run_roc = TRUE,
     which.roc = 1L, level.roc = .guess_compare_deseq2(x, which.roc),
     .name = "m", use = c("adj.P.Val", "P.Value"), 
     sig = FALSE, clear = "auto", test = "wilcox.test", ...)
@@ -264,12 +269,12 @@ setMethod("focus", signature = c(x = "job_deseq2"),
         })
     }
     snap <- fakeLmJob@snap[[ paste0("step", .name) ]]
-    x <- snapAdd(x, snap, step = .name, add = !clear)
+    x <- snapAdd(x, snap, step = .name, add = FALSE)
     if (run_roc) {
       snaps <- bind(
-        paste0("- ", vapply(roc, function(x) x$snap, character(1)), "\n"), co = "\n"
+        paste0(vapply(roc, function(x) x$snap, character(1)), "\n"), co = "\n"
       )
-      x <- snapAdd(x, "\n\n{snaps}", step = .name)
+      x <- snapAdd(x, "\n{snaps}", step = .name)
     }
     return(x)
   })
@@ -326,11 +331,11 @@ setMethod("asjob_iobr", signature = c(x = "job_deseq2"),
   p.roc <- set_lab_legend(
     wrap(p.roc, 6, 4.5),
     glue::glue("{sig} ROC plot of {gene}"),
-    glue::glue("为 {gene} ROC 曲线。")
+    glue::glue("为 {gene} ROC 曲线|||{detail('note_roc')}")
   )
   snap <- glue::glue(
     paste0(
-      "{gene} 的 ROC 分析结果，AUC = {round(auc, 3)}，AUC 的95%置信区间 = [{round(ci[1], 3)}, {round(ci[3], 3)}]；",
+      "{gene} 的 ROC 分析结果{aref(p.roc)}，AUC = {round(auc, 3)}，AUC 的 95% 置信区间 = [{round(ci[1], 3)}, {round(ci[3], 3)}]；",
       "最佳诊断临界值（基于约登指数），临界值 (threshold) = {round(best_coords$threshold, 2)}，敏感度 (Sensitivity) = {round(best_coords$sensitivity, 3)}，特异度 (Specificity) = {round(best_coords$specificity, 3)}。"
     )
   )
@@ -342,7 +347,7 @@ setMethod("asjob_iobr", signature = c(x = "job_deseq2"),
   namel(p.roc, t.best_coords, auc, ci, roc, snap)
 }
 
-.stat_by_logfc <- function(lst, col = "log2FoldChange", get = "rownames", cut = 0)
+.stat_by_logfc <- function(lst, col = "log2FoldChange", get = "rownames", prefix = "", cut = 0)
 {
   if (is.null(names(lst))) {
     stop('is.null(names(lst)).')
@@ -364,7 +369,10 @@ setMethod("asjob_iobr", signature = c(x = "job_deseq2"),
   res.snap <- lapply(res, function(x) x$snap)
   sets <- lapply(res, function(x) x$sets)
   snap <- paste0(
-    paste0("- 对比组 ", names(res.snap), "，", res.snap), collapse = "\n"
+    paste0(
+      prefix, "对比组 ", names(res.snap), 
+      "，", res.snap, "。"
+    ), collapse = "\n"
   )
   return(list(snap = snap, sets = sets))
 }

@@ -49,7 +49,7 @@ setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
     x <- snapAdd(
       .job_cellchat(object = object, params = list(group.by = group.by)), x
     )
-    x <- methodAdd(x, "以 `CellChat` R 包 ({packageVersion('CellChat')}) {cite_show('InferenceAndAJinS2021')} 对单细胞数据进行细胞通讯分析。以 `CellChat::createCellChat` 将 `Seurat` 对象的 {assay} Assay 转化为 CellChat 对象。")
+    x <- methodAdd(x, "以 `CellChat` R 包 ⟦pkgInfo('CellChat')⟧ {cite_show('InferenceAndAJinS2021')} 对单细胞数据进行细胞通讯分析。以 `CellChat::createCellChat` 将 `Seurat` 对象的 {assay} Assay 转化为 CellChat 对象。")
     return(x)
   })
 

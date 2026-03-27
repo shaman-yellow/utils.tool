@@ -730,7 +730,7 @@ setMethod("clear", signature = c(x = "job_limma"),
   })
 
 setMethod("focus", signature = c(x = "job_limma"),
-  function(x, ref, ref.use = .guess_symbol(x), which = 1L,
+  function(x, ref, ref.use = .guess_symbol(x), which = NULL,
     use = c("adj.P.Val", "P.Value"), 
     .name = NULL, sig = FALSE, test = "wilcox.test",
     data.which = if (!is.null(which)) attr(x@tables$step2$tops[[ which ]], "all") else NULL, ...)
@@ -744,8 +744,7 @@ setMethod("focus", signature = c(x = "job_limma"),
       ref <- resolve_feature(ref)
     } else {
       x <- snapAdd(
-        x,
-        "聚焦于{less(ref)}的差异表达。", 
+        x, "聚焦于{less(ref)}的差异表达。", 
         add = FALSE, step = if (is.null(.name)) "m" else .name
       )
     }
@@ -785,12 +784,9 @@ setMethod("focus", signature = c(x = "job_limma"),
       lst <- namel(p.BoxPlotOfDEGs = x@plots$step2$p.BoxPlotOfDEGs, data = data)
     }
     pvalue <- lst$p.BoxPlotOfDEGs$pvalue
-    s.test <- switch(
-      test, wilcox.test = "Wilcoxon 秩和检验",
-      fp.test = "Fligner-Policello 检验"
-    )
+    snap <- glue::glue("{names(pvalue)} (P = {pvalue})")
     x <- snapAdd(
-      x, "{bind(names(pvalue))} 表达差异的 {s.test} 统计学显著性 P 为 {bind(pvalue)}。",
+      x, "{bind(names(pvalue))} 表达差异的 {detail(test)} 统计学显著性 P 为 {bind(snap)} {aref(lst$p.BoxPlotOfDEGs)}。",
       step = .name
     )
     if (!is.null(.name)) {
@@ -806,7 +802,7 @@ setMethod("map", signature = c(x = "job_limma"),
     group = NULL, group.use = "group", pvalue = TRUE, 
     which = 1L,
     data.which = if (!is.null(which)) attr(x@tables$step2$tops[[ which ]], "all") else NULL,
-    use = c("adj.P.Val", "P.Value"), 
+    use = c("adj.P.Val", "P.Value"), test = "wilcox.test",
     name = NULL, dedup_by_rank = TRUE, fun_plot = geom_boxplot, ...)
   {
     object <- x@params$normed_data
@@ -862,10 +858,12 @@ setMethod("map", signature = c(x = "job_limma"),
     if (!is.null(group)) {
       data <- dplyr::mutate(data, group = factor(group, levels = !!group))
     }
-    p <- .map_boxplot2(data, pvalue, fun_plot = fun_plot, ...)
+    p <- .map_boxplot2(
+      data, pvalue, fun_plot = fun_plot, test = test, ...
+    )
     pvalue <- attr(p, "pvalue")
     if (is.null(which)) {
-      legend <- "以 wilcox.test 检验基因 ({bind(ref)}) 的表达。"
+      legend <- "以 {detail(test)} 检验基因 ({bind(ref)}) 的表达|||不同颜色的箱体表示不同分组，图中标注{detail(test)}的显著性 P 值。"
     } else {
       use <- match.arg(use)
       p <- .set_significant_mapping(p, top, ref.use, use)
@@ -1099,7 +1097,7 @@ dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x),
 }
 
 plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
-  fc = .3, seed = 2, HLs = NULL, use.fc = "logFC", label.fc = "log2(FC)",
+  fc = .3, cut.p = .05, seed = 2, HLs = NULL, use.fc = "logFC", label.fc = "log2(FC)",
   label.p = paste0("-log10(", use, ")"), 
   keep_cols = FALSE, pal = NULL, circle = FALSE)
 {
@@ -1125,18 +1123,31 @@ plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
   p <- ggplot(data, aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use)), color = change)) + 
     geom_point(alpha = 0.8, stroke = 0, size = 1.5) + 
     scale_color_manual(values = c("down" = pal[1], "stable" = "grey90", "up" = pal[2])) +
-    geom_hline(yintercept = -log10(0.05), linetype = 4, size = 0.8) +
+    geom_hline(yintercept = -log10(cut.p), linetype = 4, size = 0.8) +
     geom_vline(xintercept = c(-abs(fc), abs(fc)), linetype = 4, size = 0.8) + 
     labs(x = label.fc, y = label.p) + 
     rstyle("theme") +
     geom_blank()
   if (!is.null(HLs)) {
     data <- dplyr::filter(data, !!rlang::sym(label) %in% HLs)
-    p <- p +
-      ggrepel::geom_label_repel(data = data,
-        aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use)), label = !!rlang::sym(label)))
+    data <- dplyr::mutate(
+      data, x = !!rlang::sym(use.fc), y = !!rlang::sym(use),
+      x = median(abs(x)) * sign(x)
+    )
+    data <- dplyr::arrange(data, -log10(y))
+    ymax <- median(-log10(data$y))
+    data <- dplyr::mutate(
+      dplyr::group_by(data, up_or_down = x > 0),
+      y = -log10(!!rlang::sym(use))
+      # y = seq(0, !!ymax, length.out = length(y))
+    )
+    data <- dplyr::ungroup(data)
+    p <- p + ggrepel::geom_label_repel(
+      data = data, nudge_x = data$x, nudge_y = NULL,
+      aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use)), label = !!rlang::sym(label))
+    )
     if (circle) {
-      p <- geom_point(data = data, aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use))),
+      p <- geom_point(data = data, aes(x = x, y = -log10(y)),
         color = "darkred", shape = 21, fill = "transparent", size = 3, stroke = .5)
     }
   } else {

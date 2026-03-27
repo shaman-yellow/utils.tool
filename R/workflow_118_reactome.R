@@ -64,15 +64,16 @@ setMethod("step1", signature = c(x = "job_reactome"),
     cli::cli_alert_info("ReactomeGSA::perform_reactome_analysis")
     object(x) <- ReactomeGSA::perform_reactome_analysis(object(x), verbose = TRUE)
     x <- methodAdd(x, "反应组基因集分析（Reactome Gene Set Analysis，ReactomeGSA）是 Reactome 知识库旗下的多组学通路分析工具，可通过 Camera、PADOG 等方法将单细胞数据转化为通路水平信息，通过计算细胞集群平均表达量实现通路富集分析，识别细胞功能特征，解析细胞异质性。")
-    x <- methodAdd(x, "使用 R 包 `ReactomeGSA` ({packageVersion('ReactomeGSA')}) 基于基因表达量对 Reactome 通路进行“活性评分”。")
+    x <- methodAdd(x, "使用 R 包 `ReactomeGSA` ⟦pkgInfo('ReactomeGSA')⟧ 基于基因表达量对 Reactome 通路进行“活性评分”。")
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_reactome"),
-  function(x, rerun = FALSE)
+  function(x, use = c("p.value", "p.adjust"), show = 10, rerun = FALSE)
   {
     step_message("Gather for test.")
     compare.by <- x$compare.by
+    use <- match.arg(use)
     if (!is.null(x$from) && x$from == "Seurat") {
       if (length(unique(x$metadata[[compare.by]])) != 2) {
         stop('length(unique(x$metadata[[gather.by]])) != 2, only comparison of two group allowed.')
@@ -122,14 +123,22 @@ setMethod("step2", signature = c(x = "job_reactome"),
       t.wilcox <- expect_local_data(
         "tmp", "reactome_wilcox", lapply_test, list(lst = lst), rerun = rerun
       )
+      snap <- .stat_table_by_pvalue(
+        t.wilcox$pathways, n = show, use.p = use, colName = "Name"
+      )
+      x <- snapAdd(x, "通过对 ReactomeGSA 活性评分差异分析富集通路 ({detail(use)} &lt; 0.05)，一共富集到{snap}\n\n")
+      snap <- .stat_table_by_pvalue(
+        t.wilcox$genes, n = show, use.p = use, colName = "Name", target = "基因"
+      )
+      x <- snapAdd(x, "通过对 ReactomeGSA 活性评分差异分析富集基因 ({detail(use)} &lt; 0.05)，一共富集到{snap}")
       x <- tablesAdd(x, t.wilcox)
-      x <- methodAdd(x, "以 wilcox.test 检验评估每个通路和基因在组间的表达差异显著性，并以 P value 对其排序。")
+      x <- methodAdd(x, "以 wilcox.test 检验评估每个通路和基因在组间的表达差异显著性，并以 {detail(use)} 对其排序。")
     }
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_reactome"),
-  function(x, top = 20){
+  function(x, top = x$.args$step2$show){
     step_message("")
     lst <- x@tables$step2$t.wilcox
     vapply_mean <- function(x) {
@@ -179,9 +188,10 @@ setMethod("step3", signature = c(x = "job_reactome"),
     cn <- dplyr::recode(names(p.hps), genes = "基因", pathways = "通路")
     p.hps <- set_lab_legend(
       p.hps,
-      glue::glue("{x@sig} top {names(p.hps)} ReactomeGSA heatmap"),
+      glue::glue("{x@sig} Top {names(p.hps)} ReactomeGSA heatmap"),
       glue::glue("ReactomeGSA 富集结果中各细胞类型按显著性排列靠前的{cn}|||横轴分布的是不同细胞类型，对应于各自组别；纵向为富集通路的名称。")
     )
+    x <- snapAdd(x, "如图{aref(p.hps)}，富集的通路和基因在不同组之间的活性评分以热图展示。")
     x <- plotsAdd(x, p.hps)
     return(x)
   })

@@ -103,8 +103,16 @@ setMethod("step1", signature = c(x = "job_corgsea"),
     )
     p.gsea <- lapply(all.gsea, function(x) x$p.gsea)
     table_gsea <- lapply(all.gsea, function(x) x$table_gsea)
+    if (length(all.gsea) < 6) {
+      snaps <- vapply(table_gsea, FUN.VALUE = character(1),
+        function(data) {
+          .stat_table_by_pvalue(data, n = 10, use.p = "p.adjust")
+        })
+      snaps <- glue::glue("基因 {names(table_gsea)} 相关富集一共富集到 {snaps}")
+      x <- snapAdd(x, "{bind(snaps, co = '\n\n')}")
+    }
     res.gsea <- lapply(all.gsea, function(x) x$res.gsea)
-    x <- methodAdd(x, "使用 {mode} 数据集, 以 `clusterProfiler::GSEA` 对基因列表富集分析。富集设定阈值 adjust P value (FDR) &lt; {cutoff}，|NES| &gt; {cutoff.nes}。")
+    x <- methodAdd(x, "使用 {mode} 数据集, 以 R 包 `clusterProfiler` ⟦pkgInfo('clusterProfiler')⟧ 对基因列表富集分析。富集设定阈值 adjust P value (FDR) &lt; {cutoff}，|NES| &gt; {cutoff.nes}。")
     x@params$res.gsea <- res.gsea
     x@params$db.gsea <- db
     x$db_anno <- db_anno
@@ -134,7 +142,7 @@ setMethod("step2", signature = c(x = "job_corgsea"),
         x$.feature[[name]] <<- dataTop$Description
         p.code <- vis(
           x, map = idTop, res.gsea = x$res.gsea[[name]],
-          table_gsea = data
+          table_gsea = data, .name = name
         )
         p.code
       })
@@ -149,7 +157,7 @@ setClassUnion("job_gseaSet", c("job_corgsea", "job_gsea"))
 
 setMethod("vis", signature = c(x = "job_gseaSet"),
   function(x, pattern, map = NULL, res.gsea = NULL, table_gsea = NULL,
-    mode = c("kegg", "gsea"), pvalue = FALSE)
+    mode = c("kegg", "gsea"), pvalue = FALSE, .name = "")
   {
     mode <- match.arg(mode)
     if (is.null(res.gsea)) {
@@ -201,8 +209,8 @@ setMethod("vis", signature = c(x = "job_gseaSet"),
     des <- table_gsea$Description[whichMapped]
     p.code <- set_lab_legend(
       p.code,
-      glue::glue("{sig(x)} GSEA plot {bind(ids, co = '_')}"),
-      glue::glue("GSEA 富集条码图|||不同颜色代表不同的通路。第一部分是 ES 折线图，离垂直距离 x = 0 轴最远的峰值便是基因集的 ES 值，正值表示基因集在列表的顶部富集，负值表示基因集在列表的底部富集。第二部分为基因集成员位置图，用竖线标记了基因集中各成员出现在基因排序列表中的位置。第三部分是排序后所有基因 rank 值的分布，以灰色面积图显展示，左侧灰色 rank 值为正即与该关键基因呈正相关，右侧rank值为负是负相关。")
+      glue::glue("{sig(x)} GSEA plot {.name}"),
+      glue::glue("GSEA 富集条码图 ({.name})|||第一部分是 ES 折线图，离垂直距离 x = 0 轴最远的峰值便是基因集的 ES 值，正值表示基因集在列表的顶部富集，负值表示基因集在列表的底部富集。第二部分为基因集成员位置图，用竖线标记了基因集中各成员出现在基因排序列表中的位置。第三部分是排序后所有基因 rank 值的分布，以灰色面积图显展示，左侧灰色 rank 值为正即与该关键基因呈正相关，右侧 rank 值为负是负相关。")
     )
     p.code
   })
@@ -215,7 +223,7 @@ setMethod("vis", signature = c(x = "job_gseaSet"),
     db_anno <- e(msigdbr::msigdbr(species = "Homo sapiens", collection = mode))
   }
   x <- methodAdd(
-    x, "以 R 包 `msigdbr` ({packageVersion('msigdbr')}) 获取 MSigDB 数据库{mode}基因集。该基因集包含多个子集：{try_snap(db_anno, 'gs_subcat', 'gs_name')}。"
+    x, "以 R 包 `msigdbr` ⟦pkgInfo('msigdbr')⟧ 获取 MSigDB 数据库{mode}基因集。该基因集包含多个子集：{try_snap(db_anno, 'gs_subcat', 'gs_name')}。"
   )
   if (!is.null(sub)) {
     select <- c("CP:REACTOME", "CP:KEGG", "CP:WIKIPATHWAYS")

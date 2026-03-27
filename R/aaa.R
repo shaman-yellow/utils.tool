@@ -19,6 +19,32 @@ binary_search <- function(fun = function(x) x <= 5, low = 1, high = 12)
   return(low - 1)
 }
 
+pkgInfo <- function(pkg, cache = .prefix("pkgInfo.rds", "db"), ...) {
+  info <- getOption("autor_pkgInfo")
+  if (is.null(info)) {
+    if (!file.exists(cache)) {
+      warning("No file of {cache}.")
+      info <- list()
+    } else {
+      info <- readRDS(cache)
+    }
+  }
+  res <- info[[pkg]]
+  if (!is.null(res) && is(res, "list")) {
+    if (is.null(res$pmid) || is.na(res$pmid)) {
+      pmid <- ""
+    } else {
+      pmid <- glue::glue(", PMID: {res$pmid}")
+    }
+    note <- glue::glue(" ({res$version}{pmid}) ")
+  } else {
+    info[[pkg]] <- NA
+    note <- ""
+  }
+  options(autor_pkgInfo = info)
+  note
+}
+
 add_filename_suffix <- function(file, suffix, sep = "_") {
   if (is.null(file)) {
     stop('is.null(file), no `file` specified.')
@@ -45,7 +71,12 @@ get_local_fun <- function(m) {
   if (!is(m, "MethodDefinition")) {
     rlang::abort("Input is not a MethodDefinition.")
   }
-  fun <- try(eval(body_expr <- body(m)[2][[1]]))
+  expr <- body(m)
+  if ( identical(expr[[2]][[1]], as.name("<-")) && identical(expr[[2]][[2]], as.name(".local")) ) {
+    fun <- try(eval(expr[2][[1]]))
+  } else {
+    fun <- try(m@.Data, TRUE)
+  }
   if (inherits(fun, "try-error")) {
     rlang::abort("Can not get local fun in the method.")
   }
@@ -1009,6 +1040,99 @@ capitalize <- function (string)
 
 .num_as_mb <- function(x) {
   format(structure(x, class = "object_size"), units = "MB")
+}
+
+bind_image_add_spacer <- function(x, y, stack = FALSE, 
+  space = 20, color = "white", trim = TRUE)
+{
+  if (trim) {
+    x <- magick::image_trim(x)
+    y <- magick::image_trim(y)
+  }
+  fun_extend <- function(x, y, type = "width") {
+    gravity <- switch(type, width = "east", height = "north")
+    levels <- c(magick::image_info(x)[[type]], magick::image_info(y)[[type]])
+    if (diff(levels) > 1) {
+      x <- magick::image_extent(
+        x, geometry = sprintf("x%d", max(levels)), gravity = gravity
+      )
+    } else {
+      y <- magick::image_extent(
+        y, geometry = sprintf("x%d", max(levels)), gravity = gravity
+      )
+    }
+    namel(x, y)
+  }
+  if (stack) {
+    # top and bottom
+    alls <- fun_extend(x, y, "width")
+    x <- alls$x
+    y <- alls$y
+    spacer <- magick::image_blank(
+      width = magick::image_info(x)$width, height = space, color = color
+    )
+  } else {
+    alls <- fun_extend(x, y, "height")
+    x <- alls$x
+    y <- alls$y
+    spacer <- magick::image_blank(
+      width = space, height = magick::image_info(x)$height, color = color
+    )
+  }
+  magick::image_append(c(x, spacer, y), stack = stack)
+}
+
+split_image_by_click <- function(img) {
+  if (is.character(img)) {
+    img <- magick::image_read(img)
+  } else if (!is(img, "magick-image")) {
+    stop('!is(img, "magick-image").')
+  }
+  info <- magick::image_info(img)
+  plot(img)
+  message("Click on two points to define the splitting direction")
+  pts <- locator(2)
+  if (length(pts$x) < 2) {
+    stop("Need to click on two points")
+  }
+  dx <- abs(diff(pts$x))
+  dy <- abs(diff(pts$y))
+  if (dx < dy) {
+    x_cut <- round(mean(pts$x))
+    x_cut <- max(1, min(info$width - 1, x_cut))
+    left <- magick::image_crop(
+      img,
+      sprintf("%dx%d+0+0",
+        x_cut,
+        info$height)
+    )
+    right <- magick::image_crop(
+      img,
+      sprintf("%dx%d+%d+0",
+        info$width - x_cut,
+        info$height,
+        x_cut)
+    )
+    return(list(left = left, right = right))
+  } else {
+    y_cut <- round(mean(pts$y))
+    y_cut_img <- info$height - y_cut
+    y_cut_img <- max(1, min(info$height - 1, y_cut_img))
+    top <- magick::image_crop(
+      img,
+      sprintf("%dx%d+0+0",
+        info$width,
+        y_cut_img)
+    )
+    bottom <- magick::image_crop(
+      img,
+      sprintf("%dx%d+0+%d",
+        info$width,
+        info$height - y_cut_img,
+        y_cut_img)
+    )
+    return(list(top = top, bottom = bottom))
+  }
 }
 
 # my_add_pval <- function(

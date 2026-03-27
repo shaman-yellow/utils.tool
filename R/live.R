@@ -127,7 +127,7 @@ get_realname <- function(filename) {
   tools::file_path_sans_ext(name)
 }
 
-cdRun <- function(..., path = ".", sinkFile = NULL)
+cdRun <- function(..., path = ".", sinkFile = NULL, wait = TRUE)
 {
   owd <- getwd()
   setwd(normalizePath(path))
@@ -136,10 +136,10 @@ cdRun <- function(..., path = ".", sinkFile = NULL)
   writeLines(expr, script)
   writeLines(crayon::yellow(paste0("\nThe script file is: ", script)))
   if (is.null(sinkFile)) {
-    tryCatch(system(expr), finally = setwd(owd))
+    tryCatch(system(expr, wait = wait), finally = setwd(owd))
   } else {
     tryCatch(
-      capture.output(system(expr),
+      capture.output(system(expr, wait = wait),
         file = sinkFile, split = TRUE),
       finally = setwd(owd))
   }
@@ -467,7 +467,7 @@ fwrite2 <- function(data, name, ..., file = paste0(get_realname(name), ".csv"),
 {
   if (!file.exists(mkdir))
     dir.create(mkdir)
-  fun(data, file <- paste0(mkdir, "/", file))
+  fun(data, file <- file.path(mkdir, file))
   return(file)
 }
 
@@ -1754,7 +1754,7 @@ workflow_publish <- function(file = "index.Rmd", output = "output.Rmd", title = 
   file.copy(path, paste0(getOption("title"), ".pdf"), TRUE)
 }
 
-order_publish <- function(file = "index.Rmd", output = "output.Rmd", title = "",
+project_publish <- function(file = "index.Rmd", output = "output.Rmd", title = "",
   fun = write_articlePdf)
 {
   browseURL(fun(file, output, title))
@@ -2041,21 +2041,25 @@ set_appendix <- function() {
 }
 
 autor_preset <- function(echo = FALSE, eval = FALSE, 
-  # autor_relocate: move files to a new directory while `order_packaging` 
+  # autor_relocate: move files to a new directory while `project_packaging` 
   autor_relocate = FALSE, autor_legends_gather = FALSE,
   autor_locate_file = FALSE, autor_legend_as_caption = TRUE, autor_method_into_snap = FALSE,
+  autor_locate_dir_after_final_overture = 2L,
   autor_show_legend_after_ref = FALSE,
   autor_show_lich = FALSE,
+  autor_trunc_table = FALSE,
   autor_show_cite_IF = FALSE, autor_chinese_marks = TRUE, ...)
 {
   options(
     autor_unnamed_number = 1, autor_relocate = autor_relocate,
     autoLegendsVisuable = autor_legends_gather,
     autor_legends_gather = autor_legends_gather,
+    autor_locate_dir_after_final_overture = autor_locate_dir_after_final_overture,
     autor_method_into_snap = autor_method_into_snap,
     autor_locate_file = autor_locate_file,
     autor_legend_as_caption = autor_legend_as_caption,
     autor_chinese_marks = autor_chinese_marks,
+    autor_trunc_table = autor_trunc_table,
     autor_show_cite_IF = autor_show_cite_IF,
     autor_show_legend_after_ref = autor_show_legend_after_ref,
     autor_show_lich = autor_show_lich
@@ -2273,7 +2277,11 @@ setMethod("autor", signature = c(x = "df", name = "character"),
     x <- dplyr::select_if(x,
       function(x) is.character(x) | is.numeric(x) | is.logical(x) | is.factor(x))
     file <- autosv(x, name, ...)
-    include(x, name, ...)
+    if (getOption("autor_legend_as_caption", TRUE)) {
+      include(x, name, caption = Legend(x), ...)
+    } else {
+      include(x, name, ...)
+    }
     if (asis) {
       abstract(x, name = name, ...)
       if (!is.null(lich <- attr(x, "lich"))) {
@@ -2292,7 +2300,11 @@ setMethod("autor", signature = c(x = "fig", name = "character"),
       cat("\\begin{center}\\vspace{1.5cm}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{88}\\end{center}")
     }
     file <- autosv(x, name, ...)
-    include(x, name, ...)
+    if (!any(...names() == "caption") && getOption("autor_legend_as_caption", TRUE)) {
+      include(x, name, caption = Legend(x), ...)
+    } else {
+      include(x, name, ...)
+    }
     if (asis) {
       abstract(x, name = name, ...)
     }
@@ -2371,18 +2383,21 @@ setMethod("include", signature = c(x = "fig"),
   })
 
 setMethod("include", signature = c(x = "df"),
-  function(x, name, ...){
+  function(x, name, caption = NULL, ...){
     x <- tibble::as_tibble(x)
+    if (is.null(caption)) {
+      caption <- as_caption(name)
+    }
     if (knitr::is_latex_output()) {
       x <- trunc_table(x)
-      print(knitr::kable(x, "markdown", caption = as_caption(name)))
+      print(knitr::kable(x, "markdown", caption = caption))
     } else if (knitr::pandoc_to("docx")) {
       x <- trunc_table(x)
       knitr::opts_current$set(tab.id = name)
-      writeLines(flextable:::knit_print.flextable(pretty_flex(x, as_caption(name), NULL)))
+      writeLines(flextable:::knit_print.flextable(pretty_flex(x, caption, NULL)))
     } else {
       x <- trunc_table(x)
-      print(knitr::kable(x, "markdown", caption = as_caption(name)))
+      print(knitr::kable(x, "markdown", caption = caption))
     }
   })
 
@@ -2391,6 +2406,7 @@ as_caption <- function(str) {
 }
 
 trunc_table <- function(x) {
+  trunc <- getOption("autor_trunc_table", FALSE)
   if (ncol(x) > 5) {
     x <- x[, 1:5]
   }
@@ -2411,17 +2427,22 @@ trunc_table <- function(x) {
         as.character(x)
       }
     })
-  x <- dplyr::mutate_all(x, function(str) stringr::str_trunc(str, width))
-  colnames(x) %<>% stringr::str_trunc(width)
-  if (nrow(x) > 5) {
+  if (trunc) {
+    x <- dplyr::mutate_all(x, function(str) stringr::str_trunc(str, width))
+    colnames(x) <- stringr::str_trunc(colnames(x), width)
+  } else {
+    x <- dplyr::mutate_all(x, function(str) stringr::str_wrap(str, width))
+    colnames(x) <- stringr::str_wrap(colnames(x), width)
+  }
+  if (trunc && nrow(x) > 5) {
     x <- head(x, n = 5)
     blank <- head(x, n = 0)
     blank[1, ] <- "..."
     x <- dplyr::bind_rows(x, blank)
-  } 
+  }
   col <- vapply(colnames(x), nchar, integer(1))
   col <- which(cumsum(col) > 80)
-  if (length(col) > 0) {
+  if (trunc && length(col) > 0) {
     col <- col[1]
     x <- x[, 1:col]
     x$`..*` <- "..."
@@ -2500,21 +2521,22 @@ setMethod("select_savefun", signature = c(x = "grob.obj"),
 
 setMethod("select_savefun", signature = c(x = "df"),
   function(x){
-    if (!is(x, "data.frame")) {
-      x <- tibble::as_tibble(x)
-    }
-    data <- dplyr::select_if(x, is.character)
-    check <- apply(data, 2,
-      function(ch) {
-        any(grepl(",", ch))
-      })
-    if (any(check)) {
-      ## around 4.8 Mb
-      if (object.size(x) < 5e6)
-        get_fun("write_xlsx2")
-      else
-        get_fun("write_tsv2")
-    } else get_fun("fwrite2")
+    get_fun("fwrite2")
+    # if (!is(x, "data.frame")) {
+    #   x <- tibble::as_tibble(x)
+    # }
+    # data <- dplyr::select_if(x, is.character)
+    # check <- apply(data, 2,
+    #   function(ch) {
+    #     any(grepl(",", ch))
+    #   })
+    # if (any(check)) {
+    #   ## around 4.8 Mb
+    #   if (object.size(x) < 5e6)
+    #     get_fun("write_xlsx2")
+    #   else
+    #     get_fun("write_tsv2")
+    # } else get_fun("fwrite2")
   })
 
 # ==========================================================================
@@ -2714,6 +2736,23 @@ sumTbl <- function(x, key, sum.ex = NULL, mustSum = getOption("abstract.mustSum"
     "以下预览的表格可能省略部分数据；", sums, "'。\n", sum.ex)
 }
 
+
+autor_locate_dir <- function(dirname) {
+  if (knitr::pandoc_to("docx")) {
+    note <- glue::glue("备注：本小节所有分析数据及可视化图片均见 {dirname} 文件夹")
+    content <- officer::ftext(note,
+      officer::fp_text(
+        "#C00000", bold = TRUE, font.size = 12, font.family = "Times New Roman", eastasia.family = "SimSun"
+      )
+    )
+    content <- officer::fpar(
+      content, fp_p = officer::fp_par(text.align = "left", line_spacing = 1.5)
+    )
+    writeLines(c("", assis_docx_par(content), ""))
+  }
+  invisible()
+}
+
 locate_file <- function(name, des = "File path: ", relocate = getOption("autor_relocate", FALSE)) {
   if (!exists('autoRegisters'))
     stop("!exists('autoRegisters')")
@@ -2867,10 +2906,12 @@ setMethod("as_tibble", signature = c(x = "df"),
 # for fast combine object
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-take_positions <- function(plots, envir = .GlobalEnv, fun_wrap = "autor") {
+take_positions <- function(plots, envir = .GlobalEnv, 
+  fun_wrap = "autor", extra_cmd = NULL)
+{
   calls <- substitute(plots)
-  if (as_label(calls[[1]]) != "{") {
-    stop('as_label(calls[[1]]) != "{"')
+  if (rlang::expr_text(calls[[1]]) != "`{`") {
+    stop('rlang::expr_text(calls[[1]]) != "`{`"')
   }
   if (.is_in_overture()) {
     labels <- vapply(calls[-1],
@@ -2884,6 +2925,9 @@ take_positions <- function(plots, envir = .GlobalEnv, fun_wrap = "autor") {
     field_label <- glue::glue("#| {labels}")
     codes <- vapply(calls[-1], rlang::expr_text, character(1))
     codes <- paste0(fun_wrap, "(", codes, ")")
+    if (!is.null(extra_cmd)) {
+      codes <- c(codes, extra_cmd)
+    }
     chunk_start <- '```{r eval = TRUE, echo = FALSE, results = "asis"}'
     chunk_end <- '```'
     paste0(
@@ -2897,6 +2941,8 @@ take_positions <- function(plots, envir = .GlobalEnv, fun_wrap = "autor") {
     }
   }
 }
+
+
 
 search_job_frame_wrap <- function(pattern, fun_extract, 
   exclude = NULL, env = .GlobalEnv)

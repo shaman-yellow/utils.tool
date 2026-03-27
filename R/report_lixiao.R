@@ -626,7 +626,7 @@ generate_tiffs <- function(pattern = "^MAIN-Fig.*\\.pdf",
   return(output)
 }
 
-order_packaging <- function(target = "output.pdf",
+project_packaging <- function(target = "output.pdf",
   register = autoRegisters, idname = gidn(), ...)
 {
   report <- paste0(idname, ".", tools::file_ext(target))

@@ -46,7 +46,7 @@ setMethod("step1", signature = c(x = "job_locate"),
       "基因 {x$gene_data$Gene} 位于 {s(x$gene_data$Chromosome, 'chr', '')} 染色体上"
     )
     x <- snapAdd(x, "如图所示{aref(p.locateChr)}，{bind(snap)}。")
-    x <- methodAdd(x, "染色体定位分析可有效揭示基因在染色体上的分布特征。以 R 包 `RCircos` ({packageVersion('RCircos')}) 生成基因染色体定位图谱。")
+    x <- methodAdd(x, "染色体定位分析可有效揭示基因在染色体上的分布特征。以 R 包 `RCircos` ⟦pkgInfo('RCircos')⟧ 生成基因染色体定位图谱。")
     x <- plotsAdd(x, p.locateChr)
     return(x)
   })
@@ -70,7 +70,7 @@ setMethod("step2", signature = c(x = "job_locate"),
       length(object(x)[!whichNot]), 
       pre_height = 3.5, min_width = 2
     )
-    x <- methodAdd(x, "从 RNALocate v3.0 (<http://www.rnalocate.org/>) 获取 mRNA 亚细胞定位数据，并用 R 将定位和得分数据可视化。")
+    x <- methodAdd(x, "从 RNALocate v3.0 (<http://www.rnalocate.org/>) 获取 mRNA 亚细胞定位数据，并用 R 包 `ggplot2` ⟦pkgInfo('ggplot2')⟧将定位和得分数据可视化。")
     p.locateScore <- set_lab_legend(
       p.locateScore,
       glue::glue("{x@sig} RNA Subcellular Localization Distribution"),
@@ -78,7 +78,7 @@ setMethod("step2", signature = c(x = "job_locate"),
     )
     top <- dplyr::distinct(data, RNA_Symbol, .keep_all = TRUE)
     snap <- glue::glue("蛋白 {top$RNA_Symbol} 分布于 {top$Subcellular_Localization}")
-    x <- snapAdd(x, "如图{aref(p.locateScore)}，最有证据证明 {bind(snap)}。")
+    x <- snapAdd(x, "如图{aref(p.locateScore)}，依据 RNALocate 评分准则 (见图注或 <http://www.rnalocate.org/help>) 最有证据证明 {bind(snap)}。")
     x <- plotsAdd(x, p.locateScore)
     return(x)
   })

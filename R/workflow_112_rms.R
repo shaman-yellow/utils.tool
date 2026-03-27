@@ -60,7 +60,7 @@ setMethod("step1", signature = c(x = "job_rms"),
     x$res_lrm <- new_lrm(data, formula = target)
     x$res_nomo <- new_nomo(x$res_lrm, ...)
     x <- methodAdd(
-      x, "以 R 包 `rms` ({packageVersion('rms')}) 依据各独立诊断因子的权重赋值打分，将各因子评分求和得到总评分，作为风险评估模型，进而推断受试者的患病风险。"
+      x, "以 R 包 `rms` ⟦pkgInfo('rms')⟧ 依据各独立诊断因子的权重赋值打分，将各因子评分求和得到总评分，作为风险评估模型，进而推断受试者的患病风险。"
     )
     p.nomo <- x$res_nomo$p.nomo_reg
     p.nomo <- set_lab_legend(
@@ -68,15 +68,15 @@ setMethod("step1", signature = c(x = "job_rms"),
       glue::glue("{x@sig} nomogram"),
       glue::glue("风险评估列线图|||第一部分为 Points，表示风险分数为某个取值时的单项得分；第二部分为变量，变量后面线段的取值范围表示该变量对结局事件的总贡献值。线段上的刻度表示变量的不同取值；第三部分为 Total Points，表示变量取值的单项得分的总分。")
     )
-    x <- methodAdd(x, "以 R 包 `regplot` ({packageVersion('regplot')}) 绘制该评估模型的列线图 (优化的列线图)。")
+    x <- methodAdd(x, "以 R 包 `regplot` ⟦pkgInfo('regplot')⟧ 绘制该评估模型的列线图 (优化的列线图)。")
     x <- snapAdd(x, "列线图{aref(p.nomo)}将复杂的回归方程，转变为了可视化的图形，使预测模型的结果更具有可读性，方便对患者进行评估。如图{aref(p.nomo)}，每一个关键基因对应一个评分，各关键基因评分相加对应总评分，根据总评分预测疾病发病风险。")
     p.rocs <- x$res_lrm$p.rocs
     p.rocs <- set_lab_legend(
       p.rocs,
       glue::glue("{x@sig} ROC evaluation of diagnostic indicators"),
-      glue::glue("各诊断指标的ROC|||纵轴为灵敏度，横轴为特异度，虚线为基准线（最低标准），曲线为对应指标的 ROC 曲线。其中 ROC 曲线距离基准线越远，则说明该模型的预测效果越好。ROC 曲线接近左上角，说明模型预测准确率很高。")
+      glue::glue("各诊断指标的ROC|||{detail('note_roc')}")
     )
-    x <- methodAdd(x, "以 R 包 `pROC` ({packageVersion('pROC')}) 绘制该诊断模型的受试者工作特征 (ROC) 曲线，以曲线下面积 (Area Under the Curve，AUC) 评估模型效能。")
+    x <- methodAdd(x, "以 R 包 `pROC` ⟦pkgInfo('pROC')⟧ 绘制该诊断模型的受试者工作特征 (ROC) 曲线，以曲线下面积 (Area Under the Curve，AUC) 评估模型效能。")
     x <- snapAdd(x, "ROC 评估{aref(p.rocs)}各诊断指标：{bind(x$res_lrm$aucs)} (AUC 介于 0.7-1 提示模型具有较好的预测效能)。")
     p.cal <- x$res_lrm$p.cal
     exLegend <- if (packageVersion("rms") >= "8.1.1") {
@@ -123,8 +123,8 @@ setMethod("step2", signature = c(x = "job_rms"),
       glue::glue("{x@sig} Decision curve analysis"),
       glue::glue("决策曲线分析 (Decision curve analysis)|||DCA 用于评估不同模型在不同阈值下的净收益。横坐标为风险阈值，纵坐标为净获益率，平行于 x 轴的虚线 None 是不对任何人进行干预，抛物线形状的虚线 All 是对所有人进行干预，实线代表各指标的干预效果。")
     )
-    x <- methodAdd(x, "以 R 包 `rmda` ({packageVersion('rmda')}) 进行决策曲线分析 (Decision curve analysis，DCA) 并绘制 DCA 曲线。")
-    x <- snapAdd(x, "DCA 分析{{aref(p.dcas)}}可知，Nomogram 在阈值范围内的净收益高于 All 和 None 策略，同时高于其他独立诊断因子，显示出其在预测中的潜在价值。")
+    x <- methodAdd(x, "以 R 包 `rmda` ⟦pkgInfo('rmda')⟧ 进行决策曲线分析 (Decision curve analysis，DCA) 并绘制 DCA 曲线。")
+    x <- snapAdd(x, "DCA 分析{aref(p.dcas)}可知，Nomogram 在阈值范围内的净收益高于 All 和 None 策略，同时高于其他独立诊断因子，显示出其在预测中的潜在价值。")
     x <- plotsAdd(x, p.dcas)
     return(x)
   })

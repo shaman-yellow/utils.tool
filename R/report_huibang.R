@@ -93,41 +93,289 @@ guess_project <- function(path = getwd()) {
   res
 }
 
-new_script.hb <- function(theme, num = "guess", project = guess_project(), 
-  ws = getRemoteWs(), 
-  path = "remote", exlibrary = getOption("remote_R_library", ""))
+push_script.hb <- function(..., .project = guess_project(), 
+  .ws = getRemoteWs(), .path = "remote", .exlibrary = getOption("remote_R_library", ""))
+{
+  project <- .project
+  ws <- .ws
+  path <- .path
+  exlibrary <- .exlibrary
+  if (!is_sshfs_mount(path)) {
+    stop('!is_sshfs_mount(path).')
+  }
+  dir_project <- file.path(ws, project)
+  maxNum <- as.integer(guess_number.hb(path))
+  allFiles <- list.files(path)
+  vapply(list(...), FUN.VALUE = character(1),
+    function(theme) {
+      pattern <- glue::glue(
+        "^r\\.[0-9]{2}_{{{theme}}}\\.r$", .open = "{{{", .close = "}}}"
+      )
+      existFiles <- grpf(allFiles, pattern)
+      if (length(existFiles)) {
+        if (length(existFiles) > 1) {
+          rlang::abort(glue::glue("Theme of {theme} found multiple files: {bind(existFiles)}"))
+        } else {
+          return(file.path(path, existFiles))
+        }
+      }
+      num <- sprintf("%02d", maxNum)
+      pathScript <- file.path(path, glue::glue("r.{num}_{theme}.r"))
+      dir_output <- glue::glue("{num}_{theme}")
+      script <- readLines(file.path(.expath, "job_templ", "script_setup_huibang.R"))
+      script <- glue::glue(
+        paste0(script, collapse = "\n"), 
+        ORIGINAL_DIR = dir_project, output = dir_output,
+        LIBRARY = exlibrary,
+        .open = ".{{{", .close = "}}}."
+      )
+      writeLines(script, pathScript)
+      maxNum <<- as.integer(num) + 1L
+      pathScript
+    })
+}
+
+pkgVersion_remote <- function(pkgs, path = "remote",
+  exlibrary = getOption("remote_R_library", ""), remote = "remote")
 {
   if (!is_sshfs_mount(path)) {
     stop('!is_sshfs_mount(path).')
   }
-  if (missing(theme)) {
-   stop('missing(theme).')
+  exlibrary <- getOption("remote_R_library", "")
+  strs <- glue::glue("'{pkgs}'")
+  cmd <- glue::glue("invisible(lapply(c({bind(strs)}), function(x) writeLines(as.character(packageVersion(x)))))")
+  lines <- c(exlibrary, cmd)
+  dir.create(file.path(path, "tmp"), FALSE)
+  file_script <- file.path(path, "tmp", "getPkgInfo.R")
+  writeLines(lines, file_script)
+  map_file <- file.path("tmp", "getPkgInfo.R")
+  ws <- getRemoteWs()
+  pr <- guess_project()
+  dir_project <- paste0(ws, "/", pr)
+  cmd <- glue::glue("cd {dir_project} && Rscript {map_file} ")
+  res <- system(paste0("ssh ", remote, " '", cmd, "'"), intern = TRUE)
+  if (length(res) != length(pkgs)) {
+    stop('length(res) != length(pkgs).')
   }
-  dir_project <- paste0(ws, "/", project)
-  pattern <- glue::glue(
-    "r\\.[0-9]{2}_{{{theme}}}\\.r", .open = "{{{", .close = "}}}"
-  )
-  existFiles <- list.files(path, pattern)
-  if (length(existFiles)) {
-    stop('length(existFiles).')
-  }
-  if (num == "guess") {
-    num <- guess_number.hb(path)
-  } else if (is.numeric(num)) {
-    num <- sprintf("%02d", as.integer(num))
-  }
-  pathScript <- file.path(path, glue::glue("r.{num}_{theme}.r"))
-  dir_output <- glue::glue("{dir_project}/{num}_{theme}")
-  script <- readLines(file.path(.expath, "job_templ", "script_setup_huibang.R"))
-  script <- glue::glue(
-    paste0(script, collapse = "\n"), 
-    ORIGINAL_DIR = dir_project, output = dir_output,
-    LIBRARY = exlibrary,
-    .open = ".{{{", .close = "}}}."
-  )
-  writeLines(script, pathScript)
-  return(pathScript)
+  res
 }
+
+run_remote_output.hb <- function(run = FALSE,
+  files = list.files(path, "^r\\.[0-9]+.*\\.r$", full.names = TRUE),
+  path = "remote")
+{
+  if (!is_sshfs_mount(path)) {
+    stop('!is_sshfs_mount(path).')
+  }
+  tmpdir <- file.path(path, "tmp")
+  dir.create(tmpdir, FALSE)
+  allCodes <- lapply(files, 
+    function(file) {
+      lines <- readLines(file)
+      field_analysis <- grp(lines, "^# FIELD: analysis")
+      field_output <- grp(lines, "^# FIELD: output")
+      codes <- lines[-(field_analysis:field_output)]
+      fileName <- basename(file)
+      writeLines(codes, file.path(tmpdir, fileName))
+      if (run) {
+        run_in_project_nohup(glue::glue("tmp/{fileName}"))
+      }
+      codes
+    })
+}
+
+push_overture_as_output.hb <- function(pull = FALSE, push = FALSE,
+  ovLoc = getOption("overture_codes_and_location"), override_remote = FALSE,
+  dir_check = "./remote_script/push_check", path = "remote",
+  replace = "take_positions")
+{
+  if (is.null(ovLoc)) {
+    stop('is.null(ovLoc), has not run `project_publish.complex`?')
+  }
+  if (!is_sshfs_mount(path)) {
+    stop('!is_sshfs_mount(path).')
+  }
+  dir.create(dir_check, FALSE)
+  dir_all <- vapply(ovLoc, function(x) x$dir, character(1))
+  file_codes <- paste0("r.", dir_all, ".r")
+  # setup, be careful, maybe multiple overture into the same file.
+  path_codes <- file.path(path, unique(file_codes))
+  if (pull) {
+    file.copy(path_codes, dir_check, overwrite = TRUE)
+  }
+  path_codes_local <- file.path(dir_check, unique(file_codes))
+  allCodes <- lapply(path_codes_local, 
+    function(file) {
+      codes <- readLines(file)
+      posMark <- grp(codes, "^# FIELD: output")
+      c(codes[1:(posMark + 1)], "", "setup_counting_in_directory(output)")
+    })
+  names(allCodes) <- basename(path_codes_local)
+  # append the codes
+  lapply(seq_along(ovLoc), 
+    function(n) {
+      file_code <- file_codes[[n]]
+      mainCodes <- allCodes[[file_code]]
+      code_output <- ovLoc[[n]]$codes
+      code_output <- s(code_output, replace, "output_with_counting_number", fixed = TRUE)
+      codes <- c(mainCodes, "", code_output)
+      allCodes[[file_code]] <<- codes
+    })
+  pbapply::pblapply(seq_along(path_codes_local), 
+    function(n) {
+      if (push) {
+        path_remote <- file.path(path, basename(path_codes_local[n]))
+        writeLines(c(allCodes[[n]], "", ""), path_remote)
+      } else {
+        writeLines(c(allCodes[[n]], "", ""), path_codes_local[n])
+      }
+    })
+}
+
+setup_counting_in_directory <- function(dir, pattern = "^[0-9]+") {
+  unlink(list.files(dir, pattern, full.names = TRUE), force = TRUE)
+  options(autor_counting_start_dir = dir)
+}
+
+output_with_counting_number <- function(plots, envir = .GlobalEnv, 
+  fun_wrap = "autor", extra_cmd = NULL)
+{
+  if (is.null(output <- getOption("autor_counting_start_dir"))) {
+    stop('is.null(getOption("autor_counting_start_dir")).')
+  }
+  if (!dir.exists(output)) {
+    stop('!dir.exists(output).')
+  }
+  calls <- substitute(plots)
+  if (!identical(calls[[1]], quote(`{`))) {
+    stop('!identical(calls[[1]], quote(`{`)).')
+  }
+  rapp_find_job_name <- function(x) {
+    sub <- try(x[[1]], TRUE)
+    if (inherits(sub, "try-error")) {
+      stop("can not found job name.")
+    }
+    if (identical(sub, quote(expr = `@`))) {
+      rlang::expr_text(x[[2]])
+    } else {
+      rapp_find_job_name(x[[2]])
+    }
+  }
+  num <- as.integer(guess_number.hb(output))
+  fun_num <- function(n) {
+    sprintf("%02d", n)
+  }
+  lapply(calls[-1], 
+    function(call) {
+      name <- rapp_find_job_name(call)
+      job <- try(get(name, envir = .GlobalEnv))
+      if (inherits(job, "try-error")) {
+        .try_loadJob(name, FALSE)
+      }
+      object <- eval(parse(text = rlang::expr_text(call)))
+      outputName <- paste0(fun_num(num), "_", label(object))
+      message(glue::glue("Save as: {outputName}"))
+      fun_save <- select_savefun(object)
+      fun_save(object, name = outputName, mkdir = output)
+      num <<- num + 1L
+    })
+}
+
+pull_jobs_from_script.hb <- function(files, override = FALSE, 
+  test = !override, project = guess_project(), 
+  ws = getRemoteWs(), 
+  path = "remote", dir_save = "remote_script",
+  pattern_object = "(?<=\\bclear\\()[a-zA-Z0-9_.]+",
+  pattern_level = "(?<=\\bstep)[0-9]+(?=\\()")
+{
+  if (!is_sshfs_mount(path)) {
+    stop('!is_sshfs_mount(path).')
+  }
+  if (missing(files)) {
+    stop('missing(files).')
+  }
+  if (any(!file.exists(files))) {
+    stop('any(!file.exists(files)).')
+  }
+  dir.create(dir_save, FALSE)
+  fileNames <- basename(files)
+  localFiles <- vapply(fileNames, FUN.VALUE = character(1),
+    function(name) {
+      local <- file.path(dir_save, name)
+      if (!override && file.exists(local)) {
+        stop('file.exists(local): ', local)
+      }
+      local
+    })
+  if (!test) {
+    file.copy(files, dir_save, overwrite = override)
+  }
+  scripts <- lapply(localFiles, readLines)
+  belongs <- lapply(scripts, 
+    function(script) {
+      unlist(stringr::str_extract_all(script, pattern_object))
+    })
+  belongs <- as_df.lst(belongs)
+  belongs <- split(belongs$type, belongs$name)
+  belongs <- sapply(names(belongs), simplify = FALSE,
+    function(oname) {
+      file <- unique(belongs[[oname]])
+      if (length(file) > 1) {
+        message(glue::glue("Detected `{oname}` from multiple file: {bind(file)}"))
+        levels <- lapply(file.path(dir_save, file),
+          function(file) {
+            lines <- grpf(readLines(file), oname, fixed = TRUE)
+            max(unlist(stringr::str_extract_all(lines, pattern_level)))
+          })
+        file <- file[which.max(levels)]
+        message(glue::glue("{crayon::yellow(oname)} -> {file}"))
+      }
+      file
+    })
+  belongs <- lapply(belongs, 
+    function(file) {
+      dir <- gs(file, "^r\\.|\\.r$", "")
+      list(script = file, dir = dir)
+    })
+  saveRDS(belongs, ".job_locate_in_script.rds")
+  belongs
+}
+
+# new_script.hb <- function(theme, num = "guess", project = guess_project(), 
+#   ws = getRemoteWs(), 
+#   path = "remote", exlibrary = getOption("remote_R_library", ""))
+# {
+#   if (!is_sshfs_mount(path)) {
+#     stop('!is_sshfs_mount(path).')
+#   }
+#   if (missing(theme)) {
+#     stop('missing(theme).')
+#   }
+#   dir_project <- paste0(ws, "/", project)
+#   pattern <- glue::glue(
+#     "r\\.[0-9]{2}_{{{theme}}}\\.r", .open = "{{{", .close = "}}}"
+#   )
+#   existFiles <- list.files(path, pattern)
+#   if (length(existFiles)) {
+#     stop('length(existFiles).')
+#   }
+#   if (num == "guess") {
+#     num <- guess_number.hb(path)
+#   } else if (is.numeric(num)) {
+#     num <- sprintf("%02d", as.integer(num))
+#   }
+#   pathScript <- file.path(path, glue::glue("r.{num}_{theme}.r"))
+#   dir_output <- glue::glue("{dir_project}/{num}_{theme}")
+#   script <- readLines(file.path(.expath, "job_templ", "script_setup_huibang.R"))
+#   script <- glue::glue(
+#     paste0(script, collapse = "\n"), 
+#     ORIGINAL_DIR = dir_project, output = dir_output,
+#     LIBRARY = exlibrary,
+#     .open = ".{{{", .close = "}}}."
+#   )
+#   writeLines(script, pathScript)
+#   return(pathScript)
+# }
 
 guess_number.hb <- function(path = "remote", p.pattern = "r\\.[0-9]{2}",
   n.pattern = "[0-9]{2}", type = c("files", "dirs"))
@@ -216,7 +464,7 @@ setup.huibang <- function() {
     file_batman_compounds_info = "/data/nas2/database/graphban/db/BATMAN_TCM/cids_result.csv",
     cellchat_python = "/data/nas1/huanglichuang_OD/conda/envs/extra_pkgs/bin/python",
     rdkit_python = "/data/nas1/huanglichuang_OD/conda/envs/extra_pkgs/bin/python",
-    path_jobLoadFrom = list(remote = "./rds_jobSave/"),
+    path_jobLoadFrom = list(remote = "./rds_jobSave/", local = "./rds_jobSave/lite/"),
     pg_local_recode = list(
       # fusion = "~/fusion_twas",
       # ldscPython = "{conda}/bin/conda run -n ldsc python",
@@ -260,13 +508,15 @@ setup.huibang <- function() {
   options("download.file.method" = "wget", "download.file.extra" = "--no-check-certificate")
 }
 
-run_in_project_nohup <- function(script = "", remote = "remote", fun_map = basename)
+run_in_project_nohup <- function(script = "", remote = "remote", fun_map = NULL)
 {
-  script <- fun_map(script)
+  if (!is.null(fun_map)) {
+    script <- fun_map(script)
+  }
   ws <- getRemoteWs()
   pr <- guess_project()
   dir_project <- paste0(ws, "/", pr)
   cmd <- glue::glue("cd {dir_project} && nohup Rscript {script} > task.log 2>&1 &")
-  cdRun("ssh ", remote, " '", cmd, "'")
+  cdRun("ssh ", remote, " '", cmd, "'", wait = FALSE)
 }
 

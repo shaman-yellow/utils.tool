@@ -235,7 +235,7 @@ write_bosaiDocx <- function(report, savename, title,
   play_overture(report, savename, title, yml, ...)
 }
 
-order_publish.bosai <- function(file = "index.Rmd", output = "output.Rmd", title = "",
+project_publish.bosai <- function(file = "index.Rmd", output = "output.Rmd", title = "",
   funs = list(write_bosaiDocx))
 {
   n <- 0L

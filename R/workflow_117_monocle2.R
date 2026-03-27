@@ -77,7 +77,7 @@ setMethod("step1", signature = c(x = "job_monocle2"),
     object(x) <- e(BiocGenerics::estimateSizeFactors(object(x)))
     object(x) <- e(BiocGenerics::estimateDispersions(object(x)))
     object(x) <- e(monocle::detectGenes(object(x), min_expr = 1))
-    x <- methodAdd(x, "以 R 包 `monocle` ({packageVersion('monocle')}) 对所选细胞进行细胞拟时序轨迹分析。")
+    x <- methodAdd(x, "以 R 包 `monocle` ⟦pkgInfo('monocle')⟧ 对所选细胞进行细胞拟时序轨迹分析。")
     return(x)
   })
 
@@ -146,8 +146,9 @@ setMethod("step3", signature = c(x = "job_monocle2"),
   })
 
 setMethod("step4", signature = c(x = "job_monocle2"),
-  function(x, ref, use = x$use){
+  function(x, ref, use = x$use, ...){
     step_message("Plot genes in pseudotime.")
+    set.seed(x$seed)
     require(monocle)
     if (!is(ref, "feature")) {
       stop('!is(ref, "feature").')
@@ -163,8 +164,10 @@ setMethod("step4", signature = c(x = "job_monocle2"),
     cli::cli_alert_info("monocle::plot_genes_in_pseudotime")
     p.geneInPseudo <- pbapply::pbsapply(use,
       function(type) {
-        wrap(monocle::plot_genes_in_pseudotime(object, color_by = type), 
-          5, 2 * length(genes))
+        wrap(
+          monocle::plot_genes_in_pseudotime(object, color_by = type, ...), 
+          5, 2 * length(genes)
+        )
       }, simplify = FALSE)
     p.geneInPseudo <- set_lab_legend(
       p.geneInPseudo,

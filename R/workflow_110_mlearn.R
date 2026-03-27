@@ -68,23 +68,23 @@ setMethod("step1", signature = c(x = "job_mlearn"),
       "tmp", "svm_rfe", .run_svm_rfe, args, rerun = rerun
     )
     x$svm_rfe <- svm_rfe
-    p.results <- caret:::ggplot.rfe(svm_rfe) +
+    p.svm <- caret:::ggplot.rfe(svm_rfe) +
       lims(x = range(subset_sizes)) +
       theme_classic()
-    p.results <- set_lab_legend(
-      wrap(p.results, 5.5, 4),
+    p.svm <- set_lab_legend(
+      wrap(p.svm, 5.5, 4),
       glue::glue("{x@sig} SVM-RFE candidate subset sizes evaluation"),
-      glue::glue("SVM-RFE候选子集大小评估图")
+      glue::glue("SVM-RFE候选子集正确率曲线|||{n}折交叉验证准确率（{n}x CV Accuracy）随特征数量变化的趋势。")
     )
     svm_rfe_res <- list(best_size = svm_rfe$bestSubset, features = caret::predictors(svm_rfe))
     x$svm_rfe_res <- svm_rfe_res
     x$t.svm_rfe_accuracy <- dplyr::arrange(
       as_tibble(svm_rfe$results), dplyr::desc(Accuracy)
     )
-    x <- plotsAdd(x, p.results)
-    x <- methodAdd(x, "采用 R 包 e1071 ({packageVersion('e1071')}) 构建支持向量机递归特征消除模型 (SVM-RFE)。核函数设定为线性核 (kernel = {method}) ；以 R 包 `caret` ({packageVersion('caret')}) 实现递归特征消除流程，采用 {n} 折交叉验证评估模型分类性能，依据分类准确率 (Accuracy) 从高到低排序筛选最优特征基因子集。")
+    x <- plotsAdd(x, p.svm)
+    x <- methodAdd(x, "以 R 包 `e1071` ⟦pkgInfo('e1071')⟧ 构建支持向量机递归特征消除模型 (SVM-RFE)。核函数设定为线性核 (kernel = {method}) ；以 R 包 `caret` ⟦pkgInfo('caret')⟧ 实现递归特征消除流程，采用 {n} 折交叉验证评估模型分类性能，依据分类准确率 (Accuracy) 从高到低排序筛选最优特征基因子集。")
     x <- snapAdd(
-      x, "SVM-RFE 最佳子集数为 {svm_rfe_res$best_size}，准确率 (Accuracy) 为 {round(x$t.svm_rfe_accuracy$Accuracy[1], 3)}，误差值 (AccuracySD) 为 {round(x$t.svm_rfe_accuracy$AccuracySD[1], 3)}，对应 feature 为：{bind(svm_rfe_res$features)}。"
+      x, "SVM-RFE 最佳子集数为 {svm_rfe_res$best_size}{aref(p.svm)}，准确率 (Accuracy) 为 {round(x$t.svm_rfe_accuracy$Accuracy[1], 3)}，误差值 (AccuracySD) 为 {round(x$t.svm_rfe_accuracy$AccuracySD[1], 3)}，对应 feature 为：{bind(svm_rfe_res$features)}。"
     )
     return(x)
   })
@@ -117,18 +117,18 @@ setMethod("step2", signature = c(x = "job_mlearn"),
     p.lasso_cv <- set_lab_legend(
       wrap(p.lasso_cv, 5.5, 4, showtext = TRUE),
       glue::glue("{x@sig} LASSO Cross Validation"),
-      glue::glue("LASSO 交叉验证误差")
+      glue::glue("LASSO 交叉验证误差|||Lasso 回归模型的交叉验证图，用于选择正则化参数 λ。图中展示了不同 λ 值下的二项式偏差（Binomial Deviance）。横坐标是log(λ)，即正则化参数 λ 的对数值。随着 λ 值的增加，模型的复杂度降低，正则化强度增加。纵坐标是二项式偏差。")
     )
     p.coefs_path <- as_grob(expression(plot(cv_lasso$glmnet.fit, label = TRUE)))
     p.coefs_path <- set_lab_legend(
       wrap(p.coefs_path, 5.5, 4),
       glue::glue("{x@sig} Lasso Coefficient path"),
-      glue::glue("LASSO 系数路径")
+      glue::glue("LASSO 系数路径|||Lasso 回归系数路径图，展示了不同特征的系数随正则化参数 log(λ) 变化的情况。横坐标是 log(λ)，纵坐标是模型中各个特征的系数值。随着 λ 值的增加（从右到左），更多的特征系数被压缩至零，这是Lasso回归的特征选择过程。")
     )
     x <- plotsAdd(x, p.lasso_cv, p.coefs_path)
     prin <- if (lambda.type == "lambda.1se") "1-SE" else "最小误差"
-    x <- methodAdd(x, "以 R 包 glmnet ({packageVersion('glmnet')}) 开展 LASSO 逻辑回归分析。设置 α = 1 实现 L1 正则化，通过 {n} 折交叉验证结合 {prin} 准则确定最优 λ 值。")
-    x <- snapAdd(x, "LASSO 筛选的核心 feature（非零系数）数量为 {length(selected)}，对应为：{bind(selected)}。")
+    x <- methodAdd(x, "以 R 包 glmnet ⟦pkgInfo('glmnet')⟧ 开展 LASSO 逻辑回归分析。设置 α = 1 实现 L1 正则化，通过 {n} 折交叉验证结合 {prin} 准则确定最优 λ 值。")
+    x <- snapAdd(x, "LASSO 筛选的核心 feature（非零系数）数量为 {length(selected)}{aref(p.lasso_cv)}，对应为：{bind(selected)}。")
     return(x)
   })
 
@@ -155,7 +155,7 @@ setMethod("step3", signature = c(x = "job_mlearn"),
     p.error <- set_lab_legend(
       wrap(p.error, 5, 3),
       glue::glue("{x@sig} Trend of random forest error rate"),
-      glue::glue("随机森林误差率随树数量变化趋势图。")
+      glue::glue("随机森林误差率随树数量变化趋势图|||在训练过程中模型对不同组别识别的错误概。OOB 为总体袋外误差（OOB error），即所有类别的平均误差率。随着树的数量增加，总体误差率逐渐趋于稳定。")
     )
     importance_df <- as_tibble(
       randomForest::importance(rf_model), idcol = "feature"
@@ -170,8 +170,8 @@ setMethod("step3", signature = c(x = "job_mlearn"),
     x$rf_res <- list(rf_model = rf_model, features = t.tops$feature)
     x <- tablesAdd(x, t.tops)
     x <- plotsAdd(x, p.error)
-    x <- snapAdd(x, "随机森林特征重要性 Top {top} 基因：{bind(t.tops$feature)}。")
-    x <- methodAdd(x, "以 R 包 `randomForest` ({packageVersion('randomForest')}) 构建随机森林分类模型，设定决策树数量（ntree）为 {ntree}，特征选择数 (mtry) 为基因总数的平方根，通过袋外数据 (OOB) 评估模型误差率，计算 Feature 重要性评分，筛选相对重要性 top {top}；同时分析分类树数量与误差率的关联趋势，确定模型最优复杂度。")
+    x <- snapAdd(x, "随机森林特征重要性 Top {top} 基因：{bind(t.tops$feature)}{aref(p.error)}。")
+    x <- methodAdd(x, "以 R 包 `randomForest` ⟦pkgInfo('randomForest')⟧ 构建随机森林分类模型，设定决策树数量（ntree）为 {ntree}，特征选择数 (mtry) 为基因总数的平方根，通过袋外数据 (OOB) 评估模型误差率，计算 Feature 重要性评分，筛选相对重要性 top {top}；同时分析分类树数量与误差率的关联趋势，确定模型最优复杂度。")
     return(x)
   })
 
