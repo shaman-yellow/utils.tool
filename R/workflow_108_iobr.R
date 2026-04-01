@@ -24,13 +24,18 @@ setGeneric("asjob_iobr", group = list("asjob_series"),
    function(x, ...) standardGeneric("asjob_iobr"))
 
 setMethod("asjob_iobr", signature = c(x = "job_limma"),
-  function(x, use = .guess_symbol(x), project = x$project)
+  function(x, use = .guess_symbol(x), project = x$project, 
+    levels = NULL, guess_which_level = 1L)
   {
     stop('The input should be TPM!!!')
+    if (is.null(levels)) {
+      levels <- .get_group_from_contrast_character(names(x@tables$step2$tops)[guess_which_level])
+    }
     object <- extract_unique_genes.job_limma(x)
     mtx <- object$E
     rownames(mtx) <- gname(object$genes[[ use ]])
     x <- job_iobr(mtx, metadata = object$targets)
+    x$levels <- levels
     return(x)
   })
 
@@ -80,6 +85,7 @@ setMethod("step1", signature = c(x = "job_iobr"),
       }
     )
     x$res <- x$allres[[ method ]]
+    x <- methodAdd(x, "为系统评估诊断基因与免疫微环境之间的潜在联系，进一步开展免疫浸润及相关性分析，筛选与免疫微环境密切相关的细胞亚群，可从“基因–细胞互作”角度深化对疾病发生发展机制的理解。")
     x <- methodAdd(x, "以 R 包 `IOBR` ⟦pkgInfo('IOBR')⟧ 选择算法 {method} 对数据集免疫浸润分析。")
     if (isNamespaceLoaded("IOBR")) {
       detach("package:IOBR")
@@ -90,7 +96,7 @@ setMethod("step1", signature = c(x = "job_iobr"),
 
 setMethod("step2", signature = c(x = "job_iobr"),
   function(x, group.by = "group", cut.p = .05, cut.cor = .3, 
-    add_noise = TRUE, keep_all = if (x$method == "xcell") FALSE else TRUE)
+    add_noise = TRUE, keep_all = if (x$method == "xcell") FALSE else TRUE, method_cor = "spearman")
   {
     step_message("Significant test.")
     if (!is.null(x$allres)) {
@@ -142,11 +148,17 @@ setMethod("step2", signature = c(x = "job_iobr"),
       glue::glue("免疫细胞渗透比例")
     )
     data <- e(dplyr::group_by(data, type))
-    fun <- function(level, group) {
+    fun_pvalue <- function(level, group) {
       data <- data.frame(level = level, group = group)
       wilcox.test(level ~ group, data = data)$p.value
     }
-    groupCor <- e(dplyr::summarise(data, pvalue = fun(level, group)))
+    fun_measure <- function(level, group) {
+      gp <- split(level, group)
+      ms <- vapply(gp, function(x) fivenum(x)[3], double(1))
+      names(gp)[which.max(ms)]
+    }
+    groupCor <- e(dplyr::summarise(data,
+        pvalue = fun_pvalue(level, group), higher = fun_measure(level, group)))
     groupCor <- add_anno(groupCor)
     groupCor <- set_lab_legend(
       groupCor,
@@ -180,9 +192,15 @@ setMethod("step2", signature = c(x = "job_iobr"),
       glue::glue("{x@sig} {x$method} Immune infiltration"),
       glue::glue("为 {x$method} 算法的免疫微环境分析箱形图|||使用 wilcox.test{exSnap} ({.md_p_significant}) 。")
     )
-    s.com <- dplyr::filter(groupCor, pvalue < cut.p)$type
+    dataSig <- dplyr::filter(groupCor, pvalue < cut.p)
+    s.com <- dataSig$type
     feature(x) <- as_feature(s.com, "IOBR 免疫浸润分析差异细胞", nature = "cells")
     x <- snapAdd(x, "以 wilcox.test 组间差异分析{aref(p.boxplot)}，有显著区别 (p &lt; {cut.p}) 的差异细胞：{bind(s.com)}。")
+    fun_snap <- function(higher) {
+      ifelse(higher == x$levels[1], "升高", "下降")
+    }
+    snap_sig <- glue::glue("{s.com} 活性显著 {fun_snap(dataSig$higher)}")
+    x <- snapAdd(x, "相比于 {x$levels[2]} 组，{x$levels[1]} 组的{bind(snap_sig)}。\n\n\n")
     mtx <- dplyr::select(mtx, -ID, -group)
     if (!keep_all) {
       mtx <- dplyr::select(mtx, dplyr::all_of(s.com))
@@ -191,10 +209,11 @@ setMethod("step2", signature = c(x = "job_iobr"),
       mtx <- add_noise(mtx, seed = x$seed)
     }
     x$data_noise <- mtx
+    # It's better to use it directly... oh my god!!!  `ggcor::fortify_cor`
     res_cor.test <- psych::corr.test(
-      mtx, method = "spearman"
+      mtx, method = method_cor
     )
-    x <- methodAdd(x, "以 R 包 `psych` ⟦pkgInfo('psych')⟧ 对免疫浸润细胞之间进行关联分析 (Spearman) 。将|cor| &gt; 0.3 且 p &lt; {cut.p} 的分析结果判定为具有统计学意义。")
+    x <- methodAdd(x, "以 R 包 `psych` ⟦pkgInfo('psych')⟧ 对免疫浸润细胞之间进行关联分析 ({method_cor}) 。将|cor| &gt; 0.3 且 p &lt; {cut.p} 的分析结果判定为具有统计学意义。")
     t.cells_cor <- add_anno(.corp(as_data_long(
       res_cor.test$r, res_cor.test$p, "cells_x", "cells_y", 
       "cor", "pvalue"
@@ -207,11 +226,14 @@ setMethod("step2", signature = c(x = "job_iobr"),
     colors <- ifelse(
       colnames(res_cor.test$p) %in% s.com, "red", "grey"
     )
-    p.cor <- funPlot(corrplot::corrplot, list(
-        corr = res_cor.test$r, p.mat = res_cor.test$p,
-        type = "lower", insig = "blank", tl.col = colors
-        ))
-    p.cor <- wrap(p.cor, 7, 6)
+    fun_plot <- function(x) {
+      # It has been run twice cor.test...
+      p <- ggcor::quickcor(x, type = "lower", cor.test = TRUE, method = method_cor) +
+        ggcor::geom_square(data = ggcor::get_data(type = "lower", show.diag = FALSE)) +
+        ggcor::geom_mark(data = ggcor::get_data(type = "lower", show.diag = FALSE), sep = "\n") +
+        .scale_for_cor_palette()
+    }
+    p.cor <- wrap(fun_plot(mtx), 7, 6)
     if (keep_all) {
       exSnap <- "热图的细胞名若显示为红色，则为差异细胞；"
     } else {
@@ -228,8 +250,10 @@ setMethod("step2", signature = c(x = "job_iobr"),
       pvalue < cut.p, abs(cor) > cut.cor
     )
     if (nrow(s.cc)) {
-      s.cc <- paste0(s.cc$cells_x, " 和 ", s.cc$cells_y)
-      x <- snapAdd(x, "差异免疫浸润细胞之间显著关联的是{aref(p.cor)}：{bind(s.cc)}。 ")
+      snap_cor <- .stat_correlation_table(
+        s.cc, "cells_x", "cells_y"
+      )
+      x <- snapAdd(x, "免疫细胞之间的相关性分析表明{aref(p.cor)}，{bind(snap_cor)}。\n\n\n")
     } else {
       x <- snapAdd(x, "差异免疫浸润细胞之间未发现显著关联。 ")
     }
@@ -237,6 +261,15 @@ setMethod("step2", signature = c(x = "job_iobr"),
     x <- tablesAdd(x, t.groupCor = groupCor, t.cells_cor)
     return(x)
   })
+
+.scale_for_cor_palette <- function() {
+  scale_fill_distiller(
+    palette = "RdBu",
+    direction = -1,
+    limits = c(-1, 1),
+    name = "Correlation"
+  )
+}
 
 add_noise <- function(mtx, level = 1e-6, seed = 12345) {
   var_values <- apply(mtx, 2, var, na.rm = TRUE)
@@ -254,7 +287,8 @@ add_noise <- function(mtx, level = 1e-6, seed = 12345) {
 
 setMethod("step3", signature = c(x = "job_iobr"),
   function(x, ref, recode = NULL, cut.p = .05, cut.cor = .3, 
-    add_noise = TRUE, keep_all = if (x$method == "xcell") FALSE else TRUE, use_vst = FALSE)
+    add_noise = TRUE, keep_all = if (x$method == "xcell") FALSE else TRUE, 
+    use_vst = FALSE, method_cor = "spearman")
   {
     step_message("Correlation for cells and genes.")
     mtx <- data.frame(dplyr::select(x$all_filter[[ x$method ]]$data, -group))
@@ -297,15 +331,20 @@ setMethod("step3", signature = c(x = "job_iobr"),
     if (add_noise) {
       data.cell <- add_noise(data.cell)
     }
-    dataCor <- psych::corr.test(data.expr, data.cell, method = "spearman")
-    x <- methodAdd(x, "以 R 包 `psych` ⟦pkgInfo('psych')⟧ 对基因与免疫浸润细胞之间进行关联分析 (Spearman) 。将|cor| &gt; 0.3 且 p &lt; {cut.p} 的分析结果判定为具有统计学意义。")
+    # It's better to use `ggcor::fortify_cor` directly... oh my god!!!  
+    dataCor <- psych::corr.test(data.expr, data.cell, method = method_cor)
+    x <- methodAdd(x, "以 R 包 `psych` ⟦pkgInfo('psych')⟧ 对基因与免疫浸润细胞之间进行关联分析 ({method_cor}) 。将|cor| &gt; 0.3 且 p &lt; {cut.p} 的分析结果判定为具有统计学意义。")
     colors <- ifelse(
       colnames(dataCor$p) %in% feature(x), "red", "grey"
     )
-    p.GeneCellCor <- funPlot(corrplot::corrplot, list(
-        method = "square", corr = dataCor$r, p.mat = dataCor$p, insig = "p-value",
-        tl.col = colors
-        ))
+    fun_plot <- function(x, y) {
+      # It has been run twice cor.test...
+      p <- ggcor::quickcor(x, y, type = "lower", cor.test = TRUE, method = method_cor) +
+        ggcor::geom_square(data = ggcor::get_data(type = "lower", show.diag = FALSE)) +
+        ggcor::geom_mark(data = ggcor::get_data(type = "lower", show.diag = FALSE), sep = "\n") +
+        .scale_for_cor_palette()
+    }
+    p.GeneCellCor <- fun_plot(data.expr, data.cell)
     if (!keep_all) {
       p.GeneCellCor <- wrap(p.GeneCellCor, 7, 4)
     } else {
@@ -325,18 +364,33 @@ setMethod("step3", signature = c(x = "job_iobr"),
     t.geneCellCor <- add_anno(
       .corp(as_data_long(dataCor$r, dataCor$p, "genes", "cells", "cor", "pvalue"))
     )
+    t.geneCellCor <- set_lab_legend(
+      t.geneCellCor,
+      glue::glue("{x@sig} correlation between cells and genes"),
+      glue::glue("{ref.snap}与免疫细胞相关性分析")
+    )
     s.gc <- dplyr::filter(
       t.geneCellCor, cells %in% feature(x),
       pvalue < cut.p, abs(cor) > cut.cor
     )
+    x <- tablesAdd(x, t.geneCellCor)
     if (nrow(s.gc)) {
-      s.gc <- paste0(s.gc$genes, " 和 ", s.gc$cells)
-      x <- snapAdd(x, "差异免疫浸润细胞与{ref.snap}之间显著关联的是{aref(p.GeneCellCor)}：{bind(s.gc)}。")
+      snap_cor <- .stat_correlation_table(s.gc, "cells", "genes")
+      x <- snapAdd(x, "免疫细胞与基因之间的关联性分析表明{aref(p.GeneCellCor)}，{bind(snap_cor)}。\n\n\n")
     } else {
       x <- snapAdd(x, "差异免疫浸润细胞与{ref.snap}之间未发现显著关联{aref(p.GeneCellCor)}。 ")
     }
     return(x)
   })
+
+.stat_correlation_table <- function(data, x, y, cor = "cor", pvalue = "pvalue")
+{
+  fun_measure <- function(x) ifelse(x > 0, "正", "负")
+  fmt <- function(x) signif(x, 3)
+  glue::glue(
+    "{data[[x]]} 和 {data[[y]]} 之间显著{fun_measure(data[[cor]])}相关 (cor = {fmt(data[[cor]])}, p = {fmt(data[[pvalue]])})"
+  )
+}
 
 setMethod("add_anno", signature = c(x = "df"),
   function(x){

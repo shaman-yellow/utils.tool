@@ -16,7 +16,9 @@ load {{protein.pdbqt}}, Protein
 h_add Protein
 hide everything, Protein
 show cartoon, Protein
-cmd.spectrum("count", selection="Protein", byres=1)
+# cmd.spectrum("count", selection="Protein", byres=1)
+color grey70, Protein
+set cartoon_transparency, 0.2, Protein
 
 # The following 6 lines: 
 # 1. load ligand structure and rename it
@@ -30,8 +32,16 @@ load {{ligand.pdbqt}}, Ligand
 h_add Ligand
 hide everything, Ligand
 show sticks, Ligand
-set stick_radius, 0.15
-util.cbaw Ligand
+
+set stick_radius, 0.2
+
+# color tv_orange, Ligand and elem C
+# color nitrogen, Ligand and elem N
+# color oxygen, Ligand and elem O
+# color sulfur, Ligand and elem S
+# util.cbaw Ligand
+
+set stick_transparency, 0.0
 
 # The following 1 line:
 # 1. Select metal ions
@@ -59,6 +69,10 @@ color red, LaccPdon
 color blue, LdonPacc
 #distance Fe_C20, (fep and name C20), (heme and name fe))
 
+set dash_width, 2.5
+set dash_gap, 0.3
+set dash_length, 0.2
+
 # The following 6 lines:
 # 1. Select non-hydro atoms of ligands
 # 2. Select protein atoms within 5A of selected atoms in last step
@@ -67,11 +81,18 @@ color blue, LdonPacc
 # 5. Set background white
 # 6. Hidden hydrogenes
 select sele, Ligand & not hydro
-select sele, byres (sele expand 5) & Protein
+select sele, byres (sele expand 3) & Protein
+
 one_letter ={'VAL':'V', 'ILE':'I', 'LEU':'L', 'GLU':'E', 'GLN':'Q', 'ASP':'D', 'ASN':'N', 'HIS':'H', 'TRP':'W', 'PHE':'F', 'TYR':'Y', 'ARG':'R', 'LYS':'K', 'SER':'S', 'THR':'T', 'MET':'M', 'ALA':'A', 'GLY':'G', 'PRO':'P', 'CYS':'C'}
-label name ca & sele, "%s-%s" % (one_letter[resn],resi)
-bg white
+
+label all, ""
+# label name ca & sele, "%s-%s" % (one_letter[resn],resi)
+label name ca & sele, "%s%s" % (one_letter[resn], resi)
+
+set label_size, 5
 set label_color, black
+
+bg white
 hide (hydro)
 
 # The follwing 5 lines
@@ -85,9 +106,72 @@ hide (hydro)
 #    Transparency is used to adjust the transparency of Surfaces and Slices.    
 #    `set transparency, F, selection`
 # show surface, Protein
+#
 create surrounding_res, sele
+# create surrounding_res, sele
 show surface, surrounding_res
-color grey80, surrounding_res
-set transparency, 0.5, surrounding_res
+color grey85, surrounding_res
+set transparency, 0.4, surrounding_res
 
+set ray_shadow, off
+set ambient, 0.5
+set antialias, 2
 
+# zoom Ligand, 8
+# center Ligand
+# zoom Ligand, 4
+# clip slab, 10
+
+# python
+# from pymol import cmd
+# from pymol.cgo import *
+#
+# def draw_box(selection="Ligand", name="box"):
+#
+#     model = cmd.get_model(selection)
+#     coords = [atom.coord for atom in model.atom]
+#
+#     xs, ys = [], []
+#
+#     for (x, y, z) in coords:
+#         sx, sy, sz = cmd.project([x, y, z])
+#         xs.append(sx)
+#         ys.append(sy)
+#
+#     width, height = cmd.get_viewport()
+#
+#     xs = [x / width for x in xs]
+#     ys = [y / height for y in ys]
+#
+#     x1, x2 = min(xs), max(xs)
+#     y1, y2 = min(ys), max(ys)
+#
+#     pad = 0.03
+#     x1 -= pad; x2 += pad
+#     y1 -= pad; y2 += pad
+#
+#     obj = [
+#         LINEWIDTH, 4.0,
+#         BEGIN, LINES,
+#         COLOR, 1.0, 0.0, 0.0,
+#
+#         VERTEX, x1, y1, 0,
+#         VERTEX, x2, y1, 0,
+#
+#         VERTEX, x2, y1, 0,
+#         VERTEX, x2, y2, 0,
+#
+#         VERTEX, x2, y2, 0,
+#         VERTEX, x1, y2, 0,
+#
+#         VERTEX, x1, y2, 0,
+#         VERTEX, x1, y1, 0,
+#
+#         END
+#     ]
+#
+#     cmd.delete(name)
+#     cmd.load_cgo(obj, name)
+#
+# cmd.extend("draw_box", draw_box)
+# end

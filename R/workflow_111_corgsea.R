@@ -35,6 +35,9 @@ setMethod("asjob_corgsea", signature = c(x = "job_deseq2"),
     cors <- e(stats::cor(data.ref, data.others, method = "spearman"))
     cors <- apply(cors, 1, sort, decreasing = TRUE, simplify = FALSE)
     x <- .job_corgsea(object = cors)
+    x <- methodAdd(
+      x, "为探讨{snap(ref)}为进一步探讨筛选得到的诊断基因在全基因组范围内的潜在功能关联，基于表达数据计算诊断基因与其他基因之间的相关性，并以相关系数构建全基因排序列表。在此基础上实施基因集富集分析（GSEA），以识别与诊断基因表达模式协同变化的功能通路。该策略能够将有限的诊断基因扩展至其相关的基因网络层面，从而揭示其潜在的生物学过程及分子机制，提高结果的生物学解释性与稳健性。"
+    )
     x <- snapAdd(x, "计算{snap(ref)}与其他基因的 Spearman 相关性系数，并以该系数为排序依据对全基因进行从大到小的排序。")
     return(x)
   })
@@ -82,7 +85,7 @@ setMethod("step1", signature = c(x = "job_corgsea"),
           Count = lengths(geneName_list),
           GeneRatio = round(as.double(stringr::str_extract(leading_edge, "[0-9]+")) / 100, 2)
         )
-        table_gsea <- set_lab_legend(table_gsea, glue::glue("GSEA pathway list of {mode} data"),
+        table_gsea <- set_lab_legend(table_gsea, glue::glue("GSEA pathway list of {name} data"),
           glue::glue("为基因 {name} 的 GSEA 按 {mode} ({names(mode)}) 数据集富集附表。")
         )
         if (!is.null(db_anno) && all(c("gs_id", "gs_description") %in% colnames(db_anno))) {
@@ -157,7 +160,7 @@ setClassUnion("job_gseaSet", c("job_corgsea", "job_gsea"))
 
 setMethod("vis", signature = c(x = "job_gseaSet"),
   function(x, pattern, map = NULL, res.gsea = NULL, table_gsea = NULL,
-    mode = c("kegg", "gsea"), pvalue = FALSE, .name = "")
+    mode = c("kegg", "gsea"), pvalue = FALSE, .name = "", merge = TRUE)
   {
     mode <- match.arg(mode)
     if (is.null(res.gsea)) {
@@ -187,22 +190,36 @@ setMethod("vis", signature = c(x = "job_gseaSet"),
       message(crayon::red("Not match any pathway, skip plot of 'p.code'."))
       p.code <- NULL
     } else {
-      p.code <- sapply(map, simplify = FALSE,
-        function(key) {
-          title <- dplyr::filter(table_gsea, ID == key)$Description
-          grob <- grid.grabExpr(
-            print(enrichplot::gseaplot2(res.gsea, key, pvalue_table = pvalue, title = title))
+      if (merge) {
+        fun_plot <- function() {
+          res.gsea@result <- map(
+            res.gsea@result, "ID", table_gsea, "ID", "Description", col = "Description"
           )
-          wrap(grob, 5, 4)
-        })
-      if (length(map) > 1) {
-        layout <- calculate_layout(length(map))
-        p.code <- patchwork::wrap_plots(
-          lapply(p.code, function(x) x@data), ncol = layout[["cols"]]
-        )
-        p.code <- wrap_layout(p.code, layout, 3)
+          plst <- enrichplot::gseaplot2(res.gsea, map, pvalue_table = pvalue)
+          plst[[1]] <- plst[[1]] +
+            guides(color = guide_legend(ncol = 2)) +
+            theme(legend.position = "top")
+          print(plst)
+        }
+        p.code <- grid.grabExpr(fun_plot())
       } else {
-        p.code <- p.code[[1]]
+        p.code <- sapply(map, simplify = FALSE,
+          function(key) {
+            title <- dplyr::filter(table_gsea, ID == key)$Description
+            grob <- grid.grabExpr(
+              print(enrichplot::gseaplot2(res.gsea, key, pvalue_table = pvalue, title = title))
+            )
+            wrap(grob, 5, 4)
+          })
+        if (length(map) > 1) {
+          layout <- calculate_layout(length(map))
+          p.code <- patchwork::wrap_plots(
+            lapply(p.code, function(x) x@data), ncol = layout[["cols"]]
+          )
+          p.code <- wrap_layout(p.code, layout, 3)
+        } else {
+          p.code <- p.code[[1]]
+        }
       }
     }
     ids <- table_gsea$ID[whichMapped]

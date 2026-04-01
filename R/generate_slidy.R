@@ -86,7 +86,7 @@ cite_show <- function(keys, as.character = TRUE,
     names <- paste0(keys, ".", keys)
     eles <- lapply(names,
       function(name) {
-        bib <- bibentry[[ name ]]
+        bib <- bibentry[[ which(names(bibentry) == name) ]]
         year <- bib$year
         journal <- bib$journal
         title <- bib$title
@@ -96,7 +96,7 @@ cite_show <- function(keys, as.character = TRUE,
           Class = ifsets$Class[which], fuzzy = fuzzy, title = title)
       })
     if (as.character) {
-      if (autor_show_cite_IF) {
+      if (getOption("autor_show_cite_IF", FALSE)) {
         text <- vapply(eles,
           function(x) {
             if (is.null(x$IF) || !length(x$IF)) {

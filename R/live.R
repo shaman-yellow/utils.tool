@@ -10,6 +10,42 @@ setClass("pheatmap")
 setClassUnion(
   "can_not_be_draw", c("recordedplot", "aplot", "pheatmap")
 )
+setClass("autor_invisuable")
+.notshow <- setClass(
+  "notshow", contains = "autor_invisuable", representation = representation(data = "ANY")
+)
+
+.feature <- setClass("feature",
+  contains = c("vector", "autor_invisuable"),
+  representation = representation(
+    object = "ANY", sig = "character",
+    snap = "character", nature = "character", type = "character", from = "character"),
+  prototype = NULL)
+
+.feature_list <- setClass("feature_list", contains = c("feature"))
+.feature_char <- setClass("feature_char", contains = c("feature"))
+
+setMethod("show", signature = c(object = "notshow"),
+  function(object){
+    show(object@data)
+  })
+
+notshow <- function(x, label = NULL) {
+  if (is.null(lab(x))) {
+    if (is.null(label)) {
+      lab(x) <- paste0("Other_Data_", formal_name(rlang::as_label(substitute(x))))
+    } else {
+      lab(x) <- label
+    }
+  }
+  if (is(x, "data.frame") && any(duplicated(colnames(x)))) {
+    x <- x[, !duplicated(colnames(x))]
+  }
+  if (is(x, "data.frame") && !is(x, "tbl_df")) {
+    x <- tibble::as_tibble(x)
+  }
+  .notshow(data = x)
+}
 
 .type_must_record_then_write <- c("regplot")
 
@@ -84,6 +120,49 @@ setMethod("show", signature = c(object = "files"),
       }
     }
   })
+
+.data_binary <- setClass("data_binary",
+  contains = c("can_not_be_draw"),
+  representation = representation(data = "ANY", filename = "character"),
+  prototype = prototype(file = character(1)))
+
+setMethod("show", signature = c(object = "data_binary"),
+  function(object){
+    if (!file.exists(object@filename)) {
+      file <- tempfile(
+        tools::file_path_sans_ext(basename(object@filename)),
+        fileext = tools::file_ext(object@filename)
+      )
+      message(glue::glue("Can not found '{object@filename}', write tempfile: {file}"))
+      writeBin(object@data, file)
+    } else {
+      file <- object@filename
+    }
+    if (.Platform$OS.type == "unix") {
+      browseURL(file, "xdg-open")
+    } else {
+      browseURL(file)
+    }
+  })
+
+as_data_binary <- function(x, get_lab_lagend = TRUE, ...) {
+  if (!is(x, "file_fig")) {
+    stop('!is(x, "file_fig").')
+  }
+  obj <- .data_binary(
+    data = readBin(x@.Data, raw(), n = file.size(x@.Data)),
+    filename = basename(x@.Data)
+  )
+  if (get_lab_lagend) {
+    if (!is.null(lab(x))) {
+      lab(obj) <- lab(x)
+    }
+    if (is.null(Legend(x, "all"))) {
+      Legend(obj) <- Legend(x, "all")
+    }
+  }
+  obj
+}
 
 setClassUnion("figs", c("gg.obj", "fig"))
 # setClassUnion("data.frame_or_matrix", c("data.frame", "matrix"))
@@ -463,7 +542,14 @@ get_savedir <- function(target = NULL) {
 }
 
 fwrite2 <- function(data, name, ..., file = paste0(get_realname(name), ".csv"),
-  mkdir = get_savedir("tabs"), fun = data.table::fwrite)
+  mkdir = get_savedir("tabs"),
+  fun = function(x, ...) {
+    res <- try(data.table::fwrite(x, ...), TRUE)
+    if (inherits(res, "try-error")) {
+      stop('inherits(res, "try-error"), can not use `data.table::fwrite` to class: {class(x)}')
+    }
+    res
+  })
 {
   if (!file.exists(mkdir))
     dir.create(mkdir)
@@ -496,12 +582,22 @@ set_showtext <- function() {
   write_graphics(data, ...)
 }
 
+.write_data_binary <- function(data, name, ..., file = basename(data@filename),
+  mkdir = get_savedir("figs"))
+{
+  if (!file.exists(mkdir))
+    dir.create(mkdir)
+  file <- file.path(mkdir, file)
+  writeBin(data@data, file)
+  return(file)
+}
+
 write_graphics <- function(data, name, ..., file = paste0(get_realname(name), ".pdf"), page = -1,
   mkdir = get_savedir("figs"))
 {
   if (!file.exists(mkdir))
     dir.create(mkdir)
-  file <- paste0(mkdir, "/", file)
+  file <- file.path(mkdir, file)
   showtext <- getOption("SHOWTEXT", FALSE)
   if (is(data, "wrap")) {
     res <- try(data@showtext, TRUE)
@@ -1346,13 +1442,14 @@ wrap_layout <- function(data, layout, size = calculate_layout_size(layout)$size[
   wrap(data, size * layout[2], size * layout[1])
 }
 
-wrap <- function(data, width = 10, height = 8, showtext = NULL, force = FALSE)
+wrap <- function(data, width = 10, height = 8, showtext = NULL, 
+  force = FALSE, get_attrs = c("pvalue", "compare"))
 {
   if (!force) {
     width <- if (width > 20) 20 else width
     height <- if (height > 14) 14 else height
   }
-  snap <- snap(data)
+  raw <- data
   if (is(data, "wrap")) {
     data@width <- width
     data@height <- height
@@ -1368,8 +1465,13 @@ wrap <- function(data, width = 10, height = 8, showtext = NULL, force = FALSE)
     }
     data <- .wrap(data = data, width = width, height = height, showtext = showtext)
   }
-  if (!is.null(snap)) {
-    snap(data) <- snap
+  if (!is.null(snap(raw))) {
+    snap(data) <- snap(raw)
+  }
+  if (!is.null(get_attrs)) {
+    for (i in get_attrs) {
+      attr(data, i) <- attr(raw, i)
+    }
   }
   data
 }
@@ -2169,8 +2271,10 @@ setGeneric("autor",
 ## The best way to use `autor`, don't manualy set the `name`.
 ## As there was no way to modify the chunk label by `name` in
 ## codes.
+
 setMethod("autor", signature = c(x = "ANY", name = "missing"),
-  function(x, ...){
+  function(x, ..., shownote = TRUE)
+  {
     if (is.null(knitr::pandoc_to())) {
       message("Not in knitr circumstance, show object only.")
       if (!is.null(lab(x))) {
@@ -2217,10 +2321,28 @@ setMethod("autor", signature = c(x = "ANY", name = "missing"),
     }
     knitr::opts_current$set(autor_label = name)
     autor(x, name, ...)
-    if (!is.null(note <- Legend(x, "note"))) {
+    if (shownote && !is(x, "df")  && !is.null(note <- Legend(x, "note"))) {
       abstract(note, name, NULL)
     }
     invisible()
+  })
+
+setMethod("autor", signature = c(x = "feature_char", name = "missing"),
+  function(x, ...){
+    data <- setNames(tibble::tibble(as.character(x)), .nature(x@nature, TRUE))
+    autor(data, ..., notshow = TRUE, shownote = FALSE)
+  })
+
+setMethod("autor", signature = c(x = "feature_list", name = "missing"),
+  function(x, ...){
+    lst <- setNames(x@.Data, names(x))
+    data <- setNames(stack(lst), c(.nature(x@nature, TRUE), "Type"))[, 2:1]
+    autor(tibble::as_tibble(data), ..., notshow = TRUE, shownote = FALSE)
+  })
+
+setMethod("autor", signature = c(x = "notshow", name = "missing"),
+  function(x, ...){
+    autor(x@data, ..., notshow = TRUE, shownote = FALSE)
   })
 
 setMethod("autor", signature = c(x = "list", name = "character"),
@@ -2278,7 +2400,8 @@ setMethod("autor", signature = c(x = "df", name = "character"),
       function(x) is.character(x) | is.numeric(x) | is.logical(x) | is.factor(x))
     file <- autosv(x, name, ...)
     if (getOption("autor_legend_as_caption", TRUE)) {
-      include(x, name, caption = Legend(x), ...)
+      include(x, name, caption = Legend(x),
+        footer = Legend(x, "note"), ...)
     } else {
       include(x, name, ...)
     }
@@ -2319,7 +2442,7 @@ setMethod("autor", signature = c(x = "fig", name = "character"),
   })
 
 setMethod("autor", signature = c(x = "files", name = "character"),
-  function(x, name, ..., asis = getOption("autor_asis", TRUE)){
+  function(x, name, ..., asis = getOption("autor_asis", FALSE)){
     file <- autosv(x, name, ...)
     if (needTex()) {
       cat("\n\n\\begin{center}\\pgfornament[anchor=center,ydelta=0pt,width=9cm]{85}\\vspace{1.5cm}\\end{center}")
@@ -2366,7 +2489,10 @@ setGeneric("include",
 
 ## include for fig
 setMethod("include", signature = c(x = "fig"),
-  function(x, name, caption = NULL, ...){
+  function(x, name, caption = NULL, notshow = FALSE, ...){
+    if (notshow) {
+      return(invisible())
+    }
     if (knitr::is_latex_output()) {
       cat("\n\\def\\@captype{figure}\n")
       cat("\\begin{center}\n",
@@ -2383,7 +2509,10 @@ setMethod("include", signature = c(x = "fig"),
   })
 
 setMethod("include", signature = c(x = "df"),
-  function(x, name, caption = NULL, ...){
+  function(x, name, caption = NULL, footer = NULL, notshow = FALSE, ...){
+    if (notshow) {
+      return(invisible())
+    }
     x <- tibble::as_tibble(x)
     if (is.null(caption)) {
       caption <- as_caption(name)
@@ -2394,7 +2523,12 @@ setMethod("include", signature = c(x = "df"),
     } else if (knitr::pandoc_to("docx")) {
       x <- trunc_table(x)
       knitr::opts_current$set(tab.id = name)
-      writeLines(flextable:::knit_print.flextable(pretty_flex(x, caption, NULL)))
+      writeLines(
+        flextable:::knit_print.flextable(
+          pretty_flex(x, caption, footer = footer,
+            font.size = ifelse(ncol(x) > 10, 8, 10.5))
+        )
+      )
     } else {
       x <- trunc_table(x)
       print(knitr::kable(x, "markdown", caption = caption))
@@ -2407,7 +2541,7 @@ as_caption <- function(str) {
 
 trunc_table <- function(x) {
   trunc <- getOption("autor_trunc_table", FALSE)
-  if (ncol(x) > 5) {
+  if (trunc && ncol(x) > 5) {
     x <- x[, 1:5]
   }
   width <- if (ncol(x) > 7) {
@@ -2465,15 +2599,15 @@ setGeneric("select_savefun",
   function(x, ...) standardGeneric("select_savefun"))
 
 setMethod("select_savefun", signature = c(x = "list"),
-  function(x){
+  function(x, ...){
     fun <- function(x, class) {
       vapply(x, function(obj) is(obj, class), logical(1))
     }
     if (all(fun(x, "file_fig"))) {
-      function(lst, name)
+      function(lst, name, ...)
         get_fun("writeFiles")(lst, get_realname(name))
     } else if (all(fun(x, "easywrite"))) {
-      function(lst, name)
+      function(lst, name, ...)
         get_fun("writeDatas")(lst, get_realname(name))
     } else if (all(fun(x, "gg.obj"))) {
       function(lst, name, ...)
@@ -2484,6 +2618,36 @@ setMethod("select_savefun", signature = c(x = "list"),
     } else {
       stop("None function found for save")
     }
+  })
+
+setMethod("select_savefun", signature = c(x = "notshow"),
+  function(x){
+    function(x, ...) {
+      select_savefun(x@data)(x@data, ...)
+    }
+  })
+
+setMethod("select_savefun", signature = c(x = "feature_char"),
+  function(x){
+    function(x, ...) {
+      data <- setNames(tibble::tibble(as.character(x)), .nature(x@nature, TRUE))
+      select_savefun(data)(data, ...)
+    }
+  })
+
+setMethod("select_savefun", signature = c(x = "feature_list"),
+  function(x){
+    function(x, ...) {
+      lst <- setNames(x@.Data, names(x))
+      data <- setNames(stack(lst), c(.nature(x@nature, TRUE), "Type"))[, 2:1]
+      data <- tibble::as_tibble(data)
+      select_savefun(data)(data, ...)
+    }
+  })
+
+setMethod("select_savefun", signature = c(x = "data_binary"),
+  function(x){
+    get_fun(".write_data_binary")
   })
 
 setMethod("select_savefun", signature = c(x = "can_not_be_draw"),
@@ -2910,15 +3074,15 @@ take_positions <- function(plots, envir = .GlobalEnv,
   fun_wrap = "autor", extra_cmd = NULL)
 {
   calls <- substitute(plots)
-  if (rlang::expr_text(calls[[1]]) != "`{`") {
-    stop('rlang::expr_text(calls[[1]]) != "`{`"')
+  if (!is(calls, "{")) {
+    stop('!is(calls, "{").')
   }
   if (.is_in_overture()) {
     labels <- vapply(calls[-1],
       function(call) {
         res <- try(label(eval(parse(text = rlang::expr_text(call)))), TRUE)
         if (inherits(res, "try-error")) {
-          stop(glue::glue("Overture: can not can label from `{rlang::expr_text(call)}`"))
+          stop(glue::glue("Overture: can not get label from `{rlang::expr_text(call)}`"))
         }
         res
       }, character(1))

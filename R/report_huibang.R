@@ -29,6 +29,10 @@ setup.sshfs <- function(project = guess_project(), ws = getRemoteWs(),
   .send_pkg_to_remote(..., upd = TRUE)
 }
 
+table_qc.hb <- function() {
+  ftibble(file.path(.expath, "report_qc.csv"))
+}
+
 .send_pkg_to_remote <- function(from = "~/utils.tool",
   exclude = ".git", to = "remote", upd = FALSE, remoteUntar = TRUE, remote = "remote")
 {
@@ -135,6 +139,62 @@ push_script.hb <- function(..., .project = guess_project(),
     })
 }
 
+project_packaging.hb <- function(file_report, overwrite = FALSE, 
+  overwrite_report = overwrite,
+  path = "./remote", remote = "remote", report_share_to = "~/.var/app/com.tencent.WeChat/xwechat_files",
+  wait = TRUE)
+{
+  if (!is_sshfs_mount(path)) {
+    stop('!is_sshfs_mount(path).')
+  }
+  if (!file.exists(file_report)) {
+    stop('!file.exists(file_report).')
+  }
+  ws <- getRemoteWs()
+  pr <- guess_project()
+  num_project <- strx(pr, "(?<=project)[0-9]+")
+  message(glue::glue("Project number: {num_project}"))
+  # remote is linux!
+  dir_project <- paste0(ws, "/", pr)
+  time <- format(Sys.Date(), "%Y%m%d")
+  types <- c("scripts", "results", "report")
+  names <- setNames(
+    as.list(glue::glue("project_{num_project}_{types}_{time}")), types
+  )
+  message(glue::glue("Send report file..."))
+  toDocx <- file.path(glue::glue("{path}"), glue::glue("{names$report}.docx"))
+  if (!file.exists(toDocx) || overwrite_report) {
+    file.copy(file_report, toDocx, TRUE)
+    cdRun(glue::glue("soffice --headless --convert-to pdf --outdir {path} {toDocx}"))
+  }
+  ## scripts and files.
+  all_scripts <- list.files(path, "^r\\.[0-9]+.*\\.r$")
+  all_results <- gs(all_scripts, "^r\\.|\\.r$", "")
+  fun_bind <- function(x) paste(x, collapse = " ")
+  cmd_sed <- glue::glue("sed -i \"/^ORIGINAL_DIR\\|^.libPaths/d\" {names$scripts}/*")
+  cmd_packaging_scripts <- glue::glue(
+    "cd {dir_project} && mkdir {names$scripts} && cp -r {fun_bind(all_scripts)} -t {names$scripts} && {cmd_sed} && zip -r {names$scripts}.zip {names$scripts}"
+  )
+  cmd_packaging_results <- glue::glue(
+    "cd {dir_project} && mkdir {names$results} && cp -r {fun_bind(all_results)} -t {names$results} && zip -r {names$results}.zip {names$results}"
+  )
+  if (!file.exists(file.path(path, glue::glue("{names$scripts}.zip"))) || overwrite) {
+    message(glue::glue("Pacakging scripts: {names$scripts} ..."))
+    cdRun("ssh ", remote, " '", cmd_packaging_scripts, "'", wait = wait)
+    message(glue::glue("Pacakging results: {names$results} ..."))
+    cdRun("ssh ", remote, " '", cmd_packaging_results, "'", wait = wait)
+  }
+  text_reply <- glue::glue("已上传分析报告:{dir_project}/{names$report}.docx和对应pdf\n\n代码压缩包:{dir_project}/{names$scripts}.zip\n\n结果文件压缩包:{dir_project}/{names$results}.zip")
+  browseURL(normalizePath(path), "xdg-open")
+  gett(text_reply)
+  if (!is.null(report_share_to)) {
+    file.copy(toDocx, report_share_to, TRUE)
+    file.copy(
+      paste0(tools::file_path_sans_ext(toDocx), ".pdf"), report_share_to, TRUE
+    )
+  }
+}
+
 pkgVersion_remote <- function(pkgs, path = "remote",
   exlibrary = getOption("remote_R_library", ""), remote = "remote")
 {
@@ -160,17 +220,27 @@ pkgVersion_remote <- function(pkgs, path = "remote",
   res
 }
 
-run_remote_output.hb <- function(run = FALSE,
+run_remote_output.hb <- function(run = FALSE, skip = NULL,
   files = list.files(path, "^r\\.[0-9]+.*\\.r$", full.names = TRUE),
-  path = "remote")
+  order_by_number = TRUE,
+  path = "remote", cl = NULL)
 {
   if (!is_sshfs_mount(path)) {
     stop('!is_sshfs_mount(path).')
   }
   tmpdir <- file.path(path, "tmp")
   dir.create(tmpdir, FALSE)
-  allCodes <- lapply(files, 
-    function(file) {
+  if (order_by_number) {
+    nums <- as.integer(strx(files, "[0-9]+"))
+    files <- files[order(nums)]
+  }
+  allCodes <- pbapply::pblapply(seq_along(files), cl = cl,
+    function(n) {
+      file <- files[n]
+      message(glue::glue("In script ({n}): {file}"))
+      if (n %in% skip) {
+        return()
+      }
       lines <- readLines(file)
       field_analysis <- grp(lines, "^# FIELD: analysis")
       field_output <- grp(lines, "^# FIELD: output")
@@ -178,7 +248,7 @@ run_remote_output.hb <- function(run = FALSE,
       fileName <- basename(file)
       writeLines(codes, file.path(tmpdir, fileName))
       if (run) {
-        run_in_project_nohup(glue::glue("tmp/{fileName}"))
+        run_in_project(glue::glue("tmp/{fileName}"))
       }
       codes
     })
@@ -247,28 +317,26 @@ output_with_counting_number <- function(plots, envir = .GlobalEnv,
     stop('!dir.exists(output).')
   }
   calls <- substitute(plots)
-  if (!identical(calls[[1]], quote(`{`))) {
-    stop('!identical(calls[[1]], quote(`{`)).')
+  if (!is(calls, "{")) {
+    stop('!is(calls, "{").')
   }
   rapp_find_job_name <- function(x) {
-    sub <- try(x[[1]], TRUE)
-    if (inherits(sub, "try-error")) {
-      stop("can not found job name.")
-    }
-    if (identical(sub, quote(expr = `@`))) {
-      rlang::expr_text(x[[2]])
-    } else {
+    if (is(x, "call") || is(x, "{")) {
       rapp_find_job_name(x[[2]])
+    } else if (is(x, "name")) {
+      rlang::expr_text(x)
+    } else {
+      stop("The finally of the 'substitute' is: ", class(x))
     }
   }
-  num <- as.integer(guess_number.hb(output))
+  num <- as.integer(guess_number.hb(output, p.pattern = "^[0-9]{2}"))
   fun_num <- function(n) {
     sprintf("%02d", n)
   }
   lapply(calls[-1], 
     function(call) {
       name <- rapp_find_job_name(call)
-      job <- try(get(name, envir = .GlobalEnv))
+      job <- try(get(name, envir = .GlobalEnv), TRUE)
       if (inherits(job, "try-error")) {
         .try_loadJob(name, FALSE)
       }
@@ -278,6 +346,30 @@ output_with_counting_number <- function(plots, envir = .GlobalEnv,
       fun_save <- select_savefun(object)
       fun_save(object, name = outputName, mkdir = output)
       num <<- num + 1L
+    })
+}
+
+convert_pdf_in_project <- function(path = "remote", skip = NULL)
+{
+  dirs <- gs(
+    list.files(path, "^r\\.[0-9]+.*\\.r$", full.names = TRUE), 
+    "(?<=/)r\\.|\\.r$", "", perl = TRUE
+  )
+  order <- as.integer(strx(basename(dirs), "[0-9]+"))
+  dirs <- dirs[ order(order) ]
+  if (!is.null(skip)) {
+    message(glue::glue("Skip: \n{bind(dirs[skip], co = '\n')}"))
+    dirs <- dirs[-skip]
+  }
+  targets <- list.files(dirs, "\\.pdf$", full.names = TRUE)
+  pbapply::pblapply(targets,
+    function(file) {
+      newfile <- paste0(tools::file_path_sans_ext(file), ".png")
+      res <- try(pdf_convert(file, filenames = newfile, dpi = 300, pages = 1))
+      if (inherits(res, "try-error")) {
+        sink()
+        message(glue::glue("Failed to convert file: {file}"))
+      }
     })
 }
 
@@ -451,6 +543,9 @@ save_small.huibang <- function(name, cutoff = 50, dir = "rdata_smallObject")
 setup.huibang <- function() {
   conflicted::conflict_prefer("map", "utils.tool")
   options(
+    tibble.print_max = 100,
+    pillar.width = 100,
+    pillar.max_columns = 15,
     prio_lib = "/data/nas1/huanglichuang_OD/conda/envs/extra_pkgs/lib/R/library/",
     digits = 4,
     warning.length = 5000,
@@ -508,7 +603,14 @@ setup.huibang <- function() {
   options("download.file.method" = "wget", "download.file.extra" = "--no-check-certificate")
 }
 
-run_in_project_nohup <- function(script = "", remote = "remote", fun_map = NULL)
+run_in_project_nohup <- function(script, ...) {
+  run_in_project(
+    script, ..., wait = FALSE, ex1 = "nohup", ex2 = "> task.log 2>&1 &"
+  )
+}
+
+run_in_project <- function(script = "", remote = "remote", 
+  fun_map = NULL, wait = TRUE, ex1 = "", ex2 = "")
 {
   if (!is.null(fun_map)) {
     script <- fun_map(script)
@@ -516,7 +618,32 @@ run_in_project_nohup <- function(script = "", remote = "remote", fun_map = NULL)
   ws <- getRemoteWs()
   pr <- guess_project()
   dir_project <- paste0(ws, "/", pr)
-  cmd <- glue::glue("cd {dir_project} && nohup Rscript {script} > task.log 2>&1 &")
-  cdRun("ssh ", remote, " '", cmd, "'", wait = FALSE)
+  cmd <- glue::glue("cd {dir_project} && {ex1} Rscript {script} {ex2}")
+  cdRun("ssh ", remote, " '", cmd, "'", wait = wait)
+}
+
+mark_text <- function(string, color, bold = TRUE, ...) {
+  ftext <- officer::ftext(
+    string, officer::fp_text_lite(color = color, bold = bold, ...)
+  )
+  paste0("`", officer::to_wml(ftext), "`{=openxml}")
+}
+
+mark <- list()
+
+mark$red <- function(string) {
+  mark_text(string, color = "#C00000")
+}
+
+mark$sig <- mark$red
+
+mark$blue <- function(string) {
+  mark_text(string, color = "#2E75B5")
+}
+
+mark$th <- mark$blue
+
+mark$green <- function(string) {
+  mark_text(string, color = "green")
 }
 

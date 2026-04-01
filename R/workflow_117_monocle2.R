@@ -17,7 +17,8 @@ setGeneric("asjob_monocle2",
   function(x, ...) standardGeneric("asjob_monocle2"))
 
 setMethod("asjob_monocle2", signature = c(x = "job_seurat"),
-  function(x, compare = NULL, compare.by = "group", group.by = x$group.by, nfeatures = 1000)
+  function(x, compare = .guess_levels_from_job_seurat(x),
+    compare.by = "group", group.by = x$group.by, nfeatures = 1000)
   {
     if (!requireNamespace("monocle", quietly = TRUE)) {
       stop('!requireNamespace("monocle").')
@@ -146,28 +147,54 @@ setMethod("step3", signature = c(x = "job_monocle2"),
   })
 
 setMethod("step4", signature = c(x = "job_monocle2"),
-  function(x, ref, use = x$use, ...){
+  function(x, ref, use = x$use, recode = NULL, ...)
+  {
     step_message("Plot genes in pseudotime.")
     set.seed(x$seed)
     require(monocle)
     if (!is(ref, "feature")) {
       stop('!is(ref, "feature").')
     }
-    genes <- unique(resolve_feature(ref))
-    if (length(genes) > 10) {
-      stop('length(genes) > 10, too many input.')
+    regenes <- genes <- unique(resolve_feature(ref))
+    if (!is.null(recode)) {
+      regenes <- dplyr::recode(
+        genes, !!!setNames(names(recode), unname(recode))
+      )
+      fun_recode <- function(data) {
+        dplyr::mutate(data,
+          # f_id = dplyr::recode(f_id, !!!recode),
+          # gene_short_name = dplyr::recode(gene_short_name, !!!recode),
+          feature_label = dplyr::recode(feature_label, !!!recode)
+        )
+      }
+      fun_recode_layer <- function(layers) {
+        for (i in seq_along(layers)) {
+          data <- layers[[i]]$data
+          if (!is.null(data) && !is.null(data$feature_label)) {
+            layers[[i]]$data <- dplyr::mutate(
+              layers[[i]]$data, feature_label = dplyr::recode(feature_label, !!!recode)
+            )
+          }
+        }
+        return(layers)
+      }
     }
-    if (any(notGot <- !genes %in% rownames(object(x)))) {
-      stop(glue::glue("Not got: {bind(genes[notGot])}"))
+    if (length(regenes) > 10) {
+      stop('length(regenes) > 10, too many input.')
     }
-    object <- object(x)[genes, ]
+    if (any(notGot <- !regenes %in% rownames(object(x)))) {
+      stop(glue::glue("Not got: {bind(regenes[notGot])}"))
+    }
+    object <- object(x)[regenes, ]
     cli::cli_alert_info("monocle::plot_genes_in_pseudotime")
     p.geneInPseudo <- pbapply::pbsapply(use,
       function(type) {
-        wrap(
-          monocle::plot_genes_in_pseudotime(object, color_by = type, ...), 
-          5, 2 * length(genes)
-        )
+        p <- monocle::plot_genes_in_pseudotime(object, color_by = type, ...)
+        if (!is.null(recode)) {
+          p <- .set_ggplot_content(p, fun_recode)
+          p <- .set_ggplot_content(p, fun_recode_layer, "layers")
+        }
+        wrap(p, 5, 2 * length(regenes))
       }, simplify = FALSE)
     p.geneInPseudo <- set_lab_legend(
       p.geneInPseudo,

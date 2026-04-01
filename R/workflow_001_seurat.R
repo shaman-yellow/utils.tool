@@ -348,8 +348,8 @@ setMethod("anno", signature = c(x = "job_seurat"),
     # cellMarker
     type = c("Normal cell"),
     # plot markers "derived|progenitor|Transitional|Memory|switch|white blood cell"
-    exclude = NULL, include = NULL, show = NULL, notShow = NULL,
-    renameCell = NULL, keep_markers = 3,
+    exclude = NULL, include = NULL, show = NULL, notShow = NULL, 
+    only_show_annotated = TRUE, renameCell = NULL, keep_markers = 3,
     # chatGPT 
     filter.pct = .25, toClipboard = TRUE, post_modify = FALSE,
     n = 30, variable = FALSE, hp_type = c("pretty", "seurat"), ..., init = TRUE)
@@ -379,6 +379,14 @@ setMethod("anno", signature = c(x = "job_seurat"),
     x <- methodAdd(
       x, "以 Python 工具 `SCSA` ({cite_show('ScsaACellTyCaoY2020')}) (<https://github.com/bioinfo-ibms-pumc/SCSA>) 结合特异 Marker 对细胞群注释。"
     )
+    if (only_show_annotated) {
+      check <- dplyr::filter(show.markers, cell %in% !!object(x)@meta.data[[res.col]])
+      if (!nrow(check)) {
+        warning("After filtered, no markers matched for annotated cells, switch to show all markers.")
+      } else {
+        show.markers <- check
+      }
+    }
     t.validMarkers <- reframe_col(
       show.markers, "markers", function(x) bind(x)
     )
@@ -432,6 +440,17 @@ setMethod("anno", signature = c(x = "job_seurat"),
     t.props_scsa <- p.props_scsa$.data
     x <- tablesAdd(x, scsa_res_all = lst$scsa_res_all, t.props_scsa)
     if (!is.null(p.props_scsa$setGroup) && p.props_scsa$setGroup) {
+      if (!is.null(object(x)@meta.data$group)) {
+        p.props_scsa_group <- plot_cells_proportion(
+          object(x)@meta.data, "group", res.col, "Group", group = NULL
+        )
+        p.props_scsa_group <- set_lab_legend(
+          p.props_scsa_group,
+          glue::glue("{x@sig} SCSA annotation Cell Proportions in each group"),
+          glue::glue("注释的细胞群在各个组别中的占比|||不同颜色代表不同细胞类型，纵坐标为不同样本，横坐标为细胞类型所占百分比。")
+        )
+        x <- plotsAdd(x, p.props_scsa_group)
+      }
       p.props_scsa_stat <- .map_boxplot2(
         p.props_scsa$.data, TRUE, "group", "Ratio", ylab = "Ratio", ids = "Cells"
       )
@@ -440,10 +459,13 @@ setMethod("anno", signature = c(x = "job_seurat"),
         glue::glue("{x@sig} Cell Proportion intergroup comparison"),
         glue::glue("细胞群占比的组间差异分析|||横坐标为为不同细胞簇类型，纵坐标为细胞类型所占比例，纵坐标越高表示该细胞类型所占比例越大。不同颜色代表不同分组。")
       )
-      sig.snap <- snap(p.props_scsa_stat)
-      x <- plotsAdd(x, p.props_scsa_stat)
+      snap_stat <- .stat_compare_by_pvalue(
+        p.props_scsa_stat, .guess_levels_from_job_seurat(x), 
+        name = "", mode = "ratio"
+      )
       # snap <- glue::glue("{bind(names(pvalue))} 的 wilcox.test 统计学显著性 P 为 {bind(pvalue)}。")
-      x <- snapAdd(x, "针对不同样本的不同分组，对细胞占比做差异分析{aref(p.props_scsa_stat)}。有显著差异的细胞为：{bind(sig.snap)}。")
+      x <- snapAdd(x, "针对不同样本的不同分组，对细胞占比做差异分析。{snap_stat}")
+      x <- plotsAdd(x, p.props_scsa_stat)
     }
     return(x)
   })
@@ -819,34 +841,55 @@ setMethod("vis", signature = c(x = "job_seurat"),
 
 setMethod("focus", signature = c(x = "job_seurat"),
   function(x, features, group.by = x@params$group.by, 
-    sp = FALSE, name = "genes", vln = TRUE, dim = TRUE, 
+    name = "genes", recode = NULL, vln = TRUE, dim = TRUE, 
     dot = TRUE, cols = c("lightgrey", "blue"), facetTest = NULL,
-    return_type = c("job", "list"), ...)
+    levels = .guess_levels_from_job_seurat(x),
+    return_type = c("job", "list"), sp = FALSE, ...)
   {
     if (is(features, "feature")) {
-      features <- resolve_feature(features)
+      refea <- features <- resolve_feature(features)
+    }
+    renameFeature <- FALSE
+    if (!is.null(recode)) {
+      # the `recode`, used to rename the feature in plots.
+      refea <- dplyr::recode(
+        features, !!!setNames(names(recode), unname(recode))
+      )
+      renameFeature <- TRUE
+      fun_rename_title <- function(lst) {
+        lst$title <- dplyr::recode(lst$title, !!!recode)
+        lst
+      }
     }
     if (sp) {
-      return(focus(.job_seuratSp(object = object(x)), features, ...))
+      return(focus(.job_seuratSp(object = object(x)), refea, ...))
     }
-    layout <- calculate_layout(length(features))
+    layout <- calculate_layout(length(refea))
     ncol <- layout[[ "cols" ]]
     ps <- list()
     if (vln) {
       p.vln <- e(Seurat::VlnPlot(
-          object(x), features = features, group.by = group.by,
+          object(x), features = refea, group.by = group.by,
           pt.size = 0, alpha = .3, cols = color_set(), combine = FALSE
           ))
+      if (renameFeature) {
+        p.vln <- lapply(
+          p.vln, .set_ggplot_content, fun = fun_rename_title, slot = "labels"
+        )
+      }
       if (!is.null(facetTest)) {
         ps$plist.vlnFacet <- .facet_seurat_vlnPlot(
-          p.vln, facetTest, x
+          p.vln, facetTest, x, recode = recode
         )
-        snaps <- vapply(ps$plist.vlnFacet, FUN.VALUE = character(1), 
-          function(p) {
-            glue::glue("{aref(p)}有显著性的细胞为:{snap(p)}")
+        snaps <- vapply(names(ps$plist.vlnFacet), FUN.VALUE = character(1), 
+          function(name) {
+            .stat_compare_by_pvalue(
+              ps$plist.vlnFacet[[name]], levels, name,
+              recode = recode
+            )
           })
-        snaps <- bind(glue::glue("{names(ps$plist.vlnFacet)} {snaps}"), co = "; ")
-        x <- snapAdd(x, "聚焦于 {bind(features)} 在各细胞中的表达趋势，使用 Wilcoxon 检验对基因表达量差异分析 (P &lt; 0.05)，{snaps}。", add = FALSE, step = name)
+        snaps <- bind(snaps, co = "\n\n\n")
+        x <- snapAdd(x, "聚焦于 {bind(features)} 在各细胞中的表达趋势，使用 Wilcoxon 检验对基因表达量差异分析 (P &lt; 0.05)。{snaps}。", add = FALSE, step = name)
       }
       p.vln <- lapply(p.vln, function(x) x + theme(legend.position = "none"))
       p.vln <- wrap_layout(patchwork::wrap_plots(p.vln, ncol = ncol), layout)
@@ -858,10 +901,15 @@ setMethod("focus", signature = c(x = "job_seurat"),
       ps$p.vln <- p.vln
     }
     if (dim) {
-      p.dim <- wrap_layout(patchwork::wrap_plots(e(Seurat::FeaturePlot(
-              object(x), 
-              features = features, combine = FALSE, cols = cols
-              )), ncol = ncol), layout)
+      p.dim <- e(Seurat::FeaturePlot(object(x), 
+              features = refea, combine = FALSE, cols = cols
+              ))
+      if (renameFeature) {
+        p.dim <- lapply(
+          p.dim, .set_ggplot_content, fun = fun_rename_title, slot = "labels"
+        )
+      }
+      p.dim <- wrap_layout(patchwork::wrap_plots(p.dim, ncol = ncol), layout)
       p.dim <- set_lab_legend(
         p.dim,
         glue::glue("{x@sig} dimension plot of {name}"),
@@ -871,11 +919,19 @@ setMethod("focus", signature = c(x = "job_seurat"),
     }
     if (dot) {
       p.dot <- e(Seurat::DotPlot(
-          object(x), features = features, group.by = group.by
+          object(x), features = refea, group.by = group.by
           )) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+      if (renameFeature) {
+        fun_mutate <- function(data) {
+          dplyr::mutate(
+            data, features.plot = dplyr::recode(features.plot, !!!recode)
+          )
+        }
+        p.dot <- .set_ggplot_content(p.dot, fun_mutate)
+      }
       p.dot <- set_lab_legend(
         wrap_scale_heatmap(
-          p.dot, features, object(x)@meta.data[[group.by]]
+          p.dot, refea, object(x)@meta.data[[group.by]]
           ),
         glue::glue("{x@sig} dot plot of {name}"),
         glue::glue("基因 {less(features)} 表达水平的气泡图。|||横坐标为基因，纵坐标为不同类型细胞，所示气泡点大小表示为基因的平均表达量。")
@@ -891,7 +947,85 @@ setMethod("focus", signature = c(x = "job_seurat"),
     }
   })
 
-.facet_seurat_vlnPlot <- function(plist, facet, x) {
+.stat_compare_by_pvalue <- function(x, levels, name, 
+  ..., recode = NULL, mode = c("expr", "ratio"))
+{
+  .get_snap_from_meassure(
+    .get_measure(x, levels, ...), name, recode = recode, mode = mode
+  )
+}
+
+.get_measure <- function(x, levels, cut = .05) {
+  if (is.null(x$pvalue) || is.null(x$compare)) {
+    stop('is.null(x$pvalue) || is.null(x$compare).')
+  }
+  if (is.null(names(x$pvalue))) {
+    stop('is.null(names(x$pvalue)).')
+  }
+  if (length(x$compare) != length(x$pvalue)) {
+    stop('length(x$compare) != length(x$pvalue).')
+  }
+  if (is.null(x$compare[[1]]$high)) {
+    stop('is.null(x$compare[[1]]$high).')
+  }
+  if (!any(isSig <- x$pvalue < .05)) {
+    return(NULL)
+  }
+  nameSig <- names(x$pvalue)[isSig]
+  measure <- ifelse(
+    vapply(x$compare[isSig], function(x) x$high, character(1)) == levels[1], 
+    "up", "down"
+  )
+  list(g1 = levels[2], g2 = levels[1], wh = nameSig, res = measure,
+    note = glue::glue("(P = {signif(x$pvalue[isSig], 4)})"), 
+    levels = levels, x = x)
+}
+
+.get_snap_from_meassure <- function(ms, name, recode = NULL, 
+  mode = c("expr", "ratio"))
+{
+  if (missing(name)) {
+    rlang::abort("`name` for `.get_snap_from_meassure` is missing.")
+  }
+  if (is.null(ms)) {
+    return("如图{aref(ms$x)}差异分析结果，{ms$g1} 组和 {ms$g2} 组之间无显著性差异。")
+  }
+  mode <- match.arg(mode)
+  if (mode == "expr") {
+    ms$res <- dplyr::recode(ms$res, up = "升高", down = "下降")
+    attribute <- "表达量"
+  } else if (mode == "ratio") {
+    ms$res <- dplyr::recode(ms$res, up = "增加", down = "减少")
+    attribute <- "比例"
+  }
+  if (!is.null(recode)) {
+    for (i in c("wh", "g1", "g2")) {
+      ms[[i]] <- dplyr::recode(ms[[i]], !!!recode)
+    }
+    name <- dplyr::recode(name, !!!recode)
+  }
+  mem <- glue::glue("{ms$wh}的{name}{attribute}要显著{ms$res}{ms$note}")
+  lead <- glue::glue("如图{aref(ms$x)}差异分析表明，相比于 {ms$g1} 组，{ms$g2} 组")
+  glue::glue("{lead}{bind(mem)}。")
+}
+
+.guess_levels_from_job_seurat <- function(x) {
+  if (is.null(object(x)@meta.data$group)) {
+    stop('is.null(object(x)@meta.data$group), can not guess levels from job_seurat without group.')
+  }
+  levels <- unique(object(x)@meta.data$group)
+  if (length(levels) > 2) {
+    stop('length(levels) > 2, can not guess levels from group number greater than 2.')
+  }
+  pattern <- "healthy|normal|control"
+  isControl <- grpl(levels, pattern, ignore.case = TRUE)
+  if (all(isControl)) {
+    stop('all(isControl), too many group of control matched')
+  }
+  c(levels[!isControl], levels[isControl])
+}
+
+.facet_seurat_vlnPlot <- function(plist, facet, x, recode = NULL) {
   if (!is(x, "job")) {
     stop('!is(x, "job")')
   }
@@ -912,6 +1046,9 @@ setMethod("focus", signature = c(x = "job_seurat"),
       data <- map(data, "cell", metadata, "cell", facet, col = "var")
       layout <- calculate_layout(length(unique(data$var)))
       p <- .map_boxplot2(data, TRUE, ylab = "Expression", ncol = layout[[ "cols" ]])
+      if (!is.null(recode)) {
+        title <- dplyr::recode(title, !!!recode)
+      }
       p <- p + ggtitle(title)
       p <- wrap_layout(p, layout)
       p <- set_lab_legend(
@@ -933,6 +1070,15 @@ setMethod("focus", signature = c(x = "job_seurat"),
   } else {
     x[[ slot ]]
   }
+}
+
+.set_ggplot_content <- function(x, fun, slot = "data") {
+  if (is(x, "S7_object")) {
+    slot(x, slot) <- fun(slot(x, slot))
+  } else {
+    x[[ slot ]] <- fun(x[[ slot ]])
+  }
+  return(x)
 }
 
 wrap_scale_heatmap <- function(data, w = NULL, h = NULL, ...,
@@ -1948,10 +2094,10 @@ find_outliers_iqr <- function(x, coef = 1.5) {
   skewness + dispersion + gap
 }
 
-plot_cells_proportion <- function(metadata, sample = "orig.ident",
-  cell = "ChatGPT_cell", relative = TRUE, group = "auto")
+plot_cells_proportion <- function(metadata, ident = "orig.ident",
+  cell = "ChatGPT_cell", ident.name = "Sample", relative = TRUE, group = "auto")
 {
-  ntypes <- length(unique(metadata[[ sample ]]))
+  ntypes <- length(unique(metadata[[ ident ]]))
   fun_mutate <- function(x) {
     if (is.factor(x)) {
       x <- droplevels(x)
@@ -1970,18 +2116,18 @@ plot_cells_proportion <- function(metadata, sample = "orig.ident",
   }
   lst <- lapply(lst, 
     function(metadata) {
-      stat <- table(metadata[[ sample ]], fun_mutate(metadata[[ cell ]]))
+      stat <- table(metadata[[ ident ]], fun_mutate(metadata[[ cell ]]))
       if (relative) {
         stat <- prop.table(stat, 1)
       }
       data <- data.frame(stat)
-      data <- dplyr::rename(data, Sample = Var1, Cells = Var2, Ratio = Freq)
+      data <- dplyr::rename(data, ident = Var1, Cells = Var2, Ratio = Freq)
     })
   data <- dplyr::bind_rows(lst, .id = "group")
-  p.props <- ggplot(data, aes(x = Sample, y = Ratio, fill = Cells)) +
+  p.props <- ggplot(data, aes(x = ident, y = Ratio, fill = Cells)) +
     geom_bar(stat = "identity", width = .7, size = .5) +
     coord_flip() +
-    labs(x = "Sample", y = "Ratio", fill = "Cells") +
+    labs(x = ident.name, y = "Ratio", fill = "Cells") +
     scale_fill_manual(values = color_set()) +
     rstyle("theme")
   if (setGroup) {
@@ -2091,5 +2237,79 @@ pgc <- pattern_gradientColor <- function(pattern, names,
       return(colors)
     })
   unlist(palette)
+}
+
+match_strings <- function(x, y, max_dist = 0.3, method = "jw", 
+  keep_identical = FALSE, print = TRUE)
+{
+
+  x <- unique(x)
+  y <- unique(y)
+
+  # ---- Standardization function ----
+  normalize <- function(s) {
+    s <- stringr::str_to_lower(s)
+    s <- stringr::str_replace_all(s, "-", " ")
+    s <- stringr::str_replace_all(s, "_", " ")
+    s <- stringr::str_replace_all(s, "s$", "")  # Simplify complex numbers
+    s <- stringr::str_squish(s)
+    return(s)
+  }
+
+  # ---- Word sorting (solving order problems)----
+  sort_words <- function(s) {
+    split_list <- stringr::str_split(s, " ")
+    sorted <- lapply(split_list, function(words) {
+      paste(sort(words), collapse = " ")
+    })
+    return(unlist(sorted))
+  }
+
+  # ---- pretreatment ----
+  x_norm <- normalize(x)
+  y_norm <- normalize(y)
+
+  x_norm <- sort_words(x_norm)
+  y_norm <- sort_words(y_norm)
+
+  # ---- match ----
+  idx <- stringdist::amatch(
+    x_norm, y_norm,
+    method = method,
+    maxDist = max_dist
+  )
+
+  matched <- y[idx]
+
+  # ---- distance calculation ----
+  dist <- rep(NA, length(x_norm))
+  valid <- !is.na(idx)
+
+  if (any(valid)) {
+    dist[valid] <- stringdist::stringdist(
+      x_norm[valid],
+      y_norm[idx[valid]],
+      method = method
+    )
+  }
+
+  res <- tibble::tibble(
+    x = x,
+    y = matched,
+    # x_clean = x_norm,
+    # y_clean = ifelse(is.na(idx), NA, y_norm[idx]),
+    distance = dist
+    # matched_index_in_y = idx,
+    # stringsAsFactors = FALSE
+  )
+
+  if (!keep_identical) {
+    res <- dplyr::filter(res, x != y)
+  }
+  if (print) {
+    print(res)
+  }
+
+  return(res)
 }
 

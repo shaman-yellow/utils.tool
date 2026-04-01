@@ -250,11 +250,11 @@ setMethod("focus", signature = c(x = "job_deseq2"),
     if (identical(ref.use, "guess")) {
       ref.use <- .guess_symbol(fakeLmJob)
     }
-    fakeLmJob <- focus(
+    fakeLmJob <- suppressMessages(focus(
       fakeLmJob, ref = ref, ref.use = ref.use,
       .name = .name, which = which, data.which = data.which, sig = sig, 
       , use = use, test = test, ...
-    )
+    ))
     where <- paste0("focusedDegs_", .name)
     if (identical(clear, "auto")) {
       clear <- !is.null(x[[ where ]])
@@ -280,10 +280,14 @@ setMethod("focus", signature = c(x = "job_deseq2"),
   })
 
 setMethod("asjob_iobr", signature = c(x = "job_deseq2"),
-  function(x, idType = "Symbol", source = c("local", "biomart"), ...)
+  function(x, idType = "Symbol", source = c("local", "biomart"),
+    levels = NULL, guess_which_level = 1L, ...)
   {
     if (x@step < 1L) {
       stop('x@step < 1L.')
+    }
+    if (is.null(levels)) {
+      levels <- .get_group_from_contrast_character(names(x@tables$step2$t.results)[guess_which_level])
     }
     mtx <- SummarizedExperiment::assay(object(des.iua))
     message("Transform the count to TPM.")
@@ -300,6 +304,7 @@ setMethod("asjob_iobr", signature = c(x = "job_deseq2"),
     metadata <- data.frame(x$vst@colData)
     vst <- SummarizedExperiment::assay(x$vst)
     x <- job_iobr(mtx, metadata = metadata)
+    x$levels <- levels
     x$vst <- vst
     return(x)
   })

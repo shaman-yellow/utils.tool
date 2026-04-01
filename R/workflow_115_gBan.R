@@ -25,6 +25,7 @@ setMethod("asjob_gBan", signature = c(x = "feature"),
   function(x){
     fea <- resolve_feature_snapAdd_onExit("x", x)
     x <- .job_gBan(object = fea)
+    x <- methodAdd(x, "为进一步挖掘筛选得到的关键基因在临床转化中的潜在应用价值，基于 GraphBAN 模型开展药物预测分析。该分析旨在从分子靶点层面连接疾病相关基因与可干预药物之间的桥梁，识别可能影响疾病发生发展的药物分子，为后续机制研究及药物重定位提供理论依据，并为精准治疗策略的制定提供潜在靶点与候选干预方案。")
     return(x)
   })
 
@@ -150,26 +151,38 @@ setMethod("step4", signature = c(x = "job_gBan"),
         )
         return(res)
       })
-    names(res) <- s(basename(files_res), "\\..*$", "")
+    names(res) <- s(s(basename(files_res), pattern, ""), "\\..*$", "")
     res <- dplyr::bind_rows(res, .id = "model")
     x$res_graphBan <- res
     split_by_genes <- split(res, res$hgnc_symbol)
-    s.eachModel <- vapply(
-      split_by_genes, try_snap, character(1), main = "model", sub = "id"
+    x <- methodAdd(x, "基于 GraphBAN（Graph-Based Attention Network）的CPI（化合物-蛋白质相互作用）预测框架，结合 BindingDB、BioSNAP 和 KIBA 等公开药物–靶点互作数据集构建基础图网络，用于模型训练与验证，输出每对“化合物-蛋白质”组合的相互作用概率，筛选药物与靶点互作概率大于 {cutoff} 的化合物。")
+    snap_each <- vapply(
+      names(split_by_genes), FUN.VALUE = character(1),
+      function(gene) {
+        data <- split_by_genes[[gene]]
+        each <- vapply(split(data, data[["model"]]), nrow, integer(1))
+        snaps <- glue::glue("以数据库 {names(each)} 训练的模型中得到 {each} 个唯一化合物")
+        glue::glue("基因 {gene} 在{bind(snaps)}。")
+      }
     )
-    s.eachModel <- paste0(
-      paste0(
-        s(names(s.eachModel), pattern, ""), " 得到候选药物 ", s.eachModel
-      ), collapse = "。"
-    )
-    s.eachTarget <- bind(try_snap(split_by_genes, "id"))
-    x <- methodAdd(x, "基于 GraphBAN（Graph-Based Attention Network）的CPI（化合物-蛋白质相互作用）预测框架，结合 BindingDB、BioSNAP 和 KIBA 等公开药物–靶点互作数据集构建基础图网络，用于模型训练与验证，输出每对“化合物-蛋白质”组合的相互作用概率。")
+    snap_each <- bind(snap_each, co = "")
+    x <- snapAdd(x, "经 GraphBAN (BindingDB, BioSNAP, KIBA 模型) 预测，筛选药物与靶点互作概率大于 {cutoff} 的化合物，{snap_each}")
     if (method_keep == "all") {
-      ins <- unique(ins(lst = lapply(split_by_genes, function(x) x$SMILES)))
-      s.ins <- glue::glue("共同作用于各靶点的药物有 {length(ins)} 个。")
+      p.common <- new_venn(lst = lapply(split_by_genes, function(x) x$SMILES))
+      p.common <- set_lab_legend(
+        p.common,
+        glue::glue("{x@sig} intersection of drugs for gene predicted by graphBan"),
+        glue::glue("各基因 graphBan 预测的候选药物交集|||不同颜色圆圈代表不同数据集，中间重叠部分表示同时存在多个集合中。")
+      )
+      x <- plotsAdd(x, p.common)
+      ins <- p.common$ins
       x$smiles_keep <- ins
       x$split_by_genes <- lapply(
         split_by_genes, function(x) x[x$SMILES %in% ins, ]
+      )
+      s.ins <- glue::glue("共同作用于各靶点({bind(names(split_by_genes))})的药物有 {length(ins)} 个")
+      x <- snapAdd(
+        x, "{s.ins}。以这 {length(ins)} 个化合物用于后续评估。"
       )
     } else if (method_keep == "respective") {
       x$smiles_keep <- unique(res$SMILES)
@@ -179,11 +192,32 @@ setMethod("step4", signature = c(x = "job_gBan"),
     x$smiles_from_gban <- x$smiles_keep
     x$file_smiles_for_admet <- file.path(x$dir_save, "smiles_for_admet.txt")
     writeLines(x$smiles_keep, x$file_smiles_for_admet)
-    x <- snapAdd(
-      x, "经 GraphBAN (BindingDB, BioSNAP, KIBA 模型) 预测，筛选药物与靶点互作概率大于 {cutoff} 的化合物。{s.eachModel} (三大模型的合集)。各靶点的唯一化合物统计为 {s.eachTarget}。{s.ins}"
-    )
     return(x)
   })
+
+.stat_rapp_table_by_fun <- function(data, levels, cover = "得到", fun = function(x) length(unique(x)))
+{
+  # n <- 0L
+  # cols <- names(levels)
+  # des <- unname(levels)
+  # if (length(cols) != length(des)) {
+  #   stop('length(cols) != length(des).')
+  # }
+  # rapp <- function(data, name) {
+  #   if (n + 1 > length(cols)) {
+  #     return("")
+  #   }
+  #   lst <- split(data, data[[cols[n + 1]]])
+  #   n <<- n + 1L
+  #   snap <- vapply(names(lst), FUN.VALUE = character(1), 
+  #     function(name) {
+  #       rapp(lst[[name]], name)
+  #     })
+  #   n <<- n - 1L
+  #   glue::glue("{des[n + 1]}{name}{cover}{fun(data[[ cols[ n + 2 ] ]])}个唯一{des[ n + 2 ]}。")
+  # }
+  # rapp(data, "")
+}
 
 setMethod("step5", signature = c(x = "job_gBan"),
   function(x, file_admet = NULL, cutoff = .7)
@@ -203,6 +237,15 @@ setMethod("step5", signature = c(x = "job_gBan"),
       DILI < cutoff, Ames < cutoff,
       dplyr::if_all(tidyselect::matches("CYP.*inh"), ~ .x < cutoff)
     )
+    t.candidate_admet <- dplyr::select(
+      admet, SMILES = raw_smiles, caco2, hia, PPB, DILI, Ames, dplyr::starts_with("CYP")
+    )
+    t.candidate_admet <- set_lab_legend(
+      t.candidate_admet,
+      glue::glue("{x@sig} drug candidates from ADMETlab"),
+      glue::glue("ADMETlab 评估药性后保留的候选药物")
+    )
+    x <- tablesAdd(x, t.candidate_admet)
     x$smiles_keep <- x$smiles_from_admet <- admet$raw_smiles
     x$file_smiles_for_swiss <- file.path(x$dir_save, "smiles_for_swiss.txt")
     writeLines(x$smiles_keep, x$file_smiles_for_swiss)
@@ -244,6 +287,17 @@ setMethod("step6", signature = c(x = "job_gBan"),
         })
       res <- table(unlist(passes))
       x$smiles_keep <- x$smiles_from_swiss <- names(res)[ res > n_pass ]
+      t.candidate_swissAdme <- dplyr::filter(swissAdme, raw_smiles %in% !!x$smiles_keep)
+      t.candidate_swissAdme <- dplyr::select(
+        t.candidate_swissAdme, SMILES = raw_smiles, MW, HBA = X_H_bond_acceptors, 
+        HBD = X_H_bond_donors, LogP = Consensus_Log_P, TPSA
+      )
+      t.candidate_swissAdme <- set_lab_legend(
+        t.candidate_swissAdme,
+        glue::glue("{x@sig} drug candidates from swissAdme"),
+        glue::glue("SwissADME 评估药性后保留的候选药物")
+      )
+      x <- tablesAdd(x, t.candidate_swissAdme)
       x <- methodAdd(x, "计算分子量 (MW)、氢键受体 (HBA) 数量、氢键供体 (HBD) 数量、LogP 值、拓扑极性表面积 (TPSA)，依据 Lipinski 五法则筛选 (标准：MW &lt; 500、HBA &lt; 10、HBD ≤ 5、LogP ≤ 4.15、TPSA &lt; 140 A²)。违反条目 ≤ {5-n_pass} 条的化合物判定为具有良好口服生物利用度及成药潜力。")
     }
     x <- snapAdd(x, "以 SwissADME 评估其药物特性后，余下 {length(x$smiles_keep)} 个化合物。")
@@ -264,7 +318,42 @@ setMethod("step7", signature = c(x = "job_gBan"),
     message(glue::glue("Not got: {numNotGot}"))
     cids <- dplyr::filter(cids, CID != 0)
     x <- snapAdd(x, "以 R 包 `PubChemR` ⟦pkgInfo('PubChemR')⟧ 从 PubChem 数据库 (<https://pubchem.ncbi.nlm.nih.gov/>) 检索化合物信息。将 PubChem 有记录条目的化合物视为候选药物 (n = {nrow(cids)})，并获取其对应化合物名。")
-    x$synos <- try_get_syn(cids$CID)
+    synos <- try_get_syn(cids$CID)
+    x$synos <- map(synos, "CID", cids, "CID", "SMILES", col = "SMILES")
+    t.final_candidates <- Reduce(
+      merge, list(
+        x$synos, x@tables$step6$t.candidate_swissAdme, x@tables$step5$t.candidate_admet
+      )
+    )
+    t.final_candidates <- set_lab_legend(
+      t.final_candidates,
+      glue::glue("{x@sig} Candidate drugs retained after all evaluation"),
+      glue::glue("经过药物特性评估后保留的候选药物")
+    )
+    t.final_candidates <- dplyr::relocate(
+      dplyr::select(t.final_candidates, -SMILES), Synonym, CID
+    )
+    t.final_candidates <- dplyr::mutate(
+      t.final_candidates, dplyr::across(
+        dplyr::where(is.numeric), function(x) signif(x, 2)
+      )
+    )
+    tdata <- t(dplyr::select(t.final_candidates, -Synonym, -CID))
+    colnames(tdata) <- glue::glue("C{seq_len(nrow(t.final_candidates))}")
+    tdata <- as_tibble(tdata, idcol = "Index")
+    tdata <- dplyr::mutate(
+      tdata, dplyr::across(dplyr::where(is.double), function(x) round(x, 2))
+    )
+    footer <- bind(
+      glue::glue(
+        "{colnames(tdata)[-1]}: {t.final_candidates$Synonym}"
+      ), co = "\n"
+    )
+    t.final_candidates_mutate <- set_lab_legend(tdata,
+      glue::glue("{x@sig} Candidate drugs retained after all evaluation transposition"),
+      glue::glue("经过药物特性评估后保留的候选药物|||列名称对应为以下化合物:\n{footer}")
+    )
+    x <- tablesAdd(x, t.final_candidates, t.final_candidates_mutate)
     feature(x) <- as_feature(
       x$synos$Synonym, "候选药物", nature = "compounds"
     )

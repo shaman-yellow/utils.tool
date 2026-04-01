@@ -19,9 +19,10 @@ binary_search <- function(fun = function(x) x <= 5, low = 1, high = 12)
   return(low - 1)
 }
 
-pkgInfo <- function(pkg, cache = .prefix("pkgInfo.rds", "db"), ...) {
+pkgInfo <- function(pkg, reload = FALSE, cache = .prefix("pkgInfo.rds", "db"), ...)
+{
   info <- getOption("autor_pkgInfo")
-  if (is.null(info)) {
+  if (reload || is.null(info)) {
     if (!file.exists(cache)) {
       warning("No file of {cache}.")
       info <- list()

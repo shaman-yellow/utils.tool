@@ -773,6 +773,14 @@ setMethod("step6", signature = c(x = "job_vina"),
       "tmp", "vina_pymol", fun_draw, list(data = data), rerun = rerun
     )
     figs <- unlist(figs, recursive = FALSE)
+    figs <- lapply(figs, 
+      function(x) {
+        if (is(x, "file_fig")) {
+          as_data_binary(x)
+        } else {
+          x
+        }
+      })
     names(figs) <- paste0(
       "Top", seq_along(figs), "_", data$hgnc_symbol, "_", data$PubChem_id
     )
@@ -804,6 +812,14 @@ setMethod("step7", signature = c(x = "job_vina"),
       "tmp", "vina_pymol_detail", fun_draw, list(data = data), rerun = rerun
     )
     figs <- unlist(figs, recursive = FALSE)
+    figs <- lapply(figs, 
+      function(x) {
+        if (is(x, "file_fig")) {
+          as_data_binary(x)
+        } else {
+          x
+        }
+      })
     names(figs) <- paste0(
       "Top", seq_along(figs), "_", data$hgnc_symbol, "_", data$PubChem_id
     )
@@ -1031,7 +1047,7 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
     dir.create(backup, FALSE)
     file.copy(img, backup, TRUE)
   }
-  fig <- file_fig(Combn, img)
+  fig <- as_data_binary(file_fig(Combn, img))
   lab(fig[[1]]) <- paste0("docking ", Combn, if (!detail) NULL else " detail")
   return(fig)
 }

@@ -4,9 +4,9 @@
 
 inclu.fig <- function(image, land = FALSE, saveDir = "thesis_fig", dpi = 300,
   scale = if (land) {
-    list(width = 10, height = 6.2)
+    list(width = 10, height = 6)
   } else {
-    list(width = 6.2, height = 3)
+    list(width = 6, height = 3)
   }, name = NULL, caption = NULL)
 {
   if (!file.exists(saveDir))
@@ -19,7 +19,11 @@ inclu.fig <- function(image, land = FALSE, saveDir = "thesis_fig", dpi = 300,
   if (grepl("\\.pdf$", file)) {
     savename <- file.path(saveDir, sub("\\.pdf$", ".png", file))
     if (!file.exists(savename)) {
-      pdf_convert(image, filenames = savename, dpi = dpi, pages = 1)
+      res <- try(pdf_convert(image, filenames = savename, dpi = dpi, pages = 1)) 
+      if (inherits(res, "try-error")) {
+        sink()
+        file.remove(savename)
+      }
       need_trim <- TRUE
     } else need_trim <- FALSE
   } else {

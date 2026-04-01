@@ -99,11 +99,11 @@ setMethod("step2", signature = c(x = "job_mlearn"),
     target <- x$target
     set.seed(seed)
     cv_lasso <- e(glmnet::cv.glmnet(
-      x = data, y = target,
-      family = "binomial", alpha = 1, nfolds = n,
-      # type.measure = "class",
-      standardize = TRUE, parallel = FALSE
-    ))
+        x = data, y = target,
+        family = "binomial", alpha = 1, nfolds = n,
+        # type.measure = "class",
+        standardize = TRUE, parallel = FALSE
+        ))
     lambda <- cv_lasso[[ lambda.type ]]
     coefs <- coef(cv_lasso, s = lambda)
     coefs_matrix <- as.matrix(coefs)
@@ -113,15 +113,49 @@ setMethod("step2", signature = c(x = "job_mlearn"),
     x$lasso_res <- list(
       cv_lasso = cv_lasso, coefs = coefs_matrix, features = selected, type = lambda.type
     )
-    p.lasso_cv <- as_grob(expression(plot(cv_lasso)))
+    expr <- expression({
+      fun <- function() {
+        cv <- cv_lasso
+        requireNamespace("glmnet")
+        suffix <- c("1se", "min")
+        types <- paste0("lambda.", suffix)
+        y <- max(cv$cvm)
+        lambdas <- vapply(types, function(x) cv[[x]], double(1))
+        x <- log(lambdas)
+        labels <- glue::glue("log(λ) ({suffix})\n = {signif(log(lambdas), 2)}")
+        plot(cv, sign.lambda = 1)
+        text(x, y, labels, adj = 1)
+      }
+      fun()
+    })
+    p.lasso_cv <- as_grob(expr, environment())
     p.lasso_cv <- set_lab_legend(
       wrap(p.lasso_cv, 5.5, 4, showtext = TRUE),
       glue::glue("{x@sig} LASSO Cross Validation"),
       glue::glue("LASSO 交叉验证误差|||Lasso 回归模型的交叉验证图，用于选择正则化参数 λ。图中展示了不同 λ 值下的二项式偏差（Binomial Deviance）。横坐标是log(λ)，即正则化参数 λ 的对数值。随着 λ 值的增加，模型的复杂度降低，正则化强度增加。纵坐标是二项式偏差。")
     )
-    p.coefs_path <- as_grob(expression(plot(cv_lasso$glmnet.fit, label = TRUE)))
+    expr <- expression({
+      fun <- function() {
+        cv <- cv_lasso
+        requireNamespace("glmnet")
+        suffix <- c("1se", "min")
+        types <- paste0("lambda.", suffix)
+        lambdas <- vapply(types, function(x) cv[[x]], double(1))
+        x <- log(lambdas)
+        if (any(formalArgs(glmnet:::plot.glmnet) == "sign.lambda")) {
+          plot(cv$glmnet.fit, sign.lambda = 1, label = FALSE, xvar = "lambda")
+        } else {
+          plot(cv$glmnet.fit, label = FALSE, xvar = "lambda")
+        }
+        abline(v = x, lty = 2)
+        labels <- glue::glue("log(λ) ({suffix})\n = {signif(log(lambdas), 2)}")
+        text(x, par("usr")[4] * 0.7, labels, adj = 1)
+      }
+      fun()
+    })
+    p.coefs_path <- as_grob(expr, environment())
     p.coefs_path <- set_lab_legend(
-      wrap(p.coefs_path, 5.5, 4),
+      wrap(p.coefs_path, 5.5, 4, showtext = TRUE),
       glue::glue("{x@sig} Lasso Coefficient path"),
       glue::glue("LASSO 系数路径|||Lasso 回归系数路径图，展示了不同特征的系数随正则化参数 log(λ) 变化的情况。横坐标是 log(λ)，纵坐标是模型中各个特征的系数值。随着 λ 值的增加（从右到左），更多的特征系数被压缩至零，这是Lasso回归的特征选择过程。")
     )
@@ -182,6 +216,14 @@ setMethod("asjob_venn", signature = c(x = "job_mlearn"),
       LASSO = x$lasso_res$features,
       Random_Forest = x$rf_res$features
     )
+  })
+
+setMethod("feature", signature = c(x = "job_mlearn"),
+  function(x){
+    lst <- list(SVM_RFE = x$svm_rfe_res$features,
+      LASSO = x$lasso_res$features,
+      Random_Forest = x$rf_res$features)
+    as_feature(lst, "Machine Learning")
   })
 
 .run_svm_rfe <- function(data, target, n, method, kernel, 

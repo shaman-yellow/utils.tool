@@ -206,16 +206,6 @@ setClassUnion(
   "numeric_or_character_or_logical", c("numeric", "character", "logical")
 )
 
-.feature <- setClass("feature",
-  contains = c("vector"),
-  representation = representation(
-    object = "ANY", sig = "character",
-    snap = "character", nature = "character", type = "character", from = "character"),
-  prototype = NULL)
-
-.feature_list <- setClass("feature_list", contains = c("feature"))
-.feature_char <- setClass("feature_char", contains = c("feature"))
-
 setMethod("show", signature = c(object = "feature_char"),
   function(object){
     message(glue::glue("{showStrings(object@.Data)}\n{crayon::silver(snap(object))}"))
@@ -381,15 +371,24 @@ setMethod("feature", signature = c(x = "wrap"),
 setGeneric("as_feature",
   function(x, ref, ...) standardGeneric("as_feature"))
 
+.nature_feature <- function() {
+  c("genes" = "基因集", "compounds" = "化合物", 
+    "feature" = "特征集", "flux" = "代谢通量", "cells" = "细胞",
+    "pathways" = "通路")
+}
+
+.nature <- function(nature, rev = FALSE) {
+  db <- .nature_feature()
+  if (rev) {
+    db <- setNames(names(db), unname(db))
+  }
+  dplyr::recode(nature, !!!db)
+}
+
 setMethod("as_feature", signature = c(x = "ANY", ref = "character"),
-  function(x, ref, nature = c("genes", "compounds", "feature", "flux", "cells", "pathways"), type = "disease")
+  function(x, ref, nature = names(.nature_feature()), type = "disease")
   {
-    nature <- match.arg(nature)
-    nature <- switch(
-      nature, "genes" = "基因集", "compounds" = "化合物", 
-      "feature" = "特征集", "flux" = "代谢通量", "cells" = "细胞",
-      "pathways" = "通路"
-    )
+    nature <- .nature(match.arg(nature))
     type <- dplyr::recode(type, "disease" = "疾病", .default = type)
     if (is(x, "character")) {
       x <- .feature_char(x, type = type, nature = nature)
@@ -404,7 +403,7 @@ setMethod("as_feature", signature = c(x = "ANY", ref = "character"),
   })
 
 setMethod("as_feature", signature = c(x = "ANY", ref = "job"),
-  function(x, ref, nature = c("genes", "compounds", "feature", "flux"),
+  function(x, ref, nature = names(.nature_feature()),
     type = "disease", analysis = NULL)
   {
     if (is.null(sig(ref))) {
@@ -1517,7 +1516,19 @@ setMethod("ref", signature = c(x = "character"),
 
 setMethod("lab", signature = c(x = "ANY"),
   function(x, ...){
+    if (is(x, "notshow")) {
+      x <- x@data
+    }
     attr(x, ".LABEL")
+  })
+
+setMethod("lab", signature = c(x = "feature"),
+  function(x){
+    nature <- .nature(x@nature, TRUE)
+    snap <- stringi::stri_trans_general(x@snap, "Any-Latin")
+    snap <- stringi::stri_trans_general(snap, "Any-ASCII")
+    snap <- gs(snap, '\\[|\\]', '')
+    glue::glue("feature n{length(x)} {nature} DETAILS {snap}")
   })
 
 setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
@@ -1525,7 +1536,11 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
     if (is.null(x)) {
       return(x)
     }
-    attr(x, ".LABEL") <- value
+    if (is(x, "notshow")) {
+      attr(x@data, ".LABEL") <- value
+    } else {
+      attr(x, ".LABEL") <- value
+    }
     return(x)
   })
 
@@ -1551,7 +1566,7 @@ setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
 }
 
 as_chunk_label <- function(x) {
-  Hmisc::capitalize(gs(gs(x, "(?<![a-zA-Z])ids[ \\-]?", "", perl = TRUE), " |_|\\.", "-"))
+  Hmisc::capitalize(gs(gs(formal_name(x), "(?<![a-zA-Z])ids[ \\-]?", "", perl = TRUE), "[ ._-]+", "-"))
 }
 
 .set_lab <- function(x, sig, group = NULL, body = NULL, suffix = NULL) {

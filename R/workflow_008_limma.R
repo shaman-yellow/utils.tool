@@ -733,8 +733,13 @@ setMethod("focus", signature = c(x = "job_limma"),
   function(x, ref, ref.use = .guess_symbol(x), which = NULL,
     use = c("adj.P.Val", "P.Value"), 
     .name = NULL, sig = FALSE, test = "wilcox.test",
-    data.which = if (!is.null(which)) attr(x@tables$step2$tops[[ which ]], "all") else NULL, ...)
+    data.which = if (!is.null(which)) attr(x@tables$step2$tops[[ which ]], "all") else NULL,
+    levels = .get_group_from_contrast_character(names(x@tables$step2$tops)), ...)
   {
+    if (missing(levels)) {
+      levels <- eval(levels)
+    }
+    use <- match.arg(use)
     if (is(ref, "feature")) {
       x <- snapAdd(
         x,
@@ -757,7 +762,6 @@ setMethod("focus", signature = c(x = "job_limma"),
         data, !!rlang::sym(ref.use), logFC, adj.P.Val, P.Value
       )
       if (sig) {
-        use <- match.arg(use)
         data <- dplyr::filter(data, !!rlang::sym(use) < .05)
         ref <- ref[ ref %in% data[[ ref.use ]] ]
         if (!length(ref)) {
@@ -784,11 +788,13 @@ setMethod("focus", signature = c(x = "job_limma"),
       lst <- namel(p.BoxPlotOfDEGs = x@plots$step2$p.BoxPlotOfDEGs, data = data)
     }
     pvalue <- lst$p.BoxPlotOfDEGs$pvalue
+    # don't use the `use`!!!
     snap <- glue::glue("{names(pvalue)} (P = {pvalue})")
-    x <- snapAdd(
-      x, "{bind(names(pvalue))} 表达差异的 {detail(test)} 统计学显著性 P 为 {bind(snap)} {aref(lst$p.BoxPlotOfDEGs)}。",
+    x <- snapAdd(x,
+      "以 {detail(test)} 对 {bind(names(pvalue))} 统计检验组间差异 (阈值 P &lt; 0.05) 。",
       step = .name
     )
+    x <- snapAdd(x, .stat_compare_by_pvalue(lst$p.BoxPlotOfDEGs, levels, ""), step = .name)
     if (!is.null(.name)) {
       x[[ paste0("focusedDegs_", .name) ]] <- lst
     } else {
@@ -861,6 +867,7 @@ setMethod("map", signature = c(x = "job_limma"),
     p <- .map_boxplot2(
       data, pvalue, fun_plot = fun_plot, test = test, ...
     )
+    compare <- attr(p, "compare")
     pvalue <- attr(p, "pvalue")
     if (is.null(which)) {
       legend <- "以 {detail(test)} 检验基因 ({bind(ref)}) 的表达|||不同颜色的箱体表示不同分组，图中标注{detail(test)}的显著性 P 值。"
@@ -883,6 +890,7 @@ setMethod("map", signature = c(x = "job_limma"),
       wrap(p, min(scale, 14), min(scale + just, 10)), legend
     )
     p$pvalue <- pvalue
+    p$compare <- compare
     feature(p) <- ref
     if (is.null(name)) {
       x <- plotsAdd(x, p.BoxPlotOfDEGs = p, reset = FALSE, step = 2L)
@@ -1058,6 +1066,18 @@ dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x),
     theme(legend.position = "none",
       axis.text.x = element_text(angle = 45, hjust = 1)) +
     geom_blank()
+  if (TRUE) {
+    compare <- lapply(split(data, data[[ ids ]]),
+      function(data) {
+        ms <- vapply(
+          split(data[[y]], data[[x]]),
+          function(values) fivenum(values)[3],
+          double(1)
+        )
+        list(high = names(ms)[which.max(ms)], low = names(ms)[which.min(ms)])
+      })
+    attr(p, "compare") <- compare
+  }
   if (pvalue) {
     fn <- fivenum(data[[ y ]])
     levels <- 2 * seq(length(unique(data[[ x ]])) - 1)
@@ -1099,7 +1119,7 @@ dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x),
 plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
   fc = .3, cut.p = .05, seed = 2, HLs = NULL, use.fc = "logFC", label.fc = "log2(FC)",
   label.p = paste0("-log10(", use, ")"), 
-  keep_cols = FALSE, pal = NULL, circle = FALSE)
+  keep_cols = FALSE, pal = NULL, circle = FALSE, mode_fc = 0L)
 {
   set.seed(seed)
   if (!any(label == colnames(top_table))) {
@@ -1113,18 +1133,27 @@ plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
   } else {
     data <- top_table
   }
+  data <- dplyr::filter(data, !is.na(!!rlang::sym(use)))
   data <- dplyr::mutate(data,
     change = ifelse(!!rlang::sym(use.fc) > abs(fc), "up",
-      ifelse(!!rlang::sym(use.fc) < -abs(fc), "down", "stable"))
+      ifelse(!!rlang::sym(use.fc) < -abs(fc), "down", "stable")),
+    change = ifelse(!!rlang::sym(use) < !!cut.p, change, "stable")
   )
   if (is.null(pal)) {
     pal <- c("#053061FF", "#67001FFF")
+  }
+  if (!mode_fc) {
+    xintercept <- c(-abs(fc), abs(fc))
+  } else if (mode_fc == 1) {
+    xintercept <- abs(fc)
+  } else if (mode_fc == -1) {
+    xintercept <- -abs(fc)
   }
   p <- ggplot(data, aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use)), color = change)) + 
     geom_point(alpha = 0.8, stroke = 0, size = 1.5) + 
     scale_color_manual(values = c("down" = pal[1], "stable" = "grey90", "up" = pal[2])) +
     geom_hline(yintercept = -log10(cut.p), linetype = 4, size = 0.8) +
-    geom_vline(xintercept = c(-abs(fc), abs(fc)), linetype = 4, size = 0.8) + 
+    geom_vline(xintercept = xintercept, linetype = 4, size = 0.8) + 
     labs(x = label.fc, y = label.p) + 
     rstyle("theme") +
     geom_blank()
@@ -1143,7 +1172,8 @@ plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
     )
     data <- dplyr::ungroup(data)
     p <- p + ggrepel::geom_label_repel(
-      data = data, nudge_x = data$x, nudge_y = NULL,
+      data = data, nudge_x = data$x, nudge_y = NULL, 
+      show.legend = FALSE,
       aes(x = !!rlang::sym(use.fc), y = -log10(!!rlang::sym(use)), label = !!rlang::sym(label))
     )
     if (circle) {

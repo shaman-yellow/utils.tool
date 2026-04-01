@@ -170,11 +170,16 @@ setMethod("step3", signature = c(x = "job_reactome"),
         )
         fun_heatmap <- function(.data, .row, .column, .value, ..., group_by)
         {
-          tidyHeatmap::annotation_tile(
+          if (exists("annotation_tile", envir = asNamespace("tidyHeatmap"))) {
+            fun_tile <- tidyHeatmap::annotation_tile
+          } else {
+            fun_tile <- tidyHeatmap::add_tile
+          }
+          fun_tile(
             tidyHeatmap::heatmap(
               .data, .row = {{ .row }}, .column = {{ .column }}, 
               .value = {{ .value }}, ...
-            ), .column = {{ group_by }}
+              ), .column = {{ group_by }}
           )
         }
         wrap_scale_heatmap(

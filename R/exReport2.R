@@ -70,6 +70,13 @@ parse_overture <- function(lines, env = .GlobalEnv, ...)
     }
     inchunk
   }, logical(1))
+  if (getOption("autor_header_clean", TRUE)) {
+    maybeHeader <- grpl(lines, "^[#]+ ")
+    isHeader <- maybeHeader & !isInChunk
+    lines[isHeader] <- gs(
+      lines[isHeader], "(?<=# )[A-Za-z0-9-.]+", "", perl = TRUE
+    )
+  }
   whichInChunk <- which(isInChunk & !isQuos)
   isOverture <- grpl(lines, "<!-- OVERTURE_[A-Z]+ -->")
   inOverture <- FALSE
@@ -100,6 +107,7 @@ parse_overture <- function(lines, env = .GlobalEnv, ...)
       if (is.null(asis)) {
         asis <- ""
       } else if (!is.character(asis)) {
+        writeLines(codes)
         stop('!is.character(asis), the eval results of codes in Overture should be character.')
       }
       namel(fields, asis, codes)

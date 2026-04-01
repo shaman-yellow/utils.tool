@@ -138,5 +138,5 @@ get_docx_cover.complex_analysis <- function(title, items, env) {
   c("", content, "", "\\newpage", "")
 }
 
-.md_p_significant <- "\\\\*, P < 0.05; \\\\*\\\\*, p < 0.01; \\\\*\\\\*\\\\*, p < 0.001"
+.md_p_significant <- "*, P < 0.05; **, p < 0.01; ***, p < 0.001"
 

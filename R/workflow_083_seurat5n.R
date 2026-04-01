@@ -56,6 +56,8 @@ setMethod("step1", signature = c(x = "job_seurat5n"),
   {
     step_message("Quality control (QC).")
     if (!is.null(min.features)) {
+      ncell <- ncol(object(x))
+      ngene <- nrow(object(x))
       object(x) <- e(SeuratObject:::subset.Seurat(
           object(x), subset = nFeature_RNA > min.features &
             nFeature_RNA < max.features & percent.mt < max.percent.mt &
@@ -74,7 +76,7 @@ setMethod("step1", signature = c(x = "job_seurat5n"),
       )
       x <- plotsAdd(x, p.qc_pre = p.qc_pre, p.qc_aft = p.qc_aft)
       x <- methodAdd(
-        x, "前期质量控制{aref(p.qc_pre)}，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。保留总基因表达量小于 {max.count} 细胞。过滤后{aref(p.qc_aft)}，所有样本共包含{ncol(object(x))}个细胞用于后续分析。" #__REVISE__ methodAdd 2026-03-23_22:06:48
+        x, "前期质量控制{aref(p.qc_pre)}，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。保留总基因表达量小于 {max.count} 细胞。过滤前，所有样本共包含 {ncell} 个细胞，{ngene} 个基因。⟦mark$red('过滤后{aref(p.qc_aft)}，所有样本共包含{ncol(object(x))}个细胞，{nrow(object(x))} 个基因用于后续分析。')⟧" #__REVISE__ methodAdd 2026-03-23_22:06:48
       )
       # x <- methodAdd(x, "一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。")
     }
@@ -168,6 +170,7 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
       )
     } else {
       if (is.null(x$.before_IntegrateLayers)) {
+        x <- methodAdd(x, "结果显示{aref(x@plots$step2$pca_rank)}，前 {max(dims)} 个 PCs 以后方差增量减缓逐渐趋于稳定，选择前 {max(dims)} 个 PCs 进行后续聚类分析。")
         object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims, reduction = "pca"))
         object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution,
             cluster.name = "unintegrated_clusters"))
@@ -223,7 +226,10 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
         cols = color_set(TRUE), label = TRUE))
     x <- plotsAdd(x, p.umapInt, p.umapLabel)
     x <- methodAdd(x, "在 1-{max(dims)} PC 维度下，以 `Seurat::FindNeighbors` 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 `Seurat::FindClusters` 函数识别细胞群并以 `Seurat::RunUMAP` 进行 UMAP 聚类。")
-    x <- methodAdd(x, "在去除批次效应前，UMAP 图{aref(p.umapUint)}中各样本保持离散。去除批次效应后{aref(p.umapInt)}，各样本相互均匀混合，即批次效应已被良好地处理。")
+    nBefore <- length(levels(object(x)@meta.data$unintegrated_clusters))
+    nAfter <- length(levels(object(x)@meta.data$seurat_clusters))
+    x <- methodAdd(x, "在去除批次效应前，UMAP 图{aref(p.umapUint)}中各样本保持离散。`Seurat::FindClusters` 共找到 {nBefore} 个细胞簇。")
+    x <- methodAdd(x, "去除批次效应后{aref(p.umapInt)}，`Seurat::FindClusters` 找到 {nAfter} 个细胞簇，且各样本相互均匀混合，即批次效应已被良好地处理。选择去除批次效应后的数据集进行后续分析。")
     x$JoinLayers <- TRUE
     return(x)
   })
