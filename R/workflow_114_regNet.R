@@ -315,7 +315,9 @@ get_url_data <- function(expect_filename, url,
   expect_file <- file.path(dir, expect_filename)
   if (!file.exists(expect_file)) {
     dir.create(dir, FALSE)
-    download_file <- file.path(dir, paste0(name, tools::file_ext(url)))
+    download_file <- file.path(
+      dir, paste0(name, ".", tools::file_ext(url))
+    )
     if (is.null(fun_decompress)) {
       download_file <- expect_file
     }

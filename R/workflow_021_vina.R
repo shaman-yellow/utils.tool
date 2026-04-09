@@ -74,12 +74,12 @@ setMethod("step0", signature = c(x = "job_vina"),
 setMethod("step1", signature = c(x = "job_vina"),
   function(x, order = TRUE, each_target = 1, custom_pdbs = NULL, 
     bdb_file = .prefix("BindingDB_All_202401.tsv", "db"), 
-    forceAF = FALSE, exclude_pdb = NULL)
+    forceAF = FALSE, exclude_pdb = NULL, recode = NULL)
   {
     step_message("Prepare Docking Combination.")
     x <- .find_proper_pdb(
       x, order, each_target, custom_pdbs, exclude_pdb, 
-      forceAF = forceAF
+      forceAF = forceAF, recode = recode
     )
     x$dock_layout <- sapply(object(x)$cids, function(cid) x$used_pdbs, simplify = FALSE)
     names(x$dock_layout) <- object(x)$cids
@@ -87,7 +87,7 @@ setMethod("step1", signature = c(x = "job_vina"),
   })
 
 .find_proper_pdb <- function(x, order = TRUE, each_target = 1, 
-  custom_pdbs = NULL, exclude_pdb, forceAF = FALSE)
+  custom_pdbs = NULL, exclude_pdb, forceAF = FALSE, recode = NULL)
 {
   if (!is(x, "job")) {
     stop('!is(x, "job").')
@@ -101,8 +101,22 @@ setMethod("step1", signature = c(x = "job_vina"),
     mart <- x$mart
   }
   if (!forceAF && is.null(x$targets_annotation)) {
-    x$targets_annotation <- filter_biomart(mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
-      object(x)$hgnc_symbols, distinct = FALSE)
+    genes <- object(x)$hgnc_symbols
+    if (!is.null(recode)) {
+      genes <- dplyr::recode(genes, !!!recode)
+    }
+    x$targets_annotation <- filter_biomart(
+      mart, c("hgnc_symbol", "pdb"), "hgnc_symbol",
+      genes, distinct = FALSE
+    )
+    if (!is.null(recode)) {
+      x$targets_annotation <- dplyr::mutate(
+        x$targets_annotation, hgnc_symbol = dplyr::recode(
+          hgnc_symbol, !!!setNames(names(recode), unname(recode))
+        )
+      )
+      genes <- object(x)$hgnc_symbols
+    }
     if (nrow(x$targets_annotation)) {
       x <- methodAdd(x, "以 R 包 `biomaRt` ⟦pkgInfo('biomaRt')⟧ {cite_show('MappingIdentifDurinc2009')} 获取基因 Symbol 对应的蛋白结构 PDB (<https://www.rcsb.org/>) 数据库 ID。")
       # x <- snapAdd(x, "以 `biomaRt` 获取基因 Symbol 对应的蛋白结构 (PDB，详见方法章节)。")
@@ -111,6 +125,9 @@ setMethod("step1", signature = c(x = "job_vina"),
     }
   }
   if (!is.null(custom_pdbs)) {
+    if (is.null(x$targets_annotation)) {
+      x$targets_annotation <- data.frame()
+    }
     custom_pdbs <- list(hgnc_symbol = names(custom_pdbs), pdb = unname(custom_pdbs))
     if (!is.character(x$targets_annotation$pdb)) {
       x$targets_annotation <- dplyr::mutate(x$targets_annotation, pdb = as.character(pdb))
@@ -172,7 +189,7 @@ setMethod("step1", signature = c(x = "job_vina"),
 }
 
 setMethod("step2", signature = c(x = "job_vina"),
-  function(x, try_cluster_random = TRUE, nGroup = 100, 
+  function(x, try_cluster_random = FALSE, nGroup = 100, 
     nMember = 3, cl = 5, sdf.3d = NULL, dir_save = paste0(x@sig, "_cpd"), conda_env = "base")
   {
     step_message("Download sdf files and convert as pdbqt for ligands.")

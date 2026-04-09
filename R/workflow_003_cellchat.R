@@ -49,6 +49,7 @@ setMethod("asjob_cellchat", signature = c(x = "job_seurat"),
     x <- snapAdd(
       .job_cellchat(object = object, params = list(group.by = group.by)), x
     )
+    x <- methodAdd(x, "细胞通讯分析可以帮助了解细胞与细胞之间的互作关系，细胞发出信号信息通过介质（即配体）传递到另一个靶细胞并与其相应的受体相互作用，然后通过细胞信号转导产生靶细胞内一系列生理生化变化，揭示发育过程中各类细胞的相互作用。")
     x <- methodAdd(x, "以 `CellChat` R 包 ⟦pkgInfo('CellChat')⟧ {cite_show('InferenceAndAJinS2021')} 对单细胞数据进行细胞通讯分析。以 `CellChat::createCellChat` 将 `Seurat` 对象的 {assay} Assay 转化为 CellChat 对象。")
     return(x)
   })
@@ -61,7 +62,7 @@ setMethod("step0", signature = c(x = "job_cellchat"),
   })
 
 setMethod("step1", signature = c(x = "job_cellchat"),
-  function(x, workers = 4, python = getOption("cellchat_python"),
+  function(x, workers = 4, python = pg("cellchat_python"),
     py_config = FALSE, debug = FALSE, 
     org = c("human", "mouse"), smooth = FALSE, ...)
   {

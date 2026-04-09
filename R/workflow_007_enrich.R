@@ -171,22 +171,27 @@ setMethod("step1", signature = c(x = "job_enrich"),
 
 
 .stat_table_by_pvalue <- function(data, n = 5, 
-  split = NULL, use.p = "p.adjust", colName = "Description", target = "通路", by = "富集")
+  split = NULL, use.p = "p.adjust", colName = "Description", target = "通路", by = "富集到",
+  needSum = TRUE)
 {
   if (is.null(split)) {
     data <- dplyr::arrange(data, !!rlang::sym(use.p))
     data <- dplyr::filter(data, !!rlang::sym(use.p) < .05)
     paths <- head(data[[colName]], n = n)
-    glue::glue("{nrow(data)} 个{target}，按 {use.p} 值从低到高排序的前 {length(paths)} 条{target}分别为：{atrans(paths)}。")
+    glue::glue("{nrow(data)} 个{target}，按 {use.p} 值从低到高排序的前 {length(paths)} 个{target}分别为：{atrans(paths)}。")
   } else {
     data <- dplyr::filter(data, !!rlang::sym(use.p) < .05)
     ele <- split(data, data[[split]])
     ele <- vapply(
       ele, .stat_table_by_pvalue, character(1), 
-      n = n, use.p = use.p, target = target, by = by
+      n = n, use.p = use.p, target = target, by = by, colName = colName
     )
-    ele.snap <- bind(glue::glue("在子集 {names(ele)} {by}到 {ele}"), co = "\n\n")
-    glue::glue("{nrow(data)} 个{target}。{ele.snap}")
+    ele.snap <- bind(glue::glue("在 {names(ele)} {by} {ele}"), co = "\n\n")
+    if (needSum) {
+      glue::glue("{nrow(data)} 个{target}。{ele.snap}")
+    } else {
+      glue::glue("{ele.snap}")
+    }
   }
 }
 
@@ -333,7 +338,7 @@ vis_enrich.kegg <- function(lst, cutoff = .05, maxShow = 10,
       data <- head(data, n = maxShow)
       data <- dplyr::mutate(data, GeneRatio = as_double.ratioCh(GeneRatio))
       p <- .plot_kegg(data, use)
-      p <- wrap(p, 7, 4 * (maxShow / 10))
+      p <- wrap(p, 7, 3 * (maxShow / 10))
       p <- setLegend(p, "KEGG 富集图展示了以 {use} 排序，前 {maxShow} 的富集通路。")
       p
     })

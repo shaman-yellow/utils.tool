@@ -35,18 +35,38 @@ setMethod("step0", signature = c(x = "job_gBan"),
   })
 
 setMethod("step1", signature = c(x = "job_gBan"),
-  function(x, dir_save = paste0("GraphBAN_", x@sig), 
-    batman = TRUE, zinc = FALSE, file_batman_compounds_info = getOption("file_batman_compounds_info"))
+  function(x, dir_save = paste0("GraphBAN_", x@sig),
+    db = c("batman", "zinc", "cmnpd"),
+    batman = FALSE, zinc = FALSE, cmnpd = FALSE,
+    file_batman_compounds_info = getOption("file_batman_compounds_info"), recode = NULL)
   {
     step_message("Got amino acid sequence and drug smiles.")
     x$dir_save <- dir_save
     x$mart <- new_biomart("hsa")
-    x$seqs <- get_seq.pro(object(x), x$mart)
+    genes <- object(x)
+    if (!is.null(recode)) {
+      if (!all(names(recode) %in% genes)) {
+        stop('!all(names(recode) %in% genes).')
+      }
+      genes <- dplyr::recode(genes, !!!recode)
+    }
+    x$seqs <- get_seq.pro(genes, x$mart)
+    if (!is.null(recode)) {
+      recode <- setNames(names(recode), unname(recode))
+      if (!all(names(recode) %in% x$seqs$data$hgnc_symbol)) {
+        stop('!all(names(recode) %in% x$seqs$data$hgnc_symbol).')
+      }
+      x$seqs$data <- dplyr::mutate(
+        x$seqs$data, hgnc_symbol = dplyr::recode(hgnc_symbol, !!!recode)
+      )
+    }
     x$file_seqs <- write(
       x$seqs$fasta, name = "peptide", dir = dir_save, max = NULL
     )
     x <- methodAdd(x, "以 `biomaRt` ⟦pkgInfo('biomaRt')⟧ 获取多肽序列 (先以 Symbol 获取 'ensembl_peptide_id' 以及 'transcript_is_canonical'，从而选择经典转录本的 'ensembl_peptide_id' 获取多肽序列) 。")
     x$smiles_compounds <- list()
+    db <- match.arg(db)
+    assign(db, TRUE)
     if (batman) {
       if (is.null(file_batman_compounds_info)) {
         stop('is.null(file_batman_compounds_info).')
@@ -63,7 +83,7 @@ setMethod("step1", signature = c(x = "job_gBan"),
     }
     if (zinc) {
       data_zinc <- ftibble(get_url_data(
-        "250k_rndm_zinc_drugs_clean_3.csv",
+        "zinc.csv",
         "https://raw.githubusercontent.com/aspuru-guzik-group/chemical_vae/master/models/zinc_properties/250k_rndm_zinc_drugs_clean_3.csv",
         "zinc", fun_decompress = NULL
       ))
@@ -72,6 +92,14 @@ setMethod("step1", signature = c(x = "job_gBan"),
       )
       x$smiles_compounds$data_zinc <- data_zinc
       x <- methodAdd(x, "获取 ZINC-250k 小分子库 (<https://www.kaggle.com/datasets/basu369victor/zinc250k>) 的化合物 SMILES 结构式。")
+    }
+    if (cmnpd) {
+      data_cmnpd <- ftibble(get_url_data(
+        "cmnpd.tsv",
+        "https://www.cmnpd.org/cmnpd/supplement/Downloads/CMNPD_1.0_calc_prop.tsv",
+        "cmnpd", fun_decompress = NULL
+      ))
+      x$smiles_compounds$data_cmnpd <- dplyr::distinct(data_cmnpd, smiles = SMILES)
     }
     return(x)
   })
@@ -129,7 +157,7 @@ setMethod("step3", signature = c(x = "job_gBan"),
 
 setMethod("step4", signature = c(x = "job_gBan"),
   function(x, pattern = "graphBan_res_", cutoff = .95, 
-    reRead = FALSE, method_keep = c("respective", "all"))
+    reRead = FALSE, method_keep = c("all", "respective"))
   {
     step_message("Collate results.")
     method_keep <- match.arg(method_keep)
@@ -220,9 +248,12 @@ setMethod("step4", signature = c(x = "job_gBan"),
 }
 
 setMethod("step5", signature = c(x = "job_gBan"),
-  function(x, file_admet = NULL, cutoff = .7)
+  function(x, file_admet = NULL, cutoff = .7, skip = FALSE)
   {
     step_message("ADMET ...")
+    if (skip) {
+      return(x)
+    }
     smiles <- x$smiles_from_gban
     if (is.null(file_admet)) {
       stop('is.null(file_admet).')
@@ -258,8 +289,11 @@ setMethod("step5", signature = c(x = "job_gBan"),
   })
 
 setMethod("step6", signature = c(x = "job_gBan"),
-  function(x, file_swiss = NULL, n_pass = 4, method = "linpinski"){
+  function(x, file_swiss = NULL, n_pass = 4, method = "linpinski", skip = FALSE){
     step_message("swissADME.")
+    if (skip) {
+      return(x)
+    }
     if (is.null(file_swiss)) {
       stop('is.null(file_swiss)')
     }
@@ -386,21 +420,56 @@ setMethod("asjob_vina", signature = c(x = "job_gBan"),
     return(x)
   })
 
+get_remote_graphBan.huibang <- function(x, pattern = "graphBan_res_*",
+  remote = "graphBan", remote_to = "remote", expect = 3L)
+{
+  dir_save <- x$dir_save
+  dir.create(dir_save, FALSE)
+  existFiles <- list.files(dir_save, pattern)
+  if (!length(existFiles) || length(existFiles) < expect) {
+    remote_dir <- glue::glue(
+      "~/{s(guess_project(), '^[0-9]+_', '')}"
+    )
+    files <- pattern
+    cmd_get <- glue::glue("scp {remote}:{remote_dir}/{files} {x$dir_save}")
+    cdRun(cmd_get)
+  }
+  existFiles <- list.files(dir_save, pattern, full.names = TRUE)
+  if (!is_sshfs_mount(remote_to)) {
+    stop('!is_sshfs_mount(remote_to).')
+  }
+  toDir <- file.path(remote_to, x$dir_save)
+  toDir_existFiles <- list.files(toDir, pattern)
+  if (!length(toDir_existFiles) || length(toDir_existFiles) < expect) {
+    message("Send to '{remote_to}'")
+    file.copy(existFiles, toDir)
+  }
+}
+
 run_remote_graphBan.huibang <- function(x,
-  remote = "graphBan")
+  remote = "graphBan", remote_from = "remote")
 {
   remote_dir <- glue::glue(
     "~/{s(guess_project(), '^[0-9]+_', '')}"
   )
+  if (!file.exists(x$file_combn)) {
+    if (!is_sshfs_mount(remote_from)) {
+      stop('!is_sshfs_mount(remote_from).')
+    }
+    message(glue::glue("Get `file_combn` from: '{remote_from}'"))
+    dir.create(dirname(x$file_combn), FALSE)
+    file_from <- file.path(remote_from, x$file_combn)
+    file.copy(file_from, x$file_combn)
+  }
   files <- paste(
     x$file_combn, file.path(.expath, "job_templ", "graphBan.sh")
   )
-  cmd_prepare <- glue::glue("mkdir {remote_dir}")
+  cmd_prepare <- glue::glue("ssh {remote} 'mkdir {remote_dir}'")
   cmd_send <- glue::glue("scp {files} {remote}:{remote_dir}")
   cmd_run <- glue::glue("ssh {remote} 'cd {remote_dir} && nohup sh graphBan.sh > task.log 2>&1 &'")
-  writeLines(cmd_prepare)
-  writeLines(cmd_send)
-  writeLines(cmd_run)
+  cdRun(cmd_prepare)
+  cdRun(cmd_send)
+  cdRun(cmd_run)
 }
 
 inBatches_get_compounds_weight.rdkit <- function(smiles_list, python = getOption("rdkit_python"))
@@ -432,7 +501,9 @@ inBatches_get_compounds_weight.rcdk <- function(smiles_list,
     res <- pbapply::pblapply(groups, cl = cl,
       function(smiles) {
         res <- try(silent = TRUE, callr::r(
-          get_compounds_weight, args = c(list(smiles_list = smiles), list(...)),
+          get_compounds_weight, args = c(
+            list(smiles_list = smiles, libPaths = .libPaths()), list(...)
+          ),
           show = TRUE
           ))
         message(glue::glue("Group {attr(smiles, 'name')} finished."))
@@ -448,9 +519,10 @@ inBatches_get_compounds_weight.rcdk <- function(smiles_list,
 }
 
 get_compounds_weight <- function(smiles_list, HEAVY_METAL_THRESHOLD = 20, 
-  molecules = NULL)
+  molecules = NULL, libPaths)
 {
   # smiles_list <- head(smiles_list, n = 1000)
+  .libPaths(libPaths)
   if (is.null(molecules)) {
     molecules <- rcdk::parse.smiles(smiles_list)
   }

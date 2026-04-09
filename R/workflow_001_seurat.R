@@ -18,13 +18,19 @@
     analysis = "Seurat 单细胞数据分析"
     ))
 
-job_seurat <- function(dir = NULL, project = basename(sub("/$", "", dir)),
-  min.cells = 3, min.features = 200, file_h5 = NULL, ...)
+job_seurat <- function(target = NULL, project = basename(sub("/$", "", target)),
+  is10x = TRUE, min.cells = 3, min.features = 200, file_h5 = NULL, ...)
 {
   if (!is.null(file_h5)) {
     data <- e(Seurat::Read10X_h5(file_h5))
   } else {
-    data <- e(Seurat::Read10X(dir))
+    if (is10x) {
+      data <- e(Seurat::Read10X(target))
+    } else {
+      data <- Matrix::Matrix(
+        as.matrix(read.table(target, header = TRUE, row.names = 1)), sparse = TRUE
+      )
+    }
   }
   object <- e(Seurat::CreateSeuratObject(counts = data, project = project,
       min.cells = min.cells, min.features = min.features, ...))
@@ -149,8 +155,7 @@ setMethod("step3", signature = c(x = "job_seurat"),
   })
 
 setMethod("step4", signature = c(x = "job_seurat"),
-  function(x, use = "", use.level = c("label.main", "label.fine"),
-    ref = celldex::HumanPrimaryCellAtlasData())
+  function(x, use = "", use.level = c("label.main", "label.fine"))
   {
     if (use == "scAnno") {
       ## PMID: 37183449
@@ -328,6 +333,9 @@ setMethod("step6", signature = c(x = "job_seurat"),
     n = 30, variable = FALSE, hp_type = c("pretty", "seurat"), rerun = FALSE, ...)
   {
     .check_is_scsa_available()
+    if (!is.character(tissue)) {
+      stop('!is.character(tissue).')
+    }
     args <- c(as.list(environment()), list(...))
     args$init <- FALSE
     do.call(anno, args)
@@ -419,7 +427,7 @@ setMethod("anno", signature = c(x = "job_seurat"),
     )
     SeuratObject::Idents(object(x)) <- res.col
     types <- levels(SeuratObject::Idents(object(x)))
-    x <- snapAdd(x, "结合 SCSA 所得 Z.score 得分，特异 Marker 基因{aref(t.validMarkers)}在 Seurat Cluster 的表达气泡图{aref(p.markers_cluster)}，以及 Marker 基因在注释后的验证气泡图 {aref(p.markers)}，一共注释了 {length(types)} 种不同的细胞：{bind(types)}。")
+    x <- snapAdd(x, "结合 SCSA 所得 Z.score 得分，特异 Marker 基因{aref(t.validMarkers)}在 Seurat Cluster 的表达气泡图{aref(p.markers_cluster)}，以及 Marker 基因在注释后的验证气泡图 {aref(p.markers)}，⟦mark$red('一共注释了 {length(types)} 种不同的细胞：{bind(types)}')⟧。")
     x <- plotsAdd(x, p.markers_cluster, p.markers)
     p.map_scsa <- lst$p.map_scsa
     p.map_scsa <- set_lab_legend(
@@ -947,11 +955,31 @@ setMethod("focus", signature = c(x = "job_seurat"),
     }
   })
 
+.setup_compare_pvalue_with_table <- function(data, use.name, 
+  use.p, use.fc, levels)
+{
+  if (!is(data, "df")) {
+    stop('!is(data, "df").')
+  }
+  res <- list(pvalue = setNames(data[[ use.p ]], data[[ use.name ]]))
+  res$compare <- lapply(seq_len(nrow(data)),
+    function(n) {
+      if (data[[use.fc]][n] > 0) {
+        list(high = levels[1], low = levels[2])
+      } else {
+        list(high = levels[2], low = levels[1])
+      }
+    })
+  res$compare <- setNames(res$compare, data[[use.name]])
+  res
+}
+
 .stat_compare_by_pvalue <- function(x, levels, name, 
-  ..., recode = NULL, mode = c("expr", "ratio"))
+  ..., recode = NULL, mode = c("expr", "ratio", "communication", "active"))
 {
   .get_snap_from_meassure(
-    .get_measure(x, levels, ...), name, recode = recode, mode = mode
+    .get_measure(x, levels, ...),
+    name, recode = recode, mode = mode
   )
 }
 
@@ -978,17 +1006,22 @@ setMethod("focus", signature = c(x = "job_seurat"),
   )
   list(g1 = levels[2], g2 = levels[1], wh = nameSig, res = measure,
     note = glue::glue("(P = {signif(x$pvalue[isSig], 4)})"), 
-    levels = levels, x = x)
+    levels = levels, x = x, pvalue = x$pvalue[isSig])
 }
 
 .get_snap_from_meassure <- function(ms, name, recode = NULL, 
-  mode = c("expr", "ratio"))
+  mode = c("expr", "ratio", "communication", "active"))
 {
   if (missing(name)) {
     rlang::abort("`name` for `.get_snap_from_meassure` is missing.")
   }
+  if (is(ms$x, "wrap")) {
+    snap_map <- glue::glue("如图{aref(ms$x)}")
+  } else {
+    snap_map <- ""
+  }
   if (is.null(ms)) {
-    return("如图{aref(ms$x)}差异分析结果，{ms$g1} 组和 {ms$g2} 组之间无显著性差异。")
+    return(glue::glue("{snap_map}差异分析结果，{ms$g1} 组和 {ms$g2} 组之间无显著性差异。"))
   }
   mode <- match.arg(mode)
   if (mode == "expr") {
@@ -997,6 +1030,12 @@ setMethod("focus", signature = c(x = "job_seurat"),
   } else if (mode == "ratio") {
     ms$res <- dplyr::recode(ms$res, up = "增加", down = "减少")
     attribute <- "比例"
+  } else if (mode == "communication") {
+    ms$res <- dplyr::recode(ms$res, up = "增加", down = "减少")
+    attribute <- "通讯"
+  } else if (mode == "active") {
+    ms$res <- dplyr::recode(ms$res, up = "升高", down = "下降")
+    attribute <- "活性"
   }
   if (!is.null(recode)) {
     for (i in c("wh", "g1", "g2")) {
@@ -1005,7 +1044,7 @@ setMethod("focus", signature = c(x = "job_seurat"),
     name <- dplyr::recode(name, !!!recode)
   }
   mem <- glue::glue("{ms$wh}的{name}{attribute}要显著{ms$res}{ms$note}")
-  lead <- glue::glue("如图{aref(ms$x)}差异分析表明，相比于 {ms$g1} 组，{ms$g2} 组")
+  lead <- glue::glue("{snap_map}差异分析表明，相比于 {ms$g1} 组，{ms$g2} 组")
   glue::glue("{lead}{bind(mem)}。")
 }
 
@@ -1017,10 +1056,13 @@ setMethod("focus", signature = c(x = "job_seurat"),
   if (length(levels) > 2) {
     stop('length(levels) > 2, can not guess levels from group number greater than 2.')
   }
-  pattern <- "healthy|normal|control"
+  pattern <- "healthy|normal|control|^hc$"
   isControl <- grpl(levels, pattern, ignore.case = TRUE)
   if (all(isControl)) {
     stop('all(isControl), too many group of control matched')
+  }
+  if (all(!isControl)) {
+    stop('all(isControl), no match any of control.')
   }
   c(levels[!isControl], levels[isControl])
 }
@@ -1082,13 +1124,18 @@ setMethod("focus", signature = c(x = "job_seurat"),
 }
 
 wrap_scale_heatmap <- function(data, w = NULL, h = NULL, ...,
-  w.size = .2, h.size = .2, pre_width = 4, pre_height = 3)
+  w.size = .2, h.size = .2, pre_width = 4, pre_height = 3, raw = TRUE)
 {
-  if (!is.null(w)) {
-    n_width <- length(unique(w))
-  }
-  if (!is.null(h)) {
-    n_height <- length(unique(h))
+  if (raw) {
+    if (!is.null(w)) {
+      n_width <- length(unique(w))
+    }
+    if (!is.null(h)) {
+      n_height <- length(unique(h))
+    }
+  } else {
+    n_width <- w
+    n_height <- h
   }
   wrap_scale(
     data, n_width = n_width, n_height = n_height,
@@ -1392,7 +1439,7 @@ prepare_10x <- function(target, pattern, single = FALSE, col.gene = 1, check = T
     }
     path <- dirname(target)
     name <- get_realname(target)
-    dir <- paste0(path, "/", name)
+    dir <- file.path(path, name)
     if (file.exists(dir)) {
       unlink(dir, TRUE, TRUE)
     }
@@ -1459,6 +1506,32 @@ setMethod("cal_corp", signature = c(x = "job_seurat", y = "NULL"),
     anno <- data.frame(symbol = rownames(data))
     data <- data.frame(Matrix::as.matrix(data))
     .cal_corp.elist(data, anno, use = "symbol", from, to, names)
+  })
+
+setMethod("markers", signature = c(x = "job_seurat"),
+  function(x, ref = NULL, n = 10){
+    if (x@step < 5L) {
+      stop('x@step < 5L.')
+    }
+    data <- x@tables$step5$all_markers_no_filter
+    if (!is.null(ref)) {
+      data <- dplyr::filter(data, cluster %in% !!ref)
+    }
+    data <- dplyr::group_by(data, cluster)
+    dplyr::slice_head(data, n = n)
+  })
+
+setMethod("params", signature = c(x = "job_seurat"),
+  function(x, mode = c("inherit", "all")){
+    mode <- match.arg(mode)
+    if (mode == "inherit") {
+      metadata <- as_tibble(object(x)@meta.data, idcol = "cell")
+      group.by <- x$group.by
+      levels <- .guess_levels_from_job_seurat(x)
+      namel(metadata, group.by, levels)
+    } else {
+      x@params
+    }
   })
 
 setMethod("meta", signature = c(x = "job_seurat"),

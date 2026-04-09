@@ -25,6 +25,8 @@ setClass("autor_invisuable")
 .feature_list <- setClass("feature_list", contains = c("feature"))
 .feature_char <- setClass("feature_char", contains = c("feature"))
 
+.feature_alias <- setClass("feature_alias", contains = c("feature_list"))
+
 setMethod("show", signature = c(object = "notshow"),
   function(object){
     show(object@data)
@@ -42,7 +44,7 @@ notshow <- function(x, label = NULL) {
     x <- x[, !duplicated(colnames(x))]
   }
   if (is(x, "data.frame") && !is(x, "tbl_df")) {
-    x <- tibble::as_tibble(x)
+    x <- as_tibble(x)
   }
   .notshow(data = x)
 }
@@ -131,7 +133,7 @@ setMethod("show", signature = c(object = "data_binary"),
     if (!file.exists(object@filename)) {
       file <- tempfile(
         tools::file_path_sans_ext(basename(object@filename)),
-        fileext = tools::file_ext(object@filename)
+        fileext = paste0(".", tools::file_ext(object@filename))
       )
       message(glue::glue("Can not found '{object@filename}', write tempfile: {file}"))
       writeBin(object@data, file)
@@ -1438,9 +1440,132 @@ wrap_scale <- function(data, n_width, n_height, min_width = NULL, min_height = N
   )
 }
 
-wrap_layout <- function(data, layout, size = calculate_layout_size(layout)$size[1], ...) {
-  wrap(data, size * layout[2], size * layout[1])
+wrap_layout <- function(data = NULL, layout = NULL, size = calculate_layout_size(layout)$size[1], 
+  n = NULL, ...)
+{
+  if (length(layout) == 1 && is.numeric(layout)) {
+    n <- layout
+  }
+  if (!is.null(n)) {
+    layout <- calculate_layout(n, ...)
+  }
+  wp <- wrap(data, size * layout[2], size * layout[1])
+  wp$ncol <- layout[2]
+  wp$nrow <- layout[1]
+  return(wp)
 }
+
+calculate_layout <- function(n, max_ratio = 5, prefer_rows = FALSE,
+  nrow = NULL, ncol = NULL,
+  fill_by_ratio = TRUE)
+{
+  # ---- Input validation ----
+  if (n < 1) stop("n must be >= 1.")
+  if (max_ratio < 1) stop("max_ratio must be >= 1.")
+  if (!is.null(nrow) && !is.null(ncol)) {
+    stop("Specify only one of nrow or ncol.")
+  }
+
+  # ---- Hard constraints ----
+  if (!is.null(ncol)) {
+    rows <- ceiling(n / ncol)
+    return(setNames(as.integer(c(rows, ncol)), c("rows", "cols")))
+  }
+
+  if (!is.null(nrow)) {
+    cols <- ceiling(n / nrow)
+    return(setNames(as.integer(c(nrow, cols)), c("rows", "cols")))
+  }
+
+  # ---- Generate candidates ----
+  generate_candidates <- function(n) {
+    candidates <- list()
+    max_dim <- ceiling(sqrt(n) * max_ratio)
+
+    for (r in 1:max_dim) {
+      c <- ceiling(n / r)
+      ratio <- max(r, c) / min(r, c)
+
+      if (ratio <= max_ratio && r * c >= n) {
+        candidates[[length(candidates) + 1]] <- c(
+          r,                  # rows
+          c,                  # cols
+          r * c - n,          # blanks
+          abs(r - c)          # diff
+        )
+      }
+    }
+
+    do.call(rbind, candidates)
+  }
+
+  # ---- Evaluate candidates ----
+  evaluate_candidates <- function(candidates) {
+    rows <- candidates[, 1]
+    cols <- candidates[, 2]
+    blanks <- candidates[, 3]
+    diff <- candidates[, 4]
+
+    if (fill_by_ratio) {
+      # ---- NEW STRATEGY ----
+      # Prefer layouts where cols is close to max_ratio
+      score_ratio <- abs(cols - max_ratio)
+
+      candidates[
+        order(
+          blanks,        # still most important
+          score_ratio,   # key: fill row close to max_ratio
+          diff           # tie-breaker
+        ),
+      ]
+    } else {
+      # ---- ORIGINAL (square-like) ----
+      candidates[
+        order(
+          blanks,
+          diff,
+          cols / rows
+        ),
+      ]
+    }
+  }
+
+  # ---- Run ----
+  candidates <- generate_candidates(n)
+  if (is.null(candidates) || nrow(candidates) == 0) {
+    stop("No valid layout found.")
+  }
+
+  best <- evaluate_candidates(candidates)[1, 1:2]
+
+  # ---- Orientation ----
+  if (!prefer_rows && best[1] > best[2]) {
+    best <- rev(best)
+  }
+
+  return(setNames(as.integer(best), c("rows", "cols")))
+}
+
+calculate_layout_size <- function(layout, base_size = 5, 
+  decay_rate = 0.7, min_size = 1)
+{
+  rows <- layout[[1]]
+  cols <- layout[[2]]
+  layout_complexity <- sqrt(rows + cols)
+
+  # Calculation formula for dynamic attenuation coefficient
+  size <- base_size * (decay_rate ^ (layout_complexity - 1))
+
+  # Apply size limitations and maintain consistent width and height
+  final_size <- max(min_size, min(base_size, size))
+
+  list(
+    dimension = c(rows, cols),
+    size = rep(round(final_size, 1), 2),
+    area_ratio = (final_size^2) / (base_size^2)
+  )
+}
+
 
 wrap <- function(data, width = 10, height = 8, showtext = NULL, 
   force = FALSE, get_attrs = c("pvalue", "compare"))
@@ -1457,6 +1582,13 @@ wrap <- function(data, width = 10, height = 8, showtext = NULL,
       data@showtext <- showtext
     }
   } else {
+    legend <- lab <- NULL
+    if (!is.null(Legend(data))) {
+      legend <- Legend(data, "all")
+    }
+    if (!is.null(lab(data))) {
+      lab <- lab(data)
+    }
     if (is(data, "gg.obj")) {
       data <- as_grob(data)
     }
@@ -1464,6 +1596,8 @@ wrap <- function(data, width = 10, height = 8, showtext = NULL,
       showtext <- FALSE
     }
     data <- .wrap(data = data, width = width, height = height, showtext = showtext)
+    Legend(data) <- legend
+    lab(data) <- lab
   }
   if (!is.null(snap(raw))) {
     snap(data) <- snap(raw)
@@ -3100,8 +3234,11 @@ take_positions <- function(plots, envir = .GlobalEnv,
     )
   } else {
     for (i in rev(seq_along(calls)[-1])) {
-      dev.new()
-      print(eval(parse(text = rlang::expr_text(calls[[i]])), envir = envir))
+      obj <- eval(parse(text = rlang::expr_text(calls[[i]])), envir = envir)
+      if (is(obj, "can_be_draw") || is(obj, "can_not_be_draw")) {
+        dev.new()
+        print(obj)
+      }
     }
   }
 }

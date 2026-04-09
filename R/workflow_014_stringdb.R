@@ -163,6 +163,7 @@ setMethod("step1", signature = c(x = "job_stringdb"),
     }
     nAll <- nrow(x$res.str$mapped)
     nIsolate <- nAll - length(unique(c(x$edges$from, x$edges$to)))
+    x <- methodAdd(x, "STRING database 蛋白–蛋白相互作用（PPI）网络分析是一种基于已知与预测相互作用信息构建分子互作网络的方法，其主要目的是从系统层面解析基因或蛋白之间的功能关联关系。通过将候选基因映射至 STRING 数据库，构建 PPI 网络并分析其拓扑结构（如节点连接度、聚类系数等），可以识别在网络中处于核心地位的关键蛋白（hub genes）及其参与的功能模块。进一步结合功能富集分析，可揭示这些关键节点在特定生物学过程或疾病机制中的潜在作用，从而为筛选重要调控分子及后续实验验证提供依据。")
     x <- methodAdd(x, "以 R 包 `STEINGdb` ⟦pkgInfo('STRINGdb')⟧ {cite_show('TheStringDataSzklar2021')} 构建 PPI 网络。数据版本为 {version}，互作类型为 {network_type}。置信评分 (confidence score) 阈值为 {score_threshold / 1000}。{ex}随后，以 R 包 `ggraph` ⟦pkgInfo('ggraph')⟧ 可视化网络。")
     x <- snapAdd(x, "PPI 网络图 {aref(p.ppi)} 共包含 {nAll} 个蛋白 (基因)，存在 {nrow(edges)} 对相互作用，孤立蛋白数量为{nIsolate}。")
     return(x)

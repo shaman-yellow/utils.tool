@@ -1121,10 +1121,23 @@ get_coords.sin <- function(num = 100, nWave = 4) {
   tibble::tibble(x = x, y = sin(x))
 }
 
-get_coords.spiral <- function(num = 100, nCir = num %/% 20, minRad = 1, maxRad = 3) {
+get_coords.spiral <- function(num = 100, width_curve = 1, nCir = num %/% 20, 
+  minRad = 1, maxRad = 3, rank.by = NULL, desc = TRUE)
+{
   ang <- seq(0, by = 2 * pi * nCir / num, length.out = num)
-  rad <- seq(minRad, maxRad, length.out = num)
-  tibble::tibble(x = sin(ang) * rad, y = cos(ang) * rad)
+  t <- seq(0, 1, length.out = num)
+  t_transformed <- t ^ width_curve
+  # rad <- seq(minRad, maxRad, length.out = num)
+  rad <- minRad + (maxRad - minRad) * t_transformed
+  data <- tibble::tibble(x = sin(ang) * rad, y = cos(ang) * rad)
+  if (!is.null(rank.by)) {
+    if (desc) {
+      rank.by <- -rank.by
+    }
+    rank <- rank(rank.by, ties.method = "first")
+    data <- data[rank, ]
+  }
+  data
 }
 
 

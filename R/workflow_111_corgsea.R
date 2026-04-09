@@ -19,9 +19,6 @@ setGeneric("asjob_corgsea",
 setMethod("asjob_corgsea", signature = c(x = "job_deseq2"),
   function(x, ref, method = "spearman")
   {
-    if (!is(ref, "feature")) {
-      stop('!is(ref, "feature").')
-    }
     if (x@step < 1L) {
       stop('x@step < 1L.')
     }
@@ -29,18 +26,37 @@ setMethod("asjob_corgsea", signature = c(x = "job_deseq2"),
       stop('any(!ref %in% rownames(object(x))).')
     }
     data <- SummarizedExperiment::assay(x$vst)
-    which.ref <- rownames(data) %in% ref
-    data.ref <- t(data[which.ref, ])
-    data.others <- t(data[!which.ref, ])
-    cors <- e(stats::cor(data.ref, data.others, method = "spearman"))
-    cors <- apply(cors, 1, sort, decreasing = TRUE, simplify = FALSE)
-    x <- .job_corgsea(object = cors)
-    x <- methodAdd(
-      x, "为探讨{snap(ref)}为进一步探讨筛选得到的诊断基因在全基因组范围内的潜在功能关联，基于表达数据计算诊断基因与其他基因之间的相关性，并以相关系数构建全基因排序列表。在此基础上实施基因集富集分析（GSEA），以识别与诊断基因表达模式协同变化的功能通路。该策略能够将有限的诊断基因扩展至其相关的基因网络层面，从而揭示其潜在的生物学过程及分子机制，提高结果的生物学解释性与稳健性。"
-    )
-    x <- snapAdd(x, "计算{snap(ref)}与其他基因的 Spearman 相关性系数，并以该系数为排序依据对全基因进行从大到小的排序。")
+    x <- job_corgsea(data, ref, method = method)
     return(x)
   })
+
+setMethod("asjob_corgsea", signature = c(x = "job_limma"),
+  function(x, ref, method = "spearman"){
+    if (x@step < 1L) {
+      stop('x@step < 1L.')
+    }
+    data <- x$normed_data$E
+    if (any(!ref %in% rownames(data))) {
+      stop('any(!ref %in% rownames(data)).')
+    }
+    x <- job_corgsea(data, ref, method = method)
+  })
+
+job_corgsea <- function(data, ref, method = "spearman") {
+  if (!is(ref, "feature")) {
+    stop('!is(ref, "feature").')
+  }
+  which.ref <- rownames(data) %in% ref
+  data.ref <- t(data[which.ref, ])
+  data.others <- t(data[!which.ref, ])
+  cors <- e(stats::cor(data.ref, data.others, method = method))
+  cors <- apply(cors, 1, sort, decreasing = TRUE, simplify = FALSE)
+  x <- .job_corgsea(object = cors)
+  x <- methodAdd(
+    x, "以相关系数构建全基因排序列表，在此基础上实施基因集富集分析（GSEA），以识别与诊断基因表达模式协同变化的功能通路。该策略能够将有限的诊断基因扩展至其相关的基因网络层面，从而揭示其潜在的生物学过程及分子机制，提高结果的生物学解释性与稳健性。"
+  )
+  x <- snapAdd(x, "计算{snap(ref)}与其他基因的 Spearman 相关性系数，并以该系数为排序依据对全基因进行从大到小的排序。")
+}
 
 setMethod("step0", signature = c(x = "job_corgsea"),
   function(x){
@@ -97,7 +113,7 @@ setMethod("step1", signature = c(x = "job_corgsea"),
           )
           p.gsea <- plot_kegg(table_gsea)
           p.gsea <- .set_lab(p.gsea, sig(x), glue::glue("Gene {name} GSEA pathway list of {mode}"))
-          p.gsea <- setLegend(p.gsea, "为基因 {name} 的 GSEA 按 {mode} ({names(mode)}) 数据集富集图。")
+          p.gsea <- setLegend(p.gsea, "基因 {name} 的 GSEA 按 {mode} ({names(mode)}) 数据集富集图。")
         } else {
           p.gsea <- NULL
         }

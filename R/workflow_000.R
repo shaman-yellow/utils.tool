@@ -326,18 +326,21 @@ setGeneric("feature<-",
   function(x, value) standardGeneric("feature<-"))
 
 setMethod("feature", signature = c(x = "job"),
-  function(x, mode = .all_features(x), ...){
+  function(x, mode = .all_features(x), ..., snap = NULL){
     if (missing(mode)) {
       mode <- ".feature"
     } else {
       if (!grpl(mode, "^\\.feature")) {
         mode <- paste0(".feature_", mode)
       }
-      mode <- match.arg(mode)
+      mode <- match.arg(mode, .all_features(x))
     }
     feas <- x[[ mode ]]
     if (!is(feas, "feature")) {
       feas <- as_feature(feas, x, ...)
+    }
+    if (!is.null(snap) && is.character(snap)) {
+      snap(feas) <- snap
     }
     feas
   })
@@ -388,7 +391,13 @@ setGeneric("as_feature",
 setMethod("as_feature", signature = c(x = "ANY", ref = "character"),
   function(x, ref, nature = names(.nature_feature()), type = "disease")
   {
-    nature <- .nature(match.arg(nature))
+    input <- nature[1]
+    nature <- try(match.arg(nature), TRUE)
+    if (inherits(nature, "try-error")) {
+      nature <- input
+    } else {
+      nature <- .nature(nature)
+    }
     type <- dplyr::recode(type, "disease" = "疾病", .default = type)
     if (is(x, "character")) {
       x <- .feature_char(x, type = type, nature = nature)
@@ -492,7 +501,7 @@ setMethod("snap", signature = c(x = "feature", ref = "missing"),
   })
 
 setMethod("snap", signature = c(x = "feature", ref = "logical"),
-  function(x, ref = FALSE, limit = 50, num = 10){
+  function(x, ref = FALSE, limit = 50, num = 10, simple = TRUE){
     if (ref) {
       if (is(x, "feature_list")) {
         stop('is(x, "feature_list"), only "feature_char" support.')
@@ -525,12 +534,17 @@ setMethod("snap", signature = c(x = "feature", ref = "logical"),
           str <- paste0(str, glue::glue(", ...[n = {n}]"))
         }
       } else {
+        n <- length(str)
         str <- bind(str)
       }
       sep <- if (nchar(str)) ", " else ""
-      glue::glue(
-        "**{{{x@nature}}}** ({{{str}}}{{{sep}}}{{{x@snap}}}) ", .open = "{{{", .close = "}}}"
-      )
+      if (simple) {
+        glue::glue("**{{{x@nature}}}** (n = {{{n}}}, {{{x@snap}}})", .open = "{{{", .close = "}}}")
+      } else {
+        glue::glue(
+          "**{{{x@nature}}}** ({{{str}}}{{{sep}}}{{{x@snap}}}) ", .open = "{{{", .close = "}}}"
+        )
+      }
     }
   })
 
@@ -1017,6 +1031,7 @@ setMethod("upd", signature = c(x = "db_expect"),
   })
 
 expect_local_data <- function(dir, name, fun, args, 
+  fun_read = readRDS, fun_save = saveRDS, ext = "rds",
   rerun = FALSE, ignore = NULL)
 {
   if (!dir.exists(dir)) {
@@ -1029,15 +1044,15 @@ expect_local_data <- function(dir, name, fun, args,
   }
   hash <- digest::digest(hashArgs, "xxhash64", serializeVersion = 3)
   file <- file.path(
-    dir, paste0(name, "_", hash, ".rds")
+    dir, paste0(name, "_", hash, ".", ext)
   )
   if (!rerun && file.exists(file)) {
     message(glue::glue('file.exists(file): {file}'))
-    obj <- readRDS(file)
+    obj <- fun_read(file)
   } else {
     cli::cli_alert_info("do.call(fun, args)")
     obj <- do.call(fun, args)
-    saveRDS(obj, file)
+    fun_save(obj, file)
   }
   return(obj)
 }
@@ -1231,12 +1246,16 @@ setGeneric("object",
 setGeneric("less",
   function(x, ...) standardGeneric("less"))
 
+setGeneric("status",
+  function(x, ...) standardGeneric("status"))
 setGeneric("collate",
   function(x, ...) standardGeneric("collate"))
 setGeneric("label",
   function(x, ...) standardGeneric("label"))
 setGeneric("pg",
   function(x, ...) standardGeneric("pg"))
+setGeneric("markers",
+  function(x, ref, ...) standardGeneric("markers"))
 setGeneric("relative",
   function(x, ...) standardGeneric("relative"))
 setGeneric("object<-",
@@ -1392,15 +1411,18 @@ atrans <- function(x) {
 } 
 
 aref <- function(x, ...) {
+  if (is.null(x)) {
+    return("")
+  }
   if (is(x, "list") && length(x) >= 1) {
     res <- lapply(x, ref, render = FALSE, ...)
     refs <- vapply(res, function(x) x$ref, character(1))
     value <- paste0(paste0("'", refs, "'"), collapse = ", ")
     value <- glue::glue("c({value})")
-    glue::glue("⟦ref({value}, autoRef = '{res[[1]]$type}')⟧")
+    glue::glue("⟦ref({value}, autoRef = \"{res[[1]]$type}\")⟧")
   } else {
     res <- ref(x, render = FALSE, ...)
-    glue::glue("⟦ref('{res$ref}', autoRef = '{res$type}')⟧")
+    glue::glue("⟦ref(\"{res$ref}\", autoRef = \"{res$type}\")⟧")
   }
 }
 
@@ -1529,6 +1551,11 @@ setMethod("lab", signature = c(x = "feature"),
     snap <- stringi::stri_trans_general(snap, "Any-ASCII")
     snap <- gs(snap, '\\[|\\]', '')
     glue::glue("feature n{length(x)} {nature} DETAILS {snap}")
+  })
+
+setReplaceMethod("lab", signature = c(x = "ANY", value = "NULL"),
+  function(x, value){
+    return(x)
   })
 
 setReplaceMethod("lab", signature = c(x = "ANY", value = "character"),
@@ -2174,13 +2201,16 @@ setGeneric("set_remote",
     standardGeneric("set_remote")
   })
 
-create_job_cache_dir <- function(x, path = "tmp") {
+create_job_cache_dir <- function(x, name = NULL, path = "tmp") {
   dir.create(path, FALSE)
   if (!is(x, "job")) {
     stop('!is(x, "job") == FALSE')
   }
+  if (is.null(name)) {
+    name <- class(x)
+  }
   dir <- file.path(
-    path, paste0(s(class(x), "^job_", ""), "_cache_", x@sig)
+    path, paste0(s(name, "^job_", ""), "_cache_", x@sig)
   )
   dir.create(dir, FALSE)
   return(dir)
@@ -2518,14 +2548,19 @@ setGeneric("step12", group = list("step_series"),
   })
 
 stepPostModify <- function(x, n = NULL, name = "step1", formal = TRUE,
-  showH1 = TRUE, call = NULL, envir = parent.frame(2), 
+  showH1 = TRUE, call = NULL, envir = parent.frame(1), 
   exclude = "x")
 {
   if (showH1) {
     cli::cli_h1("Job finished & Start post modify")
   }
   if (is.call(call)) {
-    method <- selectMethod(name, methods::signature(class(x)))
+    method <- try(
+      selectMethod(name, methods::signature(class(x)))
+    )
+    if (inherits(method, "try-error")) {
+      stop(glue::glue("Can not found method for '{name}' with signature '{bind(class(x))}'?"))
+    }
     fun_local <- get_local_fun(method)
     args <- try(
       .get_complete_args(fun_local, call, envir, exclude = exclude), TRUE
@@ -2535,7 +2570,7 @@ stepPostModify <- function(x, n = NULL, name = "step1", formal = TRUE,
     }
     isSave <- vapply(args, FUN.VALUE = logical(1), 
       function(x) {
-        (is(x, "character") || is(x, "numeric")) && object.size(x) < 5000
+        (is(x, "character") || is(x, "numeric") || is(x, "logical")) && object.size(x) < 5000
       })
     x$.args[[ paste0("step", n) ]] <- args[ isSave ]
   }
@@ -2546,7 +2581,7 @@ stepPostModify <- function(x, n = NULL, name = "step1", formal = TRUE,
       if (getOption("auto_convert_plots", FALSE)) {
         x <- convertPlots(x, n)
       }
-      if (length(x@plots) >= n) {
+      if (length(x@plots) >= n && length(x@plots) >= x@step) {
         if (!is.null(x@plots[[ n ]])) {
           names(x@plots)[ n ] <- paste0("step", n)
         }
@@ -2557,7 +2592,7 @@ stepPostModify <- function(x, n = NULL, name = "step1", formal = TRUE,
           news <- c(news, new_plots)
         }
       }
-      if (length(x@tables) >= n) {
+      if (length(x@tables) >= n && length(x@tables) >= x@step) {
         if (!is.null(x@tables[[ n ]]))
           names(x@tables)[ n ] <- paste0("step", n)
         if (!is.null(xname)) {
@@ -2830,7 +2865,7 @@ e <- function(expr, text = NULL, internal = TRUE, n = NULL) {
     cli::cli_alert_info(name)
   else
     cli::cli_alert_info(paste0(name, " (", text, ")" ))
-  suppressMessages(eval(expr, envir = parent.frame(n)))
+  eval(expr, envir = parent.frame(n))
 }
 
 parallel <- function(x, fun, workers = 3) {
@@ -3045,6 +3080,9 @@ setGeneric("getsub",
 setGeneric("active",
   function(x, ...) standardGeneric("active"))
 
+setGeneric("activate",
+  function(x, ...) standardGeneric("activate"))
+
 setGeneric("skel",
   function(x, ...) standardGeneric("skel"))
 
@@ -3106,6 +3144,22 @@ setMethod("upd", signature = c(x = "job"),
       new@sig <- x@sig
     }
     new
+  })
+
+setMethod("add", signature = c(x = "wrap"),
+  function(x, data, wrap_plots = NULL)
+  {
+    if ((is.null(wrap_plots) || wrap_plots) && is(data, "list")) {
+      if (is.null(x$ncol)) {
+        rlang::abort("`x` is not generated by `wrap_layout`?")
+      }
+      if (all(vapply(data, is, logical(1), "gg.obj"))) {
+        data <- e(patchwork::wrap_plots(data, ncol = x$ncol))
+      }
+    }
+    data <- wrap(data)@data
+    x@data <- data
+    return(x)
   })
 
 setMethod("fill", signature = c(x = "df"),
@@ -3230,8 +3284,7 @@ activate_celldancer <- function(env_pattern = "cellDancer", conda = "~/miniconda
   activate_env(env_pattern, conda = conda)
 }
 
-activate_env <- function(env_pattern = "base",
-  env_path = pg("conda_env"), conda = pg("conda"))
+activate_env <- function(env_pattern = "base", conda = pg("conda"), set_python = TRUE)
 {
   meta <- dplyr::filter(e(reticulate::conda_list()), grepl(env_pattern, name))
   conda_env <- meta$name[1]
@@ -3240,7 +3293,11 @@ activate_env <- function(env_pattern = "base",
   if (nchar(nEnv) && nEnv == conda_env) {
     message(glue::glue("Conda env: {conda_env} has already setup."))
   } else {
-    e(base::Sys.setenv(RETICULATE_PYTHON = python, activate_conda = conda_env))
+    if (set_python) {
+      e(base::Sys.setenv(RETICULATE_PYTHON = python, activate_conda = conda_env))
+    } else {
+      e(base::Sys.setenv(activate_conda = conda_env))
+    }
     ## e(reticulate::py_config())
     e(reticulate::use_condaenv(conda_env, conda, required = TRUE))
     e(reticulate::import("platform"))

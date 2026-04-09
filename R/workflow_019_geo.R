@@ -200,9 +200,12 @@ setMethod("map", signature = c(x = "job_limma", ref = "job_geo"),
   })
 
 setMethod("asjob_limma", signature = c(x = "job_geo"),
-  function(x, metadata, use = 1L, normed = "guess", use.col = NULL)
+  function(x, metadata, rna = NULL, use = 1L, normed = "guess", 
+    use.col = NULL, use_as_id = TRUE, split = "\\s*///\\s*|,\\s*")
   {
-    rna <- x$rna
+    if (is.null(rna)) {
+      rna <- x$rna
+    }
     project <- object(x)
     if (rna) {
       counts <- as_tibble(data.frame(x@params$about[[ use ]]@assays@data$counts, check.names = FALSE))
@@ -223,9 +226,12 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
       if (any(colnames(genes) == "rownames")) {
         if (any(isThat <- grpl(colnames(genes), "Gene Symbol"))) {
           oname <- colnames(genes)[ isThat ][1]
-          message(glue::glue("Rename '{oname}' as: hgnc_symbol:\n{showStrings(genes[[oname]])}"))
-          genes <- dplyr::relocate(genes, rownames, hgnc_symbol = !!rlang::sym(oname))
+        } else {
+          oname <- .guess_symbol(colnames(genes))
         }
+        message(glue::glue("Rename '{oname}' as: symbol:\n{showStrings(genes[[oname]])}"))
+        genes <- dplyr::relocate(genes, rownames, symbol = !!rlang::sym(oname))
+        use.col <- "symbol"
       } else {
         guess <- grpf(colnames(genes), "^gene", ignore.case = TRUE)
         if (length(guess)) {
@@ -236,7 +242,7 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
           which <- menuThat(colnames(genes), "Use which as gene ID?")
           guess <- colnames(genes)[which]
         }
-        keep <- !is.na(genes[[ guess ]]) & genes[[ guess ]] != "" & !duplicated(genes[[ guess ]])
+        keep <- !is.na(genes[[ guess ]]) & genes[[ guess ]] != ""
         ## format
         genes <- dplyr::mutate(genes, rownames = !!rlang::sym(guess))
         genes <- dplyr::relocate(genes, rownames)
@@ -246,21 +252,22 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
         counts <- dplyr::relocate(counts, rownames)
         genes <- genes[ keep, ]
         counts <- counts[ keep,  ]
+        use.col <- guess
       }
     } else {
-      genes <- dplyr::relocate(genes, rownames, hgnc_symbol = !!rlang::sym(use.col))
+      genes <- dplyr::relocate(genes, rownames, symbol = !!rlang::sym(use.col))
     }
     if (any(colnames(genes) == "gene_assignment")) {
       genes <- dplyr::mutate(
         genes, GENE_SYMBOL = strx(
           gene_assignment, "(?<=// )[^/ ]+(?= //)"
-        ), .before = 2
+          ), .before = 2
       )
     } else if (any(colnames(genes) == "SPOT_ID.1")) {
       genes <- dplyr::mutate(
         genes, GENE_SYMBOL = gs(
           SPOT_ID.1, "[^/]+// RefSeq // [^(]+\\(([^)]+)\\).*", "\\1"
-        ),
+          ),
         .before = 2
       )
     }
@@ -283,17 +290,34 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
       message(glue::glue("Filter out NCBI generated data (Missing samples): {bind(x$ncbiNotGot)}"))
       metadata <- dplyr::filter(metadata, !rownames %in% x$ncbiNotGot)
     }
+    if (use_as_id) {
+      message(crayon::red(glue::glue("Use `{use.col}` as ID columns.")))
+      if (any(grpl(genes[[use.col]], split))) {
+        message(glue::glue("Detected that the ID column contains multiple ID names separated by: {split}"))
+        message("Use the first.")
+        genes[[".annotation_raw"]] <- genes[[use.col]]
+        genes[[ use.col ]] <- vapply(
+          strsplit(genes[[use.col]], split), FUN.VALUE = character(1),
+          function(x) x[1]
+        )
+      }
+      counts[[1]] <- genes[[ use.col ]]
+      genes <- dplyr::relocate(genes, !!rlang::sym(use.col))
+      keep <- !is.na(genes[[ use.col ]]) & genes[[ use.col ]] != ""
+      genes <- genes[keep, ]
+      counts <- counts[keep, ]
+    }
     if (normed) {
-      counts <- dplyr::select(counts, -1)
+      lst <- prepare_expr_data(metadata, counts, genes)
+      counts <- dplyr::select(lst$counts, -1)
       counts <- data.frame(counts)
-      rownames(counts) <- genes$rownames
-      x <- job_limma_normed(counts, metadata)
-      x$genes <- genes
+      rownames(counts) <- lst$genes$rownames
+      x <- job_limma_normed(counts, lst$metadata)
+      x$genes <- lst$genes
       x$rna <- rna
       x$project <- project
-      x
     } else {
-      cli::cli_alert_info("new_dge")
+      cli::cli_alert_info("Use function: `prepare_expr_data`")
       res <- try(job_limma(new_dge(metadata, counts, genes)))
       if (inherits(res, "try-error")) {
         Terror <<- namel(metadata, counts, genes)
@@ -301,9 +325,11 @@ setMethod("asjob_limma", signature = c(x = "job_geo"),
       } else {
         res$rna <- rna
         res$project <- project
-        return(res)
       }
+      x <- res
     }
+    x <- methodAdd(x, "整理 GEO 数据集 ({project}) 以备 `limma` 差异分析 ({prepare_expr_data()})。")
+    return(x)
   })
 
 setMethod("expect", signature = c(x = "job_geo", ref = "ANY"),

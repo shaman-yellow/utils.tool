@@ -19,7 +19,8 @@
     analysis = "Seurat 集成单细胞数据分析"
     ))
 
-job_seurat5n <- function(dirs, names = NULL, mode = c("sc", "st"), st.filename = "filtered_feature_bc_matrix.h5")
+job_seurat5n <- function(dirs, names = NULL, mode = c("sc", "st"), 
+  st.filename = "filtered_feature_bc_matrix.h5", ...)
 {
   # https://satijalab.org/seurat/articles/parsebio_sketch_integration
   mode <- match.arg(mode)
@@ -29,9 +30,9 @@ job_seurat5n <- function(dirs, names = NULL, mode = c("sc", "st"), st.filename =
       n <<- n + 1L
       project <- names[n]
       if (mode == "sc") {
-        suppressMessages(job_seurat(dir, project = project))@object
+        suppressMessages(job_seurat(dir, project = project, ...))@object
       } else {
-        suppressMessages(job_seuratSp(dir, filename = st.filename))@object
+        suppressMessages(job_seuratSp(dir, filename = st.filename, ...))@object
       }
     })
   x <- .job_seurat5n(object = object)
@@ -51,6 +52,16 @@ setMethod("step0", signature = c(x = "job_seurat5n"),
     step_message("Prepare your data with function `job_seurat5n`.")
   })
 
+setMethod("map", signature = c(x = "job_seurat", ref = "df"),
+  function(x, ref, by.x = "orig.ident", by.ref = "sample", 
+    get = "group", col = get)
+  {
+    object(x)@meta.data[[col]] <- dplyr::recode(
+      object(x)@meta.data[[by.x]], !!!setNames(ref[[get]], ref[[by.ref]])
+    )
+    return(x)
+  })
+
 setMethod("step1", signature = c(x = "job_seurat5n"),
   function(x, min.features, max.features, max.count, max.percent.mt = 5)
   {
@@ -64,7 +75,7 @@ setMethod("step1", signature = c(x = "job_seurat5n"),
             nCount_RNA < max.count
           ))
       p.qc_aft <- plot_qc.seurat(x)
-      p.qc_aft <- set_lab_legend(
+      x$p.qc_aft <- p.qc_aft <- set_lab_legend(
         p.qc_aft,
         glue::glue("{x@sig} After Quality control"),
         glue::glue("数据过滤后的 QC 图|||{.seurat_qc_note}") #__REVISE__ set_lab_legend 2026-03-23_21:59:08
@@ -76,7 +87,7 @@ setMethod("step1", signature = c(x = "job_seurat5n"),
       )
       x <- plotsAdd(x, p.qc_pre = p.qc_pre, p.qc_aft = p.qc_aft)
       x <- methodAdd(
-        x, "前期质量控制{aref(p.qc_pre)}，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。保留总基因表达量小于 {max.count} 细胞。过滤前，所有样本共包含 {ncell} 个细胞，{ngene} 个基因。⟦mark$red('过滤后{aref(p.qc_aft)}，所有样本共包含{ncol(object(x))}个细胞，{nrow(object(x))} 个基因用于后续分析。')⟧" #__REVISE__ methodAdd 2026-03-23_22:06:48
+        x, "前期质量控制{aref(p.qc_pre)}，一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。保留总基因表达量小于 {max.count} 细胞。过滤前，所有样本共包含 {ncell} 个细胞，{ngene} 个基因。过滤后{aref(p.qc_aft)}，⟦mark$red('所有样本共包含{ncol(object(x))}个细胞，{nrow(object(x))} 个基因用于后续分析。')⟧" #__REVISE__ methodAdd 2026-03-23_22:06:48
       )
       # x <- methodAdd(x, "一个细胞至少应有 {min.features} 个基因，并且基因数量小于 {max.features}。线粒体基因的比例小于 {max.percent.mt}%。根据上述条件，获得用于下游分析的高质量细胞。")
     }
@@ -170,7 +181,7 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
       )
     } else {
       if (is.null(x$.before_IntegrateLayers)) {
-        x <- methodAdd(x, "结果显示{aref(x@plots$step2$pca_rank)}，前 {max(dims)} 个 PCs 以后方差增量减缓逐渐趋于稳定，选择前 {max(dims)} 个 PCs 进行后续聚类分析。")
+        x <- methodAdd(x, "结果显示{aref(x@plots$step2$p.pca_rank)}，前 {max(dims)} 个 PCs 以后方差增量减缓逐渐趋于稳定，选择前 {max(dims)} 个 PCs 进行后续聚类分析。")
         object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims, reduction = "pca"))
         object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution,
             cluster.name = "unintegrated_clusters"))
@@ -269,5 +280,5 @@ setMethod("asjob_limma", signature = c(x = "job_seurat"),
     return(x)
   })
 
-.seurat_qc_note <- "**上方小提琴图**：每个样本对应一个‘小提琴’，小提琴的宽度代表相应数据的密度，宽度越大表示在该区域内的数据点越密集，更多数据点集中于此区域；宽度越小则表示密度越小，即数据相对较少；过滤标准：nCount 和 nFeature 过高可能是双细胞，过低可能是细胞碎片；percent.mt（线粒体基因表达比例，是细胞内线粒体基因表达量占所有基因表达量的比例）表明细胞状态，值过高可能是细胞正在经历压力或死亡。**下方点图**：每一个点代表一个细胞，不同颜色代表不同样本；左图横坐标为总基因表达数，纵坐标为线粒体基因比例；右图横坐标为 nCount（总基因表达数），纵坐标为 Feature（总基因数）；正常情况下，nCount 越多那么 nFeature 就越高，呈现出正相关关系，因此检测到的基因表达数应与检测到的基因数目在细胞间高度相关，而线粒体基因比例则不相关（若呈正相关，横坐标越大纵坐标也越大；若呈负相关，横坐标越大纵坐标应越小）。"
+.seurat_qc_note <- "上方小提琴图：每个样本对应一个‘小提琴’，小提琴的宽度代表相应数据的密度，宽度越大表示在该区域内的数据点越密集，更多数据点集中于此区域；宽度越小则表示密度越小，即数据相对较少；过滤标准：nCount 和 nFeature 过高可能是双细胞，过低可能是细胞碎片；percent.mt（线粒体基因表达比例，是细胞内线粒体基因表达量占所有基因表达量的比例）表明细胞状态，值过高可能是细胞正在经历压力或死亡。下方点图：每一个点代表一个细胞，不同颜色代表不同样本；左图横坐标为总基因表达数，纵坐标为线粒体基因比例；右图横坐标为 nCount（总基因表达数），纵坐标为 Feature（总基因数）；正常情况下，nCount 越多那么 nFeature 就越高，呈现出正相关关系，因此检测到的基因表达数应与检测到的基因数目在细胞间高度相关，而线粒体基因比例则不相关（若呈正相关，横坐标越大纵坐标也越大；若呈负相关，横坐标越大纵坐标应越小）。"
 

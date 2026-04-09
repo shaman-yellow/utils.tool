@@ -529,8 +529,8 @@ try_fqs_meta <- function(metadata, filepath, filter = FALSE) {
   metadata
 }
 
-activate_qiime <- function(env_pattern = "qiime", env_path = pg("conda_env"), conda = pg("conda")) {
-  activate_env(env_pattern, env_path, conda)
+activate_qiime <- function(env_pattern = "qiime", conda = pg("conda")) {
+  activate_env(env_pattern, conda)
 }
 
 get_taxon_data <- function(file = .prefix("qiime2/taxonomy.tsv", "db")) {

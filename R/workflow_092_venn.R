@@ -59,17 +59,18 @@ job_vennDEGs <- function(pattern, exclude = NULL,
   return(x)
 }
 
-job_venn <- function(..., analysis = NULL, lst = NULL)
+job_venn <- function(..., analysis = NULL, lst = NULL, fun_map = function(x) x)
 {
   if (is.null(lst)) {
     object <- list(...)
   } else {
     object <- lst
   }
+  methodAdd_onExit("x", "以 R 包 `ggVennDiagram` ⟦pkgInfo('ggVennDiagram')⟧ 对基因集取交集。")
   if (all(vapply(object, is, logical(1), "feature"))) {
     snaps <- paste0("- ", vapply(object, snap, character(1)))
-    snapAdd_onExit("x", "数据集为：\n\n{bind(snaps, co = '\n')}\n\n\n\n")
-    object <- lapply(object, function(x) unlist(x@.Data))
+    methodAdd_onExit("x", "数据集为：\n\n{bind(snaps, co = '\n')}\n\n\n\n")
+    object <- lapply(object, function(x) fun_map(unlist(x@.Data)))
   }
   x <- .job_venn(object = object)
   x$analysis <- analysis
@@ -98,7 +99,12 @@ setMethod("step1", signature = c(x = "job_venn"),
         )
       )
     }
-    x <- snapAdd(x, "对{bind(names(object(x)))} 取交集，得到{length(p.venn$ins)}个交集{aref(p.venn)}。")
+    if (length(p.venn$ins) < 10) {
+      iter <- glue::glue(" ({bind(p.venn$ins)}) ")
+    } else {
+      iter <- ""
+    }
+    x <- snapAdd(x, "对{bind(names(object(x)))} 取交集，得到{length(p.venn$ins)}个交集{iter}{aref(p.venn)}。")
     x <- plotsAdd(x, p.venn)
     if (!is.null(x$analysis)) {
       feature(x) <- as_feature(p.venn$ins, x$analysis, ...)
@@ -208,4 +214,138 @@ setMethod("feature", signature = c(x = "job_vennDEGs"),
       )
     }
   })
+
+alias_intersect_multi <- function(..., mode = c("main", "all", "index"), main = 1L, sep = "///")
+{
+  require(data.table)
+
+  mode <- match.arg(mode)
+
+  inputs <- list(...)
+  k <- length(inputs)
+
+  # Expand all inputs into long alias tables
+  dt_list <- lapply(seq_along(inputs), function(i) {
+    dt <- .expand_alias_dt(inputs[[i]], paste0("s", i, "_"), sep)
+    dt[, set_id := i]
+    dt
+  })
+
+  # Combine all tables
+  dt_all <- rbindlist(dt_list)
+
+  # Count how many distinct sets each alias appears in
+  alias_sets <- dt_all[, .(set_count = uniqueN(set_id)), by = alias]
+
+  # Keep only aliases present in all sets
+  valid_alias <- alias_sets[set_count == k, alias]
+
+  # If no overlap, return empty structure
+  if (length(valid_alias) == 0) {
+    if (mode == "main") {
+      return(inputs[[main]][ integer(0) ])
+    } else {
+      return(vector("list", k))
+    }
+  }
+
+  # Filter hits
+  hit <- dt_all[alias %in% valid_alias]
+
+  # Extract unique indices per set
+  res_idx <- hit[, .(idx = unique(idx)), by = set_id]
+
+  # Return based on mode
+  if (mode == "main") {
+    idx <- res_idx[set_id == main, idx]
+    inputs[[main]][idx]
+  } else if (mode == "index") {
+    split(res_idx$idx, res_idx$set_id)
+  } else if (mode == "all") {
+    lapply(seq_along(inputs), function(i) {
+      idx <- res_idx[set_id == i, idx]
+      inputs[[i]][idx]
+    })
+  }
+}
+
+
+# Main function: compute intersection based on alias overlap
+alias_intersect <- function(x, y, mode = c("x", "y", "both", "index"), sep = "///")
+{
+  require(data.table)
+
+  mode <- match.arg(mode)
+
+  # Expand both inputs into long alias tables
+  x_dt <- .expand_alias_dt(x, "x_", sep)
+  y_dt <- .expand_alias_dt(y, "y_", sep)
+
+  # Set keys for fast join on alias
+  setkey(x_dt, alias)
+  setkey(y_dt, alias)
+
+  # Perform join to find overlapping aliases
+  hit <- x_dt[y_dt, nomatch = 0]
+
+  # Extract matched indices directly (faster than gid parsing)
+  x_idx <- unique(hit$idx)
+  y_idx <- unique(hit$i.idx)
+
+  # Return results based on mode
+  if (mode == "x") {
+    x[x_idx]
+  } else if (mode == "y") {
+    y[y_idx]
+  } else if (mode == "both") {
+    list(x = x[x_idx], y = y[y_idx])
+  } else {
+    list(x_index = x_idx, y_index = y_idx)
+  }
+}
+
+
+# Expand input into a long-format data.table (robust to vector/list, names optional)
+.expand_alias_dt <- function(lst, prefix, sep = "\\s*///\\s*") {
+
+  n <- length(lst)
+
+  # Handle names safely (vector without names → auto-generate)
+  nm <- names(lst)
+  if (is.null(nm)) {
+    nm <- paste0("V", seq_len(n))
+  } else {
+    empty <- nm == "" | is.na(nm)
+    nm[empty] <- paste0("V", which(empty))
+  }
+
+  # Build base table
+  dt <- data.table(
+    name = nm,
+    idx  = seq_len(n)
+  )
+
+  # Split aliases (vectorized, avoid lapply overhead)
+  alias_list <- strsplit(as.character(lst), sep)
+
+  # Flatten once
+  alias_vec <- trimws(unlist(alias_list, use.names = FALSE))
+
+  # Map aliases back to original indices
+  lens <- lengths(alias_list)
+  dt <- dt[rep.int(seq_len(n), lens)]
+
+  dt[, alias := alias_vec]
+
+  # Remove invalid aliases
+  dt <- dt[alias != "" & !is.na(alias)]
+
+  # Deduplicate within each group
+  dt <- unique(dt, by = c("idx", "alias"))
+
+  # Create group ID (kept for compatibility, though no longer used downstream)
+  dt[, gid := paste0(prefix, idx)]
+
+  dt[, .(gid, name, idx, alias)]
+}
 

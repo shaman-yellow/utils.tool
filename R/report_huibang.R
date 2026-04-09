@@ -2,12 +2,26 @@
 # huibang
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-setup.sshfs <- function(project = guess_project(), ws = getRemoteWs(), 
-  remote = "remote", path = "remote")
+create_remote_project.hb <- function(project = guess_project(), ws = getRemoteWs(), 
+  remote = "remote")
 {
+  cmd <- glue::glue("cd {ws} && mkdir {project}")
+  cdRun("ssh ", remote, " '", cmd, "'")
+}
+
+setup.sshfs <- function(project = guess_project(), ws = getRemoteWs(), 
+  remote = "remote", path = "remote", mirror = "scripts_mirror")
+{
+  if (!dir.exists(mirror)) {
+    stop('!dir.exists(mirror).')
+  }
   if (!dir.exists(path)) {
    stop('!dir.exists("path").')
   }
+  file_sync <- file.path(.expath, "scripts", "sync.sh")
+  cmd <- glue::glue("sh -c 'nohup bash {file_sync} {mirror} {remote}:{ws}/{project} > sync.log 2>&1 &'")
+  system(cmd, wait = FALSE)
+  # system2("bash", c("-c", cmd), wait = FALSE)
   if (is_sshfs_mount(path)) {
     return(message("The directory has been mount."))
   }
@@ -15,7 +29,7 @@ setup.sshfs <- function(project = guess_project(), ws = getRemoteWs(),
     stop('length(list.files(path, all.files = TRUE, include.dirs = TRUE)).')
   }
   # umount remote
-  cdRun(glue::glue("nohup sshfs {remote}:{ws} ../{path} >/dev/null 2>&1 &"))
+  # cdRun(glue::glue("nohup sshfs {remote}:{ws} ../{path} >/dev/null 2>&1 &"))
   cdRun(glue::glue("nohup sshfs {remote}:{ws}/{project} {path} >/dev/null 2>&1 &"))
   repeat {
     Sys.sleep(1)
@@ -75,6 +89,9 @@ table_qc.hb <- function() {
 }
 
 is_sshfs_mount <- function(path = "remote") {
+  if (grpl(path, "_mirror$")) {
+    return(file.exists(path))
+  }
   type <- system(
     glue::glue("findmnt -n -o FSTYPE --target {path}"), intern = TRUE
   )
@@ -90,7 +107,7 @@ getRemoteWs <- function() {
 }
 
 guess_project <- function(path = getwd()) {
-  res <- stringr::str_extract(basename(path), "[0-9]+_project[0-9]+")
+  res <- stringr::str_extract(basename(path), "[0-9]+_[a-zA-Z]+[0-9]+")
   if (is.na(res)) {
     stop('is.na(res).')
   }
@@ -98,7 +115,7 @@ guess_project <- function(path = getwd()) {
 }
 
 push_script.hb <- function(..., .project = guess_project(), 
-  .ws = getRemoteWs(), .path = "remote", .exlibrary = getOption("remote_R_library", ""))
+  .ws = getRemoteWs(), .path = "scripts_mirror", .exlibrary = getOption("remote_R_library", ""))
 {
   project <- .project
   ws <- .ws
@@ -108,7 +125,7 @@ push_script.hb <- function(..., .project = guess_project(),
     stop('!is_sshfs_mount(path).')
   }
   dir_project <- file.path(ws, project)
-  maxNum <- as.integer(guess_number.hb(path))
+  maxNum <- 1L
   allFiles <- list.files(path)
   vapply(list(...), FUN.VALUE = character(1),
     function(theme) {
@@ -116,15 +133,21 @@ push_script.hb <- function(..., .project = guess_project(),
         "^r\\.[0-9]{2}_{{{theme}}}\\.r$", .open = "{{{", .close = "}}}"
       )
       existFiles <- grpf(allFiles, pattern)
+      num <- sprintf("%02d", maxNum)
+      maxNum <<- maxNum + 1L
+      pathScript <- file.path(path, glue::glue("r.{num}_{theme}.r"))
       if (length(existFiles)) {
         if (length(existFiles) > 1) {
           rlang::abort(glue::glue("Theme of {theme} found multiple files: {bind(existFiles)}"))
         } else {
+          numReal <- strx(existFiles, "[0-9]+")
+          if (numReal != num && sureThat("File exists: {existFiles}, rename to r.{num}_{theme}.r?")) {
+            file.rename(file.path(path, existFiles), pathScript)
+            return(file.path(pathScript))
+          }
           return(file.path(path, existFiles))
         }
       }
-      num <- sprintf("%02d", maxNum)
-      pathScript <- file.path(path, glue::glue("r.{num}_{theme}.r"))
       dir_output <- glue::glue("{num}_{theme}")
       script <- readLines(file.path(.expath, "job_templ", "script_setup_huibang.R"))
       script <- glue::glue(
@@ -134,7 +157,6 @@ push_script.hb <- function(..., .project = guess_project(),
         .open = ".{{{", .close = "}}}."
       )
       writeLines(script, pathScript)
-      maxNum <<- as.integer(num) + 1L
       pathScript
     })
 }
@@ -152,14 +174,17 @@ project_packaging.hb <- function(file_report, overwrite = FALSE,
   }
   ws <- getRemoteWs()
   pr <- guess_project()
-  num_project <- strx(pr, "(?<=project)[0-9]+")
-  message(glue::glue("Project number: {num_project}"))
+  message(glue::glue("Workspace: {ws}\nProject: {pr}"))
+  prefix <- strx(pr, "(?<=_)[a-zA-Z]+")
+  message(glue::glue("Prefix: {prefix}"))
+  num_project <- strx(pr, glue::glue("(?<={prefix})[0-9]+"))
+  message(glue::glue("Project number: {prefix}{num_project}"))
   # remote is linux!
   dir_project <- paste0(ws, "/", pr)
   time <- format(Sys.Date(), "%Y%m%d")
   types <- c("scripts", "results", "report")
   names <- setNames(
-    as.list(glue::glue("project_{num_project}_{types}_{time}")), types
+    as.list(glue::glue("{prefix}_{num_project}_{types}_{time}")), types
   )
   message(glue::glue("Send report file..."))
   toDocx <- file.path(glue::glue("{path}"), glue::glue("{names$report}.docx"))
@@ -256,7 +281,7 @@ run_remote_output.hb <- function(run = FALSE, skip = NULL,
 
 push_overture_as_output.hb <- function(pull = FALSE, push = FALSE,
   ovLoc = getOption("overture_codes_and_location"), override_remote = FALSE,
-  dir_check = "./remote_script/push_check", path = "remote",
+  dir_check = "./remote_script/push_check", path = "scripts_mirror",
   replace = "take_positions")
 {
   if (is.null(ovLoc)) {
@@ -376,7 +401,7 @@ convert_pdf_in_project <- function(path = "remote", skip = NULL)
 pull_jobs_from_script.hb <- function(files, override = FALSE, 
   test = !override, project = guess_project(), 
   ws = getRemoteWs(), 
-  path = "remote", dir_save = "remote_script",
+  path = "scripts_mirror", dir_save = "remote_script",
   pattern_object = "(?<=\\bclear\\()[a-zA-Z0-9_.]+",
   pattern_level = "(?<=\\bstep)[0-9]+(?=\\()")
 {
@@ -489,12 +514,12 @@ guess_number.hb <- function(path = "remote", p.pattern = "r\\.[0-9]{2}",
   sprintf("%02d", max + 1)
 }
 
-spsv <- function(object, name = NULL, prefix = "tmp_") {
+spsv <- function(object, name = NULL, prefix = "tmp") {
   if (is.null(name)) {
     name <- formal_name(rlang::expr_text(substitute(object)))
   }
   fun <- select_savefun(object)
-  fun(object, name = name, mkdir = ".")
+  fun(object, name = name, mkdir = prefix)
 }
 
 smart_wrap_expr <- function(plots, size = 3, ..., envir = .GlobalEnv)
@@ -530,6 +555,18 @@ expect_package <- function(pkg, version, prio_lib = getOption("prio_lib")) {
   }
 }
 
+clear_feature <- function(x, name = "key.rds", dir = ".", 
+  file = file.path(dir, name))
+{
+  if (!is(x, "feature")) {
+    stop('!is(x, "feature").')
+  }
+  saveRDS(x, file)
+}
+
+load_feature <- function(name = "key.rds", dir = ".", file = file.path(dir, name)) {
+  readRDS(file)
+}
 
 save_small.huibang <- function(name, cutoff = 50, dir = "rdata_smallObject")
 {
@@ -557,45 +594,18 @@ setup.huibang <- function() {
     db_prefix = "/data/nas1/huanglichuang_OD/project/",
     op_prefix = "/data/nas1/huanglichuang_OD/project/",
     file_batman_compounds_info = "/data/nas2/database/graphban/db/BATMAN_TCM/cids_result.csv",
-    cellchat_python = "/data/nas1/huanglichuang_OD/conda/envs/extra_pkgs/bin/python",
-    rdkit_python = "/data/nas1/huanglichuang_OD/conda/envs/extra_pkgs/bin/python",
     path_jobLoadFrom = list(remote = "./rds_jobSave/", local = "./rds_jobSave/lite/"),
     pg_local_recode = list(
-      # fusion = "~/fusion_twas",
-      # ldscPython = "{conda}/bin/conda run -n ldsc python",
-      # ldsc = "~/ldsc",
-      # annovar = "~/disk_sda1/annovar",
-      # vep = "~/ensembl-vep/vep",
-      # vep_cache = "~/disk_sda1/.vep",
-      # vina = "vina",
-      # python = "{conda}/bin/python3",
-      # conda = "{conda}/bin/conda",
-      # conda_env = "{conda}/envs",
-      # qiime = "{conda}/bin/conda run -n qiime2 qiime",
-      # musitePython = "{conda}/bin/conda run -n musite python3",
-      # musitePTM = "~/MusiteDeep_web/MusiteDeep/predict_multi_batch.py",
-      # musitePTM2S = "~/MusiteDeep_web/PTM2S/ptm2Structure.py",
-      # hobEnv = "hobpre",
-      # hobPython = "{conda}/bin/conda run -n hobpre python",
-      # hobPredict = "~/HOB/HOB_predict.py",
-      # hobModel = "~/HOB/model",
-      # hobExtra = "~/HOB/pca_hob.m",
-      # dl = normalizePath("~/D-GCAN/DGCAN"),
-      # dl_dataset = normalizePath("~/D-GCAN/dataset"),
-      # dl_model = normalizePath("~/D-GCAN/DGCAN/model"),
-      # scfeaPython = "{conda}/bin/conda run -n scFEA python",
-      # scfea = "~/scFEA/src/scFEA.py",
-      # scfea_db = "~/scFEA/data",
-      # musiteModel = normalizePath("~/MusiteDeep_web/MusiteDeep/models"),
-      # mk_prepare_ligand.py = "mk_prepare_ligand.py",
-      # prepare_receptor = "prepare_receptor",
-      # prepare_gpf.py = "prepare_gpf.py",
-      # autogrid4 = "autogrid4",
-      # pymol = "/usr/bin/python3 -m pymol",
-      # sirius = .prefix("sirius/bin/sirius", "op"),
-      # obgen = "obgen",
+      db_scenic = "/data/nas1/huanglichuang_OD/project/SCENIC",
+      # db_scenic = "/data/nas2/database/SCENIC",
+      pyscenic = "conda run -n pyscenic pyscenic",
+      compass = "conda run -n mebocost compass",
+      cellchat_python = "/data/nas1/huanglichuang_OD/conda/envs/extra_pkgs/bin/python",
+      rdkit_python = "/data/nas1/huanglichuang_OD/conda/envs/extra_pkgs/bin/python",
       conda = "/data/nas2/software/miniconda3/bin/conda",
       scsaEnv = "scsa",
+      mebocostEnv = "mebocost",
+      path_mebocost = "/data/nas1/huanglichuang_OD/MEBOCOST",
       scsa = "conda run -n scsa python3 /data/nas1/huanglichuang_OD/SCSA/SCSA.py",
       scsa_db = "/data/nas1/huanglichuang_OD/SCSA/whole_v2.db"
     )
@@ -623,6 +633,8 @@ run_in_project <- function(script = "", remote = "remote",
 }
 
 mark_text <- function(string, color, bold = TRUE, ...) {
+  string <- gs(string, "&lt;", "<")
+  string <- gs(string, "&gt;", ">")
   ftext <- officer::ftext(
     string, officer::fp_text_lite(color = color, bold = bold, ...)
   )
@@ -645,5 +657,23 @@ mark$th <- mark$blue
 
 mark$green <- function(string) {
   mark_text(string, color = "green")
+}
+
+name.hb <- list()
+
+name.hb$check <- function() {
+  date <- format(Sys.Date(), "%m%d")
+  glue::glue("{s(guess_project(), '[0-9]+_', '')}_关键节点核对_{date}")
+}
+
+get_file_with_format_name <- function(file, name) {
+  filename <- paste0(name, ".", tools::file_ext(file))
+  file_new <- file.path(dirname(file), filename)
+  file.copy(file, file_new, TRUE)
+  if (nchar(Sys.which("wl-copy"))) {
+    cdRun(glue::glue("wl-copy < {file_new}"))
+  } else {
+    stop('nchar(Sys.which("wl-copy")).')
+  }
 }
 

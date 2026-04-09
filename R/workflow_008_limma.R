@@ -186,23 +186,31 @@ setMethod("step0", signature = c(x = "job_limma"),
 }
 
 .guess_symbol <- function(x) {
-  symbol <- if (!is.null(x$from_scfea) && x$from_scfea) {
-    "name"
-  } else if (!is.null(x$from_seurat) && x$from_seurat) {
-    "gene"
-  } else if (!is.null(x$isTcga) && x$isTcga) {
-    "gene_name" 
-  } else if (x$rna) {
-    "hgnc_symbol"
+  if (is(x, "job_limma")) {
+    symbol <- if (!is.null(x$from_scfea) && x$from_scfea) {
+      "name"
+    } else if (!is.null(x$from_seurat) && x$from_seurat) {
+      "gene"
+    } else if (!is.null(x$isTcga) && x$isTcga) {
+      "gene_name" 
+    } else if (x$rna) {
+      "hgnc_symbol"
+    } else {
+      "GENE_SYMBOL"
+    }
+    genes <- object(x)$genes %||% x$normed_data$genes %||% x$genes
+    x <- colnames(genes)
   } else {
-    "GENE_SYMBOL"
+    symbol <- "symbol"
   }
-  genes <- object(x)$genes %||% x$normed_data$genes %||% x$genes
-  if (!any(colnames(genes) == symbol)) {
+  if (!is.character(x)) {
+    rlang::abort("!is.character(x)")
+  }
+  if (!any(x == symbol)) {
     pattern <- "gene.name|symbol"
-    symbol <- grpf(colnames(genes), pattern, TRUE)
+    symbol <- grpf(x, pattern, TRUE)
     if (!length(symbol)) {
-      available <- showStrings(colnames(genes), trunc = FALSE)
+      available <- showStrings(x, trunc = FALSE)
       message(glue::glue("Can not match symbol, all available:\n{available}"))
       stop("Please manual specify the symbol.")
     }
@@ -285,7 +293,7 @@ setMethod("step1", signature = c(x = "job_limma"),
     ## sample names check
     if (!x$normed && x$rna) {
       x <- methodAdd(x, "以 R 包 `edgeR` ({packageVersion('edgeR')}) {cite_show('EdgerDifferenChen')} 对数据预处理。")
-      x <- snapAdd(x, "以 `edgeR` 将{x$project} RNA-seq 数据标准化 (详见方法章节)。")
+      x <- snapAdd(x, "以 `edgeR` 将{x$project} RNA-seq 数据标准化。")
     }
     message(glue::glue("Use formula: {formula}"))
     data_type <- match.arg(data_type)
@@ -353,8 +361,8 @@ setMethod("step1", signature = c(x = "job_limma"),
         }
       }
       if (!x$normed && !no.array_norm) {
-        x <- methodAdd(x, "使用 `log2` 和 `limma::normalizeBetweenArrays` 对数据标准化。")
-        object(x)$counts <- e(limma::normalizeBetweenArrays(log2(object(x)$counts)))
+        x <- methodAdd(x, "使用 `log2(x + 1)` 和 `limma::normalizeBetweenArrays` 对数据标准化。")
+        object(x)$counts <- e(limma::normalizeBetweenArrays(log2(object(x)$counts + 1)))
       }
       if (x$normed) {
         x$normed_data <- new_from_package(
@@ -390,7 +398,7 @@ setMethod("step1", signature = c(x = "job_limma"),
     if (!is.null(batch)) {
       snap <- paste0("(Batch: ", try_snap(batch), ")")
     }
-    x <- snapAdd(x, "以 公式 {formula} 创建设计矩阵 (design matrix) {snap}。")
+    x <- methodAdd(x, "以公式 {formula} 创建设计矩阵 (design matrix) {snap}。")
     x$.metadata <- .set_lab(x$.metadata, sig(x), "metadata of used sample")
     x$metadata <- .set_lab(x$metadata, sig(x), "metadata of used sample")
     if (saveAsCache) {
@@ -415,13 +423,12 @@ setMethod("step2", signature = c(x = "job_limma"),
     } else {
       contr <- limma::makeContrasts(contrasts = contrasts, levels = x@params$design)
     }
-    s.contr <- paste0(gsub('-', 'vs', colnames(contr)), collapse = ', ')
-    x <- methodAdd(x, "以 `limma` ({packageVersion('limma')}) {cite_show('LimmaLinearMSmyth2005')} 差异分析。")
+    s.contr <- bind(.fmt_contr_names(colnames(contr)))
+    x <- methodAdd(x, "以 R 包 `limma` ⟦pkgInfo('limma')⟧ {cite_show('LimmaLinearMSmyth2005')} 差异分析。")
     if (x$rna) {
       x <- methodAdd(x, "分析方法参考 <https://bioconductor.org/packages/release/workflows/vignettes/RNAseq123/inst/doc/limmaWorkflow.html>。")
     }
-    x <- methodAdd(x, "创建设计矩阵，对比矩阵，差异分析：{s.contr}。")
-    x <- snapAdd(x, "差异分析：{s.contr}。(若 A vs B，则为前者比后者，LogFC 大于 0 时，A 表达量高于 B)。")
+    x <- methodAdd(x, "差异分析组别：{s.contr} (前者比后者，LogFC 大于 0 时，前者表达量高于后者)。")
     ## here, remove batch effect
     ## limma::removeBatchEffect
     if (batch) {
@@ -446,69 +453,63 @@ setMethod("step2", signature = c(x = "job_limma"),
     }
     object(x) <- diff_test(object(x), x@params$design, contr, block, trend = trend)
     x <- methodAdd(x, "使用 `limma::lmFit`, `limma::contrasts.fit`, `limma::eBayes` 拟合线形模型。")
-    plots <- list()
     if (!is.null(contr)) {
-      tops <- extract_tops(object(x), use = use, use.cut = use.cut, cut.fc = cut.fc)
-      tops <- lapply(
-        tops, dplyr::relocate,
+      topsSig <- extract_tops(object(x), use = use, use.cut = use.cut, cut.fc = cut.fc)
+      x <- methodAdd(x, "以 `limma::topTable` 提取所有结果，并过滤得到 ⟦mark$blue('{use} 小于 {use.cut}，|Log2(FC)| 大于 {cut.fc} 的差异基因')⟧。")
+      names(topsSig) <- .fmt_contr_names(names(topsSig))
+      topsSig <- lapply(
+        topsSig, dplyr::relocate,
         !!rlang::sym(label), logFC, !!rlang::sym(use)
       )
-      x <- methodAdd(x, "以 `limma::topTable` 提取所有结果，并过滤得到 {use} 小于 {use.cut}，|Log2(FC)| 大于 {cut.fc} 的统计结果。")
-      if (!is.null(x$from_scfea)) {
-        tops <- lapply(tops, 
-          function(obj) {
-            dic <- nl(x$compounds_annotation$name, x$compounds_annotation$kegg, TRUE)
-            obj <- dplyr::mutate(obj, compounds = strsplit(name, " -> "),
-              kegg = lapply(compounds,
-                function(x) {
-                  dplyr::recode(x, !!!dic)
-                })
-            )    
-          })
-      }
-      tops <- .set_lab(tops, sig(x), paste("data", gs(names(tops), "-", "vs")))
-      tops <- setLegend(tops, glue::glue("为 {names(tops)} 差异分析统计表格。"))
-      lab(tops) <- paste(sig(x), "Differential Statistic data")
-      if (length(tops) >= 2) {
-        lst <- lapply(tops, function(x) x[[ label ]])
-        names(lst) <- gs(names(lst), "\\s*-\\s*", " vs ")
+      res <- .collate_snap_and_features_by_logfc(topsSig, "logFC", get = label)
+      x <- snapAdd(x, "显著基因统计：\n⟦mark$red('{res$snap}')⟧\n")
+      topsSig <- set_lab_legend(
+        topsSig,
+        glue::glue("{x@sig} {names(topsSig)} limma DEGs data"),
+        glue::glue("{names(topsSig)} 差异分析统计表格。")
+      )
+      feature(x) <- as_feature(res$sets, "DEGs")
+      # .collate_snap_and_features_by_logfc()
+      x <- tablesAdd(x, tops = topsSig)
+      if (length(topsSig) >= 2) {
+        lst <- lapply(topsSig, function(x) x[[ label ]])
         p.contrast_cols <- new_col(lst = lst)
         p.contrast_cols <- .set_lab(p.contrast_cols, sig(x), "All Difference Feature of contrasts")
-        plots <- c(plots, namel(p.contrast_cols))
+        x <- plotsAdd(x, p.contrast_cols)
       }
-    } else {
-      tops <- NULL
     }
-    print(glue::glue("use: {label}"))
-    p.volcano <- lapply(
-      tops, plot_volcano, label = label, use = use, 
-      fc = cut.fc, seed = x$seed, HLs = HLs
-    )
-    x$args_volcano <- list(label = label, use = use, fc = cut.fc, seed = x$seed, HLs = HLs)
-    p.volcano <- lapply(p.volcano,
-      function(p) {
-        p <- wrap(p, 5, 4)
-        attr(p, "lich") <- new_lich(nl(c(paste0(use, " cut-off"), "Log2(FC) cut-off"), c(use.cut, cut.fc)))
-        p
-      }
-    )
-    p.volcano <- .set_lab(p.volcano, sig(x), gs(names(p.volcano), "-", "vs"))
-    p.volcano <- setLegend(p.volcano, glue::glue("为 {names(p.volcano)} 差异分析火山图。"))
-    lab(p.volcano) <- paste(sig(x), "volcano plot")
-    plots <- c(plots, namel(p.volcano))
-    tables <- namel(tops)
-    # if (!is.null(x$from_scfea)) {
-    #   message("Gene names split by '-'.")
-    #   belong.flux <- reframe_col(dplyr::select(ref, gene, name), "gene",
-    #     function(x) unlist(strsplit(unlist(x), "-")))
-    #   belong.flux <- dplyr::relocate(belong.flux, gene, Metabolic_flux = name)
-    #   belong.flux <- .set_lab(belong.flux, sig(x), "Differential metabolic flux related Genes")
-    #   tables <- c(tops, namel(belong.flux))
-    # }
-    x@tables[[ 2 ]] <- tables
-    x@plots[[ 2 ]] <- plots
     return(x)
   })
+
+setMethod("step3", signature = c(x = "job_limma"),
+  function(x, group = "group", top = 10)
+  {
+    step_message("Draw plots.")
+    use.fc <- "logFC"
+    use <- x$.args$step2$use[1]
+    fc <- x$.args$step2$cut.fc
+    cut.p <- x$.args$step2$use.cut
+    data_expr <- x$normed_data$E
+    metadata <- x$normed_data$targets
+    top_tables <- lapply(x@tables$step2$tops, 
+      function(x) {
+        attr(x, "all")
+      })
+    idcol <- x$.args$step2$label
+    if (is.null(idcol)) {
+      stop('is.null(idcol), can not get `label` from step2 args.')
+    }
+    x <- .plot_DEG_and_add_snap(
+      x, data_expr, metadata, top_tables,
+      use = use, use.fc = use.fc, fc = fc, cut.p = cut.p, top = top, 
+      group = group, features = feature(x), idcol = idcol
+    )
+    return(x)
+  })
+
+.fmt_contr_names <- function(string) {
+  s(string, "\\s*-\\s*", " vs ")
+}
 
 collate_dataset_DEGs <- function(x, name = "guess",
   fun_extract = function(x) x@tables$step2$tops[[1]][, 1:3], exclude = NULL, ...)
@@ -599,90 +600,6 @@ setMethod("group", signature = c(x = "job_limma"),
     return(x)
   })
 
-setMethod("step3", signature = c(x = "job_limma"),
-  function(x, names = NULL, use = "all", use.gene = .guess_symbol(x),
-    fun_filter = rm.no, trunc = NULL,
-    signature = if (is.null(x$from_scfea)) "DEGs" else "DMFs",
-    gname = is.null(x$from_scfea), gather_volcano = TRUE, guess_use = FALSE)
-  {
-    step_message("Sets intersection.")
-    tops <- x@tables$step2$tops
-    if (use != "all") {
-      tops <- tops[ use ]
-    }
-    if (!is.null(names)) {
-      names(tops) <- names
-    }
-    tops <- lapply(tops,
-      function(data){
-        if (is.null(data[[ use.gene ]])) {
-          stop(
-            glue::glue('is.null(data[[ use.gene ]]), you specified {use.gene}, but found NULL')
-          )
-        }
-        up <- dplyr::filter(data, logFC > 0)[[ use.gene ]]
-        down <- dplyr::filter(data, logFC < 0)[[ use.gene ]]
-        lst <- list(up = up, down = down)
-        lapply(lst, fun_filter)
-      })
-    if (gname) {
-      tops <- lapply(tops, function(x) lapply(x, gname))
-    }
-    if (length(tops) == 1) {
-      x <- snapAdd(x, "上调或下调 {signature} 统计：{try_snap(tops[[1]])}")
-      x$.feature <- tops
-    } else {
-      x$.feature <- tops
-      s.com <- vapply(tops, try_snap, character(1))
-      s.com <- paste0("- ", names(s.com), "：", s.com, "。")
-      s.com <- paste0(s.com, collapse = "\n")
-      x <- snapAdd(x, "各组差异分析 {signature} 统计：\n\n {s.com}\n\n")
-      sfun <- function(which) length(unique(unlist(lapply(tops, function(x) x[[ which ]]))))
-      x <- snapAdd(x, "所有上调 {signature} 共 {sfun('up')} 个，所有下调 {signature} 共 {sfun('down')} 个。")
-      x <- snapAdd(x, "所有非重复 {signature} 共 {length(unique(unlist(tops)))} 个。")
-      tops <- unlist(tops, recursive = FALSE)
-      x$sets_intersection <- tops
-      if (guess_use) {
-        message("The guess use dataset combination of:\n",
-          "\t ", names(tops)[1], " %in% ", names(tops)[4], "\n",
-          "\t ", names(tops)[2], " %in% ", names(tops)[3])
-        x$guess_use <- unique(c(
-            intersect(tops[[ 1 ]], tops[[ 4 ]]),
-            intersect(tops[[ 2 ]], tops[[ 3 ]])
-            ))
-      }
-      if (is.null(x$from_scfea)) {
-        p.hp <- plot_genes_heatmap.elist(x$normed_data, unlist(tops), use.gene)
-        p.hp <- .set_lab(wrap(p.hp), sig(x), "Heatmap of {signature}")
-      } else {
-        p.hp <- NULL
-      }
-      if (FALSE) {
-        message("Upset plot.")
-        p.sets_intersection <- new_upset(lst = tops, trunc = trunc)
-        p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "Difference", "intersection")
-        x@plots[[ 3 ]] <- namel(p.sets_intersection, p.hp)
-      }
-    }
-    if (!is.null(x$from_scfea) && x$from_scfea) {
-      message("Set `feature` for scfea.")
-      feature(x) <- as_feature(x$.feature, x, nature = "flux")
-    }
-    if (gather_volcano && length(tops <- x@tables$step2$tops) >= 3) {
-      message("gather volcano plot.")
-      args <- x$args_volcano
-      args$top_table <- rbind_list(tops, .id = ".versus", FALSE)
-      args$keep_cols <- TRUE
-      p.volcano_gather <- do.call(plot_volcano, args)
-      p.volcano_gather <- p.volcano_gather + facet_wrap(~ .versus)
-      x$p.volcano_gather <- set_lab_legend(
-        wrap(p.volcano_gather), glue::glue("{x@sig} gathered volcano plot"),
-        glue::glue("为合并的各组差异分析 {signature} 火山图。")
-      )
-    }
-    return(x)
-  })
-
 plot_genes_heatmap.elist <- function(normed_data, degs, use = "hgnc_symbol") {
   degs <- unique(degs)
   if (is(normed_data, "list")) {
@@ -729,12 +646,16 @@ setMethod("clear", signature = c(x = "job_limma"),
     return(x)
   })
 
+.guess_compare_limma <- function(x, which) {
+  .get_group_from_contrast_character(names(x@tables$step2$tops)[which])
+}
+
 setMethod("focus", signature = c(x = "job_limma"),
   function(x, ref, ref.use = .guess_symbol(x), which = NULL,
     use = c("adj.P.Val", "P.Value"), 
     .name = NULL, sig = FALSE, test = "wilcox.test",
     data.which = if (!is.null(which)) attr(x@tables$step2$tops[[ which ]], "all") else NULL,
-    levels = .get_group_from_contrast_character(names(x@tables$step2$tops)), ...)
+    run_roc = TRUE, levels = .guess_compare_limma(x, 1L), ...)
   {
     if (missing(levels)) {
       levels <- eval(levels)
@@ -795,6 +716,22 @@ setMethod("focus", signature = c(x = "job_limma"),
       step = .name
     )
     x <- snapAdd(x, .stat_compare_by_pvalue(lst$p.BoxPlotOfDEGs, levels, ""), step = .name)
+    if (run_roc) {
+      elist <- x$normed_data
+      lst$roc <- roc <- sapply(ref, simplify = FALSE,
+        function(gene) {
+          .evaluate_by_ROC(
+            elist$E, elist$targets, gene, control = levels[2], sig = sig(x)
+          )
+        })
+      if (length(ref) > 1) {
+        lst$p.rocs <- plot_roc(lapply(roc, function(x) x$roc))
+      }
+      snaps <- bind(
+        paste0(vapply(roc, function(x) x$snap[1], character(1)), "\n"), co = "\n"
+      )
+      x <- snapAdd(x, "\n{snaps}", step = .name)
+    }
     if (!is.null(.name)) {
       x[[ paste0("focusedDegs_", .name) ]] <- lst
     } else {
@@ -809,7 +746,8 @@ setMethod("map", signature = c(x = "job_limma"),
     which = 1L,
     data.which = if (!is.null(which)) attr(x@tables$step2$tops[[ which ]], "all") else NULL,
     use = c("adj.P.Val", "P.Value"), test = "wilcox.test",
-    name = NULL, dedup_by_rank = TRUE, fun_plot = geom_boxplot, ...)
+    name = NULL, dedup_by_rank = TRUE, fun_plot = geom_boxplot, 
+    ncol = NULL, nrow = NULL, ...)
   {
     object <- x@params$normed_data
     if (identical(class(object), "list")) {
@@ -864,8 +802,9 @@ setMethod("map", signature = c(x = "job_limma"),
     if (!is.null(group)) {
       data <- dplyr::mutate(data, group = factor(group, levels = !!group))
     }
+    layout <- wrap_layout(NULL, length(ref), 2)
     p <- .map_boxplot2(
-      data, pvalue, fun_plot = fun_plot, test = test, ...
+      data, pvalue, fun_plot = fun_plot, test = test, ncol = layout$ncol, ...
     )
     compare <- attr(p, "compare")
     pvalue <- attr(p, "pvalue")
@@ -876,19 +815,7 @@ setMethod("map", signature = c(x = "job_limma"),
       p <- .set_significant_mapping(p, top, ref.use, use)
       legend <- "基因 {bind(unique(ref))} 表达水平，以及对应的差异显著水平。"
     }
-    scale <- sqrt(length(ref)) * 3
-    just <- 1L
-    if (!is.null(group)) {
-      just <- max(nchar(group)) - 10
-      if (just < 0) {
-        just <- 1L
-      } else {
-        just <- just / 15 * .5 * scale
-      }
-    }
-    p <- setLegend(
-      wrap(p, min(scale, 14), min(scale + just, 10)), legend
-    )
+    p <- setLegend(add(layout, p), legend)
     p$pvalue <- pvalue
     p$compare <- compare
     feature(p) <- ref
@@ -1119,7 +1046,8 @@ dedup_by_rank.job_limma <- function(x, ref.use = .guess_symbol(x),
 plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
   fc = .3, cut.p = .05, seed = 2, HLs = NULL, use.fc = "logFC", label.fc = "log2(FC)",
   label.p = paste0("-log10(", use, ")"), 
-  keep_cols = FALSE, pal = NULL, circle = FALSE, mode_fc = 0L)
+  keep_cols = FALSE, pal = NULL, circle = FALSE, mode_fc = 0L, 
+  f.nudge = .5, show_legend = TRUE)
 {
   set.seed(seed)
   if (!any(label == colnames(top_table))) {
@@ -1160,8 +1088,9 @@ plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
   if (!is.null(HLs)) {
     data <- dplyr::filter(data, !!rlang::sym(label) %in% HLs)
     data <- dplyr::mutate(
-      data, x = !!rlang::sym(use.fc), y = !!rlang::sym(use),
-      x = median(abs(x)) * sign(x)
+      data, x = !!rlang::sym(use.fc),
+      y = !!rlang::sym(use),
+      x = median(abs(x)) * sign(x) * f.nudge
     )
     data <- dplyr::arrange(data, -log10(y))
     ymax <- median(-log10(data$y))
@@ -1187,6 +1116,9 @@ plot_volcano <- function(top_table, label = "hgnc_symbol", use = "adj.P.Val",
           dplyr::slice_max(data, abs(!!rlang::sym(use.fc)), n = 20)
           )), 
       aes(label = !!rlang::sym(label)), size = 3)
+  }
+  if (!show_legend) {
+    p <- p + theme(legend.position = "none")
   }
   p
 }
@@ -1627,9 +1559,15 @@ extract_tops <- function(x, use = "adj.P.Val", use.cut = 0.05, cut.fc = 0.3){
 
 prepare_expr_data <- function(metadata, counts, genes, message = TRUE) 
 {
+  if (missing(metadata) && missing(counts) && missing(genes)) {
+    return("对于基因名重复，以基因表达量平均值排序后保留平均值最大的基因")
+  }
   if (any(duplicated(counts[[ 1 ]]))) {
     message("Duplicated gene ID column detected.")
-    # Sort the average gene expression levels and retain the gene symbol with the highest average expression level
+    message(
+      "Sort the average gene expression levels and retain the ",
+      "gene symbol with the highest average expression level"
+    )
     order <- order(
       apply(counts[, -1, drop = FALSE], 1, mean), decreasing = TRUE
     )
@@ -1659,8 +1597,8 @@ prepare_expr_data <- function(metadata, counts, genes, message = TRUE)
     stop("ncol(counts) != nrow(metadata) + 1")
   }
   cli::cli_alert_info("`make.names` for sample names.")
-  metadata$sample %<>% make.names()
-  colnames(counts) %<>% make.names()
+  metadata$sample <- make.names(metadata$sample)
+  colnames(counts) <- make.names(colnames(counts))
   ## sort genes
   data_id <- do.call(data.frame, nl(colnames(genes)[1], list(counts[[1]])))
   genes <- dplyr::distinct(genes, !!rlang::sym(colnames(genes)[1]), .keep_all = TRUE)
@@ -1705,6 +1643,93 @@ new_elist <- function(metadata, counts, genes, message = TRUE)
   lst <- do.call(prepare_expr_data, as.list(environment()))
   elist(list(E = tibble::as_tibble(lst$counts), targets = lst$metadata, genes = lst$genes))
 }
+
+# setMethod("step3", signature = c(x = "job_limma"),
+#   function(x, names = NULL, use = "all", use.gene = .guess_symbol(x),
+#     fun_filter = rm.no, trunc = NULL,
+#     signature = if (is.null(x$from_scfea)) "DEGs" else "DMFs",
+#     gname = is.null(x$from_scfea), gather_volcano = TRUE, guess_use = FALSE)
+#   {
+#     step_message("Sets intersection.")
+#     tops <- x@tables$step2$tops
+#     if (use != "all") {
+#       tops <- tops[ use ]
+#     }
+#     if (!is.null(names)) {
+#       names(tops) <- names
+#     }
+#     tops <- lapply(tops,
+#       function(data){
+#         if (is.null(data[[ use.gene ]])) {
+#           stop(
+#             glue::glue('is.null(data[[ use.gene ]]), you specified {use.gene}, but found NULL')
+#           )
+#         }
+#         up <- dplyr::filter(data, logFC > 0)[[ use.gene ]]
+#         down <- dplyr::filter(data, logFC < 0)[[ use.gene ]]
+#         lst <- list(up = up, down = down)
+#         lapply(lst, fun_filter)
+#       })
+#     if (gname) {
+#       tops <- lapply(tops, function(x) lapply(x, gname))
+#     }
+#     if (length(tops) == 1) {
+#       x <- snapAdd(x, "上调或下调 {signature} 统计：{try_snap(tops[[1]])}")
+#       x$.feature <- tops
+#     } else {
+#       # deprecated
+#       x$.feature <- tops
+#       s.com <- vapply(tops, try_snap, character(1))
+#       s.com <- paste0("- ", names(s.com), "：", s.com, "。")
+#       s.com <- paste0(s.com, collapse = "\n")
+#       x <- snapAdd(x, "各组差异分析 {signature} 统计：\n\n {s.com}\n\n")
+#       sfun <- function(which) length(unique(unlist(lapply(tops, function(x) x[[ which ]]))))
+#       x <- snapAdd(x, "所有上调 {signature} 共 {sfun('up')} 个，所有下调 {signature} 共 {sfun('down')} 个。")
+#       x <- snapAdd(x, "所有非重复 {signature} 共 {length(unique(unlist(tops)))} 个。")
+#       tops <- unlist(tops, recursive = FALSE)
+#       x$sets_intersection <- tops
+#       if (guess_use) {
+#         message("The guess use dataset combination of:\n",
+#           "\t ", names(tops)[1], " %in% ", names(tops)[4], "\n",
+#           "\t ", names(tops)[2], " %in% ", names(tops)[3])
+#         x$guess_use <- unique(c(
+#             intersect(tops[[ 1 ]], tops[[ 4 ]]),
+#             intersect(tops[[ 2 ]], tops[[ 3 ]])
+#             ))
+#       }
+#       if (is.null(x$from_scfea)) {
+#         p.hp <- plot_genes_heatmap.elist(x$normed_data, unlist(tops), use.gene)
+#         p.hp <- .set_lab(wrap(p.hp), sig(x), "Heatmap of {signature}")
+#       } else {
+#         p.hp <- NULL
+#       }
+#       if (FALSE) {
+#         message("Upset plot.")
+#         p.sets_intersection <- new_upset(lst = tops, trunc = trunc)
+#         p.sets_intersection <- .set_lab(p.sets_intersection, sig(x), "Difference", "intersection")
+#         x <- plotsAdd(x, p.sets_intersection, p.hp)
+#       }
+#     }
+#     if (!is.null(x$from_scfea) && x$from_scfea) {
+#       # deprecated
+#       message("Set `feature` for scfea.")
+#       feature(x) <- as_feature(x$.feature, x, nature = "flux")
+#     }
+#     if (gather_volcano && length(tops <- x@tables$step2$tops) >= 3) {
+#       message("gather volcano plot.")
+#       args <- x$args_volcano
+#       args$top_table <- rbind_list(tops, .id = ".versus", FALSE)
+#       args$keep_cols <- TRUE
+#       p.volcano_gather <- do.call(plot_volcano, args)
+#       p.volcano_gather <- p.volcano_gather + facet_wrap(~ .versus)
+#       x$p.volcano_gather <- set_lab_legend(
+#         wrap(p.volcano_gather),
+#         glue::glue("{x@sig} gathered volcano plot"),
+#         glue::glue("为合并的各组差异分析 {signature} 火山图。")
+#       )
+#     }
+#     return(x)
+#   })
 
 # setMethod("snap", 
   # signature = c(x = "job_limma"),

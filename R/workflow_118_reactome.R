@@ -23,8 +23,9 @@ setMethod("asjob_reactome", signature = c(x = "job_seurat"),
     object <- object(x)
     if (is.null(ref)) {
       fea <- as_feature(levels(Seurat::Idents(object)), "关键细胞", "cell")
+      ref <- snap(fea)
     }
-    snapAdd_onExit("x", "将{snap(fea)}进行通路富集分析。")
+    snapAdd_onExit("x", "将{ref}进行通路富集分析。")
     if (is.null(object@meta.data[[compare.by]])) {
       stop('is.null(object@meta.data[[compare.by]]).')
     }
@@ -69,11 +70,13 @@ setMethod("step1", signature = c(x = "job_reactome"),
   })
 
 setMethod("step2", signature = c(x = "job_reactome"),
-  function(x, use = c("p.value", "p.adjust"), show = 10, rerun = FALSE)
+  function(x, use = c("p.value", "p.adjust"), show = 10, 
+    rerun = FALSE, mode = c("all", "pathway"))
   {
     step_message("Gather for test.")
     compare.by <- x$compare.by
     use <- match.arg(use)
+    mode <- match.arg(mode)
     if (!is.null(x$from) && x$from == "Seurat") {
       if (length(unique(x$metadata[[compare.by]])) != 2) {
         stop('length(unique(x$metadata[[gather.by]])) != 2, only comparison of two group allowed.')
@@ -127,68 +130,32 @@ setMethod("step2", signature = c(x = "job_reactome"),
         t.wilcox$pathways, n = show, use.p = use, colName = "Name"
       )
       x <- snapAdd(x, "通过对 ReactomeGSA 活性评分差异分析富集通路 ({detail(use)} &lt; 0.05)，一共富集到{snap}\n\n")
-      snap <- .stat_table_by_pvalue(
-        t.wilcox$genes, n = show, use.p = use, colName = "Name", target = "基因"
-      )
-      x <- snapAdd(x, "通过对 ReactomeGSA 活性评分差异分析富集基因 ({detail(use)} &lt; 0.05)，一共富集到{snap}")
+      if (mode == "all") {
+        snap <- .stat_table_by_pvalue(
+          t.wilcox$genes, n = show, use.p = use, colName = "Name", target = "基因"
+        )
+        x <- snapAdd(x, "通过对 ReactomeGSA 活性评分差异分析富集基因 (⟦mark$blue('{detail(use)} &lt; 0.05')⟧)，一共富集到{snap}")
+        snap_ex <- "通路和基因"
+      } else {
+        snap_ex <- "通路"
+      }
       x <- tablesAdd(x, t.wilcox)
-      x <- methodAdd(x, "以 wilcox.test 检验评估每个通路和基因在组间的表达差异显著性，并以 {detail(use)} 对其排序。")
+      x <- methodAdd(x, "以 wilcox.test 检验评估每个{snap_ex}在组间的表达差异显著性，并以 {detail(use)} 对其排序。")
+      x$mode <- mode
+      x$snap_ex <- snap_ex
     }
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_reactome"),
-  function(x, top = x$.args$step2$show){
+  function(x, top = x$.args$step2$show)
+  {
     step_message("")
     lst <- x@tables$step2$t.wilcox
-    vapply_mean <- function(x) {
-      vapply(x, mean, double(1))
-    }
-    groups <- unique(x$metadata[[x$compare.by]])
     p.hps <- sapply(names(lst), simplify = FALSE,
       function(type) {
         data <- lst[[ type ]]
-        fea <- head(unique(data$Name), n = top)
-        data <- dplyr::filter(data, Name %in% !!fea)
-        data <- dplyr::select(data, -p.value, -p.adjust)
-        data <- dplyr::mutate(
-          data, dplyr::across(dplyr::all_of(groups), vapply_mean)
-        )
-        data <- tidyr::pivot_longer(
-          data, dplyr::all_of(groups), 
-          names_to = "group", values_to = "value"
-        )
-        data <- dplyr::mutate(
-          data, Cell = paste0(group, "_", !!rlang::sym(x$cellType)),
-          value = scale(log2(value + 1), center = TRUE)[, 1]
-        )
-        args <- list(
-          .data = data, .row = quote(Name), .column = quote(Cell),
-          .value = quote(value), cluster_columns = FALSE, column_names_rot = 90,
-          cluster_rows = TRUE, group_by = quote(group),
-          row_names_max_width = grobWidth(textGrob(rownames(data), gpar(fontsize = 10, fontface = 1)))
-        )
-        fun_heatmap <- function(.data, .row, .column, .value, ..., group_by)
-        {
-          if (exists("annotation_tile", envir = asNamespace("tidyHeatmap"))) {
-            fun_tile <- tidyHeatmap::annotation_tile
-          } else {
-            fun_tile <- tidyHeatmap::add_tile
-          }
-          fun_tile(
-            tidyHeatmap::heatmap(
-              .data, .row = {{ .row }}, .column = {{ .column }}, 
-              .value = {{ .value }}, ...
-              ), .column = {{ group_by }}
-          )
-        }
-        wrap_scale_heatmap(
-          # ComplexHeatmap::Heatmap
-          funPlot(fun_heatmap, args),
-          data$Cell, data$Name, pre_width = max(nchar(data$Name)) * .1 + 2,
-          pre_height = max(nchar(data$Name)) * .05 + 1,
-          w.size = .3
-        )
+        .set_heatmap_with_test_list(data, top, x$cellType)
       })
     cn <- dplyr::recode(names(p.hps), genes = "基因", pathways = "通路")
     p.hps <- set_lab_legend(
@@ -196,10 +163,26 @@ setMethod("step3", signature = c(x = "job_reactome"),
       glue::glue("{x@sig} Top {names(p.hps)} ReactomeGSA heatmap"),
       glue::glue("ReactomeGSA 富集结果中各细胞类型按显著性排列靠前的{cn}|||横轴分布的是不同细胞类型，对应于各自组别；纵向为富集通路的名称。")
     )
-    x <- snapAdd(x, "如图{aref(p.hps)}，富集的通路和基因在不同组之间的活性评分以热图展示。")
+    x <- snapAdd(x, "如图，富集的{x$snap_ex}在不同组之间的活性评分以热图展示。")
     x <- plotsAdd(x, p.hps)
     return(x)
   })
+
+heatmap_with_group <- function(.data, .row, .column, 
+  .value, ..., group_by, palette_value = c("#440154FF", "#21908CFF", "#fefada"))
+{
+  if (exists("annotation_tile", envir = asNamespace("tidyHeatmap"))) {
+    fun_tile <- tidyHeatmap::annotation_tile
+  } else {
+    fun_tile <- tidyHeatmap::add_tile
+  }
+  fun_tile(
+    tidyHeatmap::heatmap(
+      .data, .row = {{ .row }}, .column = {{ .column }}, 
+      .value = {{ .value }}, ..., palette_value = palette_value
+      ), .column = {{ group_by }}
+  )
+}
 
 .reactome_prepare <- function (object, use_interactors = TRUE, include_disease_pathways = FALSE, 
   create_reactome_visualization = FALSE, create_reports = FALSE, 

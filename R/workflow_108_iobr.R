@@ -25,13 +25,21 @@ setGeneric("asjob_iobr", group = list("asjob_series"),
 
 setMethod("asjob_iobr", signature = c(x = "job_limma"),
   function(x, use = .guess_symbol(x), project = x$project, 
-    levels = NULL, guess_which_level = 1L)
+    levels = NULL, guess_which_level = 1L, ...)
   {
-    stop('The input should be TPM!!!')
+    if (x$rna) {
+      stop('x$rna == TRUE, not support now. Use `job_deseq2` ...')
+    }
     if (is.null(levels)) {
       levels <- .get_group_from_contrast_character(names(x@tables$step2$tops)[guess_which_level])
     }
-    object <- extract_unique_genes.job_limma(x)
+    object <- x$normed_data
+    if (FALSE) {
+      object <- extract_unique_genes.job_limma(x)
+    }
+    if (range(object$E)[1] < 0) {
+      stop('range(object$E)[1] < 0.')
+    }
     mtx <- object$E
     rownames(mtx) <- gname(object$genes[[ use ]])
     x <- job_iobr(mtx, metadata = object$targets)
@@ -78,9 +86,6 @@ setMethod("step1", signature = c(x = "job_iobr"),
       methods, simplify = FALSE, cl = workers,
       function(method) {
         args$method <- method
-        if (method == "cibersort" || method == "xcell") {
-          args$eset <- log2(args$eset + 1)
-        }
         try(expect_local_data(cache, "iobr", IOBR::deconvo_tme, args, rerun = rerun))
       }
     )
@@ -195,7 +200,7 @@ setMethod("step2", signature = c(x = "job_iobr"),
     dataSig <- dplyr::filter(groupCor, pvalue < cut.p)
     s.com <- dataSig$type
     feature(x) <- as_feature(s.com, "IOBR 免疫浸润分析差异细胞", nature = "cells")
-    x <- snapAdd(x, "以 wilcox.test 组间差异分析{aref(p.boxplot)}，有显著区别 (p &lt; {cut.p}) 的差异细胞：{bind(s.com)}。")
+    x <- snapAdd(x, "以 wilcox.test 组间差异分析{aref(p.boxplot)}，有显著区别 (⟦mark$blue('p &lt; {cut.p}')⟧) 的差异细胞有 {nrow(dataSig)} 类。")
     fun_snap <- function(higher) {
       ifelse(higher == x$levels[1], "升高", "下降")
     }
@@ -213,7 +218,7 @@ setMethod("step2", signature = c(x = "job_iobr"),
     res_cor.test <- psych::corr.test(
       mtx, method = method_cor
     )
-    x <- methodAdd(x, "以 R 包 `psych` ⟦pkgInfo('psych')⟧ 对免疫浸润细胞之间进行关联分析 ({method_cor}) 。将|cor| &gt; 0.3 且 p &lt; {cut.p} 的分析结果判定为具有统计学意义。")
+    x <- methodAdd(x, "以 R 包 `psych` ⟦pkgInfo('psych')⟧ 对免疫浸润细胞之间进行关联分析 ({method_cor}) 。⟦mark$blue('将|cor| &gt; 0.3 且 p &lt; {cut.p} 的分析结果判定为具有统计学意义')⟧。")
     t.cells_cor <- add_anno(.corp(as_data_long(
       res_cor.test$r, res_cor.test$p, "cells_x", "cells_y", 
       "cor", "pvalue"
@@ -227,13 +232,13 @@ setMethod("step2", signature = c(x = "job_iobr"),
       colnames(res_cor.test$p) %in% s.com, "red", "grey"
     )
     fun_plot <- function(x) {
-      # It has been run twice cor.test...
-      p <- ggcor::quickcor(x, type = "lower", cor.test = TRUE, method = method_cor) +
-        ggcor::geom_square(data = ggcor::get_data(type = "lower", show.diag = FALSE)) +
-        ggcor::geom_mark(data = ggcor::get_data(type = "lower", show.diag = FALSE), sep = "\n") +
-        .scale_for_cor_palette()
+      p <- ggcor::quickcor(ggcor::as_cor_tbl(x), type = "lower", cor.test = TRUE, method = method_cor)
+      .ggcor_add_general_style(p, NULL)
     }
-    p.cor <- wrap(fun_plot(mtx), 7, 6)
+    p.cor <- wrap_scale(
+      fun_plot(res_cor.test), 
+      ncol(mtx), ncol(mtx), pre_height = 2, size = .5
+    )
     if (keep_all) {
       exSnap <- "热图的细胞名若显示为红色，则为差异细胞；"
     } else {
@@ -242,7 +247,7 @@ setMethod("step2", signature = c(x = "job_iobr"),
     p.cor <- set_lab_legend(
       p.cor,
       glue::glue("{x@sig} Correlation immune cells"),
-      glue::glue("免疫细胞相关性分析热图|||({exSnap}热图中颜色表示相关系数的大小，颜色越深表示相关系数越高，如果不显著，则显示为空白)。")
+      glue::glue("免疫细胞相关性分析热图|||{exSnap}热图中颜色表示相关系数的大小，颜色越深表示相关系数越高。")
     )
     s.cc <- dplyr::filter(
       t.cells_cor, cells_x %in% s.com, cells_y %in% s.com,
@@ -253,7 +258,7 @@ setMethod("step2", signature = c(x = "job_iobr"),
       snap_cor <- .stat_correlation_table(
         s.cc, "cells_x", "cells_y"
       )
-      x <- snapAdd(x, "免疫细胞之间的相关性分析表明{aref(p.cor)}，{bind(snap_cor)}。\n\n\n")
+      x <- snapAdd(x, "免疫细胞之间的相关性分析结果{aref(p.cor)}，{bind(snap_cor)}。\n\n\n")
     } else {
       x <- snapAdd(x, "差异免疫浸润细胞之间未发现显著关联。 ")
     }
@@ -261,6 +266,18 @@ setMethod("step2", signature = c(x = "job_iobr"),
     x <- tablesAdd(x, t.groupCor = groupCor, t.cells_cor)
     return(x)
   })
+
+.ggcor_add_general_style <- function(p, type = "lower") {
+  if (!is.null(type)) {
+    p + ggcor::geom_square(data = ggcor::get_data(type = type, show.diag = FALSE)) +
+      ggcor::geom_mark(data = ggcor::get_data(type = type, show.diag = FALSE), sep = "\n") +
+      .scale_for_cor_palette()
+  } else {
+    p + ggcor::geom_square() +
+      ggcor::geom_mark(sep = "\n") +
+      .scale_for_cor_palette()
+  }
+}
 
 .scale_for_cor_palette <- function() {
   scale_fill_distiller(
@@ -287,7 +304,7 @@ add_noise <- function(mtx, level = 1e-6, seed = 12345) {
 
 setMethod("step3", signature = c(x = "job_iobr"),
   function(x, ref, recode = NULL, cut.p = .05, cut.cor = .3, 
-    add_noise = TRUE, keep_all = if (x$method == "xcell") FALSE else TRUE, 
+    add_noise = TRUE, keep_all = FALSE, 
     use_vst = FALSE, method_cor = "spearman")
   {
     step_message("Correlation for cells and genes.")
@@ -337,19 +354,14 @@ setMethod("step3", signature = c(x = "job_iobr"),
     colors <- ifelse(
       colnames(dataCor$p) %in% feature(x), "red", "grey"
     )
-    fun_plot <- function(x, y) {
-      # It has been run twice cor.test...
-      p <- ggcor::quickcor(x, y, type = "lower", cor.test = TRUE, method = method_cor) +
-        ggcor::geom_square(data = ggcor::get_data(type = "lower", show.diag = FALSE)) +
-        ggcor::geom_mark(data = ggcor::get_data(type = "lower", show.diag = FALSE), sep = "\n") +
-        .scale_for_cor_palette()
+    fun_plot <- function(x) {
+      p <- ggcor::quickcor(ggcor::as_cor_tbl(x), type = "lower", cor.test = TRUE, method = method_cor)
+      .ggcor_add_general_style(p)
     }
-    p.GeneCellCor <- fun_plot(data.expr, data.cell)
-    if (!keep_all) {
-      p.GeneCellCor <- wrap(p.GeneCellCor, 7, 4)
-    } else {
-      p.GeneCellCor <- wrap(p.GeneCellCor, 10, 6)
-    }
+    p.GeneCellCor <- fun_plot(dataCor)
+    p.GeneCellCor <- wrap_scale(
+      p.GeneCellCor, ncol(data.cell), ncol(data.expr), min_height = 3
+    )
     if (keep_all) {
       exSnap <- "热图的细胞名若显示为红色，则为差异细胞；"
     } else {
@@ -358,7 +370,7 @@ setMethod("step3", signature = c(x = "job_iobr"),
     p.GeneCellCor <- set_lab_legend(
       p.GeneCellCor,
       glue::glue("{x@sig} correlation of Immune cells and selected genes"),
-      glue::glue("{ref.snap}和免疫细胞相关性分析|||{exSnap}热图中颜色表示相关系数的大小，颜色越深表示相关系数越高。如果不显著，则显示出对应的 P-value。")
+      glue::glue("{ref.snap}和免疫细胞相关性分析|||{exSnap}热图中颜色表示相关系数的大小，颜色越深表示相关系数越高。")
     )
     x <- plotsAdd(x, p.GeneCellCor)
     t.geneCellCor <- add_anno(
@@ -383,13 +395,21 @@ setMethod("step3", signature = c(x = "job_iobr"),
     return(x)
   })
 
-.stat_correlation_table <- function(data, x, y, cor = "cor", pvalue = "pvalue")
+.stat_correlation_table <- function(data, x, y, cor = "cor", 
+  pvalue = "pvalue", label.x = "", label.y = "", maxShow = 5)
 {
+  data <- dplyr::filter(data, !!rlang::sym(pvalue) < .05)
+  leader <- ""
+  if (nrow(data) > maxShow) {
+    leader <- glue::glue("共得到 {nrow(data)} 对显著关联，按相关系数从大到小排序，前 {maxShow} 的显著关联中，")
+    data <- head(data, n = maxShow)
+  }
   fun_measure <- function(x) ifelse(x > 0, "正", "负")
   fmt <- function(x) signif(x, 3)
-  glue::glue(
-    "{data[[x]]} 和 {data[[y]]} 之间显著{fun_measure(data[[cor]])}相关 (cor = {fmt(data[[cor]])}, p = {fmt(data[[pvalue]])})"
+  snap <- glue::glue(
+    "{label.x} {data[[x]]} 和 {label.y} {data[[y]]} 之间显著{fun_measure(data[[cor]])}相关 (cor = {fmt(data[[cor]])}, p = {fmt(data[[pvalue]])})"
   )
+  glue::glue("{leader}{bind(snap)}")
 }
 
 setMethod("add_anno", signature = c(x = "df"),
