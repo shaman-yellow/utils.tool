@@ -4,6 +4,8 @@
 
 setClass("virtual_job", "VIRTUAL")
 
+.refs <- setClass("refs", contains = "vector")
+
 setClassUnion("function_or_NULL", c("function", "NULL"))
 
 .expect_col <- setClass("expect_col",
@@ -300,6 +302,16 @@ setMethod("[[", signature = c(x = "feature"),
     }
     names(x) <- name
     return(x)
+  })
+
+setMethod("[", signature = c(x = "refs"),
+  function(x, i, ...){
+    if (length(i) == 1) {
+      refs <- paste0("@", x@.Data[i])
+    } else {
+      refs <- paste0(glue::glue("@{x@.Data[i]}"), collapse = "; ")
+    }
+    glue::glue("[{refs}]")
   })
 
 setMethod("[", signature = c(x = "feature"),
@@ -2648,6 +2660,25 @@ stepPostModify <- function(x, n = NULL, name = "step1", formal = TRUE,
   x
 }
 
+get_local_fun <- function(m) {
+  if (!is(m, "MethodDefinition")) {
+    rlang::abort("Input is not a MethodDefinition.")
+  }
+  expr <- body(m)
+  if (is(expr, "{") && is(expr[[2]], "<-") && identical(expr[[2]][[2]], as.name(".local")) ) {
+    fun <- try(eval(expr[2][[1]]))
+  } else {
+    fun <- try(m@.Data, TRUE)
+  }
+  if (inherits(fun, "try-error")) {
+    rlang::abort("Can not get local fun in the method.")
+  }
+  if (!is.function(fun)) {
+    rlang::abort("The `local` in the method is not function?")
+  }
+  fun
+}
+
 .get_complete_args <- function(fun, call, envir, exclude) {
   call <- match.call(fun, call)
   args <- as.list(call)[-1]
@@ -3384,6 +3415,137 @@ copy_job <- function(x) {
   return(object)
 }
 
+
+.rapp_find_call_and_args <- function(x) {
+  if (is(x, "{")) {
+    .rapp_find_call_and_args(x[[2]])
+  } else if (is(x, "<-")) {
+    .rapp_find_call_and_args(x[[3]])
+  } else if (is(x, "call")) {
+    fun <- match.fun(x[[1]])
+    callforMatch <- x
+    for (i in seq_along(x)[-1]) {
+      if (rlang::expr_text(x[[i]]) == "...") {
+        callforMatch <- callforMatch[ -i ]
+        break
+      }
+    }
+    call <- match.call(fun, callforMatch)
+    list(callname = x[[1]], args = as.list(call)[-1], fun = fun)
+  } else {
+    stop("The finally of the 'substitute' is: ", class(x))
+  }
+}
+
+.expr_resolve_S4 <- function(expr, envir = .GlobalEnv) {
+  callArgs <- .rapp_find_call_and_args(expr)
+  fname <- rlang::expr_text(callArgs$callname)
+  if (!isS4(callArgs$fun)) {
+    return(
+      list(callArgs = callArgs, signature = NULL, fname = fname, isS4 = FALSE)
+    )
+  }
+  nameArgs <- formalArgs(callArgs$fun)
+  nameArgs <- nameArgs[ nameArgs != "..." ]
+  signature <- vapply(
+    callArgs$args[ seq_along(nameArgs) ], FUN.VALUE = character(1),
+    function(name) {
+      signature(class(eval(name, envir = envir))[1])
+    }
+  )
+  message(glue::glue("Match function `{fname}`, with signature: {bind(signature)}"))
+  list(
+    callArgs = callArgs, signature = signature, fname = fname, 
+    isS4 = TRUE
+  )
+}
+
+.parse_code_and_trigger_S4_completion <- function(code, envir = .GlobalEnv) {
+  expr <- substitute(code)
+  res <- .expr_resolve_S4(expr, envir = envir)
+  if (res$isS4) {
+    f <- selectMethod(res$callArgs$fun, signature = res$signature)
+    f <- get_local_fun(f)
+    type <- "[S4]"
+  } else {
+    f <- res$callArgs$fun
+    type <- "[Fun]"
+  }
+  items <- formals(f)
+  items <- sapply(names(items), simplify = FALSE,
+    function(name) {
+      list(
+        label = paste0(name, " = "),
+        documentation = paste0(
+          "Default: ", rlang::expr_text(items[[name]])
+        )
+      )
+    })
+  .items_as_json_for_rcmp(unname(items))
+}
+
+.items_as_json_for_rcmp <- function(items) {
+  json <- jsonlite::toJSON(items, auto_unbox = TRUE)
+  json <- gsub("\\\\", "@BS@", json)
+  SendCmdToNvim_lua(sprintf("require('cmp_from_json.prepare').on_data([=[%s]=])", json))
+  invisible()
+}
+
+.parse_code_and_locate_src_fields <- function(code, envir = .GlobalEnv) {
+  expr <- substitute(code)
+  res <- .expr_resolve_S4(expr, envir = envir)
+  if (res$isS4) {
+    .locate_src_fields(res$callArgs$fun, res$signature, fname = res$fname)
+  } else {
+    .locate_src_fields(res$callArgs$fun, NULL, fname = res$fname)
+  }
+}
+
+    # nameObj <- rlang::expr_text(substitute(object))
+    # if (exists(nameObj, envir = env)) {
+    #   signature <- signature(class(get(nameObj, envir = env))[1])
+    # } else {
+    #   codes <- strsplit(codes, "\n")[[1]]
+    #   target <- NULL
+    #   for (i in rev(seq_along(codes))) {
+    #     target <- strx(codes[i], pattern)
+    #     if (!is.na(target) && nchar(target)) {
+    #       break
+    #     }
+    #   }
+    #   if (is.null(target)) {
+    #     rlang::abort('is.null(target), can not get any target')
+    #   }
+    #   signature <- target
+    # }
+    # # signatures <- findMethodSignatures(f)[, 1]
+
+.locate_src_fields <- function(f, signature = NULL, fname = NULL)
+{
+  if (is.null(fname)) {
+    fname <- rlang::expr_text(substitute(f))
+  }
+  if (isS4(f)) {
+    f <- selectMethod(f, signature = signature)
+  }
+  file <- getSrcFilename(f, TRUE)
+  if (!length(file)) {
+    stop('!length(file), no source file.')
+  }
+  if (!requireNamespace("nvimcom", quietly = TRUE)) {
+    return(list(file = file, signature = signature))
+  }
+  if (isS4(f)) {
+    sigs <- bind(signature, co = ".*")
+    pattern_fun <- glue::glue("^setMethod(.*{fname}.*{sigs}\\\\>")
+  } else {
+    pattern_fun <- glue::glue("^{fname}\\\\>")
+  }
+  SendCmdToNvim_lua(
+    glue::glue("TabOpenAndSearch([[{file}]], [[{pattern_fun}]])")
+  )
+}
+
 resolve_job_comments <- function(obj, try_open = FALSE, name = rlang::expr_text(substitute(obj)), 
   maxdepth = 10L, path_output = "R_jobsComments", override = FALSE, format = TRUE)
 {
@@ -3770,9 +3932,12 @@ nvim.buildArgsWithoutDescription <- function(afile, pkg) {
       if (!is.function(fun)) {
         return(NULL)
       }
-      args <- methods::formalArgs(fun)
+      args <- formals(fun)
+      description <- paste0(
+        "Default: ", vapply(args, rlang::expr_text, character(1))
+      )
       args <- paste0(
-        paste0(args, "\x05", "`", args, "`: ", "..."), collapse = "\x06"
+        paste0(names(args), "\x05", "`", names(args), "`: ", description), collapse = "\x06"
       )
       line <- paste0(name, "\x06", paste0(args, "\x06"))
       cat(line, sep = "", "\n")
@@ -4121,8 +4286,8 @@ loads <- function(file = "workflow.rdata", ...) {
   }
   writeAllCompletion()
   # if (isNamespaceLoaded("nvimcom")) {
-    # pkgload::unload("nvimcom")
-    # require("nvimcom")
+  # pkgload::unload("nvimcom")
+  # require("nvimcom")
   # }
 }
 

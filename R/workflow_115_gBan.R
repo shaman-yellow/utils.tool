@@ -354,40 +354,45 @@ setMethod("step7", signature = c(x = "job_gBan"),
     x <- snapAdd(x, "以 R 包 `PubChemR` ⟦pkgInfo('PubChemR')⟧ 从 PubChem 数据库 (<https://pubchem.ncbi.nlm.nih.gov/>) 检索化合物信息。将 PubChem 有记录条目的化合物视为候选药物 (n = {nrow(cids)})，并获取其对应化合物名。")
     synos <- try_get_syn(cids$CID)
     x$synos <- map(synos, "CID", cids, "CID", "SMILES", col = "SMILES")
-    t.final_candidates <- Reduce(
-      merge, list(
-        x$synos, x@tables$step6$t.candidate_swissAdme, x@tables$step5$t.candidate_admet
+    alls <- list(
+      x$synos, x@tables$step6$t.candidate_swissAdme, x@tables$step5$t.candidate_admet
+    )
+    alls <- alls[ !vapply(alls, is.null, logical(1)) ]
+    if (length(alls) > 1) {
+      t.final_candidates <- Reduce(merge, alls)
+      t.final_candidates <- set_lab_legend(
+        t.final_candidates,
+        glue::glue("{x@sig} Candidate drugs retained after all evaluation"),
+        glue::glue("经过药物特性评估后保留的候选药物")
       )
-    )
-    t.final_candidates <- set_lab_legend(
-      t.final_candidates,
-      glue::glue("{x@sig} Candidate drugs retained after all evaluation"),
-      glue::glue("经过药物特性评估后保留的候选药物")
-    )
-    t.final_candidates <- dplyr::relocate(
-      dplyr::select(t.final_candidates, -SMILES), Synonym, CID
-    )
-    t.final_candidates <- dplyr::mutate(
-      t.final_candidates, dplyr::across(
-        dplyr::where(is.numeric), function(x) signif(x, 2)
+      t.final_candidates <- dplyr::relocate(
+        dplyr::select(t.final_candidates, -SMILES), Synonym, CID
       )
-    )
-    tdata <- t(dplyr::select(t.final_candidates, -Synonym, -CID))
-    colnames(tdata) <- glue::glue("C{seq_len(nrow(t.final_candidates))}")
-    tdata <- as_tibble(tdata, idcol = "Index")
-    tdata <- dplyr::mutate(
-      tdata, dplyr::across(dplyr::where(is.double), function(x) round(x, 2))
-    )
-    footer <- bind(
-      glue::glue(
-        "{colnames(tdata)[-1]}: {t.final_candidates$Synonym}"
-      ), co = "\n"
-    )
-    t.final_candidates_mutate <- set_lab_legend(tdata,
-      glue::glue("{x@sig} Candidate drugs retained after all evaluation transposition"),
-      glue::glue("经过药物特性评估后保留的候选药物|||列名称对应为以下化合物:\n{footer}")
-    )
-    x <- tablesAdd(x, t.final_candidates, t.final_candidates_mutate)
+      t.final_candidates <- dplyr::mutate(
+        t.final_candidates, dplyr::across(
+          dplyr::where(is.numeric), function(x) signif(x, 2)
+        )
+      )
+      tdata <- t(dplyr::select(t.final_candidates, -Synonym, -CID))
+      colnames(tdata) <- glue::glue("C{seq_len(nrow(t.final_candidates))}")
+      tdata <- as_tibble(tdata, idcol = "Index")
+      tdata <- dplyr::mutate(
+        tdata, dplyr::across(dplyr::where(is.double), function(x) round(x, 2))
+      )
+      footer <- bind(
+        glue::glue(
+          "{colnames(tdata)[-1]}: {t.final_candidates$Synonym}"
+          ), co = "\n"
+      )
+      t.final_candidates_mutate <- set_lab_legend(tdata,
+        glue::glue("{x@sig} Candidate drugs retained after all evaluation transposition"),
+        glue::glue("经过药物特性评估后保留的候选药物|||列名称对应为以下化合物:\n{footer}")
+      )
+      x <- tablesAdd(x, t.final_candidates_mutate)
+    } else {
+      t.final_candidates <- alls[[1]]
+    }
+    x <- tablesAdd(x, t.final_candidates)
     feature(x) <- as_feature(
       x$synos$Synonym, "候选药物", nature = "compounds"
     )
@@ -441,7 +446,7 @@ get_remote_graphBan.huibang <- function(x, pattern = "graphBan_res_*",
   toDir <- file.path(remote_to, x$dir_save)
   toDir_existFiles <- list.files(toDir, pattern)
   if (!length(toDir_existFiles) || length(toDir_existFiles) < expect) {
-    message("Send to '{remote_to}'")
+    message(glue::glue("Send to '{remote_to}'"))
     file.copy(existFiles, toDir)
   }
 }
@@ -469,7 +474,7 @@ run_remote_graphBan.huibang <- function(x,
   cmd_run <- glue::glue("ssh {remote} 'cd {remote_dir} && nohup sh graphBan.sh > task.log 2>&1 &'")
   cdRun(cmd_prepare)
   cdRun(cmd_send)
-  cdRun(cmd_run)
+  cdRun(cmd_run, wait = FALSE)
 }
 
 inBatches_get_compounds_weight.rdkit <- function(smiles_list, python = getOption("rdkit_python"))

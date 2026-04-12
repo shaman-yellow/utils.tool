@@ -131,7 +131,7 @@ setMethod("step1", signature = c(x = "job_corgsea"),
       x <- snapAdd(x, "{bind(snaps, co = '\n\n')}")
     }
     res.gsea <- lapply(all.gsea, function(x) x$res.gsea)
-    x <- methodAdd(x, "使用 {mode} 数据集, 以 R 包 `clusterProfiler` ⟦pkgInfo('clusterProfiler')⟧ 对基因列表富集分析。富集设定阈值 adjust P value (FDR) &lt; {cutoff}，|NES| &gt; {cutoff.nes}。")
+    x <- methodAdd(x, "使用 {mode} 数据集, 以 R 包 `clusterProfiler` ⟦pkgInfo('clusterProfiler')⟧ 对基因列表富集分析。富集设定阈值 ⟦mark$blue('adjust P value (FDR) &lt; {cutoff}，|NES| &gt; {cutoff.nes}')⟧。")
     x@params$res.gsea <- res.gsea
     x@params$db.gsea <- db
     x$db_anno <- db_anno

@@ -314,7 +314,7 @@ setMethod("step5", signature = c(x = "job_seurat"),
     }
     x <- tablesAdd(x, all_markers = markers, all_markers_no_filter = all_markers_no_filter)
     # x <- snapAdd(x, "计算所有细胞群的 Marker。")
-    x <- methodAdd(x, "以 `Seurat::FindAllMarkers` (LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}; 检验方法为 {test.use}) 为所有细胞群寻找 Markers。")
+    x <- methodAdd(x, "以 `Seurat::FindAllMarkers` (⟦mark$blue('LogFC 阈值 {logfc.threshold}; 最小检出率 {min.pct}; 检验方法为 {test.use}')⟧) 为所有细胞群寻找 Markers。")
     return(x)
   })
 
@@ -1045,7 +1045,7 @@ setMethod("focus", signature = c(x = "job_seurat"),
   }
   mem <- glue::glue("{ms$wh}的{name}{attribute}要显著{ms$res}{ms$note}")
   lead <- glue::glue("{snap_map}差异分析表明，相比于 {ms$g1} 组，{ms$g2} 组")
-  glue::glue("{lead}{bind(mem)}。")
+  glue::glue("{lead}⟦mark$red('{bind(mem)}')⟧。")
 }
 
 .guess_levels_from_job_seurat <- function(x) {

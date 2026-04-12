@@ -726,6 +726,11 @@ setMethod("focus", signature = c(x = "job_limma"),
         })
       if (length(ref) > 1) {
         lst$p.rocs <- plot_roc(lapply(roc, function(x) x$roc))
+        lst$p.rocs <- set_lab_legend(
+          lst$p.rocs,
+          glue::glue("{x@sig} ROC of genes {bind(ref, co = ' and ')}"),
+          glue::glue("ROC 曲线|||{detail('note_roc')}")
+        )
       }
       snaps <- bind(
         paste0(vapply(roc, function(x) x$snap[1], character(1)), "\n"), co = "\n"

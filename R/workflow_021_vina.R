@@ -283,6 +283,9 @@ setMethod("step2", signature = c(x = "job_vina"),
     alls <- unique(as.character(object(x)$cid))
     notGot <- alls[!alls %in% names(x$res.ligand)]
     message("Not got:", paste0(notGot, collapse = ", "))
+    if (length(notGot)) {
+      x <- methodAdd(x, "SDF 输入 分子数量为 {length(alls)}，`meeko` 标准化 (`RDKit`) 过程中发现 {length(notGot)} 个不合法结构，因此输出 PDBQT 的分子数量为 {length(x$res.ligand)}。")
+    }
     x$ligand_notGot <- notGot
     message("Filter the `x$dock_layout`")
     x$dock_layout <- x$dock_layout[ names(x$dock_layout) %in% names(x$res.ligand) ]
@@ -663,8 +666,8 @@ setMethod("step4", signature = c(x = "job_vina"),
   })
 
 setMethod("step5", signature = c(x = "job_vina"),
-  function(x, compounds, by.y, facet = "Ingredient_name", excludes = NULL, top = NULL,
-    cutoff.af = NULL, sig.af = -5)
+  function(x, compounds, by.y, axis = "Ingredient_name", excludes = NULL, top = NULL,
+    cutoff.af = NULL, sig.af = -5, maxShow = 20)
   {
     step_message("Summary and visualization for results.")
     x$summary_vina <- summary_vina(x$savedir)
@@ -672,13 +675,6 @@ setMethod("step5", signature = c(x = "job_vina"),
       PubChem_id %in% !!names(x$dock_layout),
       PDB_ID %in% tolower(unlist(x$dock_layout, use.names = FALSE))
     )
-    if (!is.null(top)) {
-      x$summary_vina <- split_lapply_rbind(x$summary_vina, ~ PDB_ID,
-        function(x) {
-          dplyr::slice_min(x, Affinity, n = top)
-        }
-      )
-    }
     res_dock <- dplyr::mutate(
       x$summary_vina, PubChem_id = as.integer(PubChem_id),
       hgnc_symbol = names(x$used_pdbs)[ match(PDB_ID, tolower(x$used_pdbs)) ]
@@ -686,7 +682,7 @@ setMethod("step5", signature = c(x = "job_vina"),
     if (!is.null(x$from_job_herb)) {
       res_dock <- map(res_dock, "PubChem_id",
         x$compounds, "PubChem_id", "Ingredient_name", col = "Ingredient_name")
-      facet <- "Ingredient_name"
+      axis <- "Ingredient_name"
     } else {
       if (missing(compounds)) {
         compounds <- data.frame(PubChem_id = as.integer(object(x)$cids))
@@ -696,42 +692,43 @@ setMethod("step5", signature = c(x = "job_vina"),
           compounds$Ingredient_name <- names(object(x)$cids)
         }
         by.y <- "PubChem_id"
-        facet <- "Ingredient_name"
+        axis <- "Ingredient_name"
       }
       res_dock <- map(res_dock, "PubChem_id",
         compounds, "PubChem_id", "Ingredient_name", col = "Ingredient_name")
     }
     res_dock <- dplyr::arrange(res_dock, Affinity)
-    res_dock <- dplyr::filter(res_dock, !is.na(!!rlang::sym(facet)))
+    res_dock <- dplyr::filter(res_dock, !is.na(!!rlang::sym(axis)))
     data <- dplyr::distinct(res_dock, PubChem_id, hgnc_symbol, .keep_all = TRUE)
-    if (!is.null(cutoff.af)) {
-      data <- dplyr::filter(data, Affinity < !!cutoff.af)
-    }
     if (!is.null(excludes)) {
       data <- dplyr::filter(data, !hgnc_symbol %in% !!excludes)
     }
-    if (nrow(data) > 20) {
-      data <- dplyr::filter(data, Affinity < 0)
-    }
-    if (nrow(data) > 20) {
-      data <- head(data, n = 20)
+    trunc <- FALSE
+    if (nrow(data) > maxShow) {
+      trunc <- TRUE
+      allProtein <- unique(data$hgnc_symbol)
+      nProtein <- length(allProtein)
+      each <- maxShow %/% nProtein
+      data <- split_lapply_rbind(data, ~ PDB_ID, head, n = each)
     }
     data <- dplyr::mutate(
-      data, dplyr::across(!!rlang::sym(facet), function(x) stringr::str_trunc(x, 30)),
-      receptor = paste0(hgnc_symbol, " (", s(PDB_ID, "-f1-model.*", ""), ")")
+      data, dplyr::across(!!rlang::sym(axis), function(x) stringr::str_trunc(x, 30)),
+      receptor = paste0(hgnc_symbol, " (", s(PDB_ID, "-f1-model.*", ""), ")"),
+      label = paste0(!!rlang::sym(axis), " (CID:", PubChem_id, ")")
     )
     p.res_vina <- ggplot(data) + 
-      geom_col(aes(x = reorder(receptor, Affinity, decreasing = TRUE), y = Affinity, fill = Affinity), width = .7) +
+      geom_col(
+        aes(x = reorder(label, Affinity, decreasing = TRUE),
+          y = Affinity, fill = Affinity), width = .7
+        ) +
       geom_text(data = dplyr::filter(data, Affinity <= 0),
-        aes(x = receptor, y = Affinity - .5, label = round(Affinity, 1)), hjust = 1) +
+        aes(x = label, y = Affinity - .5, label = round(Affinity, 1)), hjust = 1) +
       labs(x = "", y = "Affinity (kcal/mol)") +
       coord_flip() +
       ylim(zoRange(c(-1, data$Affinity, 1), 1.4)) +
-      facet_wrap(as.formula(paste0("~ Hmisc::capitalize(paste0(", facet, ", \" (CID: \", PubChem_id, \")\"))")),
-        ncol = 1, scales = "free_y") +
+      facet_wrap(~ receptor, ncol = 1, scales = "free_y") +
       theme()
-    height <- nrow(data) + 1
-    p.res_vina <- wrap(p.res_vina, 8, if (height > 9.5) 9.5 else height)
+    p.res_vina <- wrap_scale(p.res_vina, 15, nrow(data), h.size = .2)
     p.res_vina <- set_lab_legend(
       p.res_vina,
       glue::glue("{x@sig} Overall combining Affinity"),
@@ -743,22 +740,51 @@ setMethod("step5", signature = c(x = "job_vina"),
       glue::glue("分子对接得分 (亲和度) 附表。")
     )
     t.sigData <- dplyr::filter(res_dock, Affinity < sig.af)
-    t.sigData <- dplyr::select(
-      t.sigData, Compound = Ingredient_name, Protein = hgnc_symbol, 
+    t.showData <- dplyr::select(
+      data, Compound = Ingredient_name, Protein = hgnc_symbol, 
       Affinity, Compound_CID = PubChem_id, Protein_Structure_ID = PDB_ID
     )
-    x <- snapAdd(x, "一共进行了 {nrow(res_dock)} 次对接{aref(p.res_vina)}。其中，有 {nrow(t.sigData)} 对配体受体组合的结合能 &lt; {sig.af} kcal/mol (常规有效结合阈值) 详细数据请见表格{aref(t.sigData)} (表格中，如蛋白结构 ID 以 AF 开头，则该蛋白结构获取于 AlphaFold 数据库，ID 为对应的数据库 ID) 。")
-    x <- tablesAdd(x, t.sigData, res_dock, unique_tops = data)
+    x$dataInOverall <- data
+    t.showData <- set_lab_legend(
+      t.showData,
+      glue::glue("{x@sig} Overall combining Affinity data"),
+      glue::glue("分子对接亲和度概览。")
+    )
+    x <- snapAdd(x, "一共进行了 {nrow(res_dock)} 次对接。其中，有 {nrow(t.sigData)} 对配体受体组合的结合能 &lt; {sig.af} kcal/mol (具有良好的亲和力)。")
+    if (trunc) {
+      snap_each <- .stat_target_in_table(
+        t.sigData, allProtein, "hgnc_symbol"
+      )
+      x <- snapAdd(x, "其中，{snap_each}。")
+      x <- snapAdd(x, "如图{aref(p.res_vina)}展示了各个蛋白对应的 Top {each} 的对接亲和能。")
+      snap_table <- glue::glue("表格{aref(t.showData)}为对应的蛋白与分子数据 (其余数据可见文件夹中数据表)。")
+    } else {
+      x <- snapAdd(x, "如图{aref(p.res_vina)}展示了蛋白与分子的对接亲和能。")
+      snap_table <- glue::glue("表格{aref(t.showData)}为对应的蛋白与分子数据。")
+    }
+    x <- snapAdd(x, "{snap_table}(表格中，如蛋白结构 ID 以 AF 开头，则该蛋白结构获取于 AlphaFold 数据库，ID 为对应的数据库 ID) 。")
+    x <- tablesAdd(
+      x, t.sigData, t.showData, res_dock, unique_tops = data
+    )
     x <- plotsAdd(x, p.res_vina)
     return(x)
   })
 
+.stat_target_in_table <- function(data, targets, col) {
+  snaps <- vapply(targets, FUN.VALUE = character(1), 
+    function(x) {
+      data <- dplyr::filter(data, !!rlang::sym(col) == !!x)
+      glue::glue("{x} 包含 {nrow(data)} 例")
+    })
+  bind(snaps)
+}
+
 setMethod("step6", signature = c(x = "job_vina"),
-  function(x, time = 30, top = 3, save = TRUE, unique = FALSE, 
+  function(x, time = 30, top = 1, save = TRUE, unique = FALSE, 
     symbol = NULL, cpd = NULL, rerun = FALSE)
   {
     step_message("Use pymol for all visualization.")
-    data <- dplyr::filter(x@tables$step5$res_dock, Affinity < 0)
+    data <- x$dataInOverall
     if (!is.null(symbol)) {
       data <- dplyr::filter(data, hgnc_symbol %in% !!symbol)
     }
@@ -775,7 +801,7 @@ setMethod("step6", signature = c(x = "job_vina"),
       top <- 10L
     }
     if (!is.null(top)) {
-      data <- head(data, n = top)
+      data <- split_lapply_rbind(data, ~ hgnc_symbol, head, n = top)
     }
     fun_draw <- function(data) {
       figs <- pbapply::pbapply(data, 1, simplify = FALSE,
@@ -799,12 +825,12 @@ setMethod("step6", signature = c(x = "job_vina"),
         }
       })
     names(figs) <- paste0(
-      "Top", seq_along(figs), "_", data$hgnc_symbol, "_", data$PubChem_id
+      "Top", "_", data$hgnc_symbol, "_", data$PubChem_id
     )
     figs <- set_lab_legend(
       figs,
       glue::glue("{x@sig} {data$hgnc_symbol} {data$PubChem_id} docking visualization"),
-      glue::glue("Top {seq_along(figs)} 亲和度分子对接结果|||蛋白(Symbol: {data$hgnc_symbol}) (Protein Structure ID: {data$PDB_ID}) 与化合物 (PubChem CID: {data$PubChem_id}) (name: {data$Ingredient_name})，亲和度为 {data$Affinity} kcal/mol。")
+      glue::glue("Top 亲和度分子对接结果|||蛋白(Symbol: {data$hgnc_symbol}) (Protein Structure ID: {data$PDB_ID}) 与化合物 (PubChem CID: {data$PubChem_id}) (name: {data$Ingredient_name})，亲和度为 {data$Affinity} kcal/mol。")
     )
     # x <- snapAdd(x, "使用 `pymol` 将分子对接结果可视化。")
     x$data_selectVis <- data
@@ -838,12 +864,12 @@ setMethod("step7", signature = c(x = "job_vina"),
         }
       })
     names(figs) <- paste0(
-      "Top", seq_along(figs), "_", data$hgnc_symbol, "_", data$PubChem_id
+      "Top_", data$hgnc_symbol, "_", data$PubChem_id
     )
     figs <- set_lab_legend(
       figs,
       glue::glue("{x@sig} {data$hgnc_symbol} {data$PubChem_id} docking interaction details"),
-      glue::glue("Top {seq_along(figs)} 亲和度分子对接局部细节|||蛋白(Symbol: {data$hgnc_symbol}) (Protein Structure ID: {data$PDB_ID}) 与化合物 (PubChem CID: {data$PubChem_id}) (name: {data$Ingredient_name})，亲和度为 {data$Affinity} kcal/mol。图中蛋白与分子之间的虚线为可能存在的氢键结合。")
+      glue::glue("Top 亲和度分子对接局部细节|||蛋白(Symbol: {data$hgnc_symbol}) (Protein Structure ID: {data$PDB_ID}) 与化合物 (PubChem CID: {data$PubChem_id}) (name: {data$Ingredient_name})，亲和度为 {data$Affinity} kcal/mol。图中蛋白与分子之间的虚线为可能存在的氢键结合。")
     )
     x <- plotsAdd(x, figs)
     return(x)
@@ -1064,8 +1090,8 @@ vinaShow <- function(Combn, recep, subdir = Combn, dir = "vina_space",
     dir.create(backup, FALSE)
     file.copy(img, backup, TRUE)
   }
-  fig <- as_data_binary(file_fig(Combn, img))
-  lab(fig[[1]]) <- paste0("docking ", Combn, if (!detail) NULL else " detail")
+  fig <- as_data_binary(.file_fig(img))
+  lab(fig) <- paste0("docking ", Combn, if (!detail) NULL else " detail")
   return(fig)
 }
 

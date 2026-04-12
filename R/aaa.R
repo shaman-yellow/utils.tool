@@ -19,33 +19,6 @@ binary_search <- function(fun = function(x) x <= 5, low = 1, high = 12)
   return(low - 1)
 }
 
-pkgInfo <- function(pkg, reload = FALSE, cache = .prefix("pkgInfo.rds", "db"), ...)
-{
-  info <- getOption("autor_pkgInfo")
-  if (reload || is.null(info)) {
-    if (!file.exists(cache)) {
-      warning("No file of {cache}.")
-      info <- list()
-    } else {
-      info <- readRDS(cache)
-    }
-  }
-  res <- info[[pkg]]
-  if (!is.null(res) && is(res, "list")) {
-    if (is.null(res$pmid) || is.na(res$pmid)) {
-      pmid <- ""
-    } else {
-      pmid <- glue::glue(", PMID: {res$pmid}")
-    }
-    note <- glue::glue(" ({res$version}{pmid}) ")
-  } else {
-    info[[pkg]] <- NA
-    note <- ""
-  }
-  options(autor_pkgInfo = info)
-  note
-}
-
 add_filename_suffix <- function(file, suffix, sep = "_") {
   if (is.null(file)) {
     stop('is.null(file), no `file` specified.')
@@ -66,25 +39,6 @@ new_from_package <- function(Class, package, ...) {
   ClassDef <- getClass(Class, where = asNamespace(package))
   value <- .Call(methods:::C_new_object, ClassDef)
   initialize(value, ...)
-}
-
-get_local_fun <- function(m) {
-  if (!is(m, "MethodDefinition")) {
-    rlang::abort("Input is not a MethodDefinition.")
-  }
-  expr <- body(m)
-  if ( identical(expr[[2]][[1]], as.name("<-")) && identical(expr[[2]][[2]], as.name(".local")) ) {
-    fun <- try(eval(expr[2][[1]]))
-  } else {
-    fun <- try(m@.Data, TRUE)
-  }
-  if (inherits(fun, "try-error")) {
-    rlang::abort("Can not get local fun in the method.")
-  }
-  if (!is.function(fun)) {
-    rlang::abort("The `local` in the method is not function?")
-  }
-  fun
 }
 
 setFakeClasses <- function(classes) {
@@ -1068,6 +1022,115 @@ split_image_by_click <- function(img) {
   }
 }
 
+get_table_adapt_threshold <- function(
+  df, col, direction = c("high", "low"),
+  target_range = c(50, 200),
+  step = NULL,
+  prefer = c("middle", "min", "max"),
+  verbose = TRUE)
+{
+  stopifnot(col %in% colnames(df))
+  x <- df[[col]]
+  stopifnot(is.numeric(x))
+  
+  direction <- match.arg(direction)
+  prefer <- match.arg(prefer)
+  
+  x_valid <- x[!is.na(x)]
+  n_total <- length(x_valid)
+  
+  # target n
+  target_n <- switch(prefer,
+    min = target_range[1],
+    max = target_range[2],
+    middle = round(mean(target_range))
+  )
+  
+  # sort
+  x_sorted <- sort(x_valid)
+  
+  # raw threshold from order statistic
+  if (direction == "high") {
+    thr_raw <- x_sorted[max(1, n_total - target_n + 1)]
+  } else {
+    thr_raw <- x_sorted[min(n_total, target_n)]
+  }
+  
+  # optional step rounding
+  if (!is.null(step)) {
+    thr_candidates <- unique(c(
+      floor(thr_raw / step) * step,
+      round(thr_raw / step) * step,
+      ceiling(thr_raw / step) * step
+    ))
+  } else {
+    thr_candidates <- thr_raw
+  }
+  
+  # evaluate candidates
+  results <- lapply(thr_candidates, function(thr) {
+    
+    if (direction == "high") {
+      keep <- x > thr
+    } else {
+      keep <- x < thr
+    }
+    
+    n <- sum(keep, na.rm = TRUE)
+    
+    list(
+      threshold = thr,
+      keep = keep,
+      n = n,
+      score = min(abs(n - target_range[1]), abs(n - target_range[2]))
+    )
+  })
+  
+  # prefer valid solutions
+  n_vec <- sapply(results, function(r) r$n)
+  valid_idx <- which(n_vec >= target_range[1] & n_vec <= target_range[2])
+  
+  if (length(valid_idx) > 0) {
+    center <- mean(target_range)
+    best_idx <- valid_idx[which.min(abs(n_vec[valid_idx] - center))]
+  } else {
+    best_idx <- which.min(sapply(results, function(r) r$score))
+  }
+  
+  best <- results[[best_idx]]
+  
+  if (verbose) {
+    message(sprintf(
+      "direction=%s | threshold=%.6f | n=%d (target %d-%d)",
+      direction, best$threshold, best$n,
+      target_range[1], target_range[2]
+    ))
+  }
+  
+  best$threshold
+}
+
+dedup_rows_by_unordered_cols <- function(df, cols, sep = "||", keep = c("first", "last"), na.rm = FALSE) {
+  keep <- match.arg(keep)
+  # Basic checks
+  stopifnot(all(cols %in% colnames(df)))
+  # Extract target columns
+  sub <- df[, cols, drop = FALSE]
+  # Convert each row to sorted string (key idea)
+  key <- apply(sub, 1, function(x) {
+    if (na.rm) x <- x[!is.na(x)]
+    paste(sort(x), collapse = sep)
+  })
+  # Deduplicate based on key
+  if (keep == "first") {
+    idx <- !duplicated(key)
+  } else {
+    idx <- !duplicated(key, fromLast = TRUE)
+  }
+  return(df[idx, , drop = FALSE])
+}
+
+
 # my_add_pval <- function(
 #   ggplot_obj, pairs = NULL, test = "wilcox.test", heights = NULL,
 #   barheight = NULL, textsize = 5, pval_text_adj = NULL, annotation = NULL,
@@ -1260,3 +1323,4 @@ split_image_by_click <- function(img) {
 #   ggplot_obj
 # }
 #
+

@@ -13,3 +13,5 @@
   --trained_model /data/nas2/database/graphban/bin/trained_models/bindingdb/inductive/seed12/result/best_model_epoch_13.pth \
   --save_dir graphBan_res_bindingdb.csv \
   --test_path graphBan_input.csv
+
+gzip graphBan_res_*

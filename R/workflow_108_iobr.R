@@ -399,6 +399,9 @@ setMethod("step3", signature = c(x = "job_iobr"),
   pvalue = "pvalue", label.x = "", label.y = "", maxShow = 5)
 {
   data <- dplyr::filter(data, !!rlang::sym(pvalue) < .05)
+  if (!nrow(data)) {
+    return(glue::glue("无显著关联"))
+  }
   leader <- ""
   if (nrow(data) > maxShow) {
     leader <- glue::glue("共得到 {nrow(data)} 对显著关联，按相关系数从大到小排序，前 {maxShow} 的显著关联中，")

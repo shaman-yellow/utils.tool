@@ -74,7 +74,7 @@ parse_overture <- function(lines, env = .GlobalEnv, ...)
     maybeHeader <- grpl(lines, "^[#]+ ")
     isHeader <- maybeHeader & !isInChunk
     lines[isHeader] <- gs(
-      lines[isHeader], "(?<=# )[A-Za-z0-9-.]+", "", perl = TRUE
+      lines[isHeader], "\\([a-zA-Z0-9_]+\\)$", "", perl = FALSE
     )
   }
   whichInChunk <- which(isInChunk & !isQuos)
@@ -211,15 +211,53 @@ parse_overture <- function(lines, env = .GlobalEnv, ...)
   lines
 }
 
+detect_field <- function(lines, ids = c("foreword", "reference"),
+  pattern_start = glue::glue("<!-- start:{ids} -->"), 
+  pattern_end = glue::glue("<!-- end:{ids} -->"))
+{
+  pattern_start <- setNames(pattern_start, ids)
+  pattern_end <- setNames(pattern_end, ids)
+  sapply(ids, simplify = FALSE,
+    function(id) {
+      nextStart <- FALSE
+      countField <- 0L
+      nField <- 0L
+      isFenceStart <- grpl(lines, pattern_start[[id]])
+      isFenceEnd <- grpl(lines, pattern_end[[id]])
+      listFiled <- vapply(seq_along(lines),
+        function(n) {
+          if (isFenceStart[n]) {
+            nextStart <<- TRUE
+          } else if (isFenceEnd[n]) {
+            nField <<- 0L
+          } else if (nextStart) {
+            countField <<- countField + 1L
+            nField <<- countField
+            nextStart <<- FALSE
+          }
+          nField
+        }, integer(1))
+      groups <- split(seq_along(lines), listFiled)
+      groups <- groups[ names(groups) != "0" ]
+      groups <- groups[ order(as.integer(names(groups))) ]
+      linesFields <- lapply(groups,
+        function(subscripts) {
+          lines[ subscripts ]
+        }
+      )
+    })
+}
+
 parse_chunk_location <- function(lines) {
   isQuos <- grpl(lines, "^```")
   inchunk <- FALSE
-  isInChunk <- vapply(seq_along(lines), function(n) {
-    if (isQuos[n]) {
-      inchunk <<- !inchunk
-    }
-    inchunk
-  }, logical(1))
+  isInChunk <- vapply(seq_along(lines),
+    function(n) {
+      if (isQuos[n]) {
+        inchunk <<- !inchunk
+      }
+      inchunk
+    }, logical(1))
   allHeaders <- stringr::str_extract(lines, "^[#]+(?=\\s)")
   headerLevels <- nchar(allHeaders)
   headerLevels <- ifelse(isInChunk, NA, headerLevels)
@@ -251,7 +289,7 @@ parse_chunk_location <- function(lines) {
         return(i)
       }
     }
-  }, integer(1))
+    }, integer(1))
   chunkBelong <- lines[chunkBelong]
   list(lineFields = lineFields, allChunks = allChunks,
     chunkFields = chunkFields, chunkBelong = chunkBelong)
@@ -281,3 +319,155 @@ kable_less <- function(x, ...) {
   }
   knitr::kable(x, ...)
 }
+
+parse_references_from_text <- function(content, reference_text) {
+  
+  # -----------------------------
+  # Step 1: normalize citation format
+  # -----------------------------
+  content <- gsub("\\\\\\[", "[", content)   # \[ → [
+  content <- gsub("\\\\\\]", "]", content)   # \] → ]
+  content <- gsub("\\^\\[", "[", content)    # ^[ → [
+  content <- gsub("\\]\\^", "]", content)    # ]^ → ]
+  content <- gsub("[–—−]", "-", content)     # unify dash
+  
+  # -----------------------------
+  # Step 2: parse reference block
+  # -----------------------------
+  parse_reference_block <- function(text) {
+    text <- gsub("\r", "", text)
+    
+    parts <- unlist(strsplit(text, "\n(?=\\d+\\.\\s)", perl = TRUE))
+    parts <- trimws(parts)
+    parts <- sub("^\\d+\\.\\s*", "", parts)
+    
+    return(parts)
+  }
+  
+  reference <- parse_reference_block(reference_text)
+  
+  # -----------------------------
+  # Step 3: robust index parser
+  # -----------------------------
+  parse_index <- function(x) {
+    
+    x <- gsub("\\s+", "", x)
+    x <- gsub("[–—−]", "-", x)
+    
+    # keep only valid characters
+    x <- gsub("[^0-9,\\-]", "", x)
+    
+    parts <- strsplit(x, ",")[[1]]
+    
+    idx <- unlist(lapply(parts, function(p) {
+      
+      if (p == "") return(NULL)
+      
+      if (grepl("-", p)) {
+        r <- suppressWarnings(as.numeric(strsplit(p, "-")[[1]]))
+        
+        if (length(r) == 2 && all(!is.na(r))) {
+          return(seq(r[1], r[2]))
+        } else {
+          return(NULL)
+        }
+        
+      } else {
+        v <- suppressWarnings(as.numeric(p))
+        if (!is.na(v)) return(v)
+        return(NULL)
+      }
+    }))
+    
+    return(sort(unique(idx)))
+  }
+  
+  # -----------------------------
+  # Step 4: match citations
+  # -----------------------------
+  pattern <- "\\[([^\\]]+)\\]"
+  
+  matches <- gregexpr(pattern, content, perl = TRUE)
+  match_list <- regmatches(content, matches)[[1]]
+  
+  if (length(match_list) == 0) {
+    return(list(
+      content = content,
+      mapping = data.frame(),
+      reference = reference
+    ))
+  }
+  
+  # -----------------------------
+  # Step 5: extract + mapping
+  # -----------------------------
+  inner <- gsub("^\\[|\\]$", "", match_list)
+  index_list <- lapply(inner, parse_index)
+  
+  key_str <- vapply(index_list, function(x) paste(x, collapse = ","), "")
+  unique_keys <- unique(key_str)
+  
+  mapping <- data.frame(
+    id = seq_along(unique_keys),
+    key = unique_keys,
+    stringsAsFactors = FALSE
+  )
+  
+  mapping$indices <- lapply(strsplit(mapping$key, ","), as.numeric)
+  
+  mapping$ref_text <- lapply(mapping$indices, function(idx) {
+    reference[idx]
+  })
+  
+  # -----------------------------
+  # Step 6: formatter
+  # -----------------------------
+  format_refs <- function(idx) {
+    
+    if (length(idx) == 0) return("")
+    
+    if (length(idx) == 1) {
+      return(sprintf("{refs[%d]}", idx))
+    }
+    
+    if (all(diff(idx) == 1)) {
+      return(sprintf("{refs[%d:%d]}", min(idx), max(idx)))
+    }
+    
+    return(sprintf("{refs[c(%s)]}", paste(idx, collapse = ", ")))
+  }
+  
+  # -----------------------------
+  # Step 7: safe replacement
+  # -----------------------------
+  replacements <- vapply(inner, function(x) {
+    idx <- parse_index(x)
+    format_refs(idx)
+  }, character(1))
+  
+  regmatches(content, matches) <- list(replacements)
+  
+  content_new <- content
+  
+  # -----------------------------
+  # return
+  # -----------------------------
+  return(list(
+    content = content_new,
+    mapping = mapping,
+    reference = reference
+  ))
+}
+
+# bibs <- RefManageR::ReadBib("~/utils.tool/inst/extdata/library.bib")
+# RefManageR::WriteBib(bibs, "~/utils.tool/inst/extdata/library.bib")
+
+get_bibs_by_pmid <- function(ids) {
+  bibs <- pbapply::pblapply(ids,
+    function(id) {
+      RefManageR::ReadPubMed(id)
+    })
+  do.call(c, bibs)
+}
+
+

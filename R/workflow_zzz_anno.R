@@ -145,6 +145,10 @@ get_clipboard <- function() {
 }
 
 gett <- function(obj) {
+  if (nchar(Sys.which("wl-copy"))) {
+    system(paste("echo", shQuote(obj), "| wl-copy"))
+    return()
+  }
   if (Sys.which("xsel") == "") {
     message('Sys.which("xsel") == "", command `xsel` not available.')
     return()

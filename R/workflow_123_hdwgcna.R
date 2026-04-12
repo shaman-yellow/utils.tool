@@ -34,11 +34,11 @@ setMethod("asjob_hdwgcna", signature = c(x = "job_seurat"),
       object, gene_select = "fraction",
       fraction = 0.05, wgcna_name = name
     ))
-    x <- methodAdd(x, "**hdWGCNA** 是一种针对单细胞或高维转录组数据构建加权基因共表达网络的分析方法，其主要目的是在复杂数据中识别具有协同表达特征的基因模块，并解析其与细胞类型、状态或表型之间的关联。")
-    x <- methodAdd(x, "为了系统鉴定关键细胞功能异质性的核心共表达模块及靶点基因，以 R 包 `hdWGCNA` ⟦pkgInfo('hdWGCNA')⟧对 Seurat 处理过的单细胞数据集展开加权基因共表达网络分析。")
     SeuratObject::DefaultAssay(object) <- assay
     pr <- params(x)
     x <- .job_hdwgcna(object = object)
+    x <- methodAdd(x, "**hdWGCNA** 是一种针对单细胞或高维转录组数据构建加权基因共表达网络的分析方法，其主要目的是在复杂数据中识别具有协同表达特征的基因模块，并解析其与细胞类型、状态或表型之间的关联。")
+    x <- methodAdd(x, "为了系统鉴定关键细胞功能异质性的核心共表达模块及靶点基因，以 R 包 `hdWGCNA` ⟦pkgInfo('hdWGCNA')⟧对 Seurat 处理过的单细胞数据集展开加权基因共表达网络分析。")
     x@params <- append(x@params, pr)
     return(x)
   })
@@ -50,13 +50,25 @@ setMethod("step0", signature = c(x = "job_hdwgcna"),
 
 setMethod("step1", signature = c(x = "job_hdwgcna"),
   function(x, min_cells = 100, k = 25, max_shared = 15,
-    reduction = NULL, group.by = x$group.by, debug = FALSE)
+    reduction = NULL, group.by = x$group.by, auto = FALSE, 
+    ..., debug = FALSE)
   {
     step_message("Metacells.")
     if (is.null(reduction)) {
       reduction <- names(object(x)@reductions)
       reduction <- tail(reduction[ reduction != "umap" ], n = 1)
       message(glue::glue("Use reduction: {reduction}"))
+    }
+    if (auto) {
+      params <- .auto_metacell_params(object(x), group.by, ...)
+      k <- params$k
+      max_shared <- params$max_shared
+      min_cells <- params$min_cells
+      x <- methodAdd(x, "{params$snap}")
+    } else {
+      x <- methodAdd(
+        x, "使用 ConstructMetacells 函数，设置 k = {k}, 最少细胞数量为 {min_cells}，基于 K 近邻算法将相似的细胞聚合为元细胞（metacells）。"
+      )
     }
     if (!debug) {
       object(x) <- e(hdWGCNA::MetacellsByGroups(
@@ -68,9 +80,6 @@ setMethod("step1", signature = c(x = "job_hdwgcna"),
           ))
       object(x) <- e(hdWGCNA::NormalizeMetacells(object(x)))
     }
-    x <- methodAdd(
-      x, "使用 ConstructMetacells 函数，设置 k = {k}, 最少细胞数量为 {min_cells}，基于 K 近邻算法将相似的细胞聚合为元细胞（metacells）。"
-    )
     return(x)
   })
 
@@ -80,6 +89,7 @@ setMethod("step2", signature = c(x = "job_hdwgcna"),
     if (is.null(celltypes)) {
       celltypes <- unique(object(x)@meta.data[[x$group.by]])
     }
+    x$celltypes <- celltypes
     ncells <- nrow(dplyr::filter(object(x)@meta.data, !!rlang::sym(x$group.by) %in% celltypes))
     if (!debug) {
       object(x) <- e(hdWGCNA::SetDatExpr(
@@ -119,7 +129,7 @@ setMethod("step3", signature = c(x = "job_hdwgcna"),
           tom_outdir = x$dir_cache,
           minModuleSize = min.gene,
           mergeCutHeight = cut.height,
-          tom_name = bind(x$.args$step2$celltypes, co = "_")
+          tom_name = bind(x$celltypes, co = "_")
           ))
     }
     wgcna_name <- object(x)@misc$active_wgcna
@@ -179,7 +189,7 @@ setMethod("step5", signature = c(x = "job_hdwgcna"),
       object(x) <- e(
         hdWGCNA::ModuleConnectivity(
           object(x), group.by = x$group.by,
-          group_name = x$.args$step2$celltypes
+          group_name = x$celltypes
           ))
     }
     x <- methodAdd(x, "以 `ModuleConnectivity` 计算基因与模块特征基因 (hMEs) 之间的相关性 (即，WGCNA 中的 Module Membership) 得到 kME 值，以该值代表 Module Membership (MM) (算法有所不同，以 hdWGCNA 的指南为依据，筛选 Hub Genes 时不对 MM 取绝对值)。")
@@ -205,7 +215,7 @@ setMethod("step5", signature = c(x = "job_hdwgcna"),
         object, features = "hMEs", order = TRUE
       ))
     } else {
-      celltypes <- x$.args$step2$celltypes
+      celltypes <- x$celltypes
       subObj <- SeuratObject:::subset.Seurat(object, !!rlang::sym(x$group.by) %in% !!celltypes)
       p.umap_hMEs <- e(Seurat::FeaturePlot(
         subObj, features = x$name_modules, combine = FALSE
@@ -223,7 +233,10 @@ setMethod("step5", signature = c(x = "job_hdwgcna"),
     p.dot_hMEs <- p.dot_hMEs + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
       scale_color_gradient2(high = "red", mid = "grey95", low = "blue")
     p.dot_hMEs <- set_lab_legend(
-      wrap_scale(p.dot_hMEs, length(unique(object@meta.data[[x$group.by]])), x$nm),
+      wrap_scale(
+        p.dot_hMEs, length(unique(object@meta.data[[x$group.by]])), x$nm,
+        pre_width = 4.5, pre_height = 3.5
+      ),
       glue::glue("{x@sig} dotplot of hMEs"),
       glue::glue("模块特征基因（hMEs）在不同细胞类型中表达水平与表达比例|||每个圆点代表一个模块在某一细胞类型中的表达情况，点的大小表示该模块在该细胞类型中表达的细胞百分比，点的颜色表示平均表达量（Average Expression）。")
     )
@@ -232,7 +245,8 @@ setMethod("step5", signature = c(x = "job_hdwgcna"),
   })
 
 setMethod("step6", signature = c(x = "job_hdwgcna"),
-  function(x, use.trait = c("group"), celltypes = x$.args$step2$celltypes, 
+  function(x, use.trait = c("group"),
+    celltypes = x$celltypes,
     group.by = x$group.by, debug = FALSE, show = 5)
   {
     step_message("Module Trait Correlation")
@@ -263,7 +277,7 @@ setMethod("step6", signature = c(x = "job_hdwgcna"),
       x, "使用 ModuleTraitCorrelation 计算各模块与性状 (trait, 即 {bind(use.trait)}) 之间的相关性。"
     )
     lst_cor <- e(hdWGCNA::GetModuleTraitCorrelation(object(x)))
-    cor_module_traits <- sapply(celltypes, simplify = FALSE,
+    cor_module_traits <- sapply(as.character(celltypes), simplify = FALSE,
       function(type) {
         cp <- list(pvalue = lst_cor[["pval"]][[type]], cor = lst_cor[["cor"]][[type]])
         cp <- sapply(names(cp), simplify = FALSE,
@@ -278,24 +292,30 @@ setMethod("step6", signature = c(x = "job_hdwgcna"),
         safe_as_cor_tbl(cp, "cor", "pvalue")
       })
     x$cor_module_traits <- cor_module_traits
-    ts.cor_module_traits <- set_lab_legend(
-      lapply(cor_module_traits, tibble::as_tibble),
-      glue::glue("{x@sig} {names(cor_module_traits)} module traits correlation"),
-      glue::glue("{names(cor_module_traits)} 模块与性状关联性统计")
-    )
     snap_moTr <- .stat_ggcor_table_list(
-      ts.cor_module_traits, "Trait", "Module"
+      cor_module_traits, "Trait", "Module"
+    )
+    ts.cor_module_traits <- set_lab_legend(
+      dplyr::bind_rows(cor_module_traits, .id = "Cell_Type"),
+      glue::glue("{x@sig} All cells module traits correlation"),
+      glue::glue("模块与性状关联性统计")
     )
     x <- tablesAdd(x, ts.cor_module_traits)
-    ps.cor_module_traits <- lapply(cor_module_traits, 
-      function(data) {
-        ps <- .ggcor_add_general_style(ggcor::quickcor(data, type = "lower"))
-        wrap_scale_heatmap(ps, x$nm, length(use.trait), raw = FALSE)
+    ps.cor_module_traits <- lapply(names(cor_module_traits), 
+      function(name) {
+        data <- cor_module_traits[[name]]
+        p <- .ggcor_add_general_style(ggcor::quickcor(data, type = "lower"))
+        p + ggtitle(name)
+        # wrap_scale_heatmap(ps, x$nm, length(use.trait), raw = FALSE)
       })
+    layout <- wrap_layout(NULL, length(ps.cor_module_traits))
+    ps.cor_module_traits <- patchwork::wrap_plots(
+      ps.cor_module_traits, guides = "collect", ncol = layout$ncol
+    )
     ps.cor_module_traits <- set_lab_legend(
-      ps.cor_module_traits,
-      glue::glue("{x@sig} {names(ps.cor_module_traits)} module traits correlation heatmap"),
-      glue::glue("{names(ps.cor_module_traits)} 模块与性状 (trait) 关联热图|||hdWGCNA 对 module 与 trait 的关联分析。热图中颜色表示相关系数的大小，颜色越深表示相关系数越高。P 值以 * 标注 ({.md_p_significant})。")
+      add(layout, ps.cor_module_traits),
+      glue::glue("{x@sig} All cells module traits correlation heatmap"),
+      glue::glue("模块与性状 (trait) 关联热图|||hdWGCNA 对 module 与 trait 的关联分析。热图中颜色表示相关系数的大小，颜色越深表示相关系数越高。P 值以 * 标注 ({.md_p_significant})。")
     )
     x <- snapAdd(x, "如图{aref(ps.cor_module_traits)}，{snap_moTr}")
     x <- plotsAdd(x, ps.cor_module_traits)
@@ -316,16 +336,14 @@ setMethod("step6", signature = c(x = "job_hdwgcna"),
   })
 
 setMethod("step7", signature = c(x = "job_hdwgcna"),
-  function(x, cut.mm = .3, cut.r = .1,
-    celltypes = x$.args$step2$celltypes,
-    use.trait = "group", top = 1L, nlabel = NULL, group.by = x$group.by)
+  function(x, cut.r = NULL, cut.mm = NULL,
+    celltypes = x$celltypes, use.module = NULL,
+    range_mm = c(100, 300), range_gs = c(100, 400),
+    use.trait = "group", top = 1L, nlabel = 10, group.by = x$group.by)
   {
     step_message("Module Membership and Gene Significant (for module significant corrlated with trait).")
     if (length(use.trait) > 1) {
       stop('length(use.trait) > 1, not support now.')
-    }
-    if (length(celltypes) > 1) {
-      stop('length(celltypes) > 1, not support now.')
     }
     if (top != 1L) {
       stop('top != 1L, not support now.')
@@ -334,14 +352,32 @@ setMethod("step7", signature = c(x = "job_hdwgcna"),
       # this has been changed in previous step.
       use.trait <- "Group"
     }
-    data <- dplyr::filter(
-      x$cor_module_traits[[celltypes]], .row.names == !!use.trait
-    )
-    data <- dplyr::arrange(data, p.value)
-    use.module <- head(data$.col.names, n = top)
-    x <- methodAdd(
-      x, "根据 Module 与 Trait ({use.trait}) 的相关性分析，选择最显著相关的模块，即 {use.module} 进一步筛选 Hub genes。⟦mark$blue('筛选标准为模块成员度（MM, 即 kME &gt; {cut.mm}）和基因显著性（GS, 即 |GS| &gt; {cut.r}）双重排序')⟧。"
-    )
+    if (is.null(use.module)) {
+      if (length(celltypes) > 1) {
+        data <- dplyr::bind_rows(x$cor_module_traits, .id = ".celltypes")
+        data <- dplyr::filter(
+          data, .row.names == !!use.trait, p.value < .05
+        )
+        data <- dplyr::group_by(data, .celltypes)
+        data <- dplyr::mutate(data, nSig = length(.row.names))
+        data <- dplyr::arrange(data, dplyr::desc(nSig), dplyr::desc(abs(r)))
+        use.module <- head(data$.col.names, n = top)
+        x <- methodAdd(
+          x, "根据 Module 与 Trait ({use.trait}) 的相关性分析，选择与最多细胞类型显著相关的模块 (若存在相同，则按最高关联的相关系数排序)，即 {use.module} 进一步筛选 Hub genes。"
+        )
+      } else {
+        data <- dplyr::filter(
+          x$cor_module_traits[[celltypes]], .row.names == !!use.trait
+        )
+        data <- dplyr::arrange(data, p.value)
+        use.module <- head(data$.col.names, n = top)
+        x <- methodAdd(
+          x, "根据 Module 与 Trait ({use.trait}) 的相关性分析，选择最显著相关的模块，即 {use.module} 进一步筛选 Hub genes。"
+        )
+      }
+    } else {
+      x <- methodAdd(x, "选择 {use.module} 进一步筛选 Hub genes。")
+    }
     message(
       glue::glue("Use module: {use.module}")
     )
@@ -353,6 +389,9 @@ setMethod("step7", signature = c(x = "job_hdwgcna"),
     col_kme <- paste0("kME_", use.module)
     if (!any(colnames(data_mm) == col_kme)) {
       stop('!any(colnames(data_mm) == col_kme), no `ModuleConnectivity` running?')
+    }
+    if (is.null(cut.mm)) {
+      cut.mm <- get_table_adapt_threshold(data_mm, col_kme, "high", range_mm, .1)
     }
     nMm <- nrow(dplyr::filter(data_mm, !!rlang::sym(col_kme) > cut.mm))
     message(glue::glue("Use `cut.mm` get number: {nMm}"))
@@ -387,6 +426,12 @@ setMethod("step7", signature = c(x = "job_hdwgcna"),
         })
     )
     cor_gs <- safe_fortify_cor(t(gene_expr), trait_data)
+    if (is.null(cut.r)) {
+      .cor_gs <- dplyr::mutate(cor_gs, abs_r = abs(r))
+      cut.r <- get_table_adapt_threshold(
+        .cor_gs, "abs_r", "high", range_gs, .1
+      )
+    }
     cor_gs_filter <- dplyr::filter(cor_gs, abs(r) > !!cut.r)
     message(glue::glue("Use `cut.r` get number: {nrow(cor_gs_filter)}"))
     data_mm_gs <- merge(
@@ -425,11 +470,11 @@ setMethod("step7", signature = c(x = "job_hdwgcna"),
       glue::glue("{x@sig} MM GS scatter plot"),
       glue::glue("Gene Significance 与 Module Membership|||图中 x 轴代表 Module Membership（由 `ModuleConnectivity` 计算的 kME），衡量基因表达谱与模块特征基因的相关性；y 轴代表基因显著性 (GS)，通常反映基因表达与外部性状（如疾病状态）的相关程度。")
     )
-    x <- snapAdd(x, "⟦mark$red('以 MM 与 GS 为条件共筛选到 {length(hubgenes)} 个基因')⟧{aref(p.scatter)}。")
-    igraph <- hdWGCNA::HubGeneNetworkPlot(object(x),
+    x <- snapAdd(x, "根据 Module 与 Trait ({use.trait}) 的相关性分析，选择最显著的模块，即 {use.module} 之后，⟦mark$red('以 MM 与 GS 为条件共筛选到 {length(hubgenes)} 个基因')⟧{aref(p.scatter)}。")
+    igraph <- e(hdWGCNA::HubGeneNetworkPlot(object(x),
       mods = use.module, sample_edges = FALSE, return_graph = TRUE,
       n_other = 0, n_hubs = nMm
-    )
+    ))
     data_network <- tidygraph::as_tbl_graph(igraph)
     data_network <- dplyr::mutate(
       data_network, geneType = ifelse(
@@ -439,12 +484,13 @@ setMethod("step7", signature = c(x = "job_hdwgcna"),
     x$data_network <- data_network
     data_nodes <- tibble::as_tibble(data_network)
     coords <- get_coords.spiral(
-      nrow(data_nodes), 1.5, minRad = .3, rank.by = data_nodes[[col_kme]]
+      nrow(data_nodes), 1.3, minRad = .5, rank.by = data_nodes[[col_kme]]
     )
     data_graph <- create_layout(data_network, coords)
     data_label <- dplyr::filter(data_graph, name %in% hubgenes)
     if (!is.null(nlabel)) {
       data_label <- dplyr::slice_max(data_label, !!rlang::sym(col_kme), n = nlabel)
+      snap_label <- glue::glue("标注了其中按 {col_kme} 排序的 Top {nlabel} 个基因。")
     }
     p.network <- ggraph(data_graph) +
       geom_edge_link(edge_color = "grey90") +
@@ -459,8 +505,9 @@ setMethod("step7", signature = c(x = "job_hdwgcna"),
     p.network <- set_lab_legend(
       p.network,
       glue::glue("{x@sig} module {use.module} member networking"),
-      glue::glue("螺旋型布局的 {use.module} 模块成员网络图|||仅展示 Module Membership (kME) 大于 {cut.mm} 的模块基因。用螺旋或同心圆状排列，从外向内 kME 值逐渐增大，即靠近中心的基因与该模块的特征基因（module eigengene）相关性更强、模块成员地位更高。不同的形状标注了是否为同时满足 Gene Significant (GS) 大于 {cut.r} 的 Hub Genes。")
+      glue::glue("螺旋型布局的 {use.module} 模块成员网络图|||仅展示 Module Membership (kME) 大于 {cut.mm} 的模块基因。用螺旋或同心圆状排列，从外向内 kME 值逐渐增大，即靠近中心的基因与该模块的特征基因（module eigengene）相关性更强、模块成员地位更高。不同的形状标注了是否为同时满足 Gene Significant (GS) 大于 {cut.r} 的 Hub Genes。{snap_label}")
     )
+    x <- methodAdd(x, "⟦mark$blue('筛选标准为模块成员度（MM, 即 kME &gt; {cut.mm}）和基因显著性（GS, 即 |GS| &gt; {cut.r}）双重排序')⟧。")
     x <- snapAdd(x, "Hub Genes 在网络中的连接度如图所示{aref(p.network)}。")
     x <- plotsAdd(x, p.scatter, p.network)
     return(x)
@@ -478,11 +525,19 @@ setMethod("step7", signature = c(x = "job_hdwgcna"),
     function(data) {
       leader <- ""
       data <- dplyr::filter(data, .row.names != .col.names)
+      data <- dedup_rows_by_unordered_cols(
+        data, c(".row.names", ".col.names")
+      )
       n_pre <- nrow(data)
       data <- dplyr::filter(data, p.value < .05)
       n_aft <- nrow(data)
-      if (n_pre == n_aft) {
-        leader <- "所有{label.x}与{label.y}之间显著相关，"
+      if (n_pre == n_aft && n_aft > 1) {
+        if (label.x == label.y) {
+          label <- label.x
+        } else {
+          label <- glue::glue("{label.x}与{label.y}")
+        }
+        leader <- glue::glue("所有{label}之间显著相关，")
       }
       data <- dplyr::arrange(data, dplyr::desc(abs(r)))
       snap <- .stat_correlation_table(
@@ -542,5 +597,55 @@ safe_as_cor_tbl <- function(lst, name_cor, name_pvalue) {
     attr(data, type) <- names[ names != "...placeHolder" ]
   }
   return(data)
+}
+
+.auto_metacell_params <- function(
+  seurat_obj, group.by, target_metacells = 10,
+  k_min = 5, k_max = 30)
+{
+  # Get cell counts per group
+  counts <- table(seurat_obj[[group.by]][,1])
+  counts <- as.numeric(counts)
+  names(counts) <- names(table(seurat_obj[[group.by]][,1]))
+  
+  # Smallest group size determines parameter upper bounds
+  n_min <- min(counts)
+  
+  # ---- 1. Estimate k ----
+  # Use sqrt(n) heuristic with constraints to avoid over-connection
+  k <- floor(sqrt(n_min))
+  k <- max(k, k_min)
+  k <- min(k, floor(n_min / 2), k_max)
+  
+  # ---- 2. Estimate max_shared ----
+  # Ensure enough metacells can be constructed
+  # (n * max_shared) / k ≥ target_metacells
+  max_shared <- ceiling((target_metacells * k) / n_min)
+  max_shared <- max(max_shared, 2)
+  max_shared <- min(max_shared, 10)
+  
+  # ---- 3. Set min_cells ----
+  # Filter out extremely small groups while retaining most data
+  min_cells <- floor(0.9 * n_min)
+  
+  # ---- 4. Estimate achievable metacell number ----
+  est_metacells <- floor((n_min * max_shared) / k)
+  
+  message("---- Auto parameters ----")
+  message("Min group size: ", n_min)
+  message("k: ", k)
+  message("max_shared: ", max_shared)
+  message("min_cells: ", min_cells)
+  message("Estimated metacells per smallest group: ", est_metacells)
+  
+  lines <- readLines(file.path(.expath, "description", "hdwgcna_metacell.md"))
+  snap <- glue_ex(paste0(lines, collapse = "\n"))
+  snap <- glue_ex(
+    "⟦snap⟧\n\n\n\n最终，设置 $k = ⟦k⟧$，$min_{cells} = ⟦min_cells⟧$，$max_{shared} = ⟦max_shared⟧$。"
+  )
+
+  list(k = k, max_shared = max_shared,
+    min_cells = min_cells, group_sizes = counts,
+    est_metacells = est_metacells, snap = snap)
 }
 

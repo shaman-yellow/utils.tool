@@ -666,14 +666,75 @@ name.hb$check <- function() {
   glue::glue("{s(guess_project(), '[0-9]+_', '')}_关键节点核对_{date}")
 }
 
+name.hb$report <- function() {
+  date <- format(Sys.Date(), "%m%d")
+  path <- glue::glue("/data/nas1/huanglichuang_OD/project/{guess_project()}")
+  gett(path)
+  message(path)
+  glue::glue("{s(guess_project(), '[0-9]+_', '')}_Report_{date}")
+}
+
 get_file_with_format_name <- function(file, name) {
   filename <- paste0(name, ".", tools::file_ext(file))
   file_new <- file.path(dirname(file), filename)
   file.copy(file, file_new, TRUE)
+  url <- glue::glue("file://{normalizePath(file_new)}")
   if (nchar(Sys.which("wl-copy"))) {
-    cdRun(glue::glue("wl-copy < {file_new}"))
+    system(glue::glue("echo -n {url} | wl-copy -t text/uri-list"))
   } else {
     stop('nchar(Sys.which("wl-copy")).')
   }
 }
+
+gett_file <- function(url) {
+  url <- normalizePath(url)
+  if (nchar(Sys.which("wl-copy"))) {
+    system(glue::glue("echo -n {url} | wl-copy -t text/uri-list"))
+  } else {
+    stop('nchar(Sys.which("wl-copy")).')
+  }
+}
+
+get_contents_refered_from_fields <- function(
+  file, ids = "foreword", id_ref = "reference", save_bib = "library.bib",
+  to_clipboard = TRUE, lines = NULL)
+{
+  if (is.null(lines)) {
+    lines <- readLines(file)
+  }
+  fields <- detect_field(lines, c(ids, id_ref))
+  if (any(lengths(fields) < 1)) {
+    stop('any(lengths(fields) < 1).')
+  }
+  fun_format <- function(x) paste0(unlist(x), collapse = "\n")
+  res <- lapply(ids,
+    function(id) {
+      res <- parse_references_from_text(
+        fun_format(fields[[ id ]]), fun_format(fields[[ id_ref ]])
+      )
+      indices <- unlist(res$mapping$indices)
+      res$reference <- res$reference[ res$reference != "" ]
+      if (!all(indices %in% seq_along(res$reference))) {
+        stop('!all(indices %in% seq_along(res$reference)), not match reference.')
+      }
+      pmids <- strx(res$reference, "(?<=PMID: )[0-9]+")
+      if (any(is.na(pmids))) {
+        stop('any(is.na(pmids)), some reference do not have pmid, please check manualy')
+      }
+      bibs <- expect_local_data(
+        "tmp", "bib_pmid", get_bibs_by_pmid, list(pmids)
+      )
+      refs <- .refs(names(bibs))
+      list(bibs = bibs, content = glue::glue(res$content))
+    })
+  contents <- vapply(res, function(x) x$content, character(1))
+  if (to_clipboard) {
+    gett(contents)
+  }
+  if (!is.null(save_bib)) {
+    bibs <- do.call(c, lapply(res, function(x) x$bibs))
+    RefManageR::WriteBib(bibs, save_bib)
+  }
+}
+
 

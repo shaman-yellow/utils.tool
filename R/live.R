@@ -176,7 +176,8 @@ setClassUnion("easywrite", c("data.frame", "matrix", "character", "factor", "num
 
 #' @importClassesFrom data.table data.table
 #' @importClassesFrom tibble tbl_df
-.df_like <- c("tbl_df", "data.table")
+setClass("cor_tbl")
+.df_like <- c("tbl_df", "data.table", "cor_tbl")
 # lapply(.df_like, setClass, where = topenv())
 .df <- c("data.frame", "matrix", "matrix", "array", .df_like)
 setClassUnion("df", .df)
@@ -584,7 +585,8 @@ set_showtext <- function() {
   write_graphics(data, ...)
 }
 
-.write_data_binary <- function(data, name, ..., file = basename(data@filename),
+.write_data_binary <- function(data, name, ...,
+  file = paste0(get_realname(name), ".", tools::file_ext(data@filename)),
   mkdir = get_savedir("figs"))
 {
   if (!file.exists(mkdir))
@@ -2301,6 +2303,9 @@ autor_preset <- function(echo = FALSE, eval = FALSE,
     autor_show_lich = autor_show_lich
   )
   # Disabled knitr's automatic capture to prevent contamination during `regplot` plotting
+  if (knitr::pandoc_to("docx")) {
+    options("autor_pkgInfo_current" = new.env())
+  }
   knitr::knit_hooks$set(plot = function(x, options) NULL )
   knitr::opts_chunk$set(
     echo = echo, eval = eval, message = FALSE, warning = FALSE,
@@ -2312,6 +2317,38 @@ autor_preset <- function(echo = FALSE, eval = FALSE,
   }
   knitr::opts_hooks$set(fig.cap = fun_fig.cap)
 }
+
+pkgInfo <- function(pkg, reload = FALSE, cache = .prefix("pkgInfo.rds", "db"), ...)
+{
+  info <- getOption("autor_pkgInfo")
+  if (reload || is.null(info)) {
+    if (!file.exists(cache)) {
+      warning("No file of {cache}.")
+      info <- list()
+    } else {
+      info <- readRDS(cache)
+    }
+  }
+  res <- info[[pkg]]
+  if (!is.null(res) && is(res, "list")) {
+    if (is.null(res$pmid) || is.na(res$pmid)) {
+      pmid <- ""
+    } else {
+      pmid <- glue::glue(", PMID: {res$pmid}")
+    }
+    note <- glue::glue(" ({res$version}{pmid}) ")
+    if (knitr::pandoc_to("docx") && !is.null(curr <- getOption("autor_pkgInfo_current"))) {
+      curr[[ pkg ]] <- c(version = res$version, pmid = pmid)
+    }
+  } else {
+    info[[pkg]] <- NA
+    note <- ""
+  }
+  options(autor_pkgInfo = info)
+  note
+}
+
+
 
 # ==========================================================================
 # autor: save object, summarise object, show object
@@ -2871,17 +2908,22 @@ setMethod("abstract", signature = c(x = "df", name = "character", latex = "NULL"
   })
 
 setMethod("abstract", signature = c(x = "character", name = "character", latex = "NULL"),
-  function(x, name, latex, ...){
+  function(x, name, latex, ...)
+  {
     note <- glue::glue("注：{x}")
-    note <- officer::fpar(
-      officer::ftext(
-        note, officer::fp_text(
-          font.size = 10.5,
-          eastasia.family = "SimSun",
-          font.family = "Times New Roman"
-        )), fp_p = officer::fp_par(text.align = "center", line_spacing = 1.5)
-    )
-    writeLines(assis_docx_par(note))
+    if (knitr::pandoc_to("docx")) {
+      note <- officer::fpar(
+        officer::ftext(
+          note, officer::fp_text(
+            color = "#2E75B5",
+            font.size = 9,
+            # font.size = 10.5,
+            eastasia.family = "SimSun",
+            font.family = "Times New Roman"
+          )), fp_p = officer::fp_par(text.align = "center", line_spacing = 1.5)
+      )
+      writeLines(assis_docx_par(note))
+    }
   }
 )
 

@@ -34,9 +34,3 @@ setMethod("step1", signature = c(x = "job_gutmg"),
     return(x)
   })
 
-setMethod("set_remote", signature = c(x = "job_gutmg"),
-  function(x, wd)
-  {
-    x$wd <- wd
-    return(x)
-  })

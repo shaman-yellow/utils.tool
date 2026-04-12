@@ -88,10 +88,13 @@ setMethod("step0", signature = c(x = "job_mlearn"),
   })
 
 setMethod("step1", signature = c(x = "job_mlearn"),
-  function(x, n = 10, method = "cv", kernel = "linear", subset_sizes = c(1:30), seed = x$seed,
-    workers = NULL, rerun = FALSE)
+  function(x, subset_sizes = 15:50, n = 10, method = "cv", kernel = "linear", seed = x$seed,
+    workers = NULL, ..., rerun = FALSE, skip = FALSE)
   {
     step_message("SVM-RFE.")
+    if (skip) {
+      return(x)
+    }
     data <- object(x)
     target <- x$target
     args <- as.list(environment())
@@ -115,15 +118,15 @@ setMethod("step1", signature = c(x = "job_mlearn"),
       as_tibble(svm_rfe$results), dplyr::desc(Accuracy)
     )
     x <- plotsAdd(x, p.svm)
-    x <- methodAdd(x, "以 R 包 `e1071` ⟦pkgInfo('e1071')⟧ 构建支持向量机递归特征消除模型 (SVM-RFE)。核函数设定为线性核 (kernel = {method}) ；以 R 包 `caret` ⟦pkgInfo('caret')⟧ 实现递归特征消除流程，采用 {n} 折交叉验证评估模型分类性能，依据分类准确率 (Accuracy) 从高到低排序筛选最优特征基因子集。")
+    x <- methodAdd(x, "以 R 包 `e1071` ⟦pkgInfo('e1071')⟧ 构建支持向量机递归特征消除模型 (SVM-RFE)。核函数设定为线性核 (kernel = {kernel}) ；以 R 包 `caret` ⟦pkgInfo('caret')⟧ 实现递归特征消除流程，采用 {n} 折交叉验证评估模型分类性能，依据分类准确率 (Accuracy) 从高到低排序筛选最优特征基因子集。")
     x <- snapAdd(
-      x, "SVM-RFE 最佳子集数为 {svm_rfe_res$best_size}{aref(p.svm)}，准确率 (Accuracy) 为 {round(x$t.svm_rfe_accuracy$Accuracy[1], 3)}，误差值 (AccuracySD) 为 {round(x$t.svm_rfe_accuracy$AccuracySD[1], 3)}，对应 feature 为：{bind(svm_rfe_res$features)}。\n\n"
+      x, "SVM-RFE 最佳子集数为 {svm_rfe_res$best_size}{aref(p.svm)}，准确率 (Accuracy) 为 {round(x$t.svm_rfe_accuracy$Accuracy[1], 3)}，误差值 (AccuracySD) 为 {round(x$t.svm_rfe_accuracy$AccuracySD[1], 3)}，对应 feature 为：{bind(svm_rfe_res$features)}。\n\n\n\n"
     )
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_mlearn"),
-  function(x, n = 10, lambda.type = c("1se", "min"), seed = x$seed)
+  function(x, n = 10, lambda.type = c("1se", "min"), seed = x$seed, ...)
   {
     step_message("Lasso")
     lambda.type <- match.arg(lambda.type)
@@ -134,7 +137,7 @@ setMethod("step2", signature = c(x = "job_mlearn"),
     cv_lasso <- e(glmnet::cv.glmnet(
         x = data, y = target,
         family = "binomial", alpha = 1, nfolds = n,
-        # type.measure = "class",
+        # type.measure = "deviance",
         standardize = TRUE, parallel = FALSE
         ))
     lambda <- cv_lasso[[ lambda.type ]]
@@ -195,12 +198,12 @@ setMethod("step2", signature = c(x = "job_mlearn"),
     x <- plotsAdd(x, p.lasso_cv, p.coefs_path)
     prin <- if (lambda.type == "lambda.1se") "1-SE" else "最小误差"
     x <- methodAdd(x, "以 R 包 glmnet ⟦pkgInfo('glmnet')⟧ 开展 LASSO 逻辑回归分析。设置 α = 1 实现 L1 正则化，通过 {n} 折交叉验证结合 {prin} 准则确定最优 λ 值。")
-    x <- snapAdd(x, "LASSO 筛选的核心 feature（非零系数）数量为 {length(selected)}{aref(p.lasso_cv)}，对应为：{bind(selected)}。\n\n")
+    x <- snapAdd(x, "LASSO 筛选的核心 feature（非零系数）数量为 {length(selected)}{aref(p.lasso_cv)}，对应为：{bind(selected)}。\n\n\n\n")
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_mlearn"),
-  function(x, ntree = 1000, top = 10, seed = x$seed)
+  function(x, ntree = 1000, top = 10, seed = x$seed, ...)
   {
     step_message("Random Forest.")
     data <- object(x)
@@ -237,31 +240,184 @@ setMethod("step3", signature = c(x = "job_mlearn"),
     x$rf_res <- list(rf_model = rf_model, features = t.tops$feature)
     x <- tablesAdd(x, t.tops)
     x <- plotsAdd(x, p.error)
-    x <- snapAdd(x, "随机森林特征重要性 Top {top} 基因：{bind(t.tops$feature)}{aref(p.error)}。\n\n")
     x <- methodAdd(x, "以 R 包 `randomForest` ⟦pkgInfo('randomForest')⟧ 构建随机森林分类模型，设定决策树数量（ntree）为 {ntree}，特征选择数 (mtry) 为基因总数的平方根，通过袋外数据 (OOB) 评估模型误差率，计算 Feature 重要性评分，筛选相对重要性 top {top}；同时分析分类树数量与误差率的关联趋势，确定模型最优复杂度。")
+    x <- snapAdd(x, "随机森林特征重要性 Top {top} 基因：{bind(t.tops$feature)}{aref(p.error)}。\n\n\n\n")
     return(x)
   })
 
+setMethod("step4", signature = c(x = "job_mlearn"),
+  function(x, n = 10, seed = x$seed, rerun = FALSE){
+    step_message("XGBoost")
+    data <- object(x)
+    target <- x$target
+    fun_xgb <- function(...) {
+      .mlearn_alter_xgboost(
+        data, target, nfold = n, seed = seed
+      )
+    }
+    res <- expect_local_data(
+      "tmp", "xgboost", fun_xgb,
+      list(n, seed, target), rerun = rerun
+    )
+    eval_log <- res$cv$evaluation_log
+    p.importance <- ggplot(res$importance, aes(x = reorder(Feature, Gain), y = Gain)) +
+      geom_col() +
+      coord_flip() +
+      theme_bw() +
+      xlab("Gene") +
+      ylab("Importance (Gain)") +
+      ggtitle("Feature Importance")
+    p.importance <- set_lab_legend(
+      wrap_scale(p.importance, 20, nrow(res$importance), size = .1),
+      glue::glue("{x@sig} XGBoost Feature Importance"),
+      glue::glue("XGBoost 模型特征重要性排序|||展示对分类任务贡献度最高的基因（按 Gain 值衡量），横轴表示特征在模型中的相对重要性，纵轴为基因名称，重要性越高表示该基因在模型决策中贡献越大。")
+    )
+    data <- dplyr::select(
+      eval_log, iter, Validate = test_auc_mean, Train = train_auc_mean
+    )
+    data <- tidyr::pivot_longer(data, -iter, names_to = "type", values_to = "value")
+    p.auc <- ggplot(data, aes(x = iter, y = value, color = type)) +
+      geom_line() +
+      theme_bw() +
+      labs(x = "Iteration", y = "AUC", color = "Type") +
+      ggtitle("Cross-validation AUC")
+    p.auc <- set_lab_legend(
+      wrap(p.auc, 5, 3.5),
+      glue::glue("{x@sig} XGBoost Cross-validation AUC"),
+      glue::glue("交叉验证模型性能迭代曲线图|||横轴为迭代轮数（Number of Trees），纵轴为模型在验证集上的 AUC 值，用于评估模型随训练过程的收敛趋势及最优迭代轮数的选择。")
+    )
+    x <- methodAdd(
+      x, "以 R 包 `xgboost` ⟦pkgInfo('xgboost')⟧ 构建梯度提升树二分类模型，设定最大迭代轮数（nrounds）为 100，学习率（eta）为 0.05，最大树深（max_depth）为 4，并结合 {n} 折交叉验证与早停策略（early stopping）确定最优迭代轮数；基于模型计算特征重要性（Gain），筛选重要基因；同时分析迭代轮数与模型性能（AUC）变化趋势，以评估模型收敛过程与复杂度。"
+    )
+    features <- res$selected_genes
+    x <- snapAdd(x, "XGBoost 所有重要基因 (n = {length(features)})：{bind(features)}{aref(p.importance)}。\n\n\n\n")
+    x$xgb_res <- list(
+      rf_model = res$model, rf_cv = res$cv, features = features
+    )
+    x <- plotsAdd(x, p.auc, p.importance)
+    return(x)
+  })
+
+.mlearn_alter_xgboost <- function(
+  data, target,
+  nrounds = 100, nfold = 10,
+  early_stopping_rounds = 5,
+  seed = 123)
+{
+  set.seed(seed)
+  # -----------------------------
+  # Prepare data
+  # -----------------------------
+  X <- as.matrix(data)
+  if (is.factor(target)) {
+    y <- as.integer(target) - 1
+  } else {
+    y <- target
+  }
+
+  dtrain <- e(xgboost::xgb.DMatrix(data = X, label = y))
+
+  # -----------------------------
+  # Parameters (robust defaults)
+  # -----------------------------
+  params <- list(
+    objective = "binary:logistic",
+    eval_metric = "auc",
+    max_depth = 4,
+    eta = 0.05,
+    subsample = 0.7,
+    colsample_bytree = 0.4,
+    lambda = 1,
+    alpha = 0
+  )
+
+  # -----------------------------
+  # Cross-validation
+  # -----------------------------
+  cv <- e(xgboost::xgb.cv(
+    params = params,
+    data = dtrain,
+    nrounds = nrounds,
+    nfold = nfold,
+    early_stopping_rounds = early_stopping_rounds,
+    verbose = 1
+  ))
+
+  eval_log <- cv$evaluation_log
+  best_nrounds <- which.max(eval_log$test_auc_mean)
+
+  # -----------------------------
+  # Train final model
+  # -----------------------------
+  model <- e(xgboost::xgb.train(
+    params = params,
+    data = dtrain,
+    nrounds = best_nrounds,
+    verbose = 1
+  ))
+
+  # -----------------------------
+  # Feature importance
+  # -----------------------------
+  importance <- e(xgboost::xgb.importance(
+    model = model,
+    feature_names = colnames(X)
+  ))
+  # -----------------------------
+  # Output
+  # -----------------------------
+  list(
+    model = model, cv = cv, best_nrounds = best_nrounds,
+    importance = importance,
+    selected_genes = importance$Feature
+  )
+}
+
+run_mlean_with_seeds <- function(x, ..., ntry = 100, expect = 2)
+{
+  x@sig <- "test"
+  x <- copy_job(x)
+  lapply(seq_len(ntry),
+    function(n) {
+      seeds <- sample(1:100000, 3)
+      capture.output({
+        x <- suppressMessages(step1(x, seed = seeds[1], ...))
+        x <- suppressMessages(step2(x, seed = seeds[2], ...))
+        x <- suppressMessages(step3(x, seed = seeds[3], ...))
+      })
+      alls <- list(
+        SVM_RFE = x$svm_rfe_res$features,
+        LASSO = x$lasso_res$features,
+        Random_Forest = x$rf_res$features
+      )
+      res <- ins(lst = alls)
+      message(glue::glue("N = {n}, use seeds: {bind(seeds)}, got: {bind(res)}"))
+      if (length(res) >= expect) {
+        return(seeds)
+      } else {
+        NULL
+      }
+    })
+}
+
 setMethod("asjob_venn", signature = c(x = "job_mlearn"),
   function(x){
-    job_venn(
-      SVM_RFE = x$svm_rfe_res$features,
-      LASSO = x$lasso_res$features,
-      Random_Forest = x$rf_res$features
-    )
+    job_venn(lst = feature(x))
   })
 
 setMethod("feature", signature = c(x = "job_mlearn"),
   function(x){
     lst <- list(SVM_RFE = x$svm_rfe_res$features,
       LASSO = x$lasso_res$features,
-      Random_Forest = x$rf_res$features)
+      Random_Forest = x$rf_res$features,
+      XGBoost = x$xgb_res$features
+    )
+    lst <- lst[ !vapply(lst, is.null, logical(1)) ]
     as_feature(lst, "Machine Learning")
   })
 
-
 .run_svm_rfe <- function(data, target, n,
-  method = "cv", kernel = "linear",
+  method = "cv", kernel = "linear", cost = 10,
   subset_sizes, workers = NULL, seed = 123, ...)
 {
   # -----------------------------
@@ -296,7 +452,7 @@ setMethod("feature", signature = c(x = "job_mlearn"),
 
   svm_funcs$fit <- function(x, y, first, last, ...) {
     e1071::svm(x = x, y = y,
-      kernel = kernel, scale = TRUE,
+      kernel = kernel, scale = TRUE, cost = cost,
       probability = FALSE, ...
     )
   }

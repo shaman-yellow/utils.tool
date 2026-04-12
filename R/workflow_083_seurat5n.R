@@ -43,7 +43,7 @@ job_seurat5n <- function(dirs, names = NULL, mode = c("sc", "st"),
   object(x)[[ "percent.mt" ]] <- e(Seurat::PercentageFeatureSet(object(x), pattern = "^MT-"))
   p.qc_pre <- plot_qc.seurat(x)
   x$p.qc_pre <- p.qc_pre
-  x <- methodAdd(x, "使用 Seurat R 包 ({packageVersion('Seurat')}) 进行单细胞数据质量控制 (QC) 和下游分析。依据 <{x@info}> 为指导对单细胞数据预处理。")
+  x <- methodAdd(x, "以 R 包 `Seurat` ⟦pkgInfo('Seurat')⟧ 进行单细胞数据质量控制 (QC) 和下游分析。依据 <{x@info}> 为指导对单细胞数据预处理。")
   return(x)
 }
 
@@ -181,7 +181,6 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
       )
     } else {
       if (is.null(x$.before_IntegrateLayers)) {
-        x <- methodAdd(x, "结果显示{aref(x@plots$step2$p.pca_rank)}，前 {max(dims)} 个 PCs 以后方差增量减缓逐渐趋于稳定，选择前 {max(dims)} 个 PCs 进行后续聚类分析。")
         object(x) <- e(Seurat::FindNeighbors(object(x), dims = dims, reduction = "pca"))
         object(x) <- e(Seurat::FindClusters(object(x), resolution = resolution,
             cluster.name = "unintegrated_clusters"))
@@ -221,6 +220,7 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
       x <- callNextMethod(
         x, dims, resolution, reduction = use, ...
       )
+      x <- methodAdd(x, "结果显示{aref(x@plots$step2$p.pca_rank)}，前 {max(dims)} 个 PCs 以后方差增量减缓逐渐趋于稳定，选择前 {max(dims)} 个 PCs 进行后续聚类分析。")
       x <- methodAdd(
         x, "以 `Seurat::IntegrateLayers` 集成数据，去除批次效应 (使用 {use} 方法)。", add = FALSE
       )
@@ -235,6 +235,11 @@ setMethod("step3", signature = c(x = "job_seurat5n"),
     p.umapLabel <-  e(Seurat::DimPlot(object(x),
         group.by = c("seurat_clusters"), 
         cols = color_set(TRUE), label = TRUE))
+    p.umapLabel <- set_lab_legend(
+      p.umapLabel,
+      glue::glue("{x@sig} UMAP with label"),
+      glue::glue("UMAP 聚类图|||UMAP 图中带有数字注释了细胞簇属于哪个聚类，有利于分辨。不同颜色代表不同cluster。横纵坐标是 UMAP 降维的两个维度。UMAP能够将高维空间中的数据映射到低维空间中，并保留数据集的局部特性。")
+    )
     x <- plotsAdd(x, p.umapInt, p.umapLabel)
     x <- methodAdd(x, "在 1-{max(dims)} PC 维度下，以 `Seurat::FindNeighbors` 构建 Nearest-neighbor Graph。随后在 {resolution} 分辨率下，以 `Seurat::FindClusters` 函数识别细胞群并以 `Seurat::RunUMAP` 进行 UMAP 聚类。")
     nBefore <- length(levels(object(x)@meta.data$unintegrated_clusters))

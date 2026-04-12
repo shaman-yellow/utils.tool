@@ -1,5 +1,7 @@
 title: ''
-bibliography: '`r system.file("extdata", "library.bib", package = "utils.tool")`'
+bibliography:
+  - '`r system.file("extdata", "library.bib", package = "utils.tool")`'
+  - library.bib
 csl: '`r system.file("extdata", "nature.csl", package = "utils.tool")`'
 reference-section-title: "Reference"
 output:
