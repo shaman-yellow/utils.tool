@@ -461,6 +461,9 @@ setMethod("step2", signature = c(x = "job_limma"),
         topsSig, dplyr::relocate,
         !!rlang::sym(label), logFC, !!rlang::sym(use)
       )
+      topsSig <- lapply(
+        topsSig, dplyr::arrange, dplyr::desc(abs(logFC))
+      )
       res <- .collate_snap_and_features_by_logfc(topsSig, "logFC", get = label)
       x <- snapAdd(x, "显著基因统计：\n⟦mark$red('{res$snap}')⟧\n")
       topsSig <- set_lab_legend(

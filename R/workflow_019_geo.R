@@ -78,7 +78,7 @@ setMethod("step1", signature = c(x = "job_geo"),
       anno = about[[ 1 ]]@annotation,
       anno.db = try(.get_biocPackage.gpl(about[[ 1 ]]@annotation), TRUE)
     )
-    x <- methodAdd(x, "以 R 包 `GEOquery` ({packageVersion('GEOquery')}) 获取 {object(x)} 数据集。")
+    x <- methodAdd(x, "以 R 包 `GEOquery` ⟦pkgInfo('GEOquery')⟧ 获取 {object(x)} 数据集。")
     return(x)
   })
 

@@ -1942,7 +1942,9 @@ setGeneric("methodAdd",
   function(x, from, ...) standardGeneric("methodAdd"))
 
 setMethod("methodAdd", signature = c(x = "job", from = "character"),
-  function(x, from, add = FALSE, env = parent.frame(2), step = NULL) {
+  function(x, from, add = FALSE, env = parent.frame(2), 
+    step = NULL, after = TRUE)
+  {
     if (missing(step)) {
       if (!is.null(x$.map_step) && x$.map_step) {
         step <- "m"
@@ -1967,10 +1969,15 @@ setMethod("methodAdd", signature = c(x = "job", from = "character"),
     } else {
       former <- ""
     }
-    if (is.null(env)) {
-      meth(x)[[ paste0("step", x@step) ]] <- paste0(former, from)
+    if (after) {
+      fun_paste <- function(x, y) paste0(x, y)
     } else {
-      meth(x)[[ paste0("step", x@step) ]] <- paste0(
+      fun_paste <- function(x, y) paste0(y, x)
+    }
+    if (is.null(env)) {
+      meth(x)[[ paste0("step", x@step) ]] <- fun_paste(former, from)
+    } else {
+      meth(x)[[ paste0("step", x@step) ]] <- fun_paste(
         former, glue::glue(from, .envir = env)
       )
     }
@@ -1999,7 +2006,9 @@ setMethod("snapAdd", signature = c(x = "job", from = "NULL"),
   })
 
 setMethod("snapAdd", signature = c(x = "job", from = "character"),
-  function(x, from, add = FALSE, env = parent.frame(2), step = NULL) {
+  function(x, from, add = FALSE, env = parent.frame(2), 
+    step = NULL, after = TRUE)
+  {
     if (missing(step)) {
       if (!is.null(x$.map_step) && x$.map_step) {
         step <- "m"
@@ -2026,8 +2035,13 @@ setMethod("snapAdd", signature = c(x = "job", from = "character"),
     } else {
       former <- ""
     }
+    if (after) {
+      fun_paste <- function(x, y) paste0(x, y)
+    } else {
+      fun_paste <- function(x, y) paste0(y, x)
+    }
     if (is.null(env)) {
-      snap(x)[[ paste0("step", step) ]] <- paste0(former, from)
+      snap(x)[[ paste0("step", step) ]] <- fun_paste(former, from)
     } else {
       mapped <- glue::glue(from, .envir = env)
       if (length(from) != length(mapped)) {
@@ -2037,7 +2051,7 @@ setMethod("snapAdd", signature = c(x = "job", from = "character"),
           )
         )
       }
-      snap(x)[[ paste0("step", step) ]] <- paste0(former, mapped)
+      snap(x)[[ paste0("step", step) ]] <- fun_paste(former, mapped)
     }
     return(x)
   })
@@ -3416,29 +3430,61 @@ copy_job <- function(x) {
 }
 
 
-.rapp_find_call_and_args <- function(x) {
+.rapp_find_call_and_args <- function(x, fun_name = NULL) {
   if (is(x, "{")) {
-    .rapp_find_call_and_args(x[[2]])
+    .rapp_find_call_and_args(x[[2]], fun_name)
   } else if (is(x, "<-")) {
-    .rapp_find_call_and_args(x[[3]])
+    .rapp_find_call_and_args(x[[3]], fun_name)
+  } else if (is(x, "pairlist")) {
+    alls <- lapply(x,
+      function(call) {
+        res <- try(.rapp_find_call_and_args(call, fun_name), TRUE)
+        if (inherits(res, "try-error")) {
+          NULL
+        } else {
+          res
+        }
+      })
+    alls <- alls[ !vapply(alls, is.null, logical(1)) ]
+    if (length(alls)) {
+      if (length(alls) > 1) {
+        message("Found multiple target, use first.")
+      }
+      return(alls[[1]])
+    } else {
+      stop(glue::glue("Can not found any `{fun_name}` in 'pairlist'."))
+    }
   } else if (is(x, "call")) {
-    fun <- match.fun(x[[1]])
+    callname <- x[[1]]
     callforMatch <- x
-    for (i in seq_along(x)[-1]) {
-      if (rlang::expr_text(x[[i]]) == "...") {
+    if (!is.null(fun_name) && is.character(fun_name)) {
+      if (length(callname) == 3) {
+        callname <- callname[[3]]
+      }
+      callNameText <- rlang::expr_text(callname)
+      if (callNameText != fun_name) {
+        res <- .rapp_find_call_and_args(x[[2]], fun_name)
+        return(res)
+      }
+    }
+    fun <- match.fun(callname)
+    for (i in seq_along(callforMatch)[-1]) {
+      if (rlang::expr_text(callforMatch[[i]]) == "...") {
         callforMatch <- callforMatch[ -i ]
         break
       }
     }
     call <- match.call(fun, callforMatch)
-    list(callname = x[[1]], args = as.list(call)[-1], fun = fun)
+    list(callname = callname, args = as.list(call)[-1], fun = fun)
   } else {
     stop("The finally of the 'substitute' is: ", class(x))
   }
 }
 
-.expr_resolve_S4 <- function(expr, envir = .GlobalEnv) {
-  callArgs <- .rapp_find_call_and_args(expr)
+.expr_resolve_S4 <- function(expr, fun_name = NULL, envir = .GlobalEnv, 
+  env_class = NULL, guess_by_name = TRUE)
+{
+  callArgs <- .rapp_find_call_and_args(expr, fun_name)
   fname <- rlang::expr_text(callArgs$callname)
   if (!isS4(callArgs$fun)) {
     return(
@@ -3450,7 +3496,26 @@ copy_job <- function(x) {
   signature <- vapply(
     callArgs$args[ seq_along(nameArgs) ], FUN.VALUE = character(1),
     function(name) {
-      signature(class(eval(name, envir = envir))[1])
+      if (!is.null(env_class) && !is.null(mayClass <- env_class[[ rlang::expr_text(name) ]])) {
+        class <- mayClass
+      } else {
+        class <- NULL
+        if (guess_by_name) {
+          objName <- strx(rlang::expr_text(name), "^[^.]+")
+          prefix <- .general_prefix_of_class()
+          if (objName %in% names(prefix)) {
+            class <- dplyr::recode(objName, !!!prefix)
+          }
+        }
+        if (is.null(class)) {
+          object <- try(eval(name, envir = envir), TRUE)
+          if (inherits(object, "try-error")) {
+            rlang::abort(glue::glue("Can not eval `{rlang::expr_text(name)}`, not exists?"))
+          }
+          class <- class(object)[1]
+        }
+      }
+      signature(class)
     }
   )
   message(glue::glue("Match function `{fname}`, with signature: {bind(signature)}"))
@@ -3491,9 +3556,11 @@ copy_job <- function(x) {
   invisible()
 }
 
-.parse_code_and_locate_src_fields <- function(code, envir = .GlobalEnv) {
+.parse_code_and_locate_src_fields <- function(code, 
+  fun_name = NULL, envir = .GlobalEnv)
+{
   expr <- substitute(code)
-  res <- .expr_resolve_S4(expr, envir = envir)
+  res <- .expr_resolve_S4(expr, fun_name, envir = envir)
   if (res$isS4) {
     .locate_src_fields(res$callArgs$fun, res$signature, fname = res$fname)
   } else {

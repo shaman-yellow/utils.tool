@@ -47,6 +47,22 @@ job_seurat5n <- function(dirs, names = NULL, mode = c("sc", "st"),
   return(x)
 }
 
+setGeneric("asjob_seurat5n",
+  function(x, ...) standardGeneric("asjob_seurat5n"))
+
+setMethod("asjob_seurat5n", signature = c(x = "job_seurat"),
+  function(x, split = "orig.ident", assay = "RNA")
+  {
+    object(x)[[assay]] <- split(object(x)[[assay]], f = object(x)@meta.data[[split]])
+    x <- .job_seurat5n(object = object(x))
+    object(x)[[ "percent.mt" ]] <- e(Seurat::PercentageFeatureSet(object(x), pattern = "^MT-"))
+    SeuratObject::Idents(object(x)) <- split
+    p.qc_pre <- plot_qc.seurat(x)
+    x$p.qc_pre <- p.qc_pre
+    x <- methodAdd(x, "以 R 包 `Seurat` ⟦pkgInfo('Seurat')⟧ 进行单细胞数据质量控制 (QC) 和下游分析。依据 <{x@info}> 为指导对单细胞数据预处理。")
+    return(x)
+  })
+
 setMethod("step0", signature = c(x = "job_seurat5n"),
   function(x){
     step_message("Prepare your data with function `job_seurat5n`.")
@@ -110,7 +126,9 @@ setMethod("step2", signature = c(x = "job_seurat5n"),
     }
     if (sct) {
       if (!is.null(workers)) {
+        old_plan <- future::plan()
         future::plan(future::multicore, workers = workers)
+        on.exit(future::plan(old_plan))
       }
       object(x) <- e(Seurat::SCTransform(
           object(x), method = "glmGamPoi", vars.to.regress = "percent.mt", verbose = TRUE,

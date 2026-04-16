@@ -42,7 +42,7 @@ job_aucell <- function(mtx, sets)
     stop('all(!isIns).')
   }
   x <- .job_aucell(object = mtx)
-  x <- methodAdd(x, "以 R 包 `AUCell` ({packageVersion('AUCell')}) {cite_show('SCENIC_single_Aibar_2017')} 识别单细胞数据集的基因集调控活性。")
+  x <- methodAdd(x, "以 R 包 `AUCell` ⟦pkgInfo('AUCell')⟧ {cite_show('SCENIC_single_Aibar_2017')} 识别单细胞数据集的基因集调控活性。")
   x$sets <- sets
   return(x)
 }

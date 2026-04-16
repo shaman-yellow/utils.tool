@@ -23,8 +23,8 @@ setMethod("asjob_deseq2", signature = c(x = "job_geo"),
     if (!x$rna) {
       stop('!x$rna, not RNA-seq data!')
     }
-    counts <- as_tibble(data.frame(x@params$about[[ use ]]@assays@data$counts, check.names = FALSE))
-    genes <- as_tibble(data.frame(x@params$about[[ use ]]@elementMetadata, check.names = FALSE))
+    counts <- as_tibble(data.frame(x$about[[ use ]]@assays@data$counts, check.names = FALSE))
+    genes <- as_tibble(data.frame(x$about[[ use ]]@elementMetadata, check.names = FALSE))
     genes <- dplyr::mutate(genes, rownames = as.character(GeneID), .before = 1)
     if (missing(use.col)) {
       use.col <- .guess_symbol(colnames(genes))
@@ -48,7 +48,12 @@ setMethod("asjob_deseq2", signature = c(x = "job_geo"),
       genes <- genes[keep, ]
       counts <- counts[keep, ]
     }
-    x <- job_deseq2(counts, metadata, genes, x$project, ...)
+    project <- x$project
+    x <- job_deseq2(counts, metadata, genes, project, ...)
+    x <- methodAdd(
+      x, "整理 GEO 数据集 ({project}) 以备 `DESeq2` 差异分析。",
+      after = FALSE
+    )
     return(x)
   })
 
@@ -98,7 +103,8 @@ setMethod("step0", signature = c(x = "job_deseq2"),
   })
 
 setMethod("step1", signature = c(x = "job_deseq2"),
-  function(x){
+  function(x, show_qc = FALSE)
+  {
     step_message("Quality control (QC).")
     object(x) <- e(DESeq2::DESeq(object(x)))
     x$vst <- e(DESeq2::vst(object(x), blind = FALSE))
@@ -117,12 +123,15 @@ setMethod("step1", signature = c(x = "job_deseq2"),
       glue::glue("样本 cook 距离箱线图。")
     )
     x <- plotsAdd(x, p.pca, p.boxplot)
-    x <- methodAdd(x, "使用 DESeq 函数进行标准化和差异分析。DESeq 函数会针对每个基因和每个样本计算一个称为 Cook 距离的异常值诊断测试。绘制 Cook 距离的箱线图，以查看是否存在某个样本始终高于其他样本。为进一步质控数据，另一方面，对数据集以 vst 函数处理，随后绘制 PCA 图检查样本是否存在批次效应或离群样本。")
+    x <- methodAdd(x, "使用 DESeq 函数进行标准化和差异分析。")
+    if (show_qc) {
+      x <- methodAdd(x, "DESeq 函数会针对每个基因和每个样本计算一个称为 Cook 距离的异常值诊断测试。绘制 Cook 距离的箱线图{aref(p.boxplot)}，以查看是否存在某个样本始终高于其他样本。为进一步质控数据，另一方面，对数据集以 vst 函数处理，随后绘制 PCA 图检查样本是否存在批次效应或离群样本{aref(p.pca)}。")
+    }
     return(x)
   })
 
 setMethod("step2", signature = c(x = "job_deseq2"),
-  function(x, ..., cut.p = .05, cut.fc = 1, use = c("padj", "pvalue"), 
+  function(x, ..., cut.p = .05, cut.fc = .5, use = c("padj", "pvalue"), 
     order.by = "log2FoldChange")
   {
     step_message("stat.")

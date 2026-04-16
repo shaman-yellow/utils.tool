@@ -712,9 +712,9 @@ setMethod("step5", signature = c(x = "job_vina"),
       data <- split_lapply_rbind(data, ~ PDB_ID, head, n = each)
     }
     data <- dplyr::mutate(
-      data, dplyr::across(!!rlang::sym(axis), function(x) stringr::str_trunc(x, 30)),
-      receptor = paste0(hgnc_symbol, " (", s(PDB_ID, "-f1-model.*", ""), ")"),
-      label = paste0(!!rlang::sym(axis), " (CID:", PubChem_id, ")")
+      data, receptor = paste0(hgnc_symbol, " (", s(PDB_ID, "-f1-model.*", ""), ")"),
+      label = stringr::str_trunc(!!rlang::sym(axis), 30),
+      label = paste0(label, " (CID:", PubChem_id, ")")
     )
     p.res_vina <- ggplot(data) + 
       geom_col(
@@ -874,6 +874,54 @@ setMethod("step7", signature = c(x = "job_vina"),
     x <- plotsAdd(x, figs)
     return(x)
   })
+
+setMethod("step8", signature = c(x = "job_vina"),
+  function(x){
+    step_message("Merge as pdb for molecular dynamics simulation")
+    x@tables$step5$res_dock
+    x$res_dock_merge <- .merge_ligand_recepter_as_pdb(x@tables$step5$res_dock, x$savedir)
+    return(x)
+  })
+
+.merge_ligand_recepter_as_pdb <- function(res_dock, dir, overwrite = FALSE) {
+  if (!nchar(Sys.which("obabel"))) {
+    stop('!nchar(Sys.which("obabel")).')
+  }
+  fun_convert <- function(file) {
+    real <- tools::file_path_sans_ext(file)
+    file_new <- paste0(real, ".pdb")
+    if (!file.exists(file_new) || overwrite) {
+      system(glue::glue("obabel {file} -O {file_new}"))
+    }
+    return(file_new)
+  }
+  res_dock$pdb_merge <- apply(res_dock, 1,
+    function(v) {
+      subdir <- Combn <- v[[ "Combn" ]]
+      recep <- paste0(v[[ "PDB_ID" ]], ".pdbqt")
+      path <- file.path(dir, subdir)
+      maybethat <- list.files(
+        path, recep, ignore.case = TRUE, full.names = TRUE
+      )
+      if (length(maybethat)) {
+        file_recep <- maybethat[1]
+      }
+      file_ligand <- v[[ "file" ]]
+      files <- lapply(c(file_recep, file_ligand),
+        function(file) {
+          message(glue::glue("Convert: {file}"))
+          fun_convert(file)
+        })
+      cmd_load <- glue::glue(
+        "load {files[[1]]}, recep; load {files[[2]]}, ligand; create complex, recep or ligand;"
+      )
+      file_complex <- file.path(path, paste0(Combn, ".pdb"))
+      cmd <- glue::glue("{pg('pymol')} -c -Q -d '{cmd_load} save {file_complex}, complex; quit'")
+      system(cmd)
+      return(file_complex)
+    })
+  res_dock
+}
 
 setMethod("upload", signature = c(x = "job_vina"),
   function(x, ..., testFinish = TRUE){

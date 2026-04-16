@@ -95,11 +95,12 @@ setMethod("step1", signature = c(x = "job_gBan"),
     }
     if (cmnpd) {
       data_cmnpd <- ftibble(get_url_data(
-        "cmnpd.tsv",
-        "https://www.cmnpd.org/cmnpd/supplement/Downloads/CMNPD_1.0_calc_prop.tsv",
-        "cmnpd", fun_decompress = NULL
-      ))
+          "cmnpd.tsv",
+          "https://www.cmnpd.org/cmnpd/supplement/Downloads/CMNPD_1.0_calc_prop.tsv",
+          "cmnpd", fun_decompress = NULL
+          ))
       x$smiles_compounds$data_cmnpd <- dplyr::distinct(data_cmnpd, smiles = SMILES)
+      x <- methodAdd(x, "获取 CMNPD 数据库 (<https://www.cmnpd.org>) 的化合物 SMILES 结构式。")
     }
     return(x)
   })

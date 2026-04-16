@@ -22,7 +22,7 @@ setGeneric("asjob_infercnv", group = list("asjob_series"),
 
 setMethod("asjob_infercnv", signature = c(x = "job_seurat"),
   function(x, ref, groups = NULL, ..., recluster = TRUE, subset = "seurat_clusters",
-    group.by = x$group.by, outdir = glue::glue("infercnv_{x@sig}"))
+    group.by = x$group.by, outdir = create_job_cache_dir(x, "infercnv"))
   {
     if (missing(ref)) {
       stop('missing(ref).')
@@ -94,18 +94,27 @@ setMethod("asjob_infercnv", signature = c(x = "job_seurat"),
     tmp.genes <- file.path(outdir, "genes.tsv")
     write_tsv(genes, tmp.genes, col.names = FALSE)
     cell_groups <- unique(as.character(metadata[[ group.by ]]))
-    obj.cnv <- e(infercnv::CreateInfercnvObject(counts,
+    fun_create <- function(...) {
+      e(infercnv::CreateInfercnvObject(counts,
         tmp.genes, tmp.metadata, ref))
+    }
+    params <- params(x)
+    obj.cnv <- expect_local_data(
+      "tmp", "infercnv_create", fun_create,
+      list(sig(x), params$metadata$cell, metadata$rownames)
+    )
     x <- .job_infercnv(object = obj.cnv)
+    x@params <- append(x@params, params)
     x$outdir <- outdir
     x$tmp.metadata <- tmp.metadata
     x$tmp.genes <- tmp.genes
-    x <- methodAdd(x, "以 R 包 `infercnv` ({packageVersion('infercnv')}) 探索肿瘤单细胞 RNA 测序数据，以识别体细胞大规模染色体拷贝数的变异。")
+    x$meta_used <- metadata
+    x <- methodAdd(x, "以 R 包 `infercnv` ⟦pkgInfo('infercnv')⟧ 探索肿瘤单细胞 RNA 测序数据，以识别体细胞大规模染色体拷贝数的变异。")
     if (exists("snap") && !is.function(snap)) {
       message(glue::glue("Add seurat recluster snap."))
       x <- snapAdd(x, snap)
     }
-    x <- snapAdd(x, "使用 `inferCNV` 识别肿瘤细胞的染色体拷贝数变异，选择 {bind(ref)} 为参考细胞 (正常细胞)，识别 {bind(groups)} 中的拷贝数变异。分析中，{bind(groups)} 以 {subset} 标识次级聚类。")
+    x <- snapAdd(x, "使用 `inferCNV` 识别肿瘤细胞的染色体拷贝数变异，选择 {bind(ref)} 为参考细胞 (正常细胞)，识别 {bind(groups)} 中的拷贝数变异。分析中，{bind(groups)}以 {subset} 标识次级聚类。")
     return(x)
   })
 
@@ -137,15 +146,19 @@ setMethod("step1", signature = c(x = "job_infercnv"),
       unlink(x$outdir, TRUE, TRUE)
     }
     options(scipen = 100)
-    object(x) <- e(infercnv::run(
-        object(x),
-        # cutoff = 1 works well for Smart-seq2
-        # and cutoff = 0.1 works well for 10x Genomics
-        num_threads = workers, cluster_by_groups = TRUE,
-        cutoff = cutoff, denoise = TRUE, HMM = hmm, 
-        analysis_mode = "subclusters",
-        out_dir = x$outdir, save_rds = FALSE, save_final_rds = FALSE
-        ))
+    fun_run <- function(...) {
+      e(infercnv::run(
+          object(x), num_threads = workers, cluster_by_groups = TRUE,
+          # cutoff = 1 works well for Smart-seq2
+          # and cutoff = 0.1 works well for 10x Genomics
+          cutoff = cutoff, denoise = TRUE, HMM = hmm, 
+          analysis_mode = "subclusters",
+          out_dir = x$outdir, save_rds = FALSE, save_final_rds = FALSE
+          ))
+    }
+    object(x) <- expect_local_data(
+      "tmp", "infercnv_run", fun_run, list(sig(x), x$metadata$cell, x$meta_used$rownames)
+    )
     return(x)
   })
 
@@ -164,16 +177,16 @@ setMethod("step2", signature = c(x = "job_infercnv"),
     }
     p.infer <- .file_fig(.cut_png_blank_space(file.path(dir, "infercnv.png")))
     p.infer <- set_lab_legend(
-      p.infer,
+      as_data_binary(p.infer),
       glue::glue("{x@sig} infercnv heatmap"),
-      glue::glue("为 CNV 层次聚类热图。{.infercnv_heatmap_method()}")
+      glue::glue("CNV 层次聚类热图|||{.infercnv_heatmap_method()}")
     )
     x <- plotsAdd(x, p.infer = p.infer)
     return(x)
   })
 
 setMethod("step3", signature = c(x = "job_infercnv"),
-  function(x, k = 10, clear = TRUE)
+  function(x, k = 10, clear = FALSE)
   {
     step_message("Kmean and scoring CNV...")
     if (is.null(object(x))) {
@@ -221,12 +234,11 @@ setMethod("step3", signature = c(x = "job_infercnv"),
       theme_minimal()
     p.violin <- wrap(p.violin, 8, 3.5)
     p.violin <- set_lab_legend(
-      p.violin, glue::glue("{x@sig} kmean cluster CNV score violin plot"), ""
+      p.violin,
+      glue::glue("{x@sig} kmean cluster CNV score violin plot"),
+      "CNV 差异分析小提琴图||| `kmean` 聚类后，对各组细胞的 CNV score (细胞基因表达量的均方值 $\\text{RMS} = \\sqrt{\\frac{1}{n} \\sum_{i=1}^{n} x_i^2}$) 以 `wilcox.test` 与 Reference 组比较，单尾检验是否显著大于 Reference 组。P-value 结果以 * 标记。(&lt; 0.001, ***; &lt; 0.01, **; &lt; 0.05, *)"
     )
-    x <- snapAdd(
-      x, "以 `kmean` 聚类，将 Observation 细胞分为 {k} 组，对各组的 CNV score 与 Reference 细胞检验，显著差异的组为恶质细胞。"
-    )
-    Legend(p.violin) <- "为 `kmean` 聚类后，对各组细胞的 CNV score (细胞基因表达量的均方值 $\\text{RMS} = \\sqrt{\\frac{1}{n} \\sum_{i=1}^{n} x_i^2}$) 以 `wilcox.test` 与 Reference 组比较，单尾检验是否显著大于 Reference 组。P-value 结果以 * 标记。(&lt; 0.001, ***; &lt; 0.01, **; &lt; 0.05, *)"
+    x <- snapAdd(x, "以 `kmean` 聚类，将 Observation 细胞分为 {k} 组，对各组的 CNV score 与 Reference 细胞检验，显著差异的组为恶质细胞。")
     if (clear) {
       object(x) <- NULL
     }

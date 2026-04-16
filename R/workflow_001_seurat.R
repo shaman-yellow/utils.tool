@@ -285,7 +285,9 @@ setMethod("step5", signature = c(x = "job_seurat"),
         }
         if (!is.null(workers)) {
           options(future.globals.maxSize = Inf)
+          old_plan <- future::plan()
           future::plan(future::multicore, workers = workers)
+          on.exit(future::plan(old_plan))
         }
         Seurat::Idents(object(x)) <- "seurat_clusters"
         markers <- as_tibble(
@@ -1412,6 +1414,9 @@ prepare_10x <- function(target, pattern, single = FALSE, col.gene = 1, check = T
     files <- list.files(target, "\\.gz$", full.names = TRUE)
     files <- files[ grepl(pattern, files) ]
     dir <- tools::file_path_sans_ext(files[1])
+    if (normalizePath(dirname(target)) == normalizePath(dirname(dir))) {
+      message(glue::glue("The file will be created in the same directory as the `target`: {dir}"))
+    }
     dir.create(dir, FALSE)
     lapply(files,
       function(x)
@@ -1527,7 +1532,11 @@ setMethod("params", signature = c(x = "job_seurat"),
     if (mode == "inherit") {
       metadata <- as_tibble(object(x)@meta.data, idcol = "cell")
       group.by <- x$group.by
-      levels <- .guess_levels_from_job_seurat(x)
+      if (!is.null(object(x)@meta.data$group)) {
+        levels <- .guess_levels_from_job_seurat(x)
+      } else {
+        levels <- NULL
+      }
       namel(metadata, group.by, levels)
     } else {
       x@params
@@ -1799,6 +1808,12 @@ scsa_annotation <- function(
   ## add into seurat object
   scsa_res <- dplyr::distinct(scsa_res, Cluster, .keep_all = TRUE)
   if (!is.null(forceCluster)) {
+    if (is(forceCluster, "list")) {
+      forceCluster <- setNames(
+        unlist(forceCluster, use.names = FALSE), 
+        rep(names(forceCluster), lengths(forceCluster))
+      )
+    }
     if (!is.numeric(forceCluster) || is.null(names(forceCluster))) {
       stop('!is.numeric(forceCluster) || is.null(names(forceCluster)).')
     }

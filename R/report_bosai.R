@@ -244,7 +244,7 @@ project_publish.bosai <- function(file = "index.Rmd", output = "output.Rmd", tit
       n <<- n + 1L
       res <- fun(file, output, title)
       if (n == length(funs)) {
-        browseURL(res, "wps")
+        browseURL(res, "xdg-open")
       }
     })
   invisible()

@@ -21,10 +21,13 @@ setMethod("asjob_mebocost", signature = c(x = "job_seurat"),
     conda_env = pg("mebocostEnv"))
   {
     message("Convert data.")
-    cli::cli_alert_info("scCustomize::Convert_Assay")
-    object <- scCustomize::Convert_Assay(
-      object(x), "RNA", convert_to = "V3"
-    )
+    cli::cli_alert_info("Convert to Assay")
+    # object <- scCustomize::Convert_Assay(
+    #   object(x), "RNA", convert_to = "V3"
+    # )
+    if (is(object(x)[["RNA"]], "Assay5")) {
+      object(x)[["RNA"]] <- as(object(x)[["RNA"]], "Assay")
+    }
     hash <- digest::digest(
       list(cells = colnames(object(x)), genes = rownames(object(x))), 
       "xxhash64", serializeVersion = 3

@@ -9,7 +9,7 @@ create_remote_project.hb <- function(project = guess_project(), ws = getRemoteWs
   cdRun("ssh ", remote, " '", cmd, "'")
 }
 
-setup.sshfs <- function(project = guess_project(), ws = getRemoteWs(), 
+setup.sshfs <- function(sync = TRUE, project = guess_project(), ws = getRemoteWs(), 
   remote = "remote", path = "remote", mirror = "scripts_mirror")
 {
   if (!dir.exists(mirror)) {
@@ -20,7 +20,9 @@ setup.sshfs <- function(project = guess_project(), ws = getRemoteWs(),
   }
   file_sync <- file.path(.expath, "scripts", "sync.sh")
   cmd <- glue::glue("sh -c 'nohup bash {file_sync} {mirror} {remote}:{ws}/{project} > sync.log 2>&1 &'")
-  system(cmd, wait = FALSE)
+  if (sync) {
+    system(cmd, wait = FALSE)
+  }
   # system2("bash", c("-c", cmd), wait = FALSE)
   if (is_sshfs_mount(path)) {
     return(message("The directory has been mount."))
@@ -143,6 +145,13 @@ push_script.hb <- function(..., .project = guess_project(),
           numReal <- strx(existFiles, "[0-9]+")
           if (numReal != num && sureThat("File exists: {existFiles}, rename to r.{num}_{theme}.r?")) {
             file.rename(file.path(path, existFiles), pathScript)
+            message("Will also Repalace the output path.")
+            lines <- readLines(pathScript)
+            pos <- grp(pathScript, "output <- file.path.ORIGINAL_DIR")
+            lines[pos] <- s(
+              lines[pos], glue::glue("\"[0-9]+_{theme}\""), glue::glue("\"{num}_{theme}\"")
+            )
+            writeLine(lines, pathScript)
             return(file.path(pathScript))
           }
           return(file.path(path, existFiles))
@@ -159,6 +168,22 @@ push_script.hb <- function(..., .project = guess_project(),
       writeLines(script, pathScript)
       pathScript
     })
+}
+
+pdb_packaging.hb <- function(..., dir_save = "material") {
+  project <- s(guess_project(), "[0-9]+_", "")
+  files <- lapply(list(...),
+    function(x) {
+      if (!is(x, "job_vina") && !(x@step < 8L)) {
+        stop('!is(x, "job_vina") && !(x@step < 8L).')
+      }
+      x$res_dock_merge$pdb_merge
+    })
+  files <- unlist(files)
+  file_zip <- file.path(dir_save, glue::glue("{project}-{length(files)}对.zip"))
+  utils::zip(file_zip, files, flags = "-j")
+  gett_file(file_zip)
+  return(file_zip)
 }
 
 project_packaging.hb <- function(file_report, overwrite = FALSE, 
@@ -189,8 +214,15 @@ project_packaging.hb <- function(file_report, overwrite = FALSE,
   message(glue::glue("Send report file..."))
   toDocx <- file.path(glue::glue("{path}"), glue::glue("{names$report}.docx"))
   if (!file.exists(toDocx) || overwrite_report) {
-    file.copy(file_report, toDocx, TRUE)
-    cdRun(glue::glue("soffice --headless --convert-to pdf --outdir {path} {toDocx}"))
+    if (TRUE) {
+      file.copy(file_report, toDocx, TRUE)
+      cdRun(glue::glue("soffice --headless --convert-to pdf --outdir {path} {toDocx}"))
+    } else {
+      file_pdf <- file.path(glue::glue("{path}"), glue::glue("{names$report}.pdf"))
+      if (nchar(Sys.which("wpspdf"))) {
+        cdRun(glue::glue("wpspdf {toDocx} {file_pdf}"))
+      }
+    }
   }
   ## scripts and files.
   all_scripts <- list.files(path, "^r\\.[0-9]+.*\\.r$")
@@ -212,7 +244,7 @@ project_packaging.hb <- function(file_report, overwrite = FALSE,
   text_reply <- glue::glue("已上传分析报告:{dir_project}/{names$report}.docx和对应pdf\n\n代码压缩包:{dir_project}/{names$scripts}.zip\n\n结果文件压缩包:{dir_project}/{names$results}.zip")
   browseURL(normalizePath(path), "xdg-open")
   gett(text_reply)
-  if (!is.null(report_share_to)) {
+  if (FALSE && !is.null(report_share_to)) {
     file.copy(toDocx, report_share_to, TRUE)
     file.copy(
       paste0(tools::file_path_sans_ext(toDocx), ".pdf"), report_share_to, TRUE
@@ -270,6 +302,12 @@ run_remote_output.hb <- function(run = FALSE, skip = NULL,
       field_analysis <- grp(lines, "^# FIELD: analysis")
       field_output <- grp(lines, "^# FIELD: output")
       codes <- lines[-(field_analysis:field_output)]
+      if (length(field_checkout <- grp(codes, "^# FIELD: checkout"))) {
+        if (length(field_checkout) != 1) {
+          stop('length(field_checkout) != 1, unknown error.')
+        }
+        codes <- codes[ -(field_checkout:length(codes)) ]
+      }
       fileName <- basename(file)
       writeLines(codes, file.path(tmpdir, fileName))
       if (run) {
@@ -325,6 +363,185 @@ push_overture_as_output.hb <- function(pull = FALSE, push = FALSE,
         writeLines(c(allCodes[[n]], "", ""), path_codes_local[n])
       }
     })
+}
+
+push_checkout_after_output.hb <- function(test = TRUE, 
+  path = "scripts_mirror", dir_check = "scripts_checkout")
+{
+  files <- list.files(path, "^r\\.[0-9]+.*\\.r$", full.names = TRUE)
+  fstart <- "# =========================================================================="
+  fend <- "# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
+  env_class <- new.env()
+  dir.create(dir_check, FALSE)
+  n <- 0L
+  lapply(files, 
+    function(file) {
+      n <<- n + 1L
+      lines <- readLines(file)
+      pattern_field_checkout <- "^# FIELD: checkout"
+      text_note <- c("", "", .note_for_reviewer.hb, "", "")
+      if (length(pos <- grp(lines, pattern_field_checkout))) {
+        message(glue::glue("Field checkout found in code file, remove that."))
+        lines <- lines[ seq_len(pos + 2) ]
+        lines <- c(lines, text_note)
+      } else {
+        lines <- c(
+          lines, "", "", fstart, "# FIELD: checkout", fend, text_note
+        )
+      }
+      field_analysis <- grp(lines, "^# FIELD: analysis")
+      field_output <- grp(lines, "^# FIELD: output")
+      mainCodes <- lines[(field_analysis:field_output)]
+      mainCodes <- parse(text = mainCodes)
+      defines <- lapply(mainCodes,
+        function(lang) {
+          codes <- .get_method_defination_in_package(
+            lang, env_class, pkg = "utils.tool"
+          )
+          if (is.null(codes)) {
+            return()
+          }
+          codes <- codes[ !vapply(codes, is.null, logical(1)) ]
+          source <- rlang::expr_text(lang)
+          source <- strsplit(source, "\n")[[1]]
+          note <- paste0("# ", source)
+          c(note, codes, "", "")
+        })
+      defines <- defines[ !vapply(defines, is.null, logical(1)) ]
+      if (length(defines)) {
+        lines <- c(
+          lines, "if (FALSE) {",
+          paste0(stringr::str_pad(" ", 4), unlist(defines)),
+          "}", ""
+        )
+      }
+      if (test) {
+        writeLines(lines, file.path(dir_check, basename(file)))
+      } else {
+        writeLines(lines, file)
+      }
+    })
+}
+
+methodDefinition_as_setMethod_call <- function(m) {
+  stopifnot(methods::is(m, "MethodDefinition"))
+  generic <- as.character(m@generic)
+  sig <- as.list(m@defined)
+  fun <- m@.Data
+  call("setMethod", f = generic, signature = unlist(sig), definition = fun)
+}
+
+.get_method_defination_in_package <- function(
+  lang, env_class, pkg = "utils.tool", env_search = asNamespace(pkg),
+  fun_getClass = .guess_class_from_lang)
+{
+  if (!is(env_class, "environment")) {
+    stop('!is(env_class, "environment").')
+  }
+  if (!is.language(lang)) {
+    stop('!is.language(lang).')
+  }
+  if (is(lang, "<-")) {
+    objName <- rlang::expr_text(lang[[2]])
+    if (is.null(env_class[[objName]])) {
+      class <- fun_getClass(lang[[3]], env_class = env_class)
+      if (!is.null(class)) {
+        env_class[[objName]] <- class
+      } else {
+        if (grpl(objName, "^metadata")) {
+          env_class[[objName]] <- "data.frame"
+        } else if (grpl(objName, "^fea")) {
+          env_class[[objName]] <- "feature"
+        }
+      }
+    }
+    funCall <- lang[[3]]
+  } else if (is(lang, "call")) {
+    funCall <- lang
+  } else if (is(lang, "name")) {
+    message(glue::glue("Skip: {rlang::expr_text(lang)}, is a name."))
+    return()
+  } else if (is(lang, "if")) {
+    message(glue::glue("Skip: {rlang::expr_text(lang)}, is a 'if'."))
+    return()
+  } else if (is(lang, "for")) {
+    message(glue::glue("Skip: {rlang::expr_text(lang)}, is a 'for'."))
+    return()
+  }
+  if (!is.call(funCall)) {
+    message(glue::glue("Skip: {rlang::expr_text(funCall)}, not a call."))
+    return()
+  }
+  callName <- funCall[[1]]
+  if (length(callName) > 1) {
+    if (rlang::expr_text(callName[[2]]) != pkg) {
+      message(
+        glue::glue("Skip: {rlang::expr_text(callName)}, other package.")
+      )
+      return()
+    } else {
+      fun_name <- rlang::expr_text(callName[[3]])
+    }
+  } else {
+    fun_name <- rlang::expr_text(callName)
+  }
+  hasThat <- exists(fun_name, envir = env_search, inherits = FALSE)
+  if (!hasThat) {
+    message(glue::glue("Skip: {fun_name}, not exists."))
+    return()
+  }
+  fun <- get_fun(fun_name, envir = env_search)
+  if (isS4(fun)) {
+    res <- .expr_resolve_S4(funCall, env_class = env_class)
+    f <- try(selectMethod(res$callArgs$fun, signature = res$signature))
+    if (inherits(f, "try-error")) {
+      stop(glue::glue("`{rlang::expr_text(funCall)}`: Can not found method `{res$fname}` for signature ..."))
+    }
+    mcall <- methodDefinition_as_setMethod_call(f)
+    text <- deparse(mcall)
+  } else {
+    text <- deparse(fun)
+    text[1] <- paste0(fun_name, " <- ", text[1])
+  }
+  return(text)
+}
+
+.guess_class_from_lang <- function(lang, pattern = "job_[a-zA-Z0-9_]+", env_class = NULL)
+{
+  code <- rlang::expr_text(lang)
+  class <- strx(code, pattern)
+  fun_matchClass <- function(string, type = "rds") {
+    name <- strx(string, glue::glue("(?<=rds_jobSave/).*(?=.[0-9].{type})"))
+    if (!is.na(name) && !is.null(env_class[[ name ]])) {
+      env_class[[ name ]]
+    } else {
+      "job"
+    }
+  }
+  if (isClass(class)) {
+    class
+  } else {
+    if (grpl(code, "copy_job") && identical(lang[[1]], as.name("copy_job"))) {
+      fromJob <- rlang::expr_text(lang[[2]])
+      if (!is.null(env_class[[fromJob]])) {
+        env_class[[ fromJob ]]
+      } else {
+        NULL
+      }
+    } else if (grpl(code, "dplyr::")) {
+      if (grpl(code, "^dplyr::recode")) {
+        "character"
+      } else {
+        "data.frame"
+      }
+    } else if (grpl(code, "readRDS.*rds_jobSave")) {
+      fun_matchClass(code, "rds")
+    } else if (grpl(code, "qs::qread.*rds_jobSave")) {
+      fun_matchClass(code, "qs")
+    } else {
+      NULL
+    }
+  }
 }
 
 setup_counting_in_directory <- function(dir, pattern = "^[0-9]+") {
@@ -737,4 +954,27 @@ get_contents_refered_from_fields <- function(
   }
 }
 
+.note_for_reviewer.hb <- c(
+  "# NOTE: 下方代码是以上分析代码中自动解析出来的",
+  "# 大部分都不是 function, 而是 methods",
+  "# 如果你对 S4 不熟悉，可以参考 Seurat 的那些方法，例如 Seurat::FindMarkers",
+  "# Seurat 的方法大都是 methods，即范型方法",
+  "# ",
+  "# 假如下面还有哪个内部方法让你不清楚，你可以先加载 'utils.tool' 这个 R 包，",
+  "# 然后通过运行 `selectMethod` 来查看函数本体",
+  "# 前提是你需要知道 method 应用的对象是什么'类'，",
+  "# 例如：",
+  "# selectMethod(step1, 'job_seurat5n')",
+  "# selectMethod(step1, class(.job_seurat5n()))",
+  "# ",
+  "# 我只解析了我的代码的第一层，堆在下面，因为内部还有用到很多自定义的函数",
+  "# 全部解析出来的话，就没完没了了……",
+  "# 如果需要我全部解析出来……那我估计要把整个 R 包的代码都堆进每个脚本了……",
+  "# ",
+  "# 审核的老师应该不需要在下方代码中写注释提问吧？",
+  "# 如果写了，可能会被我这边自动同步给直接覆盖掉",
+  "# ",
+  "# 最后，下方的代码，我在定义的上方写明了在上方哪个分析代码用到了这个本体，",
+  "# 希望对您有所帮助"
+)
 

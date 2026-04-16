@@ -799,7 +799,7 @@ items <- function(
   id = od_get_id(),
   receive_date = od_get_date(),
   score = od_get_score(),
-  member = "黄礼闯",
+  member = "huanglichuang",
   save = ".items.rds",
   tags = suppressMessages(get_all_tags()),
   note = character(1),

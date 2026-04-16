@@ -9,7 +9,7 @@ project_publish.complex <- function(file = "index.Rmd", output = "output.Rmd", t
   if (MyInstitution == "complex") {
     fun <- get_fun("write_complexDocx")
   }
-  browseURL(fun(file, output, title), "wps")
+  browseURL(fun(file, output, title), "xdg-open")
 }
 
 project_packaging.complex <- function(target = "output.pdf",
