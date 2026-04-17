@@ -63,10 +63,9 @@ setMethod("do_scissor", signature = c(x = "job_seurat", ref = "job_deseq2"),
 
 setMethod("step1", signature = "job_scissor",
   function(x, mode = c("normal", "small", "middle"), rerun = FALSE,
-    dir_cache = create_job_cache_dir(x), ...)
+    dir_cache = create_job_cache_dir(x), qs_nthreads = 5L, ...)
   {
     step_message("Run Scissor algorithm.")
-    file_save <- file.path(dir_cache, "scissor_inputs.rdata")
     mode <- match.arg(mode)
     if (mode == "small") {
       alphas <- c(5e-3, 5e-4, 1e-4, 5e-5)
@@ -75,6 +74,24 @@ setMethod("step1", signature = "job_scissor",
     } else if (mode == "normal") {
       alphas <- c(.005, .05, .1, .2)
     }
+    file_save <- file.path(dir_cache, "scissor_inputs.qs")
+    if (!file.exists(file_save)) {
+      args <- .prepare_scissor_X_Y_network(
+        object(x)$bulk_dataset, 
+        object(x)$sc_dataset, 
+        object(x)$phenotype,
+        family = x$family,
+        Save_file = file_save,
+        qs_nthreads = qs_nthreads
+      )
+    } else {
+      args <- .qload_multi(file_save, nthreads = qs_nthreads)
+    }
+    X <- args$X
+    Y <- args$Y
+    network <- args$network
+    print(dim(network))
+    stop("...")
     fun_scissor <- function(...) {
       if (file.exists(file_save)) {
         Load_file <- file_save
@@ -86,16 +103,16 @@ setMethod("step1", signature = "job_scissor",
       future::plan(future::multicore, workers = length(alphas))
       on.exit(future::plan(old_plan))
       res_lst <- e(future.apply::future_lapply(
-        alphas,
-        function(alpha) {
-          Scissor::Scissor(
-            object(x)$bulk_dataset, object(x)$sc_dataset, object(x)$phenotype,
-            Save_file = file_save, family = x$family, 
-            Load_file = Load_file,
-            tag = x$tag, alpha = alpha
-          )
-        }
-      ))
+          alphas, future.seed = TRUE,
+          function(alpha) {
+            Scissor::Scissor(
+              object(x)$bulk_dataset, object(x)$sc_dataset, object(x)$phenotype,
+              Save_file = file_save, family = x$family, 
+              Load_file = Load_file,
+              tag = x$tag, alpha = alpha
+            )
+          }
+          ))
       setNames(res_lst, paste0("alpha_", alphas))
     }
     x$res_scissor <- expect_local_data(
@@ -110,4 +127,81 @@ setMethod("step1", signature = "job_scissor",
     return(x)
   }
 )
+
+.run_scissor_with_X_Y_network <- function(X, Y, network) {
+  
+}
+
+.prepare_scissor_X_Y_network <- function(
+  bulk_dataset, sc_dataset, phenotype,
+  family = c("binomial", "cox", "gaussian"),
+  Save_file = "scissor_inputs.qs", save = TRUE, qs_nthreads = 5L, ...)
+{
+  family <- match.arg(family)
+  common <- intersect(rownames(bulk_dataset), rownames(sc_dataset))
+  if (!length(common)) {
+    stop("There is no common genes between the given single-cell and bulk samples.")
+  }
+  if (is(sc_dataset, "Seurat")) {
+    message("Converting sparse matrix to matrix... Isn't it stupid？")
+    message("Convert `RNA@data` ...")
+    sc_exprs <- as.matrix(sc_dataset@assays$RNA@data)
+    message("Convert `RNA_snn` ...")
+    network <- as.matrix(sc_dataset@graphs$RNA_snn)
+  } else {
+    stop("...")
+  }
+  diag(network) <- 0
+  network[which(network != 0)] <- 1
+  dataset0 <- cbind(bulk_dataset[common, ], sc_exprs[common, 
+    ])
+  dataset1 <- e(preprocessCore::normalize.quantiles(dataset0))
+  rownames(dataset1) <- rownames(dataset0)
+  colnames(dataset1) <- colnames(dataset0)
+  Expression_bulk <- dataset1[, 1:ncol(bulk_dataset)]
+  Expression_cell <- dataset1[, (ncol(bulk_dataset) + 1):ncol(dataset1)]
+  cli::cli_alert_info("stats::cor")
+  X <- cor(Expression_bulk, Expression_cell)
+  quality_check <- quantile(X)
+  message("Performing quality-check for the correlations")
+  message("The five-number summary of correlations:")
+  print(quality_check)
+  if (quality_check[3] < 0.01) {
+    warning("The median correlation between the single-cell and bulk samples is relatively low.")
+  }
+  if (family == "binomial") {
+    Y <- as.numeric(phenotype)
+  }
+  if (family == "gaussian") {
+    Y <- as.numeric(phenotype)
+  }
+  if (family == "cox") {
+    Y <- as.matrix(phenotype)
+    if (ncol(Y) != 2) {
+      stop("The size of survival data is wrong. Please check Scissor inputs and selected regression type.")
+    }
+  }
+  if (save) {
+    .qsave_multi(X, Y, network, file = Save_file, nthreads = qs_nthreads)
+  }
+  return(list(X = X, Y = Y, network = network))
+}
+
+.qsave_multi <- function(..., file, nthreads = 5L) {
+  objs <- list(...)
+  nm <- as.character(substitute(list(...)))[-1]
+  names(objs) <- nm
+  e(qs::qsave(objs, file, nthreads = nthreads))
+}
+
+.qload_multi <- function(file, assign = FALSE, envir = parent.frame(), nthreads = 5L)
+{
+  objs <- e(qs::qread(file, nthreads = nthreads))
+  if (assign) {
+    list2env(objs, envir = envir)
+    invisible()
+  } else {
+    objs
+  }
+}
 
