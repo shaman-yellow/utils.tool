@@ -1130,6 +1130,26 @@ dedup_rows_by_unordered_cols <- function(df, cols, sep = "||", keep = c("first",
   return(df[idx, , drop = FALSE])
 }
 
+.qsave_multi <- function(..., file, nthreads = 5L) {
+  objs <- list(...)
+  nm <- as.character(substitute(list(...)))[-1]
+  names(objs) <- nm
+  e(qs::qsave(objs, file, nthreads = nthreads))
+}
+
+.qload_multi <- function(file, assign = FALSE, envir = parent.frame(), nthreads = 5L)
+{
+  objs <- e(qs::qread(file, nthreads = nthreads))
+  if (assign) {
+    list2env(objs, envir = envir)
+    invisible()
+  } else {
+    objs
+  }
+}
+
+
+
 
 # my_add_pval <- function(
 #   ggplot_obj, pairs = NULL, test = "wilcox.test", heights = NULL,

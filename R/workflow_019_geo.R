@@ -626,3 +626,13 @@ read_genes_from_files <- function(files, id = 1L, expr = "guess")
   namel(data, annotation)
 }
 
+.guess_geo_project <- function(x) {
+  if (!is(x, "job")) {
+    rlang::abort('!is(x, "job").')
+  }
+  if (is.na(project <- strx(sig(x), "GSE[0-9]+"))) {
+    stop(glue::glue("Can not extract `project` name from `x`."))
+  }
+  project
+}
+
