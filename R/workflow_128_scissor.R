@@ -55,6 +55,9 @@ setMethod("do_scissor", signature = c(x = "job_seurat", ref = "job_deseq2"),
       SeuratObject::DefaultAssay(object) <- "RNA"
       object[[ assay ]] <- NULL
     }
+    object <- Seurat::DietSeurat(object, graphs = "RNA_snn")
+    object[[ "RNA" ]]$scale.data <- NULL
+    object[[ "RNA" ]]$counts <- NULL
     pr <- params(x)
     project_x <- x$project
     if (is.null(project_x)) {
