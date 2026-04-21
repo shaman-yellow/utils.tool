@@ -489,7 +489,7 @@ setMethod("step3", signature = c(x = "job_limma"),
   {
     step_message("Draw plots.")
     use.fc <- "logFC"
-    use <- x$.args$step2$use[1]
+    use <- match.arg(x$.args$step2$use[1], c("adj.P.Val", "P.Value"))
     fc <- x$.args$step2$cut.fc
     cut.p <- x$.args$step2$use.cut
     data_expr <- x$normed_data$E

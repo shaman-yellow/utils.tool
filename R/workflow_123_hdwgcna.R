@@ -183,7 +183,8 @@ setMethod("step4", signature = c(x = "job_hdwgcna"),
   })
 
 setMethod("step5", signature = c(x = "job_hdwgcna"),
-  function(x, global = TRUE, debug = FALSE){
+  function(x, top = NULL, global = TRUE, debug = FALSE)
+  {
     step_message("Module membership.")
     if (!debug) {
       object(x) <- e(
@@ -192,14 +193,13 @@ setMethod("step5", signature = c(x = "job_hdwgcna"),
           group_name = x$celltypes
           ))
     }
-    x <- methodAdd(x, "以 `ModuleConnectivity` 计算基因与模块特征基因 (hMEs) 之间的相关性 (即，WGCNA 中的 Module Membership) 得到 kME 值，以该值代表 Module Membership (MM) (算法有所不同，以 hdWGCNA 的指南为依据，筛选 Hub Genes 时不对 MM 取绝对值)。")
+    x <- methodAdd(x, "以 `ModuleConnectivity` 计算基因与模块特征基因 (hMEs) 之间的相关性 (即，WGCNA 中的 Module Membership) 得到 kME 值。")
     modules <- e(hdWGCNA::GetModules(object(x)))
     modules <- dplyr::filter(tibble::as_tibble(modules), module != "grey")
     x$modules <- dplyr::mutate(modules, module = droplevels(module))
     x$name_modules <- levels(x$modules$module)
     layout <- wrap_layout(NULL, x$nm, 2)
     p.kme <- e(hdWGCNA::PlotKMEs(object(x), ncol = layout$ncol))
-    # hdWGCNA::GetHubGenes
     p.kme <- set_lab_legend(
       add(layout, p.kme),
       glue::glue("{x@sig} module membership ranking"),
@@ -207,6 +207,15 @@ setMethod("step5", signature = c(x = "job_hdwgcna"),
         "模块特征基因相关性（module membership）排序|||每个小图对应一个共表达模块，横轴为模块内基因，纵轴为对应基因的 kME 值，反映其与模块特征基因的相关程度；右侧标注为部分代表性高 kME 基因。"
       )
     )
+    if (!is.null(top)) {
+      data_top <- hdWGCNA::GetHubGenes(object(x), top)
+      data_top <- dplyr::mutate(data_top, module = droplevels(module))
+      x$.feature_kme <- as_feature(
+        split(data_top$gene_name, data_top$module),
+        glue::glue("Top {top} kME")
+      )
+      x <- snapAdd(x, "根据 kME 值筛选出各模块前 {top} 个基因，作为关键模块基因。")
+    }
     object <- object(x)
     object@meta.data <- cbind(object@meta.data, x$hMEs)
     snap_ex <- ""
@@ -235,7 +244,7 @@ setMethod("step5", signature = c(x = "job_hdwgcna"),
     p.dot_hMEs <- set_lab_legend(
       wrap_scale(
         p.dot_hMEs, length(unique(object@meta.data[[x$group.by]])), x$nm,
-        pre_width = 4.5, pre_height = 3.5
+        pre_width = 4.5, pre_height = 3.5, w.size = .2
       ),
       glue::glue("{x@sig} dotplot of hMEs"),
       glue::glue("模块特征基因（hMEs）在不同细胞类型中表达水平与表达比例|||每个圆点代表一个模块在某一细胞类型中的表达情况，点的大小表示该模块在该细胞类型中表达的细胞百分比，点的颜色表示平均表达量（Average Expression）。")
@@ -448,7 +457,7 @@ setMethod("step7", signature = c(x = "job_hdwgcna"),
       )
     )
     hubgenes <- dplyr::filter(data_mm_gs, type == "Hub_gene")$gene
-    feature(x) <- as_feature(
+    x$.feature_wgcna <- as_feature(
       list(module_genes = data_mm$gene_name, hub_genes = hubgenes),
       "hdWGCNA Genes"
     )
@@ -553,6 +562,19 @@ safe_fortify_cor <- function(x, y, cor.test = TRUE, ...) {
   if (missing(y)) {
     y <- x
   }
+  fun_check <- function(x) {
+    for (i in colnames(x)) {
+      if (is.character(x[[i]])) {
+        stop('is.character(x[[i]]), "character" can not be correlated.')
+      } else if (is.factor(x[[i]])) {
+        message(glue::glue("Detected factor, try as integer, be carefull!!!"))
+        x[[i]] <- as.integer(x[[i]])
+      }
+    }
+    return(x)
+  }
+  x <- fun_check(x)
+  y <- fun_check(y)
   cor <- ggcor::correlate(x, y, cor.test = cor.test, ...)
   safe_as_cor_tbl(cor, "r", "p.value")
 }

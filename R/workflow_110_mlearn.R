@@ -246,18 +246,21 @@ setMethod("step3", signature = c(x = "job_mlearn"),
   })
 
 setMethod("step4", signature = c(x = "job_mlearn"),
-  function(x, n = 10, seed = x$seed, rerun = FALSE){
+  function(x, n = 10, seed = x$seed,
+    early = 5L, eta = .05, nrounds = 100L, rerun = FALSE)
+  {
     step_message("XGBoost")
     data <- object(x)
     target <- x$target
     fun_xgb <- function(...) {
       .mlearn_alter_xgboost(
-        data, target, nfold = n, seed = seed
+        data, target, nfold = n, seed = seed, early_stopping_rounds = early, 
+        eta = eta, nrounds = nrounds
       )
     }
     res <- expect_local_data(
       "tmp", "xgboost", fun_xgb,
-      list(n, seed, target), rerun = rerun
+      list(n, seed, target, nrounds, eta, early), rerun = rerun
     )
     eval_log <- res$cv$evaluation_log
     p.importance <- ggplot(res$importance, aes(x = reorder(Feature, Gain), y = Gain)) +
@@ -287,7 +290,7 @@ setMethod("step4", signature = c(x = "job_mlearn"),
       glue::glue("交叉验证模型性能迭代曲线图|||横轴为迭代轮数（Number of Trees），纵轴为模型在验证集上的 AUC 值，用于评估模型随训练过程的收敛趋势及最优迭代轮数的选择。")
     )
     x <- methodAdd(
-      x, "以 R 包 `xgboost` ⟦pkgInfo('xgboost')⟧ 构建梯度提升树二分类模型，设定最大迭代轮数（nrounds）为 100，学习率（eta）为 0.05，最大树深（max_depth）为 4，并结合 {n} 折交叉验证与早停策略（early stopping）确定最优迭代轮数；基于模型计算特征重要性（Gain），筛选重要基因；同时分析迭代轮数与模型性能（AUC）变化趋势，以评估模型收敛过程与复杂度。"
+      x, "以 R 包 `xgboost` ⟦pkgInfo('xgboost')⟧ 构建梯度提升树二分类模型，设定最大迭代轮数（nrounds）为 {nrounds}，学习率（eta）为 {eta}，最大树深（max_depth）为 4，并结合 {n} 折交叉验证与早停策略（early stopping）确定最优迭代轮数；基于模型计算特征重要性（Gain），筛选重要基因；同时分析迭代轮数与模型性能（AUC）变化趋势，以评估模型收敛过程与复杂度。"
     )
     features <- res$selected_genes
     x <- snapAdd(x, "XGBoost 所有重要基因 (n = {length(features)})：{bind(features)}{aref(p.importance)}。\n\n\n\n")
@@ -302,6 +305,7 @@ setMethod("step4", signature = c(x = "job_mlearn"),
   data, target,
   nrounds = 100, nfold = 10,
   early_stopping_rounds = 5,
+  eta = .05,
   seed = 123)
 {
   set.seed(seed)
@@ -324,7 +328,7 @@ setMethod("step4", signature = c(x = "job_mlearn"),
     objective = "binary:logistic",
     eval_metric = "auc",
     max_depth = 4,
-    eta = 0.05,
+    eta = eta,
     subsample = 0.7,
     colsample_bytree = 0.4,
     lambda = 1,
@@ -461,6 +465,19 @@ setMethod("feature", signature = c(x = "job_mlearn"),
     predict(object, x)
   }
 
+  svm_funcs$selectSize <- function(x, metric, maximize) {
+    x <- x[x$Variables %in% subset_sizes, , drop = FALSE]
+    if (!nrow(x)) {
+      stop("No valid subset sizes found in resampling results.")
+    }
+    if (maximize) {
+      best <- which.max(x[[metric]])
+    } else {
+      best <- which.min(x[[metric]])
+    }
+    x$Variables[best]
+  }
+
   svm_funcs$rank <- function(object, x, y) {
     # Feature importance only valid for linear kernel
     if (kernel != "linear" || is.null(object$coefs)) {
@@ -476,7 +493,12 @@ setMethod("feature", signature = c(x = "job_mlearn"),
 
     # Safety check
     if (length(importance) != ncol(x)) {
-      importance <- rep(NA_real_, ncol(x))
+      stop(
+        sprintf(
+          "Invalid importance length: got %d, expected %d. Usually caused by multiclass SVM or non-linear kernel.",
+          length(importance), ncol(x)
+        )
+      )
     }
 
     data.frame(var = colnames(x), Overall = importance)

@@ -1050,15 +1050,15 @@ setMethod("focus", signature = c(x = "job_seurat"),
   glue::glue("{lead}⟦mark$red('{bind(mem)}')⟧。")
 }
 
-.guess_levels_from_job_seurat <- function(x) {
-  if (is.null(object(x)@meta.data$group)) {
-    stop('is.null(object(x)@meta.data$group), can not guess levels from job_seurat without group.')
+.guess_levels_from_job_seurat <- function(x, group = "group") {
+  if (is.null(object(x)@meta.data[[group]])) {
+    stop('is.null(object(x)@meta.data[[group]]), can not guess levels from job_seurat without group.')
   }
-  levels <- unique(object(x)@meta.data$group)
+  levels <- unique(object(x)@meta.data[[group]])
   if (length(levels) > 2) {
     stop('length(levels) > 2, can not guess levels from group number greater than 2.')
   }
-  pattern <- "healthy|normal|control|^hc$"
+  pattern <- "healthy|normal|control|^hc$|^scissor_neg"
   isControl <- grpl(levels, pattern, ignore.case = TRUE)
   if (all(isControl)) {
     stop('all(isControl), too many group of control matched')
@@ -2223,7 +2223,7 @@ plot_cells_proportion <- function(metadata, ident = "orig.ident",
       ~ group, space = "free", scales = "free"
     )
   }
-  p.props <- wrap(p.props, 7, .4 * ntypes)
+  p.props <- wrap_scale(p.props, 15, ntypes, pre_height = 4)
   p.props$.data <- tibble::as_tibble(data)
   p.props$setGroup <- setGroup
   p.props
@@ -2399,5 +2399,33 @@ match_strings <- function(x, y, max_dist = 0.3, method = "jw",
   }
 
   return(res)
+}
+
+as_markers <- function(cell_markers, snap = NULL, df = NULL, ref = "pmid")
+{
+  if (!is.null(df)) {
+    colnames(df) <- c("cell", "markers")
+    cell_markers <- df
+  } else {
+    type <- vapply(cell_markers, class, character(1))
+    if (all(type == "character")) {
+      cell_markers <- as_df.lst(cell_markers, "cell", "markers")
+    } else if (all(type == "list")) {
+      lst <- lapply(cell_markers, 
+        function(x) {
+          setNames(
+            tibble::tibble(markers = x[["markers"]], ref = bind(x[[ref]])),
+            c("markers", ref)
+          )
+        })
+      cell_markers <- dplyr::bind_rows(lst, .id = "cell")
+      refs <- bind(unique(unlist(strsplit(cell_markers[[ref]], ", "))))
+      snap(cell_markers) <- glue::glue("{toupper(ref)}: {refs}")
+    }
+  }
+  if (!is.null(snap)) {
+    snap(cell_markers) <- snap
+  }
+  cell_markers
 }
 

@@ -508,12 +508,14 @@ setReplaceMethod("snap", signature = c(x = "job"),
   })
 
 setMethod("snap", signature = c(x = "feature", ref = "missing"),
-  function(x){
-    snap(x, FALSE)
+  function(x, ...){
+    snap(x, FALSE, ...)
   })
 
 setMethod("snap", signature = c(x = "feature", ref = "logical"),
-  function(x, ref = FALSE, limit = 50, num = 10, simple = TRUE){
+  function(x, ref = FALSE, limit = 50, num = 10, simple = TRUE, 
+    enumerate = TRUE, unlist = FALSE)
+  {
     if (ref) {
       if (is(x, "feature_list")) {
         stop('is(x, "feature_list"), only "feature_char" support.')
@@ -524,7 +526,11 @@ setMethod("snap", signature = c(x = "feature", ref = "logical"),
       glue::glue("{bind(x)} ({x@snap}) ")
     } else {
       if (is(x, "feature_list")) {
-        str <- names(x)
+        if (unlist) {
+          str <- unique(unlist(x))
+        } else {
+          str <- names(x)
+        }
         if (is.null(str)) {
           str <- ""
         }
@@ -539,10 +545,10 @@ setMethod("snap", signature = c(x = "feature", ref = "logical"),
           add <- TRUE
         }
         str <- bind(head(str, n = num))
-        if (nchar(str) > 25) {
+        if (nchar(str) > 25 && !simple) {
           str <- stringr::str_trunc(str, limit)
         }
-        if (add) {
+        if (add && !simple) {
           str <- paste0(str, glue::glue(", ...[n = {n}]"))
         }
       } else {
@@ -551,7 +557,11 @@ setMethod("snap", signature = c(x = "feature", ref = "logical"),
       }
       sep <- if (nchar(str)) ", " else ""
       if (simple) {
-        glue::glue("**{{{x@nature}}}** (n = {{{n}}}, {{{x@snap}}})", .open = "{{{", .close = "}}}")
+        if (n < num && enumerate) {
+          glue::glue("**{{{x@nature}}}** ({{{str}}}, {{{x@snap}}})", .open = "{{{", .close = "}}}")
+        } else {
+          glue::glue("**{{{x@nature}}}** (n = {{{n}}}, {{{x@snap}}})", .open = "{{{", .close = "}}}")
+        }
       } else {
         glue::glue(
           "**{{{x@nature}}}** ({{{str}}}{{{sep}}}{{{x@snap}}}) ", .open = "{{{", .close = "}}}"
@@ -694,6 +704,13 @@ setGeneric("try_snap",
 setMethod("try_snap", signature = c(x = "logical"),
   function(x){
     try_snap(as.character(x))
+  })
+
+setMethod("try_snap", signature = c(x = "feature_list"),
+  function(x){
+    lst <- x@.Data
+    names(lst) <- names(x)
+    try_snap(lst)
   })
 
 setMethod("try_snap", signature = c(x = "data.frame"),
@@ -1044,10 +1061,10 @@ setMethod("upd", signature = c(x = "db_expect"),
 
 expect_local_data <- function(dir, name, fun, args, 
   fun_read = readRDS, fun_save = saveRDS, ext = "rds",
-  rerun = FALSE, ignore = NULL)
+  rerun = FALSE, ignore = NULL, exclude = "NULL")
 {
   if (!dir.exists(dir)) {
-    stop('!dir.exists(dir).')
+    dir.create(dir, FALSE)
   }
   if (is.null(ignore)) {
     hashArgs <- args
@@ -1062,8 +1079,11 @@ expect_local_data <- function(dir, name, fun, args,
     message(glue::glue('file.exists(file): {file}'))
     obj <- fun_read(file)
   } else {
-    cli::cli_alert_info("do.call(fun, args)")
     obj <- do.call(fun, args)
+    if (!is.null(exclude) && is(obj, exclude)) {
+      message(glue::glue("Got results of {exclude}, skip saving."))
+      return(obj)
+    }
     fun_save(obj, file)
   }
   return(obj)
@@ -1300,6 +1320,8 @@ setGeneric("ref",
   function(x, ...) standardGeneric("ref"))
 setGeneric("transmute",
   function(x, ref, ...) standardGeneric("transmute"))
+setGeneric("refine",
+  function(x, ...) standardGeneric("refine"))
 
 .list_collate <- setClass(".list_collate",
   contains = c("list"),
@@ -3025,7 +3047,7 @@ setMethod("clear", signature = c(x = "job"),
       file <- file.path(path_jobSave, filename)
       if (allow_qs && object.size(x) > 5e8) {
         fileQs <- paste0(tools::file_path_sans_ext(file), ".qs")
-        message(glue::glue("Too large object ('{obj.size(x)}' > 476.8 Mb), use `qs::qsave`"))
+        message(glue::glue("Too large object ('{obj.size(x)}' > 478.6 Mb), use `qs::qsave`"))
         message("Save qs: ", fileQs)
         qs::qsave(x, fileQs, nthreads = nthreads)
       } else {
@@ -3202,8 +3224,18 @@ setMethod("add", signature = c(x = "wrap"),
         data <- e(patchwork::wrap_plots(data, ncol = x$ncol))
       }
     }
+    attrs <- NULL
+    if (is(data, "wrap")) {
+      attrs <- attributes(data)
+    }
     data <- wrap(data)@data
     x@data <- data
+    if (!is.null(attrs)) {
+      attrs <- attrs[ !names(attrs) %in% names(attributes(x)) ]
+      for (i in names(attrs)) {
+        attr(x, i) <- attrs[[ i ]]
+      }
+    }
     return(x)
   })
 
@@ -3300,6 +3332,34 @@ setMethod("map", signature = c(x = "df", ref = "character"),
       x[[ col ]] <- y[[ y.get ]][match(x[[ ref ]], y[[ y.ref ]])]
     }
     x
+  })
+
+setMethod("quantile", signature = c(x = "df"),
+  function(x, cols, get, cut = .75, mode = c("gt", "lt"))
+  {
+    if (any(!cols %in% colnames(x))) {
+      stop('any(!cols %in% colnames(x)).')
+    }
+    if (length(get) != 1) {
+      stop('length(get) != 1.')
+    }
+    if (!any(colnames(x) == get)) {
+      stop('!any(colnames(x) == get).')
+    }
+    mode <- match.arg(mode)
+    sapply(cols, simplify = FALSE,
+      function(col) {
+        values <- x[[ col ]]
+        if (is.character(values) || is.factor(values)) {
+          stop('is.character(values) || is.factor(values).')
+        }
+        cutoff <- quantile(values, cut)
+        if (mode == "gt") {
+          unique(x[[ get ]][ values > cutoff ])
+        } else {
+          unique(x[[ get ]][ values < cutoff ])
+        }
+      })
   })
 
 # setMethod("map", signature = c(x = "list"),

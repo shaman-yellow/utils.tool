@@ -135,7 +135,7 @@ setMethod("step2", signature = c(x = "job_scissor"),
       glue::glue("Scissor alpha 参数的选择|||{.note_legend_scissor_alpha}")
     )
     x <- plotsAdd(x, p.alpha)
-    x <- methodAdd(x, "{snap_alpha}")
+    x <- methodAdd(x, "{bind(snap_alpha, co = '\n')}")
     x <- methodAdd(x, "实际应用中，分析将首先从初步拟定的 α 区间开始，随后对细胞选择数波动较大，且趋向于选择较少细胞数的 α 区间以对数尺度增加梯度，最终得到所有 α 值对应的细胞选择数以及各细胞类型对应的 Scissor+ 或 Scissor- 数量，再计算综合得分。")
     return(x)
   })
@@ -151,8 +151,9 @@ setMethod("step3", signature = c(x = "job_scissor"),
       alpha <- use$alpha
       score <- use$score
       cell_num <- use$ncell_select
+      .fmt <- function(x) signif(x, 2)
       x <- snapAdd(
-        x, "如图{aref(x@plots$step2$p.alpha)}，选择具有最高综合得分 (Score ={round(score, 2)}) 的 α 值 (α = {alpha}) 对表型关联分析最终定性。在该 α 值下，⟦mark$red('Scissor 细胞选择数为 {cell_num}，占所有细胞数比例为 {use$ratio_select_vs_all}，Scissor+ 细胞所占 Scissor 细胞选择数的比例为 {use$ratio_pos_vs_select}')⟧。"
+        x, "如图{aref(x@plots$step2$p.alpha)}，选择具有最高综合得分 (Score ={round(score, 2)}) 的 α 值 (α = {signif(alpha, 3)}, -log(α) = {round(-log(alpha), 2)}) 对表型关联分析最终定性。在该 α 值下，⟦mark$red('Scissor 细胞选择数为 {cell_num}，占所有细胞数比例为 {.fmt(use$ratio_select_vs_all)}，Scissor+ 细胞所占 Scissor 细胞选择数的比例为 {.fmt(use$ratio_pos_vs_select)}')⟧。"
       )
       if (!is.null(focus)) {
         snap_focus <- vapply(focus, FUN.VALUE = character(1),
@@ -163,14 +164,14 @@ setMethod("step3", signature = c(x = "job_scissor"),
             }
             ratio_neg <- use[[ glue::glue("ratio_neg_vs_select_by_{name})") ]]
             glue::glue(
-              "{name} 有 {ratio_pos} 的比例被选择为 Scissor+ 细胞，有 {ratio_neg} 的比例被选择为 Scissor- 细胞"
+              "{name} 有 {.fmt(ratio_pos)} 的比例被选择为 Scissor+ 细胞，有 {.fmt(ratio_neg)} 的比例被选择为 Scissor- 细胞"
             )
           })
         x <- snapAdd(x, "其中，⟦mark$red('{bind(snap_focus, co = '；')}')⟧。")
       }
     }
-    args <- .qload_multi(x$file_save, nthreads = qs_nthreads)
     fun_test <- function(...) {
+      args <- .qload_multi(x$file_save, nthreads = qs_nthreads)
       .replace_fun_diag_for_scissor(x$family)
       e(Scissor::reliability.test(
           args$X, args$Y, args$network, alpha = alpha,
@@ -186,6 +187,158 @@ setMethod("step3", signature = c(x = "job_scissor"),
         alpha, n, nfold
       )
     )
+    nameAlpha <- glue::glue("alpha_{alpha}")
+    x$use.scissor <- x$res_scissor_hierar[[ nameAlpha ]] %||% x$res_scissor_rough[[ nameAlpha ]]
+    x$use.alpha <- alpha
+    meta_scissor <- tibble::tibble(
+      cell = c(x$use.scissor$Scissor_pos, x$use.scissor$Scissor_neg),
+      scissor_cell = rep(
+        c("scissor_pos", "scissor_neg"), 
+        c(length(x$use.scissor$Scissor_pos), length(x$use.scissor$Scissor_neg))
+      )
+    )
+    x$metadata <- map(
+      x$metadata, "cell", meta_scissor, "cell", "scissor_cell", col = "scissor_cell"
+    )
+    x$metadata <- dplyr::mutate(
+      x$metadata, scissor_cell = ifelse(
+        is.na(scissor_cell), "scissor_null", scissor_cell
+      ), scissor_cell = factor(
+        scissor_cell, levels = c(
+          "scissor_neg", "scissor_pos", "scissor_null"
+        )
+      )
+    )
+    snap_p <- if (x$res_test$p < .05) "结果显著 (⟦mark$blue('p < 0.05')⟧)，表明表型与单细胞亚群的关联是可靠的" else ""
+    x <- snapAdd(
+      x, "以 `Scissor:reliability.test` 对所选 α 对应的细胞选择数进行显著性检验，设置 nfold (number of cross-validation fold) 为 {nfold}，n (Permutation times) 为 {n}。显著性统计结果，Test statistic = {fmt(x$res_test$statistic)}, p = {fmt(x$res_test$p)} {snap_p}。"
+    )
+    return(x)
+  })
+
+setMethod("quantile", signature = c(x = "job_scissor"),
+  function(x, cut = .75, type = "ratio_pos_vs_all_by_")
+  {
+    if (is.null(x$stat_alphas_all)) {
+      stop('is.null(x$stat_alphas_all).')
+    }
+    if (is.null(x$use.alpha)) {
+      stop('is.null(x$use.alpha).')
+    }
+    data <- dplyr::filter(x$stat_alphas_all, alpha == x$use.alpha)
+    data <- dplyr::select(
+      data, dplyr::starts_with(type)
+    )
+    if (!nrow(data)) {
+      stop('!nrow(data), filter with no data.')
+    }
+    data <- tidyr::pivot_longer(
+      data, dplyr::everything(), names_to = x$group.by, 
+      values_to = "ratio"
+    )
+    data <- dplyr::mutate(
+      data, !!rlang::sym(x$group.by) := s(!!rlang::sym(x$group.by), type, "")
+    )
+    celltypes <- quantile(data, "ratio", cut = cut, get = x$group.by)
+    celltypes <- unlist(celltypes)
+    name <- gs(type, "^ratio_|_by_", "", ignore.case = TRUE)
+    snap <- glue::glue("Scissor ({name}) 细胞比例为 Top {(1 - cut) * 100}% 的细胞类型")
+    as_feature(as.character(celltypes), snap, nature = "cell")
+  })
+
+setMethod("map", signature = c(x = "job_scissor", ref = "job_seurat"),
+  function(x, ref, .name = "seurat")
+  {
+    if (is.null(x$metadata$scissor_cell)) {
+      stop('is.null(x$metadata$scissor_cell).')
+    }
+    if (ref@step < 3L) {
+      stop('ref@step < 3L.')
+    }
+    metadata <- data.frame(
+      dplyr::select(x$metadata, scissor_cell), 
+      row.names = x$metadata$cell
+    )
+    object(ref) <- SeuratObject::AddMetaData(object(ref), metadata)
+    col_celltype <- x$group.by
+    group <- "scissor_cell"
+    layout <- z7(wrap_layout(NULL, 2L), 1.3, 1)
+    ps.map <- e(Seurat::DimPlot(
+        object(ref), pt.size = if (dim(object(ref))[2] > 30000) .3 else .5,
+        group.by = c(group, ref$group.by), 
+        cols = color_set(), combine = FALSE
+        ))
+    ps.map[[1]] <- ps.map[[1]] + scale_color_manual(
+      values = pal(x)
+    )
+    p.map <- add(layout, ps.map, TRUE)
+    p.map <- set_lab_legend(p.map,
+      glue::glue("{x@sig} Scissor Cell UMAP mapping"),
+      glue::glue("Scissor cell 的 UMAP 图|||左图为 Scissor 细胞 UMAP 图，右图对照为细胞类型。")
+    )
+    p.props <- plot_cells_proportion(
+      object(ref)@meta.data, "orig.ident", col_celltype, group = group
+    )
+    p.props <- set_lab_legend(
+      p.props,
+      glue::glue("{sig(x)} Scissor Cell Proportions in each sample"),
+      glue::glue("Scissor 细胞群在各个样本中的占比|||不同颜色代表不同细胞类型，纵坐标为不同样本，横坐标为细胞类型所占百分比。")
+    )
+    x <- snapAdd(
+      x, "将 Scissor 重新映射到 UMAP 图中{aref(p.map)}。这些细胞在不同样本中的分布如图所示{aref(p.props)}。",
+      step = .name
+    )
+    p.props_group <- plot_cells_proportion(
+      object(ref)@meta.data, group, col_celltype, "Group", group = NULL
+    )
+    p.props_group <- set_lab_legend(
+      p.props_group,
+      glue::glue("{sig(x)} Scissor Cell Proportions in each group"),
+      glue::glue("Scissor 细胞群在各个组别中的占比|||不同颜色代表不同细胞类型，纵坐标为不同样本，横坐标为细胞类型所占百分比。")
+    )
+    layout <- wrap_layout(NULL, length(ids(ref)), 1.7)
+    p.props_stat <- .map_boxplot2(
+      dplyr::filter(p.props$.data, group != "scissor_null"),
+      TRUE, "group", "Ratio", ylab = "Ratio", ids = "Cells", ncol = layout$ncol
+    )
+    p.props_stat <- set_lab_legend(
+      add(layout, wrap(p.props_stat)),
+      glue::glue("{sig(x)} Scissor Cell Proportion intergroup comparison"),
+      glue::glue("Scissor 细胞群占比的组间差异分析|||差异分析 Scissor+ 与 Scissor- 细胞比例。横坐标为为不同细胞簇类型，纵坐标为细胞类型所占比例，纵坐标越高表示该细胞类型所占比例越大。不同颜色代表不同分组。")
+    )
+    snap_stat <- .stat_compare_by_pvalue(
+      p.props_stat, c("scissor_pos", "scissor_neg"), 
+      name = "", mode = "ratio"
+    )
+    x <- snapAdd(
+      x, "针对不同样本的不同 Scissor 细胞类型，对细胞占比做差异分析。{snap_stat}",
+      step = .name
+    )
+    name <- glue::glue("map_{.name}")
+    x[[name]] <- namel(p.map, p.props, p.props_group, p.props_stat)
+    return(x)
+  })
+
+setMethod("pal", signature = c(x = "job_scissor"),
+  function(x){
+    c(
+      "scissor_null" = "Grey70",
+      "scissor_pos" = "Maroon",
+      "scissor_neg" = "lightblue"
+    )
+  })
+
+setMethod("map", signature = c(x = "job_seurat", ref = "job_scissor"),
+  function(x, ref)
+  {
+    if (is.null(ref$metadata$scissor_cell)) {
+      stop('is.null(ref$metadata$scissor_cell).')
+    }
+    metadata <- data.frame(
+      dplyr::select(ref$metadata, scissor_cell), 
+      row.names = ref$metadata$cell
+    )
+    object(x) <- SeuratObject::AddMetaData(object(x), metadata)
     return(x)
   })
 
@@ -287,7 +440,6 @@ setMethod("step3", signature = c(x = "job_scissor"),
         alpha = res$para$alpha,
         ncell_select = ncell_select,
         ratio_select_vs_all = ncell_select / ncell_all,
-        ratio_pos_vs_select = length(cell_pos) / ncell_select,
         unlist(stats_select),
         unlist(stats_id)
       )

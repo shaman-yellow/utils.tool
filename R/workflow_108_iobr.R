@@ -279,13 +279,23 @@ setMethod("step2", signature = c(x = "job_iobr"),
   }
 }
 
-.scale_for_cor_palette <- function() {
-  scale_fill_distiller(
-    palette = "RdBu",
-    direction = -1,
-    limits = c(-1, 1),
-    name = "Correlation"
-  )
+.scale_for_cor_palette <- function(type = c("fill", "color")) {
+  type <- match.arg(type)
+  if (type == "fill") {
+    scale_fill_distiller(
+      palette = "RdBu",
+      direction = -1,
+      limits = c(-1, 1),
+      name = "Correlation"
+    )
+  } else {
+    scale_color_distiller(
+      palette = "RdBu",
+      direction = -1,
+      limits = c(-1, 1),
+      name = "Correlation"
+    )
+  }
 }
 
 add_noise <- function(mtx, level = 1e-6, seed = 12345) {

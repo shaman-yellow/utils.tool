@@ -13,7 +13,7 @@ setGeneric("asjob_seurat_sub", group = list("asjob_series"),
 
 setMethod("asjob_seurat_sub", signature = c(x = "job_seurat"),
   function(x, ref, group, group.by = "scsa_cell", cellName = "cell",
-    get_after = "seurat_clusters")
+    get_after = "seurat_clusters", refine = NULL, cut.refine = 0)
   {
     if (missing(ref)) {
       ref <- as_tibble(object(x)@meta.data, idcol = cellName)
@@ -66,9 +66,10 @@ setMethod("asjob_seurat_sub", signature = c(x = "job_seurat"),
     }
     orderSub <- match(colnames(object(x)), metadata[[cellName]])
     object(x)@meta.data <- cbind(
-      object(x)@meta.data, metadata[ orderSub,  ]
+      object(x)@meta.data, metadata[ orderSub, !colnames(metadata) %in% colnames(object(x)@meta.data)]
     )
     x <- getsub(x, !!rlang::sym(group.by) %in% !!group)
+    methodAdd_onExit("x", "提取 {bind(group)} 对其二次降维聚类 (重新对其按照完整工作流整合不同样本) 以分析其亚群。")
     isDropped <- vapply(
       object(x)@assays$RNA@layers, FUN.VALUE = logical(1),
       function(x) {
@@ -78,21 +79,44 @@ setMethod("asjob_seurat_sub", signature = c(x = "job_seurat"),
     if (any(isDropped)) {
       sampleNames <- s(names(object(x)@assays$RNA@layers), "^counts\\.", "")
       stop(glue::glue("Please remove the Dropped assay layers: {bind(sampleNames[isDropped])}"))
-      # object(x)@assays$RNA@layers <- object(x)@assays$RNA@layers[!isDropped]
-      # object(x)@assays$RNA@default <- length(object(x)@assays$RNA@layers)
-      # lgMap <- object(x)@assays$RNA@cells@.Data
-      # mata <- object(x)@meta.data <- dplyr::filter(object(x)@meta.data, !orig.ident %in% !!sampleNames)
-      # object(x)@assays$RNA@cells@.Data <- lgMap[
-      #   rownames(lgMap) %in% rownames(meta), colnames(lgMap) %in% meta$orig.ident
-      #   ]
-      # object(x)@active.ident <- as.factor(object(x)@meta.data$orig.ident)
+    }
+    if (!is.null(refine)) {
+      if (!is(refine, "refine")) {
+        stop('!is(refine, "refine"), the refine is not valid?')
+      }
+      if (length(unlist(refine$cells)) != ncol(object(x))) {
+        stop(
+          'length(unlist(refine$cells)) != ncol(object(x)), not match cells number?'
+        )
+      }
+      message(
+        glue::glue("Before refine cells, dim: {bind(dim(object(x)))}")
+      )
+      ncell_pre <- ncol(object(x))
+      cells_keep <- unlist(
+        dplyr::filter(tibble::as_tibble(refine), purity > cut.refine)$cells
+      )
+      object(x) <- e(SeuratObject:::subset.Seurat(object(x), cells = cells_keep))
+      message(
+        glue::glue("After refine cells, dim: {bind(dim(object(x)))}")
+      )
+      ncell_aft <- ncol(object(x))
+      methodAdd_onExit("x", "{snap(refine)}在对细胞提纯之前，子集细胞总数量为 {ncell_pre}，在提纯之后，细胞总数量为 {ncell_aft}。")
     }
     validObject(object(x))
     x <- .job_seurat_sub(object = object(x))
-    x <- methodAdd(x, "提取 {bind(group)} 对其二次降维聚类 (重新对其按照完整工作流整合不同样本) 以分析其亚群。")
     x$group.by <- group.by
     return(x)
   })
+
+# object(x)@assays$RNA@layers <- object(x)@assays$RNA@layers[!isDropped]
+# object(x)@assays$RNA@default <- length(object(x)@assays$RNA@layers)
+# lgMap <- object(x)@assays$RNA@cells@.Data
+# mata <- object(x)@meta.data <- dplyr::filter(object(x)@meta.data, !orig.ident %in% !!sampleNames)
+# object(x)@assays$RNA@cells@.Data <- lgMap[
+#   rownames(lgMap) %in% rownames(meta), colnames(lgMap) %in% meta$orig.ident
+#   ]
+# object(x)@active.ident <- as.factor(object(x)@meta.data$orig.ident)
 
 setMethod("step0", signature = c(x = "job_seurat_sub"),
   function(x){
@@ -104,6 +128,43 @@ setMethod("step1", signature = c(x = "job_seurat_sub"),
     step_message("Render as job_seurat5n.")
     x <- .job_seurat5n(x)
     return(x)
+  })
+
+setMethod("refine", signature = c(x = "job_seurat"),
+  function(x, pos, neg, group.by = "seurat_clusters")
+  {
+    if (x@step < 3L) {
+      stop('x@step < 3L.')
+    }
+    object(x) <- Seurat::AddModuleScore(
+      object(x),
+      features = list(pos),
+      name = "tmp_pos"
+    )
+    object(x) <- Seurat::AddModuleScore(
+      object(x),
+      features = list(neg),
+      name = "tmp_neg"
+    )
+    raw <- meta <- object(x)@meta.data
+    meta$purity <- meta$tmp_pos1 - meta$tmp_neg1
+    meta <- data.table::as.data.table(meta)
+    stat <- meta[ , .(
+      tmp_pos1 = mean(tmp_pos1, na.rm = TRUE),
+      tmp_neg1 = mean(tmp_neg1, na.rm = TRUE),
+      purity = mean(purity, na.rm = TRUE),
+      n_cells = .N), by = group.by
+      ]
+    stat <- tibble::as_tibble(stat)
+    cells <- split(rownames(raw), raw[[ group.by ]])
+    stat$cells <- lapply(stat[[ group.by ]],
+      function(group) {
+        cells[[ as.character(group) ]]
+      })
+    stat$n_cells <- lengths(stat$cells)
+    stat <- structure(stat, class = c(class(stat), "refine"))
+    snap(stat) <- glue::glue("{.note_refine_cluster}\n计算目标谱系得分所使用的 marker 为 {bind(pos)}，计算非目标谱系得分的 marker 为 {bind(neg)}。")
+    stat
   })
 
 # setMethod("step2", signature = c(x = "job_seurat_sub"),
@@ -152,31 +213,4 @@ setMethod("step1", signature = c(x = "job_seurat_sub"),
 #     return(x)
 #   })
 
-as_markers <- function(cell_markers, snap = NULL, df = NULL, ref = "pmid")
-{
-  if (!is.null(df)) {
-    colnames(df) <- c("cell", "markers")
-    cell_markers <- df
-  } else {
-    type <- vapply(cell_markers, class, character(1))
-    if (all(type == "character")) {
-      cell_markers <- as_df.lst(cell_markers, "cell", "markers")
-    } else if (all(type == "list")) {
-      lst <- lapply(cell_markers, 
-        function(x) {
-          setNames(
-            tibble::tibble(markers = x[["markers"]], ref = bind(x[[ref]])),
-            c("markers", ref)
-          )
-        })
-      cell_markers <- dplyr::bind_rows(lst, .id = "cell")
-      refs <- bind(unique(unlist(strsplit(cell_markers[[ref]], ", "))))
-      snap(cell_markers) <- glue::glue("{toupper(ref)}: {refs}")
-    }
-  }
-  if (!is.null(snap)) {
-    snap(cell_markers) <- snap
-  }
-  cell_markers
-}
-
+.note_refine_cluster <- "鉴于全局注释阶段主要关注细胞大类识别，当提取子集 (尤其是子集细胞数相对较少时) 目标细胞子集中仍可能包含转录特征相近的非目标细胞或边缘状态细胞，因此在子集分析前，需要对目标细胞纯度进行再次评估与优化。具体而言，基于目标细胞的经典标志基因集合构建目标谱系得分（positive lineage score），同时基于潜在混杂细胞类型的特异性标志基因集合构建非目标谱系得分（negative lineage score）。该目标谱系得分通过 `Seurat::AddModuleScore` 计算。随后以二者差值定义细胞纯度评分（purity score），用于衡量单细胞转录特征与目标谱系的一致性。进一步按照子集重聚类结果，在簇水平汇总各细胞群的平均纯度评分及细胞数量，识别纯度较低或富集非目标谱系特征的细胞簇，并将其排除。"

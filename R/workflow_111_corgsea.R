@@ -249,18 +249,19 @@ setMethod("vis", signature = c(x = "job_gseaSet"),
   })
 
 
-.set_msig_db <- function(x, mode, sub) {
+.set_msig_db <- function(x, mode, sub = NULL) {
   if (packageVersion("msigdbr") < "10.0.0") {
     db_anno <- e(msigdbr::msigdbr(species = "Homo sapiens", category = mode))
   } else {
     db_anno <- e(msigdbr::msigdbr(species = "Homo sapiens", collection = mode))
   }
   x <- methodAdd(
-    x, "以 R 包 `msigdbr` ⟦pkgInfo('msigdbr')⟧ 获取 MSigDB 数据库{mode}基因集。该基因集包含多个子集：{try_snap(db_anno, 'gs_subcat', 'gs_name')}。"
+    x, "以 R 包 `msigdbr` ⟦pkgInfo('msigdbr')⟧ 获取 MSigDB 数据库 {mode} 基因集。"
   )
   if (!is.null(sub)) {
     select <- c("CP:REACTOME", "CP:KEGG", "CP:WIKIPATHWAYS")
     db_anno <- dplyr::filter(db_anno, gs_subcat %in% !!select)
+    x <- methodAdd(x, "该基因集包含多个子集：{try_snap(db_anno, 'gs_subcat', 'gs_name')}。")
     x <- methodAdd(x, "选取 {bind(select)} 子集用于后续分析。")
   }
   x$db_anno <- db_anno

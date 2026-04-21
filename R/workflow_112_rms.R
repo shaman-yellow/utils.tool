@@ -394,5 +394,5 @@ new_roc <- function(y, x, ..., plot.thres = NULL, lang = c("en", "cn"), cn.mode 
   events
 }
 
-fmt <- function(x) formatC(x, digits = 4, format = "fg")
+fmt <- function(x, n = 4) formatC(x, digits = n, format = "f")
 

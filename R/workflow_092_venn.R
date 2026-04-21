@@ -59,20 +59,36 @@ job_vennDEGs <- function(pattern, exclude = NULL,
   return(x)
 }
 
-job_venn <- function(..., analysis = NULL, lst = NULL, fun_map = function(x) x)
+job_venn <- function(..., mode = c("key", "candidates"),
+  analysis = NULL, lst = NULL, fun_map = function(x) x)
 {
   if (is.null(lst)) {
     object <- list(...)
   } else {
     object <- lst
   }
-  methodAdd_onExit("x", "以 R 包 `ggVennDiagram` ⟦pkgInfo('ggVennDiagram')⟧ 对基因集取交集。")
+  nature <- "基因集"
   if (all(vapply(object, is, logical(1), "feature"))) {
-    snaps <- paste0("- ", vapply(object, snap, character(1)))
+    snaps <- paste0(
+      "- ", vapply(
+        object, snap, character(1), enumerate = FALSE, unlist = TRUE
+      )
+    )
     methodAdd_onExit("x", "数据集为：\n\n{bind(snaps, co = '\n')}\n\n\n\n")
+    nature <- object[[1]]@nature
+    message(glue::glue("Use nature as: {nature}"))
     object <- lapply(object, function(x) fun_map(unlist(x@.Data)))
+    if (is.null(analysis)) {
+      mode <- match.arg(mode)
+      mode <- switch(mode, key = "关键", candidates = "候选")
+      analysis <- glue::glue("{mode}{nature}")
+    }
+  } else {
+    message(glue::glue("Some were not 'feature', be carefull! If you need automatic snap ..."))
   }
-  x <- .job_venn(object = object)
+  x <- .job_venn(object = lapply(object, unlist))
+  x <- methodAdd(x, "以 R 包 `ggVennDiagram` ⟦pkgInfo('ggVennDiagram')⟧ 对{nature}取交集。")
+  x$nature <- nature
   x$analysis <- analysis
   return(x)
 }
@@ -85,7 +101,7 @@ setMethod("step0", signature = c(x = "job_venn"),
 setMethod("step1", signature = c(x = "job_venn"),
   function(x, ...){
     step_message("Intersection.")
-    p.venn <- new_venn(lst = object(x), ...)
+    p.venn <- new_venn(lst = object(x), force_upset = FALSE, ...)
     p.venn <- set_lab_legend(
       p.venn,
       glue::glue("{x@sig} intersection of {bind(names(object(x)), co = ' with ')}"),
@@ -107,9 +123,9 @@ setMethod("step1", signature = c(x = "job_venn"),
     x <- snapAdd(x, "对{bind(names(object(x)))} 取交集，得到{length(p.venn$ins)}个交集{iter}{aref(p.venn)}。")
     x <- plotsAdd(x, p.venn)
     if (!is.null(x$analysis)) {
-      feature(x) <- as_feature(p.venn$ins, x$analysis, ...)
+      feature(x) <- as_feature(p.venn$ins, x$analysis, nature = x$nature, ...)
     } else {
-      x$.feature <- as_feature(p.venn$ins, x, ...)
+      x$.feature <- as_feature(p.venn$ins, x, nature = x$nature, ...)
     }
     return(x)
   })

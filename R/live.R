@@ -1570,7 +1570,7 @@ calculate_layout_size <- function(layout, base_size = 5,
 
 
 wrap <- function(data, width = 10, height = 8, showtext = NULL, 
-  force = FALSE, get_attrs = c("pvalue", "compare"))
+  force = FALSE, get_attrs = c("pvalue", "compare"), convert = TRUE)
 {
   if (!force) {
     width <- if (width > 20) 20 else width
@@ -1591,7 +1591,7 @@ wrap <- function(data, width = 10, height = 8, showtext = NULL,
     if (!is.null(lab(data))) {
       lab <- lab(data)
     }
-    if (is(data, "gg.obj")) {
+    if (is(data, "gg.obj") && convert) {
       data <- as_grob(data)
     }
     if (is.null(showtext)) {

@@ -35,7 +35,9 @@ setValidity("job_genecardn",
 
 job_genecard <- function(disease)
 {
-  .job_genecard(object = disease)
+  x <- .job_genecard(object = disease)
+  x <- methodAdd(x, "GeneCards 整合了基因功能注释、疾病关联、表达谱及文献信息，可通过关键词检索获得与研究主题相关的基因列表。根据相关性评分（Relevance score）或检索结果筛选候选基因后，形成目标基因集，并用于差异分析、功能富集分析、机器学习筛选及网络构建等后续研究，从而为关键基因挖掘及机制解析提供基础数据支持。")
+  return(x)
 }
 
 setMethod("step0", signature = c(x = "job_genecard"),
@@ -50,45 +52,56 @@ setMethod("step1", signature = c(x = "job_genecard"),
     t.genecards <- get_from_genecards(object(x), score = score, restrict = restrict)
     t.genecards <- .set_lab(t.genecards, sig(x), "disease related targets from GeneCards")
     t.genecards <- setLegend(t.genecards, "为 GeneCards 检索 ({object(x)}) 得到的基因集。")
-    x@tables[[ 1 ]] <- namel(t.genecards)
+    x <- tablesAdd(x, t.genecards)
+    x$.feature <- as_feature(
+      setNames(list(t.genecards$Symbol), formal_name(object(x))), 
+      glue::glue("从 GeneCards 获取的 {object(x)} 相关基因集")
+    )
     x$score <- attr(t.genecards, ".score")
     x <- methodAdd(x, "从 `GeneCards` 数据库 {cite_show('TheGenecardsSStelze2016')} 获取 {object(x)} 相关的基因集，得分 cut-off 为 {x$score}。")
     s.com <- try_snap(t.genecards, "Category", "Symbol")
-    x <- snapAdd(x, "从 `GeneCards` 搜索 {object(x)}, 获取对应靶点数据，统计为 {s.com}。共 {nrow(t.genecards)} 个靶点。")
+    x <- snapAdd(x, "从 `GeneCards` 搜索 {object(x)}, 获取对应靶点数据，按 Category 分类，各类目下包含基因 {s.com}。共 {nrow(t.genecards)} 个靶点。")
     return(x)
   })
 
 get_from_genecards <- function(query, score = 5, keep_drive = FALSE, restrict = FALSE,
   advance = FALSE, term = c("compounds"))
 {
-  link <- start_drive(browser = "firefox")
-  link$open()
-  query_raw <- query
-  if (grpl(query, " ")) {
-    query <- gs(query, " ", "%20")
+  fun_get <- function(...) {
+    link <- start_drive(browser = "firefox")
+    link$open()
+    query_raw <- query
+    if (grpl(query, " ")) {
+      query <- gs(query, " ", "%20")
+    }
+    if (restrict) {
+      query <- paste0("\"", query, "\"")
+    }
+    if (advance) {
+      term <- match.arg(term)
+      query <- paste0("%20%5B", term, "%5D%20%20(%20%20", query, "%20%20)%20")
+    }
+    url <- paste0('https://www.genecards.org/Search/Keyword?queryString=', query,
+      '&pageSize=25000&startPage=0')
+    message("Navigate to URL:\n\t", url)
+    link$navigate(url)
+    Sys.sleep(5)
+    html <- link$getPageSource()[[1]]
+    link$close()
+    end_drive()
+    html <- XML::htmlParse(html)
+    table <- XML::readHTMLTable(html)
+    table <- as_tibble(data.frame(table[[1]]))
+    colnames(table) %<>% gs("\\.+", "_")
+    colnames(table) %<>% gs("X_|_$", "")
+    table <- dplyr::select(table, -1, -2)
+    dplyr::mutate(table, Score = as.double(Score))
   }
-  if (restrict) {
-    query <- paste0("\"", query, "\"")
-  }
-  if (advance) {
-    term <- match.arg(term)
-    query <- paste0("%20%5B", term, "%5D%20%20(%20%20", query, "%20%20)%20")
-  }
-  url <- paste0('https://www.genecards.org/Search/Keyword?queryString=', query,
-    '&pageSize=25000&startPage=0')
-  message("Navigate to URL:\n\t", url)
-  link$navigate(url)
-  Sys.sleep(5)
-  html <- link$getPageSource()[[1]]
-  link$close()
-  end_drive()
-  html <- XML::htmlParse(html)
-  table <- XML::readHTMLTable(html)
-  table <- as_tibble(data.frame(table[[1]]))
-  colnames(table) %<>% gs("\\.+", "_")
-  colnames(table) %<>% gs("X_|_$", "")
-  table <- dplyr::select(table, -1, -2)
-  table <- dplyr::mutate(table, Score = as.double(Score))
+  table <- expect_local_data(
+    "tmp", "genecards", fun_get, list(
+      query, restrict, advance, term
+    )
+  )
   if (is.null(score)) {
     ss <- c(seq(1, 30, by = 1), 0L)
     chs <- vapply(ss, FUN.VALUE = double(1),
@@ -101,7 +114,7 @@ get_from_genecards <- function(query, score = 5, keep_drive = FALSE, restrict = 
   table <- filter(table, Score > !!score)
   attr(table, ".score") <- score
   lich <- list(
-    "The GeneCards data was obtained by querying" = query_raw,
+    "The GeneCards data was obtained by querying" = query,
     "Restrict (with quotes)" = restrict,
     "Filtering by Score:" = paste0("Score > ", score)
   )
@@ -171,11 +184,6 @@ setMethod("cal_corp", signature = c(x = "job_limma", y = "job_genecardn"),
 setMethod("res", signature = c(x = "job_genecard"),
   function(x){
     x@tables$step1$t.genecards
-  })
-
-setMethod("feature", signature = c(x = "job_genecard"),
-  function(x){
-    as_feature(list(x@tables$step1$t.genecards$Symbol), x)
   })
 
 plot_col.genecard <- function(data, top = 10, facet = TRUE)
