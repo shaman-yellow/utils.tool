@@ -20,7 +20,7 @@ job_iobr <- function(object, metadata)
   return(x)
 }
 
-setGeneric("asjob_iobr", group = list("asjob_series"),
+setGeneric("asjob_iobr",
    function(x, ...) standardGeneric("asjob_iobr"))
 
 setMethod("asjob_iobr", signature = c(x = "job_limma"),

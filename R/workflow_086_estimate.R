@@ -19,7 +19,7 @@
     analysis = "estimate 免疫评分"
     ))
 
-setGeneric("asjob_estimate", group = list("asjob_series"),
+setGeneric("asjob_estimate",
   function(x, ...) standardGeneric("asjob_estimate"))
 
 setMethod("asjob_estimate", signature = c(x = "job_limma"),

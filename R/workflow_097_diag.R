@@ -18,7 +18,7 @@ job_diag <- function()
   .job_diag()
 }
 
-setGeneric("asjob_diag", group = list("asjob_series"),
+setGeneric("asjob_diag",
    function(x, ...) standardGeneric("asjob_diag"))
 
 setMethod("asjob_diag", signature = c(x = "job_limma"),

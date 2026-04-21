@@ -24,7 +24,7 @@ job_fella <- function(kegg) {
   x
 }
 
-setGeneric("asjob_fella", group = list("asjob_series"),
+setGeneric("asjob_fella",
   function(x, ...) standardGeneric("asjob_fella"))
 
 setMethod("asjob_fella", signature = c(x = "job_metabo"),

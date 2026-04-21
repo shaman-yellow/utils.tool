@@ -18,7 +18,7 @@
     analysis = "WGCNA 分析"
     ))
 
-setGeneric("asjob_wgcna", group = list("asjob_series"),
+setGeneric("asjob_wgcna",
   function(x, ...) standardGeneric("asjob_wgcna"))
 
 setMethod("asjob_wgcna", signature = c(x = "job_seurat"),

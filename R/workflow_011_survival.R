@@ -76,7 +76,7 @@ setMethod("do_survival", signature = c(x = "list", ref = "job_survival"),
   glue::glue("{if (merge) '对于不同注释来源的基因名，以 `org.Hs.eg.db::org.Hs.eg.db` 获取基因的别名 (ALIAS) ，根据 (ALIAS) 的一致性合并。' else ''}查找预后模型中基因的 ALIAS，在未找到对应基因的情况下，使用该基因的 ALIAS 查找。 (原模型基因：{bind(from$fea_coefs$feature)}；以 ALIAS 匹配后，基因为：{bind(to$fea_coefs$feature)}) 。")
 }
 
-setGeneric("asjob_survival", group = list("asjob_series"),
+setGeneric("asjob_survival",
   function(x, ...) standardGeneric("asjob_survival"))
 
 setMethod("asjob_survival", signature = c(x = "job_lasso"),

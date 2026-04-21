@@ -217,7 +217,7 @@ setMethod("merge", signature = c(x = "job_tcga", y = "job_tcga"),
     return(x)
   })
 
-setGeneric("asjob_limma", group = list("asjob_series"),
+setGeneric("asjob_limma",
   function(x, ...) standardGeneric("asjob_limma"))
 
 setMethod("asjob_limma", signature = c(x = "job_tcga"),

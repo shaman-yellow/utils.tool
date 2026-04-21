@@ -42,7 +42,7 @@ select_pdb <- function(id, chain, resi) {
   .select_pdb(id = id, chain = chain, resi = resi)
 }
 
-setGeneric("asjob_vina", group = list("asjob_series"),
+setGeneric("asjob_vina",
   function(x, ...) standardGeneric("asjob_vina"))
 
 setMethod("asjob_vina", signature = c(x = "job_stringdb"),

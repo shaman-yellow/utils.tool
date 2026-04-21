@@ -1494,7 +1494,7 @@ setMethod("skel", signature = c(x = "job_seurat"),
     writeLines(code)
   })
 
-setGeneric("asjob_seurat", group = list("asjob_series"),
+setGeneric("asjob_seurat",
   function(x, ...) standardGeneric("asjob_seurat"))
 
 setMethod("mutate", signature = c(x = "job_seurat"),

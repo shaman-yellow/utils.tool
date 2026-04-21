@@ -19,7 +19,7 @@
     analysis = "MusiteDeep 蛋白质转录后修饰位点预测"
     ))
 
-setGeneric("asjob_musite", group = list("asjob_series"),
+setGeneric("asjob_musite",
    function(x, ...) standardGeneric("asjob_musite"))
 
 job_musite <- function(symbols)

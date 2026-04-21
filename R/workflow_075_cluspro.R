@@ -19,7 +19,7 @@
     analysis = "ClusPro 蛋白质-蛋白质对接预测"
     ))
 
-setGeneric("asjob_cluspro", group = list("asjob_series"),
+setGeneric("asjob_cluspro",
    function(x, ...) standardGeneric("asjob_cluspro"))
 
 job_cluspro <- function(symbols, .layout = NULL)

@@ -13,7 +13,7 @@
     analysis = "Pathview 通路可视化"
     ))
 
-setGeneric("asjob_pathview", group = list("asjob_series"),
+setGeneric("asjob_pathview",
    function(x, ...) standardGeneric("asjob_pathview"))
 
 setMethod("asjob_pathview", signature = c(x = "job_gsea"),

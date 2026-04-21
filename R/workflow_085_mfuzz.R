@@ -94,7 +94,7 @@ setMethod("asjob_enrich", signature = c(x = "job_mfuzz"),
     x
   })
 
-setGeneric("asjob_mfuzz", group = list("asjob_series"),
+setGeneric("asjob_mfuzz",
   function(x, ...) standardGeneric("asjob_mfuzz"))
 
 setMethod("asjob_mfuzz", 

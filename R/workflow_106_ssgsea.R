@@ -13,7 +13,7 @@
     analysis = "ssGSEA 单样本GSEA富集分析"
     ))
 
-setGeneric("asjob_ssgsea", group = list("asjob_series"),
+setGeneric("asjob_ssgsea",
    function(x, ...) standardGeneric("asjob_ssgsea"))
 
 setMethod("asjob_ssgsea", signature = c(x = "job_limma"),

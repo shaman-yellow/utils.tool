@@ -46,7 +46,7 @@ setMethod("do_monocle", signature = c(x = "job_seurat", ref = "character"),
     return(x)
   })
 
-setGeneric("asjob_monocle", group = list("asjob_series"),
+setGeneric("asjob_monocle",
   function(x, ...) standardGeneric("asjob_monocle"))
 
 setMethod("asjob_monocle", signature = c(x = "job_seurat"),

@@ -22,7 +22,7 @@
     analysis = "GATK WES/WGS Workflow"
     ))
 
-setGeneric("asjob_gatk", group = list("asjob_series"),
+setGeneric("asjob_gatk",
   function(x, ...) standardGeneric("asjob_gatk"))
 
 setMethod("asjob_gatk", signature = c(x = "job_fastp"),

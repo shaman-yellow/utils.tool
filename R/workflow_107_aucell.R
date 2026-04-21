@@ -13,7 +13,7 @@
     analysis = "AUCell 识别细胞的基因集活性"
     ))
 
-setGeneric("asjob_aucell", group = list("asjob_series"),
+setGeneric("asjob_aucell",
    function(x, ...) standardGeneric("asjob_aucell"))
 
 setMethod("asjob_aucell", signature = c(x = "job_seurat"),

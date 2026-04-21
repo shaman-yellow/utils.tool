@@ -20,7 +20,7 @@
     analysis = "Biobakery 宏基因组数据前处理"
     ))
 
-setGeneric("asjob_biobakery", group = list("asjob_series"),
+setGeneric("asjob_biobakery",
   function(x, ...) standardGeneric("asjob_biobakery"))
 
 setMethod("asjob_biobakery", signature = c(x = "job_fastp"),

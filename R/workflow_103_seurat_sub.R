@@ -8,7 +8,7 @@
     analysis = "Seurat 细胞亚群分析"
     ))
 
-setGeneric("asjob_seurat_sub", group = list("asjob_series"),
+setGeneric("asjob_seurat_sub",
    function(x, ...) standardGeneric("asjob_seurat_sub"))
 
 setMethod("asjob_seurat_sub", signature = c(x = "job_seurat"),

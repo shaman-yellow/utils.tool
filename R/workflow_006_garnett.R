@@ -17,7 +17,7 @@
   analysis = "Garnett 微生物信息注释"
   ))
 
-setGeneric("asjob_garnett", group = list("asjob_series"),
+setGeneric("asjob_garnett",
   function(x, ...) standardGeneric("asjob_garnett"))
 
 setMethod("asjob_garnett", signature = c(x = "job_seurat"),

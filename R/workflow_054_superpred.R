@@ -102,7 +102,7 @@ setMethod("step1", signature = c(x = "job_superpred"),
     return(x)
   })
 
-setGeneric("asjob_superpred", group = list("asjob_series"),
+setGeneric("asjob_superpred",
   function(x, ...) standardGeneric("asjob_superpred"))
 
 setMethod("asjob_superpred", signature = c(x = "job_pubchemr"),

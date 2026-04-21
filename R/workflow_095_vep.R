@@ -13,7 +13,7 @@
     analysis = "VEP 变异注释"
     ))
 
-setGeneric("asjob_vep", group = list("asjob_series"),
+setGeneric("asjob_vep",
    function(x, ...) standardGeneric("asjob_vep"))
 
 setMethod("asjob_vep", signature = c(x = "job_ogwas"),
@@ -226,7 +226,7 @@ setMethod("step3", signature = c(x = "job_vep"),
     return(x)
   })
 
-setGeneric("asjob_fusion", group = list("asjob_series"),
+setGeneric("asjob_fusion",
    function(x, ...) standardGeneric("asjob_fusion"))
 
 setMethod("asjob_fusion", signature = c(x = "job_vep"),

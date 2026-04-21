@@ -2336,7 +2336,7 @@ setGroupGeneric("step_series",
     stop("...")
   })
 
-setGeneric("step0", group = list("step_series"),
+setGeneric("step0",
   function(x, ...) {
     if (!missing(x)) {
       if (!is(x, "numeric") & !is(x, "character")) {
@@ -2471,7 +2471,7 @@ job_append_method <- function(x, step = NULL, append = FALSE, method = TRUE, ona
   }
 }
 
-setGeneric("step1", group = list("step_series"),
+setGeneric("step1",
   function(x, ...) {
     # if (identical(sig(x), character(0))) {
     legal <- TRUE
@@ -2518,77 +2518,77 @@ setGeneric("step1", group = list("step_series"),
     x
   })
 
-setGeneric("step2", group = list("step_series"),
+setGeneric("step2",
   function(x, ...) {
     x <- checkAddStep(x, 2L)
     x <- standardGeneric("step2")
     stepPostModify(x, 2, "step2", call = match.call())
   })
 
-setGeneric("step3", group = list("step_series"),
+setGeneric("step3",
   function(x, ...) {
     x <- checkAddStep(x, 3L)
     x <- standardGeneric("step3")
     stepPostModify(x, 3, "step3", call = match.call())
   })
 
-setGeneric("step4", group = list("step_series"),
+setGeneric("step4",
   function(x, ...) {
     x <- checkAddStep(x, 4L)
     x <- standardGeneric("step4")
     stepPostModify(x, 4, "step4", call = match.call())
   })
 
-setGeneric("step5", group = list("step_series"),
+setGeneric("step5",
   function(x, ...) {
     x <- checkAddStep(x, 5L)
     x <- standardGeneric("step5")
     stepPostModify(x, 5, "step5", call = match.call())
   })
 
-setGeneric("step6", group = list("step_series"),
+setGeneric("step6",
   function(x, ...) {
     x <- checkAddStep(x, 6L)
     x <- standardGeneric("step6")
     stepPostModify(x, 6, "step6", call = match.call())
   })
 
-setGeneric("step7", group = list("step_series"),
+setGeneric("step7",
   function(x, ...) {
     x <- checkAddStep(x, 7L)
     x <- standardGeneric("step7")
     stepPostModify(x, 7, "step7", call = match.call())
   })
 
-setGeneric("step8", group = list("step_series"),
+setGeneric("step8",
   function(x, ...) {
     x <- checkAddStep(x, 8L)
     x <- standardGeneric("step8")
     stepPostModify(x, 8, "step8", call = match.call())
   })
 
-setGeneric("step9", group = list("step_series"),
+setGeneric("step9",
   function(x, ...) {
     x <- checkAddStep(x, 9L)
     x <- standardGeneric("step9")
     stepPostModify(x, 9, "step9", call = match.call())
   })
 
-setGeneric("step10", group = list("step_series"),
+setGeneric("step10",
   function(x, ...) {
     x <- checkAddStep(x, 10L)
     x <- standardGeneric("step10")
     stepPostModify(x, 10, "step10", call = match.call())
   })
 
-setGeneric("step11", group = list("step_series"),
+setGeneric("step11",
   function(x, ...) {
     x <- checkAddStep(x, 11L)
     x <- standardGeneric("step11")
     stepPostModify(x, 11, "step11", call = match.call())
   })
 
-setGeneric("step12", group = list("step_series"),
+setGeneric("step12",
   function(x, ...) {
     x <- checkAddStep(x, 12L)
     x <- standardGeneric("step12")

@@ -18,7 +18,7 @@
     analysis = "ClusterProfiler GSEA 富集分析"
     ))
 
-setGeneric("asjob_gsea", group = list("asjob_series"),
+setGeneric("asjob_gsea",
   function(x, ...) standardGeneric("asjob_gsea"))
 
 setMethod("asjob_gsea", signature = c(x = "job_limma"),

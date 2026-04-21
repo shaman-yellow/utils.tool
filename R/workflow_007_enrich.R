@@ -18,7 +18,7 @@
     analysis = "ClusterProfiler 富集分析"
     ))
 
-setGeneric("asjob_enrich", group = list("asjob_series"),
+setGeneric("asjob_enrich",
   function(x, ...) standardGeneric("asjob_enrich"))
 
 setMethod("asjob_enrich", signature = c(x = "feature"),

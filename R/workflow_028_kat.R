@@ -28,7 +28,7 @@ job_kat <- function(x, refs = "")
   return(x)
 }
 
-setGeneric("asjob_kat", group = list("asjob_series"),
+setGeneric("asjob_kat",
   function(x, ...) standardGeneric("asjob_kat"))
 
 setMethod("asjob_kat", signature = c(x = "job_seurat"),

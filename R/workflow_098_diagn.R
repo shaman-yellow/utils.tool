@@ -13,7 +13,7 @@
     analysis = "RNA 数据集验证"
     ))
 
-setGeneric("asjob_diagn", group = list("asjob_series"),
+setGeneric("asjob_diagn",
    function(x, ...) standardGeneric("asjob_diagn"))
 
 setMethod("asjob_diagn", signature = c(x = "job_vennDEGs"),

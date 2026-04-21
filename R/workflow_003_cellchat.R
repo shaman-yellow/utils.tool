@@ -17,7 +17,7 @@
     analysis = "CellChat 细胞通讯分析"
     ))
 
-setGeneric("asjob_cellchat", group = list("asjob_series"),
+setGeneric("asjob_cellchat",
   function(x, ...) standardGeneric("asjob_cellchat"))
 
 setMethod("asjob_cellchat", signature = c(x = "job_seurat"),

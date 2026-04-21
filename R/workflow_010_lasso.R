@@ -18,7 +18,7 @@
     analysis = "COX 回归"
     ))
 
-setGeneric("asjob_lasso", group = list("asjob_series"),
+setGeneric("asjob_lasso",
   function(x, ...) standardGeneric("asjob_lasso"))
 
 setMethod("asjob_lasso", signature = c(x = "job_limma"),

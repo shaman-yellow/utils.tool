@@ -104,7 +104,7 @@ setMethod("set_remote", signature = c(x = "job_mpa"),
   })
 
 
-setGeneric("asjob_mpa", group = list("asjob_series"),
+setGeneric("asjob_mpa",
   function(x, ...) standardGeneric("asjob_mpa"))
 
 setMethod("asjob_mpa", signature = c(x = "job_fastp"),

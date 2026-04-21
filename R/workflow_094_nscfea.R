@@ -13,7 +13,7 @@
     analysis = "scFEA 单细胞数据的代谢通量预测"
     ))
 
-setGeneric("asjob_nscfea", group = list("asjob_series"),
+setGeneric("asjob_nscfea",
    function(x, ...) standardGeneric("asjob_nscfea"))
 
 setMethod("asjob_nscfea", signature = c(x = "job_seurat5n"),

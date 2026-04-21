@@ -28,7 +28,7 @@ job_stringdb <- function(data)
   .job_stringdb(object = data)
 }
 
-setGeneric("asjob_stringdb", group = list("asjob_series"),
+setGeneric("asjob_stringdb",
   function(x, ...) standardGeneric("asjob_stringdb"))
 
 setMethod("asjob_stringdb", signature = c(x = "job_herb"),
