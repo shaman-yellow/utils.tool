@@ -2,6 +2,20 @@
 # utilites
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+setMissing <- function(generic, ..., .SIG = "missing"){
+    args <- list(...)
+    sig <- getGeneric(generic)@signature
+    res <- vapply(sig, FUN.VALUE = "character",
+      function(name){
+        if (is.null(args[[ name ]]))
+          .SIG
+        else
+          args[[ name ]]
+      })
+    names(res) <- sig
+    return(res)
+  }
+
 binary_search <- function(fun = function(x) x <= 5, low = 1, high = 12)
 {
   n <- 0L

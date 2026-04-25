@@ -2,20 +2,6 @@
 # setGeneric
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-setMissing <- function(generic, ..., .SIG = "missing"){
-    args <- list(...)
-    sig <- getGeneric(generic)@signature
-    res <- vapply(sig, FUN.VALUE = "character",
-      function(name){
-        if (is.null(args[[ name ]]))
-          .SIG
-        else
-          args[[ name ]]
-      })
-    names(res) <- sig
-    return(res)
-  }
-
 # setGeneric("new_resp", 
 #   function(..., yaml) standardGeneric("new_resp"))
 

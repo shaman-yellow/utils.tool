@@ -2,13 +2,24 @@
 # Used to shift a series of functions (from files) from one package to another.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-new_package.fromFiles <- function(pkg.path, files, path = NULL,
+new_package.fromFiles <- function(pkg.path, files,
+  path = NULL,
+  import = FALSE,
   depends = c("ggplot2", "grid"),
   exclude = c("MSnbase"),
-  ...) {
-  imports <- parent_packs(files, path)
-  imports <- imports[ !imports %in% exclude ]
-  new_package(pkg.path, imports, depends, ...)
+  ...)
+{
+  if (is.logical(import)) {
+    if (import) {
+      imports <- parent_packs(files, path)
+      imports <- imports[ !imports %in% exclude ]
+    } else {
+      imports <- NULL
+    }
+  } else {
+    imports <- import
+  }
+  new_package(pkg.path, imports = imports, depends = depends, ...)
   if (!is.null(path))
     files <- paste0(path, "/", files)
   file.copy(files, paste0(pkg.path, "/R"), TRUE)
@@ -19,6 +30,7 @@ new_package <- function(path, imports = NULL, depends = NULL, extdata = NULL,
   gitignore_templ = .gitignore_templ())
 {
   pre.wd <- getwd()
+  on.exit(setwd(pre.wd))
   if (!file.exists(path)) {
     usethis::create_package(path, fields)
     usethis::use_mit_license()
@@ -39,7 +51,6 @@ new_package <- function(path, imports = NULL, depends = NULL, extdata = NULL,
   if (!is.null(imports)) {
     lapply(imports, usethis::use_package)
   }
-  setwd(pre.wd)
 }
 
 parent_packs <- function(files, path = NULL){
