@@ -2371,8 +2371,8 @@ match_strings <- function(x, y, max_dist = 0.3, method = "jw",
     y = matched,
     # x_clean = x_norm,
     # y_clean = ifelse(is.na(idx), NA, y_norm[idx]),
-    distance = dist
-    # matched_index_in_y = idx,
+    distance = dist,
+    matched_index_in_y = idx
     # stringsAsFactors = FALSE
   )
 

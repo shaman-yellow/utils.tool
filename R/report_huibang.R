@@ -455,7 +455,7 @@ pull_jobs_from_script.hb <- function(files, override = FALSE,
       list(script = file, dir = dir)
     })
   saveRDS(belongs, ".job_locate_in_script.rds")
-  belongs
+  invisible(belongs)
 }
 
 # new_script.hb <- function(theme, num = "guess", project = guess_project(), 
